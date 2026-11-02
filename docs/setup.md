@@ -23,7 +23,7 @@ Checked through GitHub's API.
 
 | Setting | Value | Note |
 |---|---|---|
-| Plan | Free | Decision pending: runbook 1.5 (GitHub Team plus the Secret Protection add-on, or not) |
+| Plan | Free | Decided later the same day: stays on Free (see "Setup documents updated" below) |
 | Two-factor authentication required for members | **Off** | To switch on: runbook 1.1 (founder) |
 | Base permission for members | Read | |
 | Members can create public repositories | Yes | |
@@ -59,6 +59,28 @@ From Anthropic's official marketplace (`claude-plugins-official`). Shared throug
 ### Tools on the founder's Mac (as found)
 
 Claude Code 2.1.316; Node.js 24.21.0; pnpm 10.33.2; Python 3.9.6; GitHub CLI 2.91.0 (signed in as `Zugzwang-world`, git over SSH); Doppler CLI 3.76.0.
+
+### Setup documents updated (founder's decisions)
+
+- **GitHub plan:** the organisation stays on the free plan. No GitHub Team and no Secret Protection add-on.
+- **Runbook:** step 1.5 (the paid-plan decision) removed. Step 1.6 rewritten: Dependabot alerts and security updates, plus an open-source secret scanner before every commit and in CI. Part 1's "Done when" line updated to match. Every Part (0 to 10) now opens with a "What we're doing" and a "Why" line. The founder's list covered Parts 1 to 10; Claude Code wrote Part 0's in the same style.
+- **Blueprint:** section 2 (GitHub row), section 11 (GitHub) and section 13 (order of setup) updated to match. The GitHub **DECIDE** item is closed.
+- **Lawyers and legal review:** both files were searched for lawyer, legal, counsel and attorney. There were no mentions, so nothing was removed.
+
+### Dependabot and the secret scanner (runbook 1.6, Claude Code)
+
+| Setting | Value | How it was checked |
+|---|---|---|
+| Dependabot alerts | On | GitHub's API: `GET /repos/zugzwang-foundation/hrizzup/vulnerability-alerts` returned 204 (on) |
+| Dependabot security updates | On, not paused | GitHub's API: `GET .../automated-security-fixes` returned enabled, not paused |
+| Secret scanner | gitleaks (MIT licence, used as a separate program, nothing copied into the repo). Version 8.30.1 on the founder's Mac (Homebrew) and in CI | — |
+| Before every commit | `.githooks/pre-commit` scans the staged changes. It stops the commit if it finds a secret, if gitleaks fails, or if gitleaks isn't installed | In a throwaway copy of the repo: a fake GitHub token was blocked; a commit with gitleaks missing was blocked; a clean commit went through |
+| Switching the hook on | `git config core.hooksPath .githooks`. A Claude Code session-start hook in `.claude/settings.json` runs this at the start of every session, on every machine | `git config core.hooksPath` shows `.githooks` on the founder's Mac |
+| In CI | `.github/workflows/secret-scan.yml` ("Secret scan"): runs on every push and pull request, and by hand. It downloads gitleaks 8.30.1 and checks its SHA-256 before running it; `actions/checkout` is pinned to the commit for v7.0.1. It scans the whole history. Read-only permissions | The CI command failed on the throwaway copy once a fake token had been forced past the hook. The first run on GitHub is recorded below |
+| History so far | No leaks | `gitleaks git` over every commit |
+| Limits of the free plan | GitHub can't block a push (no push protection, no required checks for private repos), so CI flags a secret after the push but can't stop it. The commit hook can be skipped on purpose with `git commit --no-verify`, and a machine that never opens Claude Code needs the one-line `git config` above | — |
+
+**Still open in Part 1:** step 1.1 (founder). Checked again through GitHub's API on 2 November 2026: the organisation's two-factor requirement is still **off**.
 
 ---
 

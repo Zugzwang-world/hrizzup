@@ -15,6 +15,10 @@
 
 # Part 0: Before you start
 
+**What we're doing:** the Hrizzup vault in Proton Pass, and two-step login on every account.
+
+**Why:** every login and recovery code needs one safe home before any account is set up.
+
 | Step | Who | What to do |
 |---|---|---|
 | 0.1 | You | In Proton Pass, create a vault called **Hrizzup**. |
@@ -27,20 +31,29 @@
 
 # Part 1: GitHub and the repository
 
+**What we're doing:** the private repo with the plan, rules and folders.
+
+**Why:** the single home for the code and for every setting we make.
+
 | Step | Who | What to do |
 |---|---|---|
 | 1.1 | You | In the `zugzwang-foundation` organisation's settings, require two-factor authentication for all members. **Check first:** GitHub removes any member who hasn't set up 2FA when you switch this on, so make sure your team has it. |
 | 1.2 | You | Create the repository: owner `zugzwang-foundation`, name `hrizzup`, **Private**, README off, no .gitignore, licence **No license**. |
 | 1.3 | You | In a terminal, clone the repo and start Claude Code (the commands are in the chat). |
 | 1.4 | Claude Code | First session (the brief is in the chat): puts the plan, blueprint and this runbook in place, plus the folders, status files, setup log, CLAUDE.md, the proprietary licence notice and .gitignore. It also installs the plugins and connectors, then commits and pushes. |
-| 1.5 | You | Decide the GitHub plan. A private repo only gets branch protection, rulesets, secret scanning and push protection if the **organisation** is on GitHub Team with the Secret Protection add-on (see the blueprint, section 2). If you go ahead, upgrade the organisation. |
-| 1.6 | Claude Code | After 1.5: set rulesets on `main` and `staging` (changes only through pull requests, required checks green, no force-push); turn on secret scanning, push protection, Dependabot alerts and security updates; confirm each one through GitHub's API; record them. |
+| 1.6 | Claude Code | Turn on Dependabot alerts and security updates, and add an open-source secret scanner (for example gitleaks) that runs before every commit and in CI, so a secret can never be committed. |
 
-**Done when:** the repo holds the plan files, 2FA is required for every member, and (after 1.5) every protection is confirmed through the API.
+GitHub stays on the free organisation plan, so there is no step 1.5 (it was the paid-plan decision). The other step numbers are unchanged.
+
+**Done when:** the repo holds the plan files, 2FA is required for every member, Dependabot alerts and security updates are confirmed on through GitHub's API, and the secret scanner stops a test secret before it is committed and passes in CI.
 
 ---
 
 # Part 2: Domain and DNS
+
+**What we're doing:** hrizzup.com on Cloudflare, DNSSEC, and API access for Claude Code.
+
+**Why:** email, the website and storage all depend on the domain.
 
 | Step | Who | What to do |
 |---|---|---|
@@ -56,6 +69,10 @@
 ---
 
 # Part 3: Email
+
+**What we're doing:** Proton addresses and Resend's sending domain.
+
+**Why:** Hrizzup's own email, and sign-in emails that land in the inbox.
 
 | Step | Who | What to do |
 |---|---|---|
@@ -75,6 +92,10 @@
 
 # Part 4: Secrets (Doppler)
 
+**What we're doing:** the Doppler project and configs.
+
+**Why:** one safe place for every key; hosting copies its keys from it.
+
 | Step | Who | What to do |
 |---|---|---|
 | 4.1 | You | Upgrade the Doppler workplace to the **Team** plan. |
@@ -87,6 +108,10 @@
 ---
 
 # Part 5: Database (Supabase, staging)
+
+**What we're doing:** Supabase staging in Mumbai.
+
+**Why:** where the app's data lives.
 
 | Step | Who | What to do |
 |---|---|---|
@@ -101,6 +126,10 @@
 
 # Part 6: Storage and bot protection (Cloudflare R2 and Turnstile)
 
+**What we're doing:** R2 buckets and Turnstile.
+
+**Why:** images and videos, and blocking bots at sign-in.
+
 | Step | Who | What to do |
 |---|---|---|
 | 6.1 | Claude Code | Create two staging buckets with location Asia-Pacific: **`hrizzup-staging-uploads`** (private) and **`hrizzup-staging-media`** (public). |
@@ -114,6 +143,10 @@
 
 # Part 7: Redis (Upstash)
 
+**What we're doing:** the Upstash staging database.
+
+**Why:** rate limits, caches and locks.
+
 | Step | Who | What to do |
 |---|---|---|
 | 7.1 | You | In Upstash (paid plan), create the database **`hrizzup-staging`** in the Mumbai region, or the nearest region Upstash offers. Note the region it shows after creation. |
@@ -125,6 +158,10 @@
 ---
 
 # Part 8: Sign-in (Google)
+
+**What we're doing:** the Google sign-in client.
+
+**Why:** "Sign in with Google".
 
 | Step | Who | What to do |
 |---|---|---|
@@ -140,6 +177,10 @@
 
 # Part 9: Hosting (Vercel), once the first app exists
 
+**What we're doing:** the Vercel project and staging.hrizzup.com.
+
+**Why:** the staging website, served from Mumbai.
+
 | Step | Who | What to do |
 |---|---|---|
 | 9.1 | Claude Code | Create the Vercel project **`hrizzup`** in your Pro team, connected to the repo. Set the region to Mumbai (`bom1`) in `vercel.json`, and show the region on `/api/health`. |
@@ -154,6 +195,10 @@
 ---
 
 # Part 10: Hand over to the three projects
+
+**What we're doing:** the three Claude projects sync and review.
+
+**Why:** the thinking projects start from the real setup.
 
 | Step | Who | What to do |
 |---|---|---|

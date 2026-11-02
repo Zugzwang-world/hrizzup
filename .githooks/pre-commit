@@ -1,0 +1,21 @@
+#!/bin/sh
+# Hrizzup: stop a secret before it is committed (runbook step 1.6).
+#
+# Git runs this before every commit once `git config core.hooksPath .githooks`
+# is set. Claude Code sets it automatically at the start of every session
+# (see .claude/settings.json). It scans only the staged changes with gitleaks.
+# The commit stops if gitleaks finds a secret, fails, or isn't installed.
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "Commit stopped: gitleaks (the secret scanner) is not installed." >&2
+  echo "Install it with: brew install gitleaks" >&2
+  echo "Other systems: https://github.com/gitleaks/gitleaks#installing" >&2
+  exit 1
+fi
+
+if ! gitleaks git --pre-commit --staged --redact --no-banner --verbose; then
+  echo "" >&2
+  echo "Commit stopped: gitleaks found what looks like a secret in the staged changes (details above, value hidden)." >&2
+  echo "Take the value out of the file, keep it in Doppler, and commit again." >&2
+  exit 1
+fi

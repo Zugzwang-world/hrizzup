@@ -32,7 +32,7 @@ Default to paid tiers.
 
 | Service | Plan | Used for |
 |---|---|---|
-| GitHub | The existing `zugzwang-foundation` organisation. The inventory found it on GitHub's **Free** plan; a personal Pro plan doesn't cover the organisation. **DECIDE:** a private Hrizzup repo (the organisation then needs GitHub Team, plus the paid Secret Protection add-on for secret scanning and push protection) or a public one (those protections are then free). | Code, checks, deploys |
+| GitHub | The existing `zugzwang-foundation` organisation, staying on GitHub's **Free** plan, with the **private** repo `hrizzup`. No GitHub Team and no Secret Protection add-on: an open-source secret scanner does that job instead (section 11). | Code, checks, deploys |
 | Vercel | Pro (the existing team), with a new project `hrizzup` | Staging and previews |
 | Supabase | Pro (the existing organisation), with a new project `hrizzup-staging` in Mumbai (ap-south-1) | Staging database |
 | Doppler | Team plan. It adds service accounts and audit features; the free tier forced the audit to be cut back last time. | All secrets |
@@ -171,13 +171,20 @@ Default to paid tiers.
 
 ## 11. GitHub
 
+- **Plan:** the organisation stays on GitHub's free plan. No GitHub Team and no Secret Protection add-on.
 - **Organisation:**
   - 2FA required for every member;
   - every person on their own account;
   - unused members removed.
-- **Repo:** `hrizzup` (**DECIDE** private or public, section 2).
-- **Rulesets on `main` and `staging`:** changes only through pull requests, required checks green, no force-push.
-- **Security:** secret scanning and push protection on; Dependabot alerts and security updates on.
+- **Repo:** `hrizzup`, private.
+- **Security:**
+  - Dependabot alerts and security updates on, confirmed through GitHub's API;
+  - an open-source secret scanner (gitleaks) runs before every commit and in CI, so a secret can never be committed.
+- **How the secret scanner works:**
+  - Before every commit, a git hook in `.githooks/` scans the staged changes and stops the commit if it finds a secret, or if gitleaks isn't installed. Claude Code switches the hook on at the start of every session.
+  - In CI, a workflow scans the whole history on every push and pull request.
+  - The free plan has no push protection and no required checks for private repos, so CI can flag a secret but cannot block the push. The commit hook is the real gate.
+- **What the free plan doesn't have for a private repo:** rulesets, branch protection, GitHub's own secret scanning and push protection. GitHub itself cannot block a direct push to `main` or `staging`, so no file may claim that it does (rule 1).
 - **Environment names:** pick ones that don't collide with the names Vercel creates (`Production`, `Preview`), for example `hrizzup-staging` and `hrizzup-production`.
 
 ---
@@ -203,13 +210,12 @@ Default to paid tiers.
 
 ## 13. Order of setup
 
-1. **Domain and DNS:** add the zone to Cloudflare, set the nameservers at GoDaddy, turn on DNSSEC, and create the Cloudflare API token. At the same time: require 2FA across the GitHub organisation, create the repo, and run the first Claude Code session, so every setting has somewhere to be recorded.
+1. **Domain and DNS:** add the zone to Cloudflare, set the nameservers at GoDaddy, turn on DNSSEC, and create the Cloudflare API token. At the same time: require 2FA across the GitHub organisation, create the repo, run the first Claude Code session, so every setting has somewhere to be recorded, then turn on Dependabot and the secret scanner.
 2. **Email:** the Proton domain, addresses and DMARC record, then Resend's sending subdomain.
 3. **Doppler:** the project and its four configs. Move every key saved so far into it.
 4. **Supabase:** the staging project.
 5. **Storage and bot protection:** the staging R2 buckets and their public subdomain, and the staging Turnstile widget.
 6. **Redis and sign-in:** the staging Upstash database and the staging Google sign-in client.
 7. **Vercel:** the project, once the first app exists, synced from Doppler, with `staging.hrizzup.com` and the holding page.
-8. **GitHub:** the plan decision, the rulesets and the security settings.
-9. **Later, with the team:** Sentry, PostHog, the Apple and Google Play accounts, then AWS for production.
-10. **Throughout:** Claude Code records every setting in `docs/setup.md`.
+8. **Later, with the team:** Sentry, PostHog, the Apple and Google Play accounts, then AWS for production.
+9. **Throughout:** Claude Code records every setting in `docs/setup.md`.
