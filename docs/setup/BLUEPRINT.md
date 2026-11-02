@@ -61,7 +61,7 @@ Production is a twin of staging: the same services, versions, region and setting
 | Address | localhost | Vercel preview URLs | `staging.hrizzup.com` | `hrizzup.com` (holding page until launch) |
 | Deployed from | Your machine | Each pull request | Every merge to `main` | Every merge to `main`, as a hidden build; it goes live only when promoted |
 | Hosting | Your machine | Vercel | Vercel | Vercel |
-| Doppler config | `dev` | `preview` | `stg` | `prd` |
+| Doppler config | `dev` | `stg_preview` (a branch of `stg`) | `stg` | `prd` |
 | Database | Staging | Staging | Supabase `hrizzup-staging` | Supabase `hrizzup-production` |
 | Sign-in | Test accounts only | None | Google (staging client) and email | Google (production client), email, Apple |
 | Access | — | Vercel deployment protection | Protected until testers join | Holding page until launch, then public. Hidden builds stay private |
@@ -112,7 +112,7 @@ Production is a twin of staging: the same services, versions, region and setting
 
 - **Region:** Mumbai, set in `vercel.json`. `/api/health` shows the region and the commit it was built from.
 - **One project, three environments:**
-  - **Preview:** every pull request, Doppler `preview`, behind deployment protection.
+  - **Preview:** every pull request, Doppler `stg_preview`, behind deployment protection.
   - **Staging:** a custom environment named `staging`, deployed on every merge to `main`, Doppler `stg`, at `staging.hrizzup.com`. It uses the staging environment's branch tracking if Vercel allows it on the production branch; otherwise a deploy workflow kept in the repo.
   - **Production:** Doppler `prd`, at `hrizzup.com`. The production branch is `main`, with **Auto-assign Custom Production Domains off**. Every merge to `main` makes a hidden ("staged") production build with production keys and data, reachable only at its private address. Nothing goes live until it is promoted.
 - **Build-skip rule (Ignored Build Step):** written in the repo, not only in the dashboard.
@@ -138,8 +138,13 @@ Production is a twin of staging: the same services, versions, region and setting
 
 ## 7. Secrets (Doppler)
 
-- **Project:** `hrizzup`, with four configs: `dev`, `preview`, `stg` and `prd`.
-- **Syncs:** `stg` goes to Vercel staging, `preview` to Vercel previews, and `prd` to Vercel production.
+- **Project:** `hrizzup`, with four configs:
+  - `dev`: local work, and the setup keys Claude Code uses (for example the Cloudflare and Resend setup keys);
+  - `stg`: staging;
+  - `stg_preview`: previews. It is a **branch of `stg`**: it copies every staging value automatically and holds only the values that must differ on previews;
+  - `prd`: production, kept fully separate (rule 1).
+  Doppler also gives each person a built-in, empty `dev_personal`; it can't be deleted, and it isn't used.
+- **Syncs:** `stg` goes to Vercel staging, `stg_preview` to Vercel previews, and `prd` to Vercel production.
 - **No variables made by hand on any platform**, and every change is followed by a redeploy.
 - **Every secret exists separately for each environment** (rule 1).
 - **Production keys:** before real users arrive, every production key is replaced with a new one that only the founder holds, and Claude Code's access to `prd` is removed (runbook, "Production hardening").

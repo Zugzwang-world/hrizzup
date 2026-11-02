@@ -235,6 +235,27 @@ Documentation only; nothing was set up in any service.
 - **Paid tier: in version one.** PLAN.md's table, section 2 ("Paid tier (in version one)"), the "Social in the app" line and section 7 are consistent with it. A new step 2.7 builds it (RevenueCat in the app; Razorpay with UPI on the website, passed through our server). Claude Code placed it after step 2.6, so the Google Play closed test isn't held up by the paywall. What's free and what's paid is decided before the paywall is built. The open question is closed.
 - **Video: Cloudflare Stream,** in the same Cloudflare account, with adaptive streaming. It is in the blueprint's media rules (section 13), the Cloudflare row in section 2, PLAN.md "How it's built", CLAUDE.md, and the runbook's "Later, with the team". Claude Code added standard practice: direct uploads from the app through one-time upload addresses, playback limited to our own sites, and separate API tokens per environment, with every video tagged by environment. The open question is closed.
 
+
+### Doppler project `hrizzup` (runbook 4.2, Claude Code, brought forward)
+
+Created with Doppler's command-line tool (version 3.76.0), logged in on the founder's Mac to the Doppler workplace `zugzwang-world`. Brought forward from Part 4 so the Cloudflare key (runbook 2.5) has a safe home.
+
+| Config | Doppler environment | Kind | Used for |
+|---|---|---|---|
+| `dev` | Development | Root config | Local work, and the setup keys Claude Code uses |
+| `stg` | Staging | Root config | Staging |
+| `stg_preview` | Staging | **Branch of `stg`** | Previews. It copies every staging value automatically and holds only the values that must differ on previews |
+| `prd` | Production | Root config | Production, kept fully separate |
+| `dev_personal` | Development | Doppler's built-in personal config | Not used. Doppler refuses to delete it ("You cannot delete a personal config") |
+
+- **How it was checked:** `doppler environments` lists Development, Staging and Production, and `doppler configs` lists the configs above. In `stg_preview`, Doppler's automatic labels read environment `stg` and config `stg_preview`.
+- **Secrets:** none added. Each config holds only Doppler's three automatic labels (`DOPPLER_PROJECT`, `DOPPLER_ENVIRONMENT`, `DOPPLER_CONFIG`), checked by listing names only.
+- **Changed the same day, at the founder's request:** previews first had their own `preview` environment. It was replaced by the branch config `stg_preview`, and the empty Preview environment was deleted (checked empty first).
+- **Still to see in practice:** that `stg_preview` shows staging's values. That shows up as soon as the first staging value arrives, when runbook step 4.4 lists the names in each config.
+- **Not checked:** the Doppler plan (runbook 4.1: the founder upgrades the workplace to Team). The command-line tool doesn't show the plan.
+- **Left alone:** the workplace's other projects, `example-project` (Doppler's sample) and `zugzwang-experiment`.
+- **Documents updated:** CLAUDE.md, the blueprint (sections 3, 6 and 7) and the runbook (step 4.2, now marked done, and step 9.3).
+
 ---
 
 ## Rules for this log
