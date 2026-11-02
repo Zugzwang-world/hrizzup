@@ -61,17 +61,19 @@ Most people now get their news first from creators on social media (posts, memes
 - The founder talks to Claude Code directly in the desktop app, with several sessions running in parallel. Helpers use their own accounts.
 - **How to work with the founder:** the founder is non-technical. He describes problems, goals and preferences; you bring the solution. Always propose the best solution that top professional teams use today, explain it in plain language, and lead with your recommendation. If the founder suggests a specific fix and a better one exists, say so and recommend the better one. Show options only when there is a real trade-off, and say which you recommend.
 - No fixed rituals. Use whichever Claude Code feature fits, when it fits (for example, Ultraplan for the algorithm or for the whole design in one go).
-- Claude merges a change once its checks pass. Checks are sized to the change:
+- **How changes land** (from now on, including staging): every change goes on its own branch and pull request. Claude opens it, the checks that fit the change run (including a secret check on every pull request), the pull request gets a preview link once Vercel is connected, and Claude merges it as soon as the checks pass. No human approval. GitHub enforces this on `main`: checks must pass before merging, no force-push, no required reviews.
+- Checks are sized to the change:
   - **Small** (text, colours, spacing, simple fixes): quick checks, plus screenshots at four screen sizes if a screen changed.
   - **Normal:** quick checks, plus the tests for the parts the change touches.
   - **Risky** (market maths, play money, login, database structure, the core of the news engine, payments): the full test suite plus AI review.
   - **Production release:** everything, once.
   - Every change is labelled small, normal or risky.
 - **Staging** is a sandbox. The AI holds all of its keys. It is fully separate from production, holds no real user data, and every paid service on it has a spending cap. Auto mode stays on.
-- **Production:** the founder holds the keys, and production starts clean.
+- **Production** runs on the same platforms as staging: Vercel plus Supabase, set up exactly like staging (same services, versions, region and settings), with its own data and keys. This "production twin" is created as soon as staging works, with nothing public until launch, so going live is a promotion, not a migration. The founder holds the production keys, and production starts clean.
+- **Releasing** means promoting the exact production build of a commit that passed staging, with one command (`vercel promote`). Nothing is rebuilt, and going back is one command too.
 - **Phone first.** Every screen is checked at phone, tablet, laptop and large-monitor sizes.
 - **Design** starts from references (Mobbin and the founder's own) and is built with shadcn/ui and Claude Design.
-- **Build on standard, portable pieces**, so the move from Vercel and Supabase to AWS is a copy, not a rebuild.
+- **Build on standard, portable pieces.** AWS is not the production plan: it comes later only if a concrete need appears, as its own project.
 - **Plugins:** security-guidance, code-review, frontend-design, feature-dev. **Connectors:** GitHub, Context7, Playwright.
 - Nothing is maintained by hand.
 
@@ -102,7 +104,7 @@ No time estimates, only order. **Needs** means it must be finished first.
 |---|---|---|---|---|
 | 0.1 | Create the new repository in the founder's personal GitHub account (`Zugzwang-world`, on GitHub Pro). Helpers get their own logins. | Founder | — | The repository exists |
 | 0.2 | Choose the name and buy the domain (one name for everything) | Founder | — | The domain points at staging |
-| 0.3 | Set up staging on Vercel Pro and Supabase Pro, separate from production, with spending caps on every paid service | Founder, with AI | 0.2 | Preview links work |
+| 0.3 | Set up staging on Vercel Pro and Supabase Pro, separate from production, with spending caps on every paid service. As soon as staging works, create its production twin: the same setup with its own data and keys, nothing public until launch | Founder, with AI | 0.2 | Preview links work, and the production twin matches staging |
 | 0.4 | Register individual developer accounts: Google Play Console and the Apple Developer Program | Founder | — | Both accounts are active |
 | 0.5 | Create the three Claude projects, each with its instructions, a GitHub link to this plan and the status files, and the GitHub connector | Founder | 0.1 | Each project can read this plan |
 | 0.6 | Repository foundation: CLAUDE.md, this plan, the status files, checks sized to the change, preview links, plugins, connectors, the daily summary routine | Claude Code | 0.1, 0.3 | A trivial change passes its checks and gets a preview link |
@@ -154,7 +156,7 @@ No time estimates, only order. **Needs** means it must be finished first.
 
 | # | Activity | Who | Needs | Done when |
 |---|---|---|---|---|
-| 5.1 | Move from staging (Vercel, Supabase) to production on AWS. The founder holds the production keys, and production starts clean. | Founder, with AI | Phase 4 | Production is running |
+| 5.1 | Go live on the production twin (Vercel, Supabase): final checks, then promote the build that passed staging. The founder holds the production keys, and production starts clean. | Founder, with AI | Phase 4 | Production is running |
 | 5.2 | Release: Android, then iPhone; the website goes live | Founder | 4.3, 4.5, 5.1 | Live in both app stores and on the web |
 
 ---
