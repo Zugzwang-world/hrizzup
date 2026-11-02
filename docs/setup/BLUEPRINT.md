@@ -32,7 +32,7 @@ Default to paid tiers.
 
 | Service | Plan | Used for |
 |---|---|---|
-| GitHub | The existing `zugzwang-foundation` organisation, staying on GitHub's **Free** plan, with the **private** repo `hrizzup`. No GitHub Team and no Secret Protection add-on: an open-source secret scanner does that job instead (section 11). | Code, checks, deploys |
+| GitHub | The founder's personal account `Zugzwang-world`, on **GitHub Pro**, with the **private** repo `hrizzup`. Pro covers repository protections (rulesets, branch protection, required checks) for private repos, but not GitHub's own secret scanning or push protection: an open-source secret scanner does that job instead (section 11). | Code, checks, deploys |
 | Vercel | Pro (the existing team), with a new project `hrizzup` | Staging and previews |
 | Supabase | Pro (the existing organisation), with a new project `hrizzup-staging` in Mumbai (ap-south-1) | Staging database |
 | Doppler | Team plan. It adds service accounts and audit features; the free tier forced the audit to be cut back last time. | All secrets |
@@ -171,20 +171,22 @@ Default to paid tiers.
 
 ## 11. GitHub
 
-- **Plan:** the organisation stays on GitHub's free plan. No GitHub Team and no Secret Protection add-on.
-- **Organisation:**
-  - 2FA required for every member;
-  - every person on their own account;
-  - unused members removed.
-- **Repo:** `hrizzup`, private.
+- **Where the repo lives:** the founder's personal GitHub account, `Zugzwang-world`, on GitHub Pro.
+- **Account and access:**
+  - two-step login on for the account, with recovery codes in Proton Pass;
+  - every person on their own account, added to the repo one by one, with two-step login on;
+  - on a personal account every collaborator can push (there is no read-only role), so only people who change the code are added;
+  - unused collaborators removed.
+- **Repo:** `hrizzup`, private, at `github.com/Zugzwang-world/hrizzup`.
 - **Security:**
   - Dependabot alerts and security updates on, confirmed through GitHub's API;
   - an open-source secret scanner (gitleaks) runs before every commit and in CI, so a secret can never be committed.
 - **How the secret scanner works:**
   - Before every commit, a git hook in `.githooks/` scans the staged changes and stops the commit if it finds a secret, or if gitleaks isn't installed. Claude Code switches the hook on at the start of every session.
   - In CI, a workflow scans the whole history on every push and pull request.
-  - The free plan has no push protection and no required checks for private repos, so CI can flag a secret but cannot block the push. The commit hook is the real gate.
-- **What the free plan doesn't have for a private repo:** rulesets, branch protection, GitHub's own secret scanning and push protection. GitHub itself cannot block a direct push to `main` or `staging`, so no file may claim that it does (rule 1).
+  - GitHub Pro has no push protection for private repos, so CI can flag a secret but cannot stop it reaching GitHub. The commit hook is the real gate.
+- **Repository protections:** GitHub Pro includes rulesets, branch protection and required checks for private repos. They are not switched on yet (runbook, "Later, with the team"). When they are: on `main` and `staging`, changes only through pull requests, required checks green (including the secret scan), no force-push. Until then, GitHub itself cannot block a direct push to `main` or `staging`, so no file may claim that it does (rule 1).
+- **What GitHub Pro doesn't include for a private repo:** GitHub's own secret scanning and push protection. Only organisation plans can add them.
 - **Environment names:** pick ones that don't collide with the names Vercel creates (`Production`, `Preview`), for example `hrizzup-staging` and `hrizzup-production`.
 
 ---
@@ -210,7 +212,7 @@ Default to paid tiers.
 
 ## 13. Order of setup
 
-1. **Domain and DNS:** add the zone to Cloudflare, set the nameservers at GoDaddy, turn on DNSSEC, and create the Cloudflare API token. At the same time: require 2FA across the GitHub organisation, create the repo, run the first Claude Code session, so every setting has somewhere to be recorded, then turn on Dependabot and the secret scanner.
+1. **Domain and DNS:** add the zone to Cloudflare, set the nameservers at GoDaddy, turn on DNSSEC, and create the Cloudflare API token. At the same time: check two-step login on your GitHub account, create the repo in that account (GitHub Pro), run the first Claude Code session, so every setting has somewhere to be recorded, then turn on Dependabot and the secret scanner.
 2. **Email:** the Proton domain, addresses and DMARC record, then Resend's sending subdomain.
 3. **Doppler:** the project and its four configs. Move every key saved so far into it.
 4. **Supabase:** the staging project.

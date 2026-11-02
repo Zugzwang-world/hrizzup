@@ -6,6 +6,7 @@ Last updated: 2 November 2026. Plan: [PLAN.md](../../PLAN.md). Code: [product/](
 
 - **Repository foundation, first part (step 0.6), 2 November 2026:** PLAN.md, the setup blueprint and runbook, the setup log, the three parts with their READMEs, these status files, CLAUDE.md, the proprietary LICENSE, THIRD_PARTY_NOTICES.md, the .gitignore, and the plugins and connectors.
 - **Runbook step 1.6, 2 November 2026:** GitHub stays on the free plan. Dependabot alerts and security updates are on (confirmed through GitHub's API). The gitleaks secret scanner runs before every commit (a git hook that Claude Code switches on each session) and in CI (the "Secret scan" workflow, the repo's first automatic check). The runbook and blueprint were updated to match, and every runbook Part now opens with "What we're doing" and "Why".
+- **Repository moved, 2 November 2026:** now at [github.com/Zugzwang-world/hrizzup](https://github.com/Zugzwang-world/hrizzup), private, in the founder's personal account on GitHub Pro. Dependabot and the secret scan still run; this folder pushes to the new address; PLAN.md, CLAUDE.md, the blueprint and the runbook all say where the repo lives.
 - **Screen-size rule, 2 November 2026:** every screen fits every device. Written into CLAUDE.md and the runbook: flexible layouts, phone-first, an automatic browser check at 13 widths (320 to 2560 pixels) plus sideways phones and tablets in Chrome's and Safari's engines, and screenshots at 360, 768, 1440 and 1920 pixels.
 
 ## Next
@@ -26,5 +27,6 @@ Last updated: 2 November 2026. Plan: [PLAN.md](../../PLAN.md). Code: [product/](
 - What are the exact market questions? (step 3.2, with Sourcing)
 - Paid tier: freemium or paywall?
 - Comment threads: in or out?
-- **For the founder, runbook step 1.1:** the organisation still doesn't require two-factor login (checked 2 November 2026). Part 1 is finished once it does.
-- **Pull requests without branch protection:** CLAUDE.md says changes go through a pull request "once `main` is protected", but a private repo on GitHub's free plan can never be protected, so today changes are pushed straight to `main`. Recommendation: once the checks sized to the change exist (step 0.6), send every change through a pull request anyway, so Claude merges only when its checks pass, as PLAN.md section 3 describes. GitHub won't enforce it; Claude Code would follow it as a rule.
+- **For the founder, runbook step 1.1 (new wording):** confirm two-step login is on for `Zugzwang-world` and its recovery codes are in Proton Pass. Part 1 is finished once it is.
+- **When to turn on repository protections:** GitHub Pro now allows them, and the runbook lists them under production. Recommendation: turn them on now for `main` (changes only through pull requests, the secret scan must pass, no force-push), as the blueprint's rule "security settings are on from day one" says. From then on every change goes through a pull request, as CLAUDE.md already plans for "once `main` is protected".
+- **Helpers' access:** the three other organisation members lost read access with the move. On a personal account, anyone added can push. Who should be added back, and when?

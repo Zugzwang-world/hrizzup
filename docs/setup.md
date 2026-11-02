@@ -91,6 +91,30 @@ Claude Code 2.1.316; Node.js 24.21.0; pnpm 10.33.2; Python 3.9.6; GitHub CLI 2.9
 - **Not done:** the check against India's screen-size data (StatCounter). The founder dropped it, because testing this whole range replaces it.
 - **Not built yet:** the check itself. It is built with the other automatic checks in PLAN.md step 0.6, and first runs on the holding page (runbook Part 9).
 
+### Repository moved to the founder's personal account (Claude Code, founder's decision)
+
+Moved so the founder's GitHub Pro plan covers it. Done through GitHub's API (`POST /repos/zugzwang-foundation/hrizzup/transfer`, new owner `Zugzwang-world`, same name).
+
+| Setting | Value | How it was checked |
+|---|---|---|
+| Owner | `Zugzwang-world` (personal account, on GitHub Pro). Before: the `zugzwang-foundation` organisation | GitHub's API: owner `Zugzwang-world`, type User |
+| Address | `https://github.com/Zugzwang-world/hrizzup` (SSH: `git@github.com:Zugzwang-world/hrizzup.git`) | GitHub's API |
+| Visibility | Private | GitHub's API: private, visibility private |
+| Old address | Redirects to the new one (until something else takes the old name) | GitHub's API: the old address answers as `Zugzwang-world/hrizzup` |
+| This folder's git remote | `origin` now points at the new SSH address | `git remote -v`; a test push reached the new address, and the commit recording this move was pushed there |
+| GitHub Pro covers the repo | Yes: repository protections (rulesets, branch protection, required checks) are available. **None is switched on yet** | GitHub's API: `GET .../branches/main/protection` answered "Branch not protected" (on the free plan it says to upgrade); `GET .../rulesets` returned an empty list |
+| GitHub's own secret scanning and push protection | Not available: GitHub sells them only to organisation plans. gitleaks stays | GitHub's documentation; the repo shows no secret-scanning settings |
+| Dependabot alerts | Still on | GitHub's API: `GET .../vulnerability-alerts` returned 204 |
+| Dependabot security updates | Still on, not paused | GitHub's API: `GET .../automated-security-fixes` |
+| GitHub Actions | On; the "Secret scan" workflow moved with the repo | GitHub's API: `GET .../actions/permissions` |
+| Who has access | Only `Zugzwang-world`. The three other organisation members (`Titan00714`, `Anupamhodl`, `Zoro47007`) had read access through the organisation and lost it with the move. They were not re-added: on a personal account every collaborator can push, so adding them is the founder's call | GitHub's API: collaborators list, no pending invitations |
+| Repo secrets, environments, webhooks | None existed, so nothing needed moving | GitHub's API, before the move |
+
+- **Documents updated:** PLAN.md (step 0.1), CLAUDE.md (a new "Repository" line with the address), the blueprint (section 2's GitHub row, section 11, section 13) and the runbook (steps 1.1 and 1.2, the note under Part 1, Part 1's "Done when", and the production list under "Later, with the team"). The secret-scan workflow's comments were updated too.
+- **Runbook step 1.1 changed:** it no longer asks for the organisation's two-factor requirement, which doesn't apply to a personal account. It now asks the founder to check two-step login on `Zugzwang-world` and save its recovery codes in Proton Pass. The note above saying the organisation's requirement was off no longer matters for Hrizzup.
+- **"Turn on repository protections (included in GitHub Pro)":** the founder asked for this wording in a "Production hardening" section. No section with that name exists in any version of these files, so it went into the closest match, the production list under "Later, with the team" in the runbook.
+- **Left unchanged on purpose:** the blueprint's section 1 lesson that mentions "the organisation's 2FA requirement". It describes what happened at Zugzwang World, not where Hrizzup lives. Earlier entries in this log are a record and stay as written.
+
 ---
 
 ## Rules for this log

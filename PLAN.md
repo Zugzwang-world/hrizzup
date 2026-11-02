@@ -100,7 +100,7 @@ No time estimates, only order. **Needs** means it must be finished first.
 
 | # | Activity | Who | Needs | Done when |
 |---|---|---|---|---|
-| 0.1 | Create the new repository in the existing GitHub organisation. Helpers get their own logins. | Founder | — | The repository exists |
+| 0.1 | Create the new repository in the founder's personal GitHub account (`Zugzwang-world`, on GitHub Pro). Helpers get their own logins. | Founder | — | The repository exists |
 | 0.2 | Choose the name and buy the domain (one name for everything) | Founder | — | The domain points at staging |
 | 0.3 | Set up staging on Vercel Pro and Supabase Pro, separate from production, with spending caps on every paid service | Founder, with AI | 0.2 | Preview links work |
 | 0.4 | Register individual developer accounts: Google Play Console and the Apple Developer Program | Founder | — | Both accounts are active |

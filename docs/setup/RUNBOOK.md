@@ -56,15 +56,15 @@
 
 | Step | Who | What to do |
 |---|---|---|
-| 1.1 | You | In the `zugzwang-foundation` organisation's settings, require two-factor authentication for all members. **Check first:** GitHub removes any member who hasn't set up 2FA when you switch this on, so make sure your team has it. |
-| 1.2 | You | Create the repository: owner `zugzwang-foundation`, name `hrizzup`, **Private**, README off, no .gitignore, licence **No license**. |
+| 1.1 | You | The repo lives in your personal GitHub account, `Zugzwang-world`, on GitHub Pro. Check that two-step login is on for that account and that its recovery codes are saved in Proton Pass. Anyone you add to the repo later must have two-step login on too. |
+| 1.2 | You | Create the repository: owner `Zugzwang-world` (your personal account, on GitHub Pro), name `hrizzup`, **Private**, README off, no .gitignore, licence **No license**. |
 | 1.3 | You | In a terminal, clone the repo and start Claude Code (the commands are in the chat). |
 | 1.4 | Claude Code | First session (the brief is in the chat): puts the plan, blueprint and this runbook in place, plus the folders, status files, setup log, CLAUDE.md, the proprietary licence notice and .gitignore. It also installs the plugins and connectors, then commits and pushes. |
 | 1.6 | Claude Code | Turn on Dependabot alerts and security updates, and add an open-source secret scanner (for example gitleaks) that runs before every commit and in CI, so a secret can never be committed. |
 
-GitHub stays on the free organisation plan, so there is no step 1.5 (it was the paid-plan decision). The other step numbers are unchanged.
+The repo lives in your personal GitHub account, `Zugzwang-world`, on GitHub Pro, so there is no step 1.5 (it was the paid-plan decision). The other step numbers are unchanged.
 
-**Done when:** the repo holds the plan files, 2FA is required for every member, Dependabot alerts and security updates are confirmed on through GitHub's API, and the secret scanner stops a test secret before it is committed and passes in CI.
+**Done when:** the repo holds the plan files, two-step login is on for your GitHub account, Dependabot alerts and security updates are confirmed on through GitHub's API, and the secret scanner stops a test secret before it is committed and passes in CI.
 
 ---
 
@@ -235,6 +235,7 @@ GitHub stays on the free organisation plan, so there is no step 1.5 (it was the 
 - **Sentry and PostHog:** one project per environment, with keys in Doppler.
 - **Apple Developer and Google Play accounts.** Start Google Play early: a personal account needs a closed test with at least 12 testers for 14 days before the app can go public.
 - **Production:**
+  - Turn on repository protections (included in GitHub Pro).
   - an AWS account;
   - the Doppler `prd` config;
   - production storage buckets, Redis, Google client and Turnstile widget;
