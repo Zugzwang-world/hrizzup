@@ -21,15 +21,19 @@ When the founder says "do runbook step X.Y", follow that step in [docs/setup/RUN
 
 ## End of every session
 
-Update the status file for the part you worked on in `docs/status/` (Done, Next, Open questions) and commit it.
+Update the status file for the part you worked on in `docs/status/` (Done, Next, Open questions), as part of that session's pull request.
 
-## Committing during staging
+## How changes land (from now on, including staging)
 
-During staging, commit changes straight to `main`, with no pull-request requirement. Run the checks for the change's size before committing. Pull requests, repository protections and the secret check before every commit come back before real users arrive ([runbook, "Production hardening"](docs/setup/RUNBOOK.md#production-hardening)).
+- **Every change goes on its own branch and pull request.** Never commit to `main` directly; GitHub refuses it anyway.
+- **You open the pull request, the checks that fit the change run, and you merge it yourself as soon as they pass.** No human approval. Turn on auto-merge when you open it (`gh pr merge --auto --squash`), so it merges the moment the checks are green.
+- **The secret check** (gitleaks, `.github/workflows/secret-check.yml`) runs automatically on every pull request over the whole history.
+- **Preview link:** once Vercel is connected, every pull request gets one.
+- **GitHub enforces it:** the ruleset "main" requires the checks to pass before merging, blocks force-pushes and deletion of `main`, and requires no reviews. Merges are squash-only, and the branch is deleted after merging.
 
 ## Checks sized to the change (PLAN.md section 3)
 
-Label every change with its size at the start of the commit message (and the pull request title, once pull requests come back): `[small]`, `[normal]` or `[risky]`.
+Label every change with its size at the start of the commit message and the pull request title: `[small]`, `[normal]` or `[risky]`.
 
 - **Small** (text, colours, spacing, simple fixes): quick checks, plus the screen check and screenshots (see "Screens fit every device") if a screen changed.
 - **Normal:** quick checks, plus the tests for the parts the change touches.
@@ -40,11 +44,13 @@ Label every change with its size at the start of the commit message (and the pul
 
 - Staging is a sandbox: fully separate from production, no real user data, a spending cap on every paid service. The AI holds its keys.
 - Secrets live only in Doppler (configs `dev`, `preview`, `stg`, `prd`). Never print, log or commit a secret value; refer to secrets by name only. Never ask the founder to paste a secret into chat. Production keys never go in this repository.
-- Mumbai is the region everywhere (Vercel `bom1`; Supabase and AWS `ap-south-1`), and `/api/health` shows the region.
+- Mumbai is the region everywhere (Vercel `bom1`; Supabase `ap-south-1`), and `/api/health` shows the region.
+- **Production runs on the same platforms as staging:** Vercel plus Supabase, set up exactly like staging (same services, versions, region and settings), with its own data and keys. It is created as soon as staging works, with nothing public until launch (runbook Part 10, "Production twin").
+- **Releasing** means promoting the exact production build of a commit that passed staging, with one command: `vercel promote <deployment URL>`. No rebuild; `vercel rollback` goes back. The runbook's "Releasing to production" has the details.
 
 ## Building
 
-- Build on standard, portable pieces, so the later move from Vercel and Supabase to AWS is a copy, not a rebuild.
+- Build on standard, portable pieces. AWS is not the production plan: it comes later only if a concrete need appears, as its own project.
 - Open-source code copied in keeps its licence notice and is listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Screens fit every device

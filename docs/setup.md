@@ -154,6 +154,44 @@ Sent through GitHub's API on 2 November 2026 at 14:43 UTC (20:13 India time), wi
 
 Checked through GitHub's API (`GET /repos/Zugzwang-world/hrizzup/invitations`): all three pending, none expired. GitHub cancels a repository invitation after 7 days if it hasn't been accepted.
 
+### How changes land: a pull request for every change (runbook 1.7, Claude Code, founder's decision)
+
+From now on, including staging, every change goes on its own branch and pull request. Claude Code opens it, the checks run, and it merges as soon as they pass, with no human approval. This replaces "straight to `main` during staging" from earlier the same day.
+
+| Setting | Value | How it was checked |
+|---|---|---|
+| Secret check | `.github/workflows/secret-check.yml` ("Secret check"): gitleaks 8.30.1 (download checked against its SHA-256), `actions/checkout` pinned to the commit for v7.0.1, read-only permissions. Runs on every pull request, and by hand. Scans the whole history | First run, on this change's pull request: see the row "This change" |
+| One-time scan of the whole history | 6 commits on every branch, no leaks (gitleaks 8.30.1 on the founder's Mac) | `gitleaks git --log-opts=--all` |
+| Ruleset "main" (id 26375255) | Active on the default branch. A pull request is required, with **no** reviews; squash merges only; the "Secret check" from GitHub Actions must pass; force-pushes and deleting `main` are blocked; nobody bypasses it, including the founder | GitHub's API: `GET .../rulesets/26375255` and `GET .../rules/branches/main` list all four rules |
+| "Require extra approval for unattributed changes" | **Off.** GitHub turned this new option on by itself when the ruleset was created; it was switched off so that no human review can be required | GitHub's API: the `pull_request` rule shows `false` |
+| Branch must be up to date before merging | Off. With several sessions working in parallel it would force constant re-syncing, and GitHub's merge queue (which solves that) is only available to organisations | GitHub's API |
+| Auto-merge | On | GitHub's API: `allow_auto_merge` true |
+| Delete branches after merging | On | GitHub's API: `delete_branch_on_merge` true |
+| Merge methods | Squash only. The commit title is the pull request title (with its size label), and the message is the branch's commit messages | GitHub's API |
+| Preview links | Come automatically once Vercel is connected (runbook Part 9) | — |
+
+Claude Code also chose to block deleting `main` (standard practice) and to allow squash merges only. Neither was in the founder's list.
+
+### Production runs on the same platforms as staging (founder's decision)
+
+- **The plan:** production is Vercel plus Supabase, set up exactly like staging (same services, versions, region and settings), with its own data and keys. AWS is no longer the production plan; it comes later only if a concrete need appears, as its own project.
+- **The production twin:** a new runbook Part 10, "Production twin", right after Hosting. It covers the Supabase project `hrizzup-production`, Vercel production, Doppler `prd`, R2 buckets `hrizzup-production-uploads` and `hrizzup-production-media` (public at `media.hrizzup.com`), the Upstash database `hrizzup-production`, the production Google sign-in client, and the Turnstile widget "Hrizzup production". It is created as soon as staging works, with nothing public until launch. The hand-over Part is now Part 11 (steps 11.1 to 11.4).
+- **How a release works, and why:** Vercel's documentation says that promoting a preview build (and so a staging build) to production triggers a **new build with production keys**, while promoting a "staged" production build happens instantly, with no rebuild ([Promoting a preview deployment to production](https://vercel.com/docs/deployments/promote-preview-to-production), [Promoting deployments](https://vercel.com/docs/deployments/promoting-a-deployment)). So the exact build that passed staging can't be the artifact that goes live. Instead:
+  - `main` is Vercel's production branch, with "Auto-assign Custom Production Domains" off;
+  - every merge to `main` deploys the commit to staging and also makes a hidden production build (production keys and data, private address only);
+  - once the commit has passed staging, the release is one command: `vercel promote <address of the hidden build> --yes`. It goes live instantly, with no rebuild. Going back is `vercel rollback`;
+  - before launch, `hrizzup.com` shows the holding page, so the first promotion of an app build is the launch.
+  The steps are in the runbook's new section "Releasing to production" and the blueprint's section 6.
+- **Still to confirm in Part 9:** whether Vercel lets the `staging` environment follow `main` while `main` is also the production branch. If not, a small deploy workflow in the repo sends each merge to staging. Vercel Pro includes the one custom environment that staging needs.
+- **DNS:** the app's names (staging and production) point at Vercel, DNS only, and are never proxied through Cloudflare (Vercel advises against a proxy in front of it). This replaces the old plan for Cloudflare's proxy with origin authentication in front of AWS. CAA records at launch now name Cloudflare's and Vercel's certificate authorities.
+- **Production hardening** now holds only "production keys held only by the founder". Claude Code spelled out how: before real users arrive, the founder replaces every production key in Doppler `prd` and Claude Code's access to `prd` is removed.
+- **Documents updated:**
+  - PLAN.md: section 3 (how changes land, production, releasing, AWS), step 0.3 (the twin follows staging) and step 5.1 (go live by promotion).
+  - CLAUDE.md: new "How changes land" section; production, releasing and region lines; the AWS line.
+  - Blueprint: sections 1, 2, 3, 4, 5, 6 (with a new "Releasing" part), 7, 11, 12 and 13. No **DECIDE** items remain.
+  - Runbook: title and introduction, "How to use", new step 1.7, the Part 8 note, Part 9 rewritten for hidden production builds, the new Part 10, the hand-over renumbered to Part 11, the new "Releasing to production", the "Later" list, and "Production hardening".
+- **Nothing was created in Vercel, Supabase or anywhere else for production yet.** That happens in runbook Parts 9 and 10.
+
 ---
 
 ## Rules for this log
