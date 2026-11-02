@@ -36,14 +36,14 @@ Default to paid tiers. The exception is Cloudflare, which stays on its Free plan
 | Vercel | Pro (the existing team), with one project `hrizzup` for previews, staging and production. Pro includes the one custom environment that staging needs. | Previews, staging and production |
 | Supabase | Pro (the existing organisation), with two projects set up the same way in Mumbai (ap-south-1): `hrizzup-staging` and `hrizzup-production` | Staging and production databases |
 | Doppler | Team plan. It adds service accounts and audit features; the free tier forced the audit to be cut back last time. | All secrets |
-| Cloudflare | A zone for `hrizzup.com` on the **Free** plan during staging, upgraded to **Pro** in the production twin (runbook Part 10). Image transformations are free up to 5,000 new sizes a month; the production twin also turns on Cloudflare Images' paid plan, so new sizes never fail (section 13). Its protection covers the names routed through Cloudflare, such as the public storage addresses; the app's own names point at Vercel, DNS only (section 4). | DNS, file storage (R2), image delivery, Turnstile |
+| Cloudflare | A zone for `hrizzup.com` on the **Free** plan during staging, upgraded to **Pro** in the production twin (runbook Part 10). Image transformations are free up to 5,000 new sizes a month; the production twin also turns on Cloudflare Images' paid plan, so new sizes never fail (section 13). Its protection covers the names routed through Cloudflare, such as the public storage addresses; the app's own names point at Vercel, DNS only (section 4). Cloudflare Stream, for creator video, lives in the same account and is billed by minutes stored and watched; it is switched on when creator video is built. | DNS, file storage (R2), image delivery, video (Stream), Turnstile |
 | Proton | Duo (existing) | Email on hrizzup.com, plus a Proton Pass vault named `Hrizzup` |
 | Resend | Paid plan (existing). The free plan stops at 100 emails a day. | Sign-in and notification email |
-| Upstash Redis | Paid plan (existing), with one database per environment, in Mumbai | Rate limits, caches, locks |
+| Upstash Redis | Paid plan (existing), with one database per environment, in the region closest to Mumbai | The shared fast layer: feeds, rankings, counters, sessions, rate limits, computed results, locks (section 14) |
 | Sentry | Later, set up with the team: Team plan, one project per environment | Error reporting |
 | PostHog | Later, set up with the team: one project per environment | Analytics and feature flags |
-| RevenueCat | Later, set up when the app is built | Subscriptions in the app |
-| Razorpay | Later, set up when the app is built | Subscriptions on the website, with UPI |
+| RevenueCat | Set up with the app (version one, PLAN.md step 2.7) | Subscriptions in the app |
+| Razorpay | Set up with the app (version one, PLAN.md step 2.7) | Subscriptions on the website, with UPI |
 | Google Cloud | One project with separate sign-in (OAuth) clients for staging and production, and billing switched on | Google sign-in |
 | Apple Developer | Individual account | The iPhone app and Sign in with Apple |
 | Google Play | Personal account | The Android app |
@@ -233,15 +233,67 @@ AWS is not the production plan. Production runs on the same platforms as staging
   - **Website:** Next.js images with a custom loader that points at Cloudflare, so Vercel's own image optimisation is neither used nor billed. **App:** Expo's image component (`expo-image`) with the placeholder.
   - **No conversion scripts,** and no stored copies at other sizes.
   - **Cost:** Cloudflare's free allowance is 5,000 new sizes (unique transformations) a month. Past that, sizes already made keep loading but new ones fail until Cloudflare Images' paid plan is on ($0.50 per 1,000 more). Staging stays within the free allowance; the production twin turns the paid plan on. The fixed list of widths keeps the count low.
+- **Video:** creator videos are stored and played through Cloudflare Stream, in the same Cloudflare account.
+  - **Upload:** the app uploads straight to Stream through a one-time upload address that our server creates, so large files never pass through our server.
+  - **Playback:** adaptive streaming (HLS and DASH), so each viewer gets the quality their connection can carry, with Stream's thumbnails as the still image before playback.
+  - **Only on our own sites:** each video's allowed origins are set to our addresses, so others can't embed it.
+  - **Staging and production kept apart (rule 1):** one Stream library in the account, but separate API tokens per environment, and every video is tagged with its environment.
+- **Paid tier (version one, PLAN.md step 2.7):** subscriptions are built together with the app: RevenueCat in the app, Razorpay (with UPI) on the website. RevenueCat's own web payments run on Stripe and have no Razorpay connection, so our server passes Razorpay payments to RevenueCat, and the app and the website agree on who has paid. What's free and what's paid is decided before the paywall is built.
 - **Decided later:**
   - **Background jobs:** decided in the Sourcing project.
-  - **Subscriptions:** RevenueCat plus Razorpay (UPI) on the web, built when the app is built. RevenueCat's own web payments run on Stripe and have no Razorpay connection, so our server will record Razorpay payments with RevenueCat, so the app and the website agree on who has paid.
   - **PostHog and the admin page:** later.
   - **Language:** English only.
 
 ---
 
-## 14. Order of setup
+## 14. Production quality
+
+Every page of the website and every screen of the app is built to load fast and stay fast, from day one. Performance is part of "done", never a later fix.
+
+### Caching in layers
+
+Caching is designed in for every page and every API from the start, not added afterwards.
+
+| Layer | What it holds | How it stays correct |
+|---|---|---|
+| **The device** | Browser and app caches. Long-lived files (code, fonts, icons) get versioned names, so they can be cached for a year. The app keeps recent data and images on the phone | A new version means a new file name, so nothing stale is ever served. Data on the phone is shown at once and refreshed in the background |
+| **The edge** | Public pages at Vercel's edge; images, video and other media at Cloudflare | Refreshed in the background ("stale-while-revalidate"), and cleared by tag the moment the page's data changes |
+| **The server** | Data caches for the results pages and APIs build | Updated or cleared the moment the underlying data changes (tagged caches, cleared on write) |
+| **Upstash Redis** (paid plan, closest region to Mumbai) | The shared fast layer for anything read often: feeds, rankings, counters, sessions, rate limits and computed results | Every entry has an explicit expiry, and is cleared or rewritten when its data changes |
+| **The database** | The source of truth | An index for every search and sort, page-by-page loading (each page starts where the last one ended, not by counting rows), and no repeated small queries |
+
+**Rules for every layer:**
+- **Batch:** never make several separate trips to Redis or the database when one batched request will do (one multi-key read or pipeline for Redis; one query with a join or a list of IDs for the database).
+- **Private data is never shared:** one user's private data never goes into a shared cache. Pages with private data are marked so the edge doesn't keep them. Cache keys always include the environment (for example `stg:` or `prd:`), and the user where needed.
+
+### Media
+
+- **Images** are always resized and served in modern formats through Cloudflare's image service (section 13).
+- **Video** plays through adaptive streaming on Cloudflare Stream (section 13).
+- **Anything below the visible screen loads later,** when the user scrolls near it.
+
+### Lists and feeds
+
+- **Draw only what's on screen:** long lists recycle their rows (a virtualised list) on the website and in the app.
+- **Load the next page before the user reaches it,** so scrolling never stops to wait.
+
+### Performance budgets
+
+Every page and screen has a budget. The starting numbers below are Google's "good" thresholds, measured on a mid-range Android phone on a slow 4G connection, because that is the typical reader in India. Changing a budget is a decision recorded in `docs/setup.md`.
+
+| What | Website (every page) | App (every screen) |
+|---|---|---|
+| **Load time** | Largest content on screen within 2.5 seconds | First content within 2 seconds of a cold start |
+| **Responsiveness** | Every tap or click answered within 200 milliseconds | Every tap answered within 100 milliseconds; scrolling at 60 frames a second |
+| **Layout stability** | Layout shift score of 0.1 or less (nothing jumps while loading) | Nothing jumps while loading (placeholders hold the space) |
+| **Download size** | At most 200 KB of compressed code, and 500 KB in total, on first load, before images below the screen | The data for a screen's first view under 100 KB before images; the app's code size checked for unexplained growth |
+
+- **On every pull request:** the budgets are checked automatically. On the website, a Lighthouse check runs against the pull request's preview link, alongside a download-size check. In the app, there are code-size checks and automatic performance tests. Each becomes a required check in the ruleset "main" once it is built (PLAN.md step 0.6).
+- **Once live:** the same measures are taken from real users, at the 75th percentile: Vercel Speed Insights for the website, and the monitoring tool for the app (section 10). A budget broken for real users is treated like a failing check.
+
+---
+
+## 15. Order of setup
 
 1. **Domain and DNS:** add the zone to Cloudflare (Free plan), set the nameservers at GoDaddy, turn on DNSSEC, and create the Cloudflare API token. At the same time: check two-step login on your GitHub account, create the repo in that account (GitHub Pro), run the first Claude Code session, so every setting has somewhere to be recorded, then turn on Dependabot, the secret check on every pull request and the rule for `main`.
 2. **Email:** the Proton domain, addresses and DMARC record, then Resend's sending subdomain.

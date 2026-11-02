@@ -10,7 +10,7 @@ Hrizzup is a news app built around creators, plus a website with play-money pred
 
 ## Working with the founder
 
-**How to work with the founder:** the founder is non-technical. He describes problems, goals and preferences; you bring the solution. Always propose the best solution that top professional teams use today, explain it in plain language, and lead with your recommendation. If the founder suggests a specific fix and a better one exists, say so and recommend the better one. Show options only when there is a real trade-off, and say which you recommend.
+**How to work with the founder:** the founder is non-technical. He describes problems, goals and preferences; you bring the solution. Always propose the best solution that top professional teams use today, explain it in plain language, and lead with your recommendation. If the founder suggests a specific fix and a better one exists, say so and recommend the better one. Show options only when there is a real trade-off, and say which you recommend. When the founder describes a problem through an example, treat the example as one case of a general problem: solve the whole category with the best professional approach, and write the general principle, never a rule about the single example.
 
 - Start every reply with a short plain-English summary, and explain anything he must do in plain English, step by step.
 - Ask only when a real decision is needed. Otherwise choose the sensible default and say what you chose.
@@ -51,6 +51,18 @@ Label every change with its size at the start of the commit message and the pull
 ## Building
 
 - Build on standard, portable pieces. AWS is not the production plan: it comes later only if a concrete need appears, as its own project.
+- Media: images go through Cloudflare image transformations; creator videos are stored and played through Cloudflare Stream.
+
+## Performance and caching (full detail: [blueprint, "Production quality"](docs/setup/BLUEPRINT.md#14-production-quality))
+
+Every page and every screen is built to load fast and stay fast. Performance is part of "done", never a later fix.
+
+- **Cache in layers, designed in for every page and API from the start:** the device (browser and app caches, long-lived files with versioned names), the edge (Cloudflare and Vercel, refreshed in the background), server data caches (updated or cleared the moment the data changes), Upstash Redis (the shared fast layer; every entry has an expiry and is cleared when its data changes), and the database (indexes for every search and sort, page-by-page loading, no repeated small queries).
+- **Batch:** one request to Redis or the database, never several separate trips when one will do.
+- **Never put one user's private data in a shared cache.** Cache keys always include the environment, and the user where needed.
+- **Media:** images resized and in modern formats through the image service; video through adaptive streaming; anything below the visible screen loads later.
+- **Lists and feeds:** draw only what's on screen, and load the next page before the user reaches it.
+- **Performance budget for every page and screen** (load time, responsiveness, layout stability, download size), checked automatically on every pull request and measured on real users once live.
 - Open-source code copied in keeps its licence notice and is listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Screens fit every device
