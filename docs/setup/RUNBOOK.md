@@ -124,7 +124,7 @@ The repo lives in your personal GitHub account, `Zugzwang-world`, on GitHub Pro,
 | Step | Who | What to do |
 |---|---|---|
 | 4.1 | You | Upgrade the Doppler workplace to the **Team** plan. |
-| 4.2 | Claude Code | Using Doppler's command-line tool, create the project `hrizzup` with four configs: `dev`, `preview`, `stg` and `prd`. Claude Code asks you to log in if it needs to. |
+| 4.2 | Claude Code | Using Doppler's command-line tool, create the project `hrizzup` with four configs: `dev` (local work and Claude Code's setup keys), `stg` (staging), `stg_preview` (previews: a branch of `stg` that copies every staging value and holds only overrides) and `prd` (production). Claude Code asks you to log in if it needs to. **Done, 2 November 2026,** brought forward so the Cloudflare key has a safe home. |
 | 4.3 | You | Move every key saved so far from Proton Pass into Doppler by typing or pasting it into Doppler's dashboard: the Cloudflare token into `dev`, and the Resend setup key into `dev` if it's still there. From now on, Proton Pass holds only logins, recovery codes and the database password. |
 | 4.4 | Claude Code | Check that each config contains the expected secret **names** (never the values), and record the result. |
 
@@ -213,7 +213,7 @@ The repo lives in your personal GitHub account, `Zugzwang-world`, on GitHub Pro,
 |---|---|---|
 | 9.1 | Claude Code | Create the Vercel project **`hrizzup`** in your Pro team, connected to the repo. Set the region to Mumbai (`bom1`) in `vercel.json`, and show the region and the commit on `/api/health`. |
 | 9.2 | Claude Code | Set the production branch to `main` and turn **off** "Auto-assign Custom Production Domains", so every merge to `main` makes a hidden production build that isn't live. Create a custom environment **`staging`** that deploys every merge to `main` (through its branch tracking if Vercel allows it on the production branch; otherwise through a deploy workflow kept in the repo). |
-| 9.3 | You | In Doppler, connect to Vercel: sync `stg` to Vercel's staging environment and `preview` to Vercel's previews, both marked Sensitive. |
+| 9.3 | You | In Doppler, connect to Vercel: sync `stg` to Vercel's staging environment and `stg_preview` to Vercel's previews, both marked Sensitive. |
 | 9.4 | Claude Code | Add the domains: `staging.hrizzup.com` for staging, and `hrizzup.com` and `www` for production. Add the records Vercel asks for in Cloudflare, **DNS only**. Make the first production deployment the holding page with its privacy policy, and promote it once; it stays live until launch. |
 | 9.5 | You | In Vercel, turn on deployment protection (Standard Protection), which covers previews and the private addresses of hidden production builds. Keep staging protected until testers join. |
 | 9.6 | Claude Code | Confirm `autoAssignCustomDomains` is off, set and record the firewall rules, confirm `/api/health` reports `bom1`, run a test deploy to `staging.hrizzup.com`, and check that a pull request gets a preview link. |
