@@ -76,11 +76,20 @@ Claude Code 2.1.316; Node.js 24.21.0; pnpm 10.33.2; Python 3.9.6; GitHub CLI 2.9
 | Secret scanner | gitleaks (MIT licence, used as a separate program, nothing copied into the repo). Version 8.30.1 on the founder's Mac (Homebrew) and in CI | — |
 | Before every commit | `.githooks/pre-commit` scans the staged changes. It stops the commit if it finds a secret, if gitleaks fails, or if gitleaks isn't installed | In a throwaway copy of the repo: a fake GitHub token was blocked; a commit with gitleaks missing was blocked; a clean commit went through |
 | Switching the hook on | `git config core.hooksPath .githooks`. A Claude Code session-start hook in `.claude/settings.json` runs this at the start of every session, on every machine | `git config core.hooksPath` shows `.githooks` on the founder's Mac |
-| In CI | `.github/workflows/secret-scan.yml` ("Secret scan"): runs on every push and pull request, and by hand. It downloads gitleaks 8.30.1 and checks its SHA-256 before running it; `actions/checkout` is pinned to the commit for v7.0.1. It scans the whole history. Read-only permissions | The CI command failed on the throwaway copy once a fake token had been forced past the hook. The first run on GitHub is recorded below |
+| In CI | `.github/workflows/secret-scan.yml` ("Secret scan"): runs on every push and pull request, and by hand. It downloads gitleaks 8.30.1 and checks its SHA-256 before running it; `actions/checkout` is pinned to the commit for v7.0.1. It scans the whole history. Read-only permissions | The CI command failed on the throwaway copy once a fake token had been forced past the hook. First run on GitHub, for commit `f494681`: passed ([run 41459744390](https://github.com/zugzwang-foundation/hrizzup/actions/runs/41459744390)) |
 | History so far | No leaks | `gitleaks git` over every commit |
 | Limits of the free plan | GitHub can't block a push (no push protection, no required checks for private repos), so CI flags a secret after the push but can't stop it. The commit hook can be skipped on purpose with `git commit --no-verify`, and a machine that never opens Claude Code needs the one-line `git config` above | — |
 
 **Still open in Part 1:** step 1.1 (founder). Checked again through GitHub's API on 2 November 2026: the organisation's two-factor requirement is still **off**.
+
+### Screen sizes: every screen fits every device (founder's decision)
+
+- **The rule:** every screen adjusts itself to any device, from a small phone to a large monitor, with nothing cut off, overlapping or scrolling sideways. Layouts use flexible rules (proportions, wrapping, Tailwind and shadcn/ui responsive classes), never fixed pixel widths tuned to one screen. Phone-first.
+- **The automatic check,** run before the founder sees any screen change: a real browser (Playwright) at 320, 360, 390, 412, 768, 820, 1024, 1280, 1366, 1440, 1536, 1920 and 2560 pixels wide, plus phones and tablets turned sideways. It fails on anything that overflows, overlaps or needs sideways scrolling. Windows laptops at 125% and 150% scaling are covered by the 1280, 1366 and 1536 widths. Claude Code added Safari's engine (WebKit) next to Chrome's, because every iPhone uses it.
+- **Screenshots for the founder:** 360 (phone), 768 (tablet), 1440 (laptop) and 1920 (monitor) pixels wide.
+- **Where it is written:** CLAUDE.md (new section "Screens fit every device", replacing the old four-size line) and the runbook (new section "Every screen fits every device", after "How to use this runbook").
+- **Not done:** the check against India's screen-size data (StatCounter). The founder dropped it, because testing this whole range replaces it.
+- **Not built yet:** the check itself. It is built with the other automatic checks in PLAN.md step 0.6, and first runs on the holding page (runbook Part 9).
 
 ---
 

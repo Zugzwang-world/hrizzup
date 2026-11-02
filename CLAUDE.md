@@ -23,7 +23,7 @@ Update the status file for the part you worked on in `docs/status/` (Done, Next,
 
 Label every change with its size at the start of the commit message and pull request title: `[small]`, `[normal]` or `[risky]`.
 
-- **Small** (text, colours, spacing, simple fixes): quick checks, plus screenshots at the four screen sizes if a screen changed.
+- **Small** (text, colours, spacing, simple fixes): quick checks, plus the screen check and screenshots (see "Screens fit every device") if a screen changed.
 - **Normal:** quick checks, plus the tests for the parts the change touches.
 - **Risky** (market maths, play money, login, database structure, the core of the news engine, payments): the full test suite plus AI review.
 - **Production release:** everything, once.
@@ -37,5 +37,14 @@ Label every change with its size at the start of the commit message and pull req
 ## Building
 
 - Build on standard, portable pieces, so the later move from Vercel and Supabase to AWS is a copy, not a rebuild.
-- Design for phones first. Check every screen at phone, tablet, laptop and large-monitor sizes (360, 768, 1440 and 1920 pixels wide).
 - Open-source code copied in keeps its licence notice and is listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+## Screens fit every device
+
+Every screen adjusts itself to any device, from a small phone to a large monitor, with nothing cut off, overlapping or scrolling sideways.
+
+- **Phone-first:** design for the phone first, then let the layout grow.
+- **Flexible layouts:** build from flexible rules (proportions, wrapping, Tailwind and shadcn/ui responsive classes). Never use fixed pixel widths tuned to one screen.
+- **Automatic check before the founder sees any screen change:** test it in a real browser with Playwright, in both Chromium and WebKit (Safari's engine, which every iPhone uses), at 320, 360, 390, 412, 768, 820, 1024, 1280, 1366, 1440, 1536, 1920 and 2560 pixels wide, each at a typical height for that kind of device, and with phones and tablets turned sideways (width and height swapped). The check fails if anything overflows, overlaps or needs sideways scrolling.
+- **Windows laptops** at 125% and 150% display scaling show a narrower page; the 1280, 1366 and 1536 widths cover them.
+- **Screenshots for the founder** at phone, tablet, laptop and monitor sizes: 360, 768, 1440 and 1920 pixels wide.

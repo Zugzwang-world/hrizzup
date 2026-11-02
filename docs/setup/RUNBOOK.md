@@ -11,6 +11,25 @@
 - **Never paste a secret into any chat.** Keys you create yourself go straight into Doppler's dashboard. Keys Claude Code creates go straight into Doppler without being shown.
 - **A part is finished when its "Done when" line is true.**
 
+## Every screen fits every device
+
+**The rule:** every screen adjusts itself to any device, from a small phone to a large monitor, with nothing cut off, overlapping or scrolling sideways. It applies from the first screen (the holding page in Part 9) onwards. CLAUDE.md carries the same rule.
+
+- **Flexible layouts only.** Layouts are built from flexible rules: proportions, wrapping, and Tailwind and shadcn/ui responsive classes. Never fixed pixel widths tuned to one screen.
+- **Phone-first.** Every screen is designed for the phone first, then allowed to grow.
+- **An automatic check before you see anything.** Before showing you any screen change, Claude Code tests it in a real browser (Playwright, in both Chrome's engine and Safari's engine, which every iPhone uses) at these widths:
+
+  | Kind of device | Widths in pixels |
+  |---|---|
+  | Phones | 320, 360, 390, 412 |
+  | Tablets | 768, 820, 1024 |
+  | Laptops | 1280, 1366, 1440, 1536 |
+  | Monitors | 1920, 2560 |
+
+  Each width is tested at a typical height for that kind of device. Phones and tablets are also tested turned sideways (width and height swapped). The check fails if anything overflows, overlaps or needs sideways scrolling.
+- **Windows laptops.** At 125% and 150% display scaling, Windows laptops show a narrower page. The 1280, 1366 and 1536 widths cover them.
+- **Screenshots for you** at phone, tablet, laptop and monitor sizes: 360, 768, 1440 and 1920 pixels wide.
+
 ---
 
 # Part 0: Before you start
