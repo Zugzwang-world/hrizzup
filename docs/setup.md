@@ -169,6 +169,7 @@ From now on, including staging, every change goes on its own branch and pull req
 | Delete branches after merging | On | GitHub's API: `delete_branch_on_merge` true |
 | Merge methods | Squash only. The commit title is the pull request title (with its size label), and the message is the branch's commit messages | GitHub's API |
 | Preview links | Come automatically once Vercel is connected (runbook Part 9) | — |
+| This change | Landed through [pull request #1](https://github.com/Zugzwang-world/hrizzup/pull/1), the first under the new rule, merged automatically once its checks passed | First Secret check on the pull request: passed in 9 seconds over the whole history ([run 41467071173](https://github.com/Zugzwang-world/hrizzup/actions/runs/41467071173)), reported by GitHub Actions (app id 15368, the one the ruleset requires) |
 
 Claude Code also chose to block deleting `main` (standard practice) and to allow squash merges only. Neither was in the founder's list.
 
