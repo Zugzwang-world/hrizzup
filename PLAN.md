@@ -19,7 +19,8 @@ Most people now get their news first from creators on social media (posts, memes
 | | News app | Website |
 |---|---|---|
 | What's on it | News and social | News and markets |
-| Money | None | Play money only |
+| Money | No bets and no play money | Play money only |
+| Paid tier (version one) | Subscriptions through RevenueCat | Subscriptions through Razorpay (with UPI), passed through our server |
 | Platforms | Android first, then iPhone (both prepared in parallel) | Web, designed to work well on phones |
 | Login | One shared account across both | One shared account across both |
 | Language | English | English |
@@ -33,7 +34,7 @@ Most people now get their news first from creators on social media (posts, memes
 - **Ranking, version one:** based on the stories a user picks, what they view, the categories they choose and who they follow. No money signals.
 - **Content:** our own content (from the News Desk project) plus creators who open creator accounts in the app. Users post text only. Images and video come from us and from invited creators. For the market subjects, we also embed existing creators' content.
 - **Reactions:** likes and dislikes.
-- **Social in the app:** a simple feed of users' posts. No bets and no money anywhere in the app.
+- **Social in the app:** a simple feed of users' posts. No bets and no play money anywhere in the app; the only payment in the app is the paid-tier subscription.
 - **Launch:** the app launches in India. Global news is for everyone.
 
 ### Markets: the website, kept simple
@@ -59,11 +60,16 @@ Most people now get their news first from creators on social media (posts, memes
   - Deliver through Cloudflare image transformations: `format=auto`, resized per screen from a short fixed list of widths, cached at the edge.
   - The website uses Next.js images pointed at Cloudflare; the app uses Expo's image component with the placeholder.
   - No conversion scripts.
+- **Video:** creator videos are stored and played through Cloudflare Stream, which uses adaptive streaming and lives in the same Cloudflare account.
+
+### Paid tier (in version one)
+
+- **Subscriptions are built together with the app** (step 2.7): RevenueCat in the app, and Razorpay (with UPI) on the website, with Razorpay payments passed through our server to RevenueCat, so the app and the website agree on who has paid.
+- **What's free and what's paid** is decided before the paywall is built.
 
 ### Decided later
 
 - **Background jobs:** decided in the Sourcing project.
-- **Subscriptions:** RevenueCat plus Razorpay (UPI) on the web, built when we build the app. Whether the paid tier is freemium or a paywall is still to decide.
 - **PostHog and the admin page:** later.
 - **Language:** English only.
 
@@ -72,7 +78,6 @@ Most people now get their news first from creators on social media (posts, memes
 - Bot network (a separate network just for AI agents; design later)
 - Polls (one person, one vote; a later feature)
 - Comment threads (text only; undecided)
-- Paid tier (freemium or paywall; to decide)
 - Social features for markets (bets shown, debate view, support and counter); website only, later
 - Money signals in ranking, odds from other sites, a public API, more countries and cities, other languages
 
@@ -81,7 +86,7 @@ Most people now get their news first from creators on social media (posts, memes
 ## 3. How we work
 
 - The founder talks to Claude Code directly in the desktop app, with several sessions running in parallel. Helpers use their own accounts.
-- **How to work with the founder:** the founder is non-technical. He describes problems, goals and preferences; you bring the solution. Always propose the best solution that top professional teams use today, explain it in plain language, and lead with your recommendation. If the founder suggests a specific fix and a better one exists, say so and recommend the better one. Show options only when there is a real trade-off, and say which you recommend.
+- **How to work with the founder:** the founder is non-technical. He describes problems, goals and preferences; you bring the solution. Always propose the best solution that top professional teams use today, explain it in plain language, and lead with your recommendation. If the founder suggests a specific fix and a better one exists, say so and recommend the better one. Show options only when there is a real trade-off, and say which you recommend. When the founder describes a problem through an example, treat the example as one case of a general problem: solve the whole category with the best professional approach, and write the general principle, never a rule about the single example.
 - No fixed rituals. Use whichever Claude Code feature fits, when it fits (for example, Ultraplan for the algorithm or for the whole design in one go).
 - **How changes land** (from now on, including staging): every change goes on its own branch and pull request. Claude opens it, the checks that fit the change run (including a secret check on every pull request), the pull request gets a preview link once Vercel is connected, and Claude merges it as soon as the checks pass. No human approval. GitHub enforces this on `main`: checks must pass before merging, no force-push, no required reviews.
 - Checks are sized to the change:
@@ -94,6 +99,7 @@ Most people now get their news first from creators on social media (posts, memes
 - **Production** runs on the same platforms as staging: Vercel plus Supabase, set up exactly like staging (same services, versions, region and settings), with its own data and keys. This "production twin" is created as soon as staging works, with nothing public until launch, so going live is a promotion, not a migration. The founder holds the production keys, and production starts clean.
 - **Releasing** means promoting the exact production build of a commit that passed staging, with one command (`vercel promote`). Nothing is rebuilt, and going back is one command too.
 - **Phone first.** Every screen is checked at phone, tablet, laptop and large-monitor sizes.
+- **Fast from day one.** Every page and screen is built to load fast and stay fast: caching in layers (device, edge, server, Upstash Redis, database), and a performance budget checked automatically on every pull request and measured on real users once live. Performance is part of "done", never a later fix. The full rules are in the blueprint, "Production quality".
 - **Design** starts from references (Mobbin and the founder's own) and is built with shadcn/ui and Claude Design.
 - **Build on standard, portable pieces.** AWS is not the production plan: it comes later only if a concrete need appears, as its own project.
 - **Plugins:** security-guidance, code-review, frontend-design, feature-dev. **Connectors:** GitHub, Context7, Playwright.
@@ -155,6 +161,7 @@ No time estimates, only order. **Needs** means it must be finished first.
 | 2.4 | Posting: text for everyone; creator accounts with image and video uploads; reporting posts and blocking users | Product | 1.6 | Users post text, creators post media, and any post can be reported |
 | 2.5 | Notifications for breaking and developing stories | Product | 2.2 | Alerts arrive on an Android phone |
 | 2.6 | Android build of everything above; start the Google Play closed test as soon as the build is usable | Product, Founder | 2.1–2.5 | A closed test is running with 12 or more real testers |
+| 2.7 | Paid tier: decide what's free and what's paid, then build subscriptions (RevenueCat in the app; Razorpay with UPI on the website, passed through our server). It follows the closed test's start, so the Google Play clock isn't held up | Product, Founder | 1.6 | A tester can subscribe in the Android app and on the website, and both show the same paid status |
 
 ### Phase 3: The markets website (runs alongside the second half of Phase 2)
 
@@ -201,5 +208,5 @@ No time estimates, only order. **Needs** means it must be finished first.
 - Apple and email sign-in details (step 1.6)
 - Feed design in depth (step 2.3)
 - Exact market questions (step 3.2)
-- Paid tier: freemium or paywall, and whether it is in version one (section 2 lists it under "Not in version one", while subscriptions are to be built with the app)
+- Paid tier: what's free and what's paid (decided before the paywall is built, step 2.7)
 - Comment threads

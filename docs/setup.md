@@ -220,6 +220,21 @@ Recorded in PLAN.md (section 2, new parts "How it's built" and "Decided later"; 
 
 **Raised as an open question:** PLAN.md section 2 lists the paid tier under "Not in version one", but subscriptions are to be built when the app is built. Is the paid tier in version one?
 
+### Performance rules, paid tier and video (founder's decisions)
+
+Documentation only; nothing was set up in any service.
+
+- **Performance and caching, from day one:** a short version in CLAUDE.md ("Performance and caching") and in PLAN.md section 3 ("Fast from day one"); the full rules in a new blueprint section 14, "Production quality". "Order of setup" is now section 15.
+  - **Caching in layers:** device, edge (Vercel and Cloudflare), server data caches, Upstash Redis (paid plan, closest region to Mumbai) and the database.
+  - **Rules:** batching, no private data in shared caches, cache keys that include the environment, the media rules and the list rules.
+  - **Starting performance budgets** (Claude Code's choice, using Google's "good" thresholds on a mid-range Android phone on slow 4G):
+    - Website: largest content within 2.5 seconds, taps answered within 200 milliseconds, layout shift of 0.1 or less, and at most 200 KB of compressed code and 500 KB in total on first load.
+    - App: first content within 2 seconds of a cold start, taps within 100 milliseconds, 60 frames a second, and under 100 KB of data for a screen's first view.
+  - **How the budgets are checked:** automatically on every pull request once built, and on real users once live.
+- **Working with the founder:** PLAN.md section 3 and CLAUDE.md now add: treat an example as one case of a general problem, solve the whole category, and write the general principle.
+- **Paid tier: in version one.** PLAN.md's table, section 2 ("Paid tier (in version one)"), the "Social in the app" line and section 7 are consistent with it. A new step 2.7 builds it (RevenueCat in the app; Razorpay with UPI on the website, passed through our server). Claude Code placed it after step 2.6, so the Google Play closed test isn't held up by the paywall. What's free and what's paid is decided before the paywall is built. The open question is closed.
+- **Video: Cloudflare Stream,** in the same Cloudflare account, with adaptive streaming. It is in the blueprint's media rules (section 13), the Cloudflare row in section 2, PLAN.md "How it's built", CLAUDE.md, and the runbook's "Later, with the team". Claude Code added standard practice: direct uploads from the app through one-time upload addresses, playback limited to our own sites, and separate API tokens per environment, with every video tagged by environment. The open question is closed.
+
 ---
 
 ## Rules for this log
