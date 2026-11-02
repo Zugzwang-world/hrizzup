@@ -45,6 +45,28 @@ Most people now get their news first from creators on social media (posts, memes
 - **News:** shown alongside the markets, linked to them through shared categories.
 - **Goal:** the fewest possible steps from arriving to placing a first bet. Extra features can be built now and kept switched off.
 
+### How it's built (decided 2 November 2026)
+
+- **One codebase, two apps:** the app is built with Expo (React Native) and the website with Next.js, in one codebase that shares code between them.
+- **One typed API** that both the app and the website use.
+- **Live updates** (market prices, new posts) through Supabase Realtime.
+- **Search from day one,** starting with the database's own text search.
+- **Shared links open the app** if it's installed (Android App Links and iOS Universal Links).
+- **Core journeys are tested automatically:** Playwright for the website, Maestro for the app.
+- **Images, the professional way:**
+  - At upload: strip location data, fix rotation, cap the size, and make a tiny blurred placeholder. This happens on our server, because a phone can't be trusted to remove location data. The app also shrinks photos before uploading, to save mobile data.
+  - Store one original in R2.
+  - Deliver through Cloudflare image transformations: `format=auto`, resized per screen from a short fixed list of widths, cached at the edge.
+  - The website uses Next.js images pointed at Cloudflare; the app uses Expo's image component with the placeholder.
+  - No conversion scripts.
+
+### Decided later
+
+- **Background jobs:** decided in the Sourcing project.
+- **Subscriptions:** RevenueCat plus Razorpay (UPI) on the web, built when we build the app. Whether the paid tier is freemium or a paywall is still to decide.
+- **PostHog and the admin page:** later.
+- **Language:** English only.
+
 ### Not in version one
 
 - Bot network (a separate network just for AI agents; design later)
@@ -119,7 +141,7 @@ No time estimates, only order. **Needs** means it must be finished first.
 | 1.2 | Data sources for the markets: prices (Bitcoin, gold or oil), scores (cricket, football), an AI model ranking, with their costs | Sourcing | — | Every market subject has a named source |
 | 1.3 | Content formats and the first batch of our own content for the launch categories; a list of creators to invite | News Desk | 0.7 | Enough content to fill the feeds in the launch categories |
 | 1.4 | Design: references, then the design system, then the core screens (board, story page, feed, app frame, market page) | Product, in Claude Design | — | Design system approved and screens handed to Claude Code |
-| 1.5 | Decide how the app and the website share one codebase; get a first empty app running on an Android phone | Product | 0.6 | Decided, and the app opens on a phone |
+| 1.5 | Set up the one codebase (Expo app and Next.js website sharing code, with one typed API); get a first empty app running on an Android phone | Product | 0.6 | The website runs on staging and the app opens on a phone |
 | 1.6 | Accounts and login: Google first; Apple and email sign-in decided before the iPhone build | Product | 0.6 | Sign-in works on the web and on Android |
 | 1.7 | Copy the market engine from Manifold, with its tests (licence confirmed first) | Product | 0.6 | A market can be created, traded and settled on staging |
 
@@ -175,9 +197,9 @@ No time estimates, only order. **Needs** means it must be finished first.
 
 - How the Grok bots are set up, how often they run, and the fixed format of their results (steps 0.7 and 1.1). Each run starts fresh, so matching new items to existing stories happens in our pipeline.
 - Confirm that Grok's subscription terms allow its results to feed a public app (step 0.8)
-- How the app and the website share one codebase (step 1.5)
+- Background jobs: which tool runs scheduled and queued work (decided in the Sourcing project)
 - Apple and email sign-in details (step 1.6)
 - Feed design in depth (step 2.3)
 - Exact market questions (step 3.2)
-- Paid tier
+- Paid tier: freemium or paywall, and whether it is in version one (section 2 lists it under "Not in version one", while subscriptions are to be built with the app)
 - Comment threads

@@ -10,6 +10,7 @@
 - **Save every login, password and recovery code in Proton Pass,** in a vault called **Hrizzup**. Switch on two-step login for every account.
 - **Never paste a secret into any chat.** Keys you create yourself go straight into Doppler's dashboard. Keys Claude Code creates go straight into Doppler without being shown.
 - **A part is finished when its "Done when" line is true.**
+- **The app's building blocks are decided:** the Expo app and Next.js website in one codebase with one typed API, Supabase Realtime for live updates, the database's own search, links that open the app, Playwright and Maestro tests, and the image pipeline on R2 and Cloudflare. See PLAN.md section 2, "How it's built", and blueprint section 13. The steps below set up the services they run on.
 - **Every change goes on its own branch and pull request,** from now on, including staging. Claude Code opens it, the checks that fit the change run (including the secret check on every pull request), the pull request gets a preview link once Vercel is connected, and Claude Code merges it as soon as the checks pass. No human approval. GitHub refuses changes to `main` that skip this.
 
 ## Every screen fits every device
@@ -81,7 +82,7 @@ The repo lives in your personal GitHub account, `Zugzwang-world`, on GitHub Pro,
 
 | Step | Who | What to do |
 |---|---|---|
-| 2.1 | You | In Cloudflare, add the site `hrizzup.com` and choose the **Pro** plan. Copy the two nameservers Cloudflare gives you. |
+| 2.1 | You | In Cloudflare, add the site `hrizzup.com` and choose the **Free** plan (it moves to Pro in Part 10, "Production twin"). Copy the two nameservers Cloudflare gives you. |
 | 2.2 | You | In GoDaddy, open `hrizzup.com` and check DNSSEC is **off**. Replace the nameservers with Cloudflare's two. Turn on the transfer lock and auto-renew. |
 | 2.3 | You | Wait until Cloudflare shows `hrizzup.com` as **Active**. This can take from minutes to a few hours. |
 | 2.4 | You | In Cloudflare, turn on **DNSSEC**. It will show a DS record. In GoDaddy, add that DS record in `hrizzup.com`'s DNSSEC section, then wait for Cloudflare to confirm DNSSEC is active. |
@@ -161,7 +162,10 @@ The repo lives in your personal GitHub account, `Zugzwang-world`, on GitHub Pro,
 | 6.3 | You | In Cloudflare R2, create an access key (object read and write) for each bucket, and paste each one into Doppler `stg` under the names Claude Code gives you. |
 | 6.4 | Claude Code | Create the Turnstile widget **"Hrizzup staging"**: Managed mode, hostnames `staging.hrizzup.com` and `localhost`. Put its keys into Doppler `stg` without showing them. |
 
-**Done when:** both buckets exist, a test file loads from `media-staging.hrizzup.com`, the keys are in Doppler, and the widget exists.
+| 6.5 | You | In Cloudflare, open **Images → Transformations** and turn transformations on for `hrizzup.com`. Leave "resize images from any origin" **off**, so only our own images can be resized. |
+| 6.6 | Claude Code | Check that a test image loads resized from `media-staging.hrizzup.com/cdn-cgi/image/width=640,format=auto/<test image>`, in a modern format, and is served from Cloudflare's cache the second time. Record the result. |
+
+**Done when:** both buckets exist, a test file loads from `media-staging.hrizzup.com` and also loads resized through Cloudflare, the keys are in Doppler, and the widget exists.
 
 ---
 
@@ -228,18 +232,19 @@ Everything matches staging (the same services, versions, region and settings) ex
 
 | Step | Who | What to do |
 |---|---|---|
-| 10.1 | You | In the Supabase Pro organisation, create **`hrizzup-production`**: region **Mumbai**, the same compute size as staging, and a generated database password saved in Proton Pass. Turn on point-in-time recovery; turn the spend cap off and usage alerts on. |
-| 10.2 | You | Copy its two connection-pooler addresses (transaction mode, port 6543, and session mode, port 5432) into Doppler `prd`, under the names Claude Code gives you. |
-| 10.3 | Claude Code | Connect through each address. Confirm the region, Postgres version, compute size, pooler mode and extensions match staging, and run the same migrations. Record the comparison. |
-| 10.4 | Claude Code | Create the production buckets with the same location as staging: **`hrizzup-production-uploads`** (private) and **`hrizzup-production-media`** (public). Connect the public one to **`media.hrizzup.com`**, and apply the same CORS and lifecycle rules from the repo. |
-| 10.5 | You | In Cloudflare R2, create an access key (object read and write) for each production bucket, and paste each one into Doppler `prd` under the names Claude Code gives you. |
-| 10.6 | You | In Upstash, create **`hrizzup-production`** on the same plan and in the same region as staging, and paste its REST URL and token into Doppler `prd`. |
-| 10.7 | You | In the Google Cloud project `hrizzup`, create an OAuth client of type **Web application** for production, with origins `https://hrizzup.com` and `https://www.hrizzup.com` and the redirect address Claude Code gives you. Paste the client ID and secret into Doppler `prd`. |
-| 10.8 | Claude Code | Create the Turnstile widget **"Hrizzup production"**: Managed mode, hostnames `hrizzup.com` and `www.hrizzup.com`. Put its keys into Doppler `prd` without showing them, and check that Resend's production sending key (step 3.6) is there too. |
-| 10.9 | You | In Doppler, sync `prd` to Vercel's production environment, marked Sensitive. |
-| 10.10 | Claude Code | Compare staging and production side by side: every service, version, region and setting must match, and only names, data and keys may differ. Confirm a hidden production build's private `/api/health` reports `bom1` and the production setup, and that `hrizzup.com` still shows the holding page. Record the comparison. |
+| 10.1 | You | In Cloudflare, upgrade `hrizzup.com` to the **Pro** plan, and turn on Cloudflare Images' paid plan, so new image sizes never fail once the free 5,000 a month are used up. |
+| 10.2 | You | In the Supabase Pro organisation, create **`hrizzup-production`**: region **Mumbai**, the same compute size as staging, and a generated database password saved in Proton Pass. Turn on point-in-time recovery; turn the spend cap off and usage alerts on. |
+| 10.3 | You | Copy its two connection-pooler addresses (transaction mode, port 6543, and session mode, port 5432) into Doppler `prd`, under the names Claude Code gives you. |
+| 10.4 | Claude Code | Connect through each address. Confirm the region, Postgres version, compute size, pooler mode and extensions match staging, and run the same migrations. Record the comparison. |
+| 10.5 | Claude Code | Create the production buckets with the same location as staging: **`hrizzup-production-uploads`** (private) and **`hrizzup-production-media`** (public). Connect the public one to **`media.hrizzup.com`**, and apply the same CORS and lifecycle rules from the repo. Image transformations (step 6.5) already cover it, because they are switched on for the whole zone. |
+| 10.6 | You | In Cloudflare R2, create an access key (object read and write) for each production bucket, and paste each one into Doppler `prd` under the names Claude Code gives you. |
+| 10.7 | You | In Upstash, create **`hrizzup-production`** on the same plan and in the same region as staging, and paste its REST URL and token into Doppler `prd`. |
+| 10.8 | You | In the Google Cloud project `hrizzup`, create an OAuth client of type **Web application** for production, with origins `https://hrizzup.com` and `https://www.hrizzup.com` and the redirect address Claude Code gives you. Paste the client ID and secret into Doppler `prd`. |
+| 10.9 | Claude Code | Create the Turnstile widget **"Hrizzup production"**: Managed mode, hostnames `hrizzup.com` and `www.hrizzup.com`. Put its keys into Doppler `prd` without showing them, and check that Resend's production sending key (step 3.6) is there too. |
+| 10.10 | You | In Doppler, sync `prd` to Vercel's production environment, marked Sensitive. |
+| 10.11 | Claude Code | Compare staging and production side by side: every service, version, region and setting must match, and only names, data and keys may differ. Confirm a hidden production build's private `/api/health` reports `bom1` and the production setup, that a test image loads resized from `media.hrizzup.com`, and that `hrizzup.com` still shows the holding page. Record the comparison. |
 
-**Done when:** every production service exists with the same settings as staging, its keys are in Doppler `prd` and synced to Vercel production, the side-by-side comparison passes, and nothing public has changed.
+**Done when:** `hrizzup.com` is on Cloudflare Pro with Images' paid plan on, every production service exists with the same settings as staging, its keys are in Doppler `prd` and synced to Vercel production, the side-by-side comparison passes, and nothing public has changed.
 
 ---
 
@@ -285,7 +290,8 @@ Everything matches staging (the same services, versions, region and settings) ex
 # Later, with the team
 
 - **Sentry and PostHog:** one project per environment, with keys in Doppler.
-- **Apple Developer and Google Play accounts.** Start Google Play early: a personal account needs a closed test with at least 12 testers for 14 days before the app can go public.
+- **Apple Developer and Google Play accounts.** Start Google Play early: a personal account needs a closed test with at least 12 testers for 14 days before the app can go public. Their app IDs and signing fingerprints go into the two files the website serves so that shared links open the app (`/.well-known/assetlinks.json` and `/.well-known/apple-app-site-association`).
+- **RevenueCat and Razorpay:** set up when the app is built, for subscriptions (Razorpay with UPI on the website).
 - **At launch:** CAA records naming every certificate authority that Cloudflare and Vercel use.
 - **AWS:** later, only if a concrete need appears, as its own project.
 

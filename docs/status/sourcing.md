@@ -21,3 +21,4 @@ Last updated: 2 November 2026. Plan: [PLAN.md](../../PLAN.md). Code: [sourcing/]
 - Gold or oil for the commodity markets? (step 1.2)
 - Which source decides "the best AI model"? (step 1.2)
 - What are the exact market questions? (step 3.2, with Product)
+- **Background jobs, for the whole product:** which tool runs scheduled and queued work (the news pipeline, settling markets, processing uploaded images)? The founder put this decision with Sourcing on 2 November 2026 (PLAN.md, "Decided later").

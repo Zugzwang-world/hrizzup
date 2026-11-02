@@ -193,6 +193,33 @@ Claude Code also chose to block deleting `main` (standard practice) and to allow
   - Runbook: title and introduction, "How to use", new step 1.7, the Part 8 note, Part 9 rewritten for hidden production builds, the new Part 10, the hand-over renumbered to Part 11, the new "Releasing to production", the "Later" list, and "Production hardening".
 - **Nothing was created in Vercel, Supabase or anywhere else for production yet.** That happens in runbook Parts 9 and 10.
 
+### Product decisions: how the app is built, images, and the Cloudflare plan (founder's decisions)
+
+Recorded in PLAN.md (section 2, new parts "How it's built" and "Decided later"; step 1.5; section 7), the blueprint (sections 2, 4 and 14, and a new section 13, "App building blocks") and the runbook ("How to use", steps 2.1, 6.5, 6.6, Part 10, and "Later, with the team"). Nothing was set up in any service today.
+
+| Area | Decision | Where it shows up in setup |
+|---|---|---|
+| Codebase | Expo (React Native) app and Next.js website in one codebase that shares code | PLAN.md step 1.5 now sets it up instead of deciding it. The package manager and how the code is split up are settled then |
+| API | One typed API that both the app and the website use | Built in step 1.5 |
+| Live updates | Supabase Realtime (market prices, new posts) | Which tables send updates is set in migrations, the same on staging and production |
+| Search | From day one, starting with the database's own text search | Postgres full-text search, set up in migrations |
+| Shared links | Open the app if it's installed (Android App Links, iOS Universal Links) | The website serves `/.well-known/assetlinks.json` and `/.well-known/apple-app-site-association`, filled in from the Google Play and Apple Developer accounts |
+| Tests | Core journeys tested automatically: Playwright (website), Maestro (app) | Each becomes a required check on `main` once built |
+| Images | At upload: strip location data, fix rotation, cap the size, make a tiny blurred placeholder. One original in R2. Delivered through Cloudflare image transformations (`format=auto`, resized per screen, cached at the edge). Next.js images pointed at Cloudflare on the website; Expo's image component with the placeholder in the app. No conversion scripts | Runbook 6.5 (turn transformations on, only for our own images) and 6.6 (test), and 10.11 for production |
+| Cloudflare plan | **Free** during staging; `hrizzup.com` upgraded to **Pro** in Part 10 | Runbook 2.1 now says Free; new step 10.1 does the upgrade. Blueprint section 2 updated |
+| Decided later | Background jobs (Sourcing project); subscriptions with RevenueCat plus Razorpay (UPI) on the web, built when the app is built; PostHog and the admin page later; English only | PLAN.md "Decided later", blueprint section 13, runbook "Later, with the team" |
+
+**Details Claude Code added, each following standard practice:**
+- **Images are processed on the server,** because a phone can't be trusted to remove location data. The app also shrinks photos before uploading, to save mobile data. The raw upload in the private bucket is deleted after processing (lifecycle rule).
+- **Transformations run on the media addresses** (`media-staging.hrizzup.com`, `media.hrizzup.com`), which go through Cloudflare. The app's own names point at Vercel, DNS only, so transformations can't run there.
+- **Only our own images can be transformed** ("resize images from any origin" stays off), so nobody can use Hrizzup as a free image service.
+- **A short fixed list of widths,** so Cloudflare's cache stays warm and the count of new sizes stays low.
+- **The website's Next.js images use a custom loader** pointing at Cloudflare, so Vercel's own image optimisation is neither used nor billed.
+- **Cloudflare Images' paid plan is turned on in Part 10.** Cloudflare's [pricing page](https://developers.cloudflare.com/images/pricing/) says the free allowance is 5,000 new sizes (unique transformations) a month. Past that, new sizes fail with an error until the paid plan is on ($0.50 per 1,000 more). The Pro zone plan doesn't change this.
+- **RevenueCat and Razorpay need a link built by us.** RevenueCat's web payments run on Stripe ([RevenueCat Web Billing](https://www.revenuecat.com/docs/web/web-billing/configuring-overview.md)), and no Razorpay connection was found. When subscriptions are built, our server records Razorpay payments with RevenueCat, so the app and the website agree on who has paid.
+
+**Raised as an open question:** PLAN.md section 2 lists the paid tier under "Not in version one", but subscriptions are to be built when the app is built. Is the paid tier in version one?
+
 ---
 
 ## Rules for this log

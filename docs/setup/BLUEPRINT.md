@@ -28,7 +28,7 @@ Status: proposed, 2 November 2026, and updated the same day with the founder's d
 
 ## 2. Accounts and plans
 
-Default to paid tiers.
+Default to paid tiers. The exception is Cloudflare, which stays on its Free plan during staging.
 
 | Service | Plan | Used for |
 |---|---|---|
@@ -36,12 +36,14 @@ Default to paid tiers.
 | Vercel | Pro (the existing team), with one project `hrizzup` for previews, staging and production. Pro includes the one custom environment that staging needs. | Previews, staging and production |
 | Supabase | Pro (the existing organisation), with two projects set up the same way in Mumbai (ap-south-1): `hrizzup-staging` and `hrizzup-production` | Staging and production databases |
 | Doppler | Team plan. It adds service accounts and audit features; the free tier forced the audit to be cut back last time. | All secrets |
-| Cloudflare | A zone for `hrizzup.com` on a paid plan, bought per domain. Its protection covers the names routed through Cloudflare, such as the public storage addresses; the app's own names point at Vercel, DNS only (section 4). | DNS, file storage (R2), Turnstile |
+| Cloudflare | A zone for `hrizzup.com` on the **Free** plan during staging, upgraded to **Pro** in the production twin (runbook Part 10). Image transformations are free up to 5,000 new sizes a month; the production twin also turns on Cloudflare Images' paid plan, so new sizes never fail (section 13). Its protection covers the names routed through Cloudflare, such as the public storage addresses; the app's own names point at Vercel, DNS only (section 4). | DNS, file storage (R2), image delivery, Turnstile |
 | Proton | Duo (existing) | Email on hrizzup.com, plus a Proton Pass vault named `Hrizzup` |
 | Resend | Paid plan (existing). The free plan stops at 100 emails a day. | Sign-in and notification email |
 | Upstash Redis | Paid plan (existing), with one database per environment, in Mumbai | Rate limits, caches, locks |
 | Sentry | Later, set up with the team: Team plan, one project per environment | Error reporting |
 | PostHog | Later, set up with the team: one project per environment | Analytics and feature flags |
+| RevenueCat | Later, set up when the app is built | Subscriptions in the app |
+| Razorpay | Later, set up when the app is built | Subscriptions on the website, with UPI |
 | Google Cloud | One project with separate sign-in (OAuth) clients for staging and production, and billing switched on | Google sign-in |
 | Apple Developer | Individual account | The iPhone app and Sign in with Apple |
 | Google Play | Personal account | The Android app |
@@ -84,7 +86,8 @@ Production is a twin of staging: the same services, versions, region and setting
 - **Storage (R2):**
   - two buckets per environment: staging, and production in the production twin;
   - public files are served from a single-level subdomain: `media-staging.hrizzup.com` for staging and `media.hrizzup.com` for production. Cloudflare's standard certificate covers only one level below the domain, and `r2.dev` addresses are rate-limited;
-  - bucket CORS and lifecycle rules are written into the repo, and both environments use the same ones.
+  - bucket CORS and lifecycle rules are written into the repo, and both environments use the same ones;
+  - images are processed and delivered as described in section 13.
 - **Logging:** every record added or removed is logged in `docs/setup.md`. When a service is removed, its records go with it, so nothing points at a server that no longer exists.
 
 ---
@@ -216,15 +219,37 @@ AWS is not the production plan. Production runs on the same platforms as staging
 
 ---
 
-## 13. Order of setup
+## 13. App building blocks (decided 2 November 2026)
 
-1. **Domain and DNS:** add the zone to Cloudflare, set the nameservers at GoDaddy, turn on DNSSEC, and create the Cloudflare API token. At the same time: check two-step login on your GitHub account, create the repo in that account (GitHub Pro), run the first Claude Code session, so every setting has somewhere to be recorded, then turn on Dependabot, the secret check on every pull request and the rule for `main`.
+- **Codebase:** one repo holds the Expo (React Native) app and the Next.js website, sharing code between them, with one typed API that both use. The package manager and how the code is split up are settled when the codebase is set up (PLAN.md step 1.5).
+- **Live updates:** Supabase Realtime, for market prices and new posts. Which tables send live updates is set in migrations, so staging and production match.
+- **Search:** the database's own text search (Postgres full-text search) from day one, set up in migrations.
+- **Shared links open the app:** Android App Links and iOS Universal Links. The website serves `/.well-known/assetlinks.json` and `/.well-known/apple-app-site-association` on `hrizzup.com` (and on staging, for the staging app). They need the app's signing fingerprint and Apple team ID from the Google Play and Apple Developer accounts.
+- **Automatic tests of core journeys:** Playwright for the website and Maestro for the app. Each becomes a required check in the ruleset "main" once built.
+- **Images:**
+  - **Upload:** the app uploads to the private uploads bucket. Our server then strips location data, fixes rotation, caps the size and makes a tiny blurred placeholder, which is saved with the post. It writes one original to the public media bucket, and the raw upload is deleted (lifecycle rule). The work happens on the server because a phone can't be trusted to remove location data; the app also shrinks photos before uploading, to save mobile data.
+  - **Delivery:** Cloudflare image transformations with `format=auto`, resized per screen from a short fixed list of widths, and cached at Cloudflare's edge. They are requested on the media addresses (`media-staging.hrizzup.com`, `media.hrizzup.com`), which run through Cloudflare. The app's own names point at Vercel, DNS only, so transformations can't run there.
+  - **Only our own images** can be transformed ("resize images from any origin" stays off), so nobody can use Hrizzup as a free image service.
+  - **Website:** Next.js images with a custom loader that points at Cloudflare, so Vercel's own image optimisation is neither used nor billed. **App:** Expo's image component (`expo-image`) with the placeholder.
+  - **No conversion scripts,** and no stored copies at other sizes.
+  - **Cost:** Cloudflare's free allowance is 5,000 new sizes (unique transformations) a month. Past that, sizes already made keep loading but new ones fail until Cloudflare Images' paid plan is on ($0.50 per 1,000 more). Staging stays within the free allowance; the production twin turns the paid plan on. The fixed list of widths keeps the count low.
+- **Decided later:**
+  - **Background jobs:** decided in the Sourcing project.
+  - **Subscriptions:** RevenueCat plus Razorpay (UPI) on the web, built when the app is built. RevenueCat's own web payments run on Stripe and have no Razorpay connection, so our server will record Razorpay payments with RevenueCat, so the app and the website agree on who has paid.
+  - **PostHog and the admin page:** later.
+  - **Language:** English only.
+
+---
+
+## 14. Order of setup
+
+1. **Domain and DNS:** add the zone to Cloudflare (Free plan), set the nameservers at GoDaddy, turn on DNSSEC, and create the Cloudflare API token. At the same time: check two-step login on your GitHub account, create the repo in that account (GitHub Pro), run the first Claude Code session, so every setting has somewhere to be recorded, then turn on Dependabot, the secret check on every pull request and the rule for `main`.
 2. **Email:** the Proton domain, addresses and DMARC record, then Resend's sending subdomain.
 3. **Doppler:** the project and its four configs. Move every key saved so far into it.
 4. **Supabase:** the staging project.
-5. **Storage and bot protection:** the staging R2 buckets and their public subdomain, and the staging Turnstile widget.
+5. **Storage and bot protection:** the staging R2 buckets and their public subdomain, image transformations for the zone, and the staging Turnstile widget.
 6. **Redis and sign-in:** the staging Upstash database and the staging Google sign-in client.
 7. **Vercel:** the project, once the first app exists, synced from Doppler, with `staging.hrizzup.com`, hidden production builds and the holding page on `hrizzup.com`.
-8. **Production twin:** as soon as staging works, the production copy of every staging service, with Doppler `prd` synced to Vercel production. Nothing public until launch.
+8. **Production twin:** as soon as staging works, the production copy of every staging service, with Doppler `prd` synced to Vercel production. `hrizzup.com` moves to Cloudflare Pro, and Cloudflare Images' paid plan is turned on. Nothing public until launch.
 9. **Later, with the team:** Sentry, PostHog, the Apple and Google Play accounts. Before real users arrive: the production hardening in the runbook.
 10. **Throughout:** Claude Code records every setting in `docs/setup.md`.
