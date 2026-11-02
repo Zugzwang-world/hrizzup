@@ -20,7 +20,7 @@ Last updated: 3 November 2026. Plan: [PLAN.md](../../PLAN.md). Code: [product/](
 - **Doppler plan, decided 3 November 2026:** Doppler stays on the free Developer plan during staging. The Team-plan upgrade moved from runbook step 4.1 to step 10.1, the first step of the production twin, because its roles let the founder keep production keys to himself once helpers use Doppler. Until then only the founder and Claude Code use Doppler; if a helper needs it sooner, the upgrade happens then. Runbook Part 2 now also carries a reminder to trim the Cloudflare key.
 - **Proton verification record, 3 November 2026 (runbook 3.2, first record):** the TXT record `protonmail-verification=…` is on `hrizzup.com`, DNS only, and every public resolver checked returns it, signed. Next: the founder verifies in Proton, then Proton's other records go in.
 - **Resend sending domain, 3 November 2026 (runbook 3.5 and 3.6):** `mail.hrizzup.com` is verified in Resend's Tokyo region (the closest to India), with open and click tracking off and its four records in Cloudflare (DNS only). A sending-only staging key, limited to that domain, is in Doppler `stg` as `RESEND_API_KEY`. The production key comes in Part 10. The setup key was deleted from Resend and Doppler.
-- **Proton's mail records and DMARC, 3 November 2026 (runbook 3.2 done):** two MX, SPF, three DKIM and DMARC `v=DMARC1; p=quarantine` are on `hrizzup.com`, DNS only, and every public resolver checked returns them, signed. Next: the founder verifies them in Proton and creates the addresses (step 3.3), then picks the DMARC reports address.
+- **Proton's mail records and DMARC, 3 November 2026 (runbook 3.2 done):** two MX, SPF, three DKIM and DMARC `v=DMARC1; p=quarantine` are on `hrizzup.com`, DNS only, and every public resolver checked returns them, signed. The founder then created `hrishikesh@hrizzup.com` (step 3.3) and turned on Cloudflare's DMARC Management, which receives the DMARC reports; its reports address is in the `_dmarc` record.
 
 ## Next
 
@@ -42,6 +42,7 @@ Last updated: 3 November 2026. Plan: [PLAN.md](../../PLAN.md). Code: [product/](
 - What are the exact market questions? (step 3.2, with Sourcing)
 - Paid tier: what's free and what's paid? Decided before the paywall is built (step 2.7).
 - Comment threads: in or out?
+- **Test email in Spam (runbook 3.7):** the staging test email from `no-reply@mail.hrizzup.com` reached `hrishikesh@hrizzup.com`, but in Spam. Waiting for its headers from the founder, to see whether SPF, DKIM and DMARC passed and why.
 - **For the founder: Zugzwang World leftovers in Resend.** The same Resend account still has the domain `mail.zugzwangworld.com` and an API key named "Onboarding" (last used 26 October 2026). Keep them or delete them?
 - **Helpers' invitations:** sent 2 November 2026 and still waiting to be accepted (checked again the same evening). GitHub cancels them after 7 days; Claude Code can resend them.
 - **Staging following `main` (runbook 9.2):** confirm whether Vercel lets the `staging` environment track `main` while `main` is the production branch; if not, add a small deploy workflow that sends every merge to staging.
