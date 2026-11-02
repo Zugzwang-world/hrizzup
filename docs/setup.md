@@ -256,6 +256,72 @@ Created with Doppler's command-line tool (version 3.76.0), logged in on the foun
 - **Left alone:** the workplace's other projects, `example-project` (Doppler's sample) and `zugzwang-experiment`.
 - **Documents updated:** CLAUDE.md, the blueprint (sections 3, 6 and 7) and the runbook (step 4.2, now marked done, and step 9.3).
 
+
+### Cloudflare zone check and clean-up (runbook 2.6, Claude Code)
+
+Done through Cloudflare's API with the token in Doppler `dev` (`CLOUDFLARE_API_TOKEN`), used only through `doppler run` and never printed. Outside checks used `dig` and the public DNS lookup services of Google and Cloudflare.
+
+**Zone**
+
+| Setting | Value | How it was checked |
+|---|---|---|
+| Zone | `hrizzup.com`, zone ID `da46254f6736da51ef130e7bc927efd6`, account ID `4ddce98b4a4cbc9146d4269f36b03f68` (the founder's Cloudflare account) | Cloudflare's API |
+| Status and plan | Active, Free plan | Cloudflare's API |
+| Nameservers | `joyce.ns.cloudflare.com`, `kevin.ns.cloudflare.com` (before: GoDaddy's `ns19`/`ns20.domaincontrol.com`) | The .com registry's own server (`a.gtld-servers.net`) delegates to these two, and 1.1.1.1, 8.8.8.8 and 9.9.9.9 all answer with them |
+| DNSSEC | Active. DS record: key tag 2371, algorithm 13, digest type 2, digest `AFDD16352D57069C67CB03F1B2AD38E2C15917F2A184EBA4DA9830D7B7A4A12B` | The DS at the .com registry (published by GoDaddy) matches Cloudflare's exactly. 1.1.1.1, 8.8.8.8 and 9.9.9.9 mark answers as validated (`ad`), and so do Google's and Cloudflare's JSON lookup services; with validation switched off (`+cd`) the mark disappears. Answers carry signatures (RRSIG), and still validate after the clean-up |
+
+**DNS records removed** (imported by Cloudflare from GoDaddy, all created 2 November 2026)
+
+| Type | Name | Content | Was |
+|---|---|---|---|
+| A | `hrizzup.com` | `15.197.148.33` | GoDaddy parking, proxied |
+| A | `hrizzup.com` | `3.33.130.190` | GoDaddy parking, proxied |
+| CNAME | `www.hrizzup.com` | `hrizzup.com` | Proxied |
+| CNAME | `_domainconnect.hrizzup.com` | `_domainconnect.gd.domaincontrol.com` | GoDaddy's Domain Connect, proxied |
+| TXT | `_dmarc.hrizzup.com` | `v=DMARC1; p=quarantine; adkim=r; aspf=r; rua=mailto:dmarc_rua@onsecureserver.net;` | GoDaddy's DMARC, reports to GoDaddy |
+
+- **Result:** the zone holds no records (Cloudflare's API: count 0), and Cloudflare's nameservers no longer answer for the apex, `www`, `_dmarc` or GoDaddy's `_domainconnect`.
+- **Still answering, on purpose:** a TXT at `_domainconnect.hrizzup.com` pointing to `api.cloudflare.com/client/v4/dns/domainconnect`. This is Cloudflare's own Domain Connect pointer, published because Cloudflare is now the DNS provider. It isn't a record in the zone and can't be deleted through the records API.
+- **Backup:** the zone file was exported before deleting. The table above is the lasting record.
+- **Email and website records** come in later stages (runbook Parts 3 and 9).
+
+**Zone settings**
+
+| Setting | Before | After (read back from Cloudflare's API) |
+|---|---|---|
+| SSL/TLS mode | Full | **Full (strict)** |
+| Always Use HTTPS | Off | **On** |
+| Minimum TLS version | 1.0 | **1.2** |
+| TLS 1.3 | On | On (unchanged) |
+| Automatic HTTPS Rewrites | On | On (unchanged) |
+
+These apply to names that run through Cloudflare (the media addresses). The app's own names will point at Vercel, DNS only, and Vercel handles their HTTPS.
+
+**The API token's permissions**
+
+The token is a user API token: active, **no expiry date**, and it can see only the `hrizzup.com` zone. Cloudflare doesn't let a token read its own permission list, so it was tested with read-only requests, plus two "create" requests with deliberately invalid input, so nothing could be created.
+
+| Needed (step 2.5) | Result |
+|---|---|
+| DNS: edit | Works (read, and the five deletions above) |
+| Zone settings: edit | Works (read, and the changes above) |
+| R2: edit | Works (listing works; a create with an invalid name got a name error, not a permission error) |
+| Turnstile: edit | Works (listing works; a create with no fields got a missing-field error, not a permission error) |
+
+| Should not be allowed | Result |
+|---|---|
+| Account members, billing, API tokens, Workers KV, Images, Stream, Registrar, load balancers, WAF rules, IP access rules, SSL certificate packs | Refused |
+| Zero Trust Access | No answer either way (Access isn't switched on in the account) |
+| **Workers scripts (listing)** | **Allowed.** Cloudflare's API reference says this needs a Workers Scripts or Workers Tail permission |
+| **Workers routes on the zone (listing)** | **Allowed.** Needs a Workers Routes permission |
+| **Page Rules (listing)** | **Allowed.** Probably a Page Rules permission |
+| **Email Routing settings (reading)** | **Allowed.** Possibly covered by zone settings; not confirmed |
+| Account details (reading) | Allowed. Possibly an Account Settings permission; not confirmed |
+
+**Open:** the token has more than it needs, at least Workers Scripts and Workers Routes access. The founder trims it to the five rows in runbook step 2.5; editing a token's permissions keeps its value, so nothing changes in Doppler. Claude Code then runs this check again.
+
+**Documents updated:** runbook step 2.5 (the exact permission rows, saved straight into Doppler) and step 2.6 (what the check covers, marked done apart from the token clean-up), and Part 2's "Done when" line. Blueprint section 4 now covers the empty zone, the HTTPS settings and the token's scope.
+
 ---
 
 ## Rules for this log

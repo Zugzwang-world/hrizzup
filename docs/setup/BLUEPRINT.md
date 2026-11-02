@@ -71,11 +71,12 @@ Production is a twin of staging: the same services, versions, region and setting
 ## 4. Domain and DNS (Cloudflare, hrizzup.com)
 
 - **At GoDaddy:** transfer lock, two-step login and auto-renew all on.
-- **Nameservers move to Cloudflare before any record is added.**
+- **Nameservers move to Cloudflare before any record is added.** Records Cloudflare imports from the old provider are deleted, so the zone starts empty and every record in it is one we added on purpose.
 - **DNSSEC on.** Switch it on in Cloudflare, then add the DS record Cloudflare gives you at GoDaddy. Last time DNSSEC ended up off, with no record of why.
 - **No CAA records during staging.** At launch, add a complete set naming every certificate authority that Cloudflare and Vercel use (check each provider's current list at the time). Last time a missing entry blocked an AWS certificate.
 - **No certificate to buy.** Vercel and Cloudflare issue and renew certificates automatically.
-- **A Cloudflare API token** limited to hrizzup.com's DNS and to R2, kept in Doppler. Claude Code uses it to add DNS records and record them itself, instead of anyone typing them into the dashboard.
+- **HTTPS settings for the zone:** SSL/TLS Full (strict), Always Use HTTPS, minimum TLS 1.2, TLS 1.3 and Automatic HTTPS Rewrites. They apply to the names that run through Cloudflare (the media addresses). The app's own names point at Vercel, DNS only, and Vercel handles their HTTPS.
+- **A Cloudflare API token** with only what Claude Code needs: hrizzup.com's DNS and zone settings, plus R2 and Turnstile on the account (the exact permission rows are in runbook step 2.5). It is kept in Doppler `dev` as `CLOUDFLARE_API_TOKEN` and used only through `doppler run`. Claude Code uses it to add DNS records and record them itself, instead of anyone typing them into the dashboard.
 - **Email records:**
   - Proton: verification, MX, SPF and the three DKIM records.
   - DMARC: `v=DMARC1; p=quarantine`, with alignment left at its relaxed default.

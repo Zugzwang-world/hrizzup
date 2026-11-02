@@ -86,10 +86,10 @@ The repo lives in your personal GitHub account, `Zugzwang-world`, on GitHub Pro,
 | 2.2 | You | In GoDaddy, open `hrizzup.com` and check DNSSEC is **off**. Replace the nameservers with Cloudflare's two. Turn on the transfer lock and auto-renew. |
 | 2.3 | You | Wait until Cloudflare shows `hrizzup.com` as **Active**. This can take from minutes to a few hours. |
 | 2.4 | You | In Cloudflare, turn on **DNSSEC**. It will show a DS record. In GoDaddy, add that DS record in `hrizzup.com`'s DNSSEC section, then wait for Cloudflare to confirm DNSSEC is active. |
-| 2.5 | You | In Cloudflare, create an **API token** for Claude Code that can edit `hrizzup.com`'s DNS, R2 storage and Turnstile, and nothing else. Save it in Proton Pass; it moves into Doppler in Part 4. |
-| 2.6 | Claude Code | Check from the outside: the nameservers are Cloudflare's, DNSSEC is signed, and there are no stray records. Record the result. |
+| 2.5 | You | In Cloudflare, create an **API token** for Claude Code with exactly these permission rows and nothing else: Zone · DNS · Edit; Zone · Zone Settings · Edit; Zone · Zone · Read; Account · Workers R2 Storage · Edit; Account · Turnstile · Edit. Limit the zone rows to `hrizzup.com` and the account rows to your account. Save it straight into Doppler `dev` as `CLOUDFLARE_API_TOKEN`, never in a chat. |
+| 2.6 | Claude Code | Using the token through `doppler run` (never printed): check from the outside that the nameservers are Cloudflare's, and that DNSSEC works end to end (the DS record at the .com registry matches Cloudflare's, and validating resolvers accept the answers). Delete every record Cloudflare imported from GoDaddy, so the zone starts empty. Apply the zone settings: SSL/TLS Full (strict), Always Use HTTPS, minimum TLS 1.2, TLS 1.3, Automatic HTTPS Rewrites. Check that the token can do only what step 2.5 lists. Record everything. **Done, 2 November 2026,** except that the token had extra permissions to remove (setup log). |
 
-**Done when:** Cloudflare shows Active with DNSSEC confirmed, the token is saved, and Claude Code's check passes.
+**Done when:** Cloudflare shows Active with DNSSEC confirmed end to end, the zone is empty, the zone settings are on, and the token holds only the permissions in step 2.5.
 
 ---
 
