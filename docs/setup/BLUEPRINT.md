@@ -79,7 +79,7 @@ Production is a twin of staging: the same services, versions, region and setting
 - **A Cloudflare API token** with only what Claude Code needs: hrizzup.com's DNS and zone settings, plus R2 and Turnstile on the account (the exact permission rows are in runbook step 2.5). It is kept in Doppler `dev` as `CLOUDFLARE_API_TOKEN` and used only through `doppler run`. Claude Code uses it to add DNS records and record them itself, instead of anyone typing them into the dashboard.
 - **Email records:**
   - Proton: verification, MX, SPF and the three DKIM records.
-  - DMARC: `v=DMARC1; p=quarantine`, with alignment left at its relaxed default. A reports address (`rua`) is added once the Proton addresses exist (runbook step 3.3).
+  - DMARC: `v=DMARC1; p=quarantine`, with alignment left at its relaxed default. Reports go to Cloudflare's DMARC Management, which adds its own reports address (`rua`) to the record.
 - **Resend:** the sending subdomain `mail.hrizzup.com`, with its DKIM, SPF and bounce records exactly as Resend returns them, all DNS only (runbook step 3.6).
 - **`staging`:** points at Vercel, DNS only.
 - **The bare `hrizzup.com` and `www`:** production's names, pointing at Vercel, DNS only. Until launch they show a holding page, which carries the privacy policy that Google sign-in and the app stores ask for.
@@ -161,7 +161,7 @@ Production is a twin of staging: the same services, versions, region and setting
 
 ## 8. Email
 
-- **Proton:** the address you choose plus a contact address on hrizzup.com. DMARC reports go to one of them.
+- **Proton:** the address you choose plus a contact address on hrizzup.com. DMARC reports go to Cloudflare's DMARC Management, not to a personal address.
 - **Resend Pro:**
   - the verified sending subdomain `mail.hrizzup.com`, in Resend's Tokyo region (`ap-northeast-1`), the closest of its four regions to India;
   - open and click tracking off, so links in sign-in emails are never rewritten;

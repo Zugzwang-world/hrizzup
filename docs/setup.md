@@ -477,6 +477,37 @@ Added through Cloudflare's API, using the Cloudflare key through `doppler run` (
 - **Blueprint:** section 4 (DMARC reports address).
 - **Status:** `docs/status/product.md`.
 
+### DMARC reports through Cloudflare's DMARC Management (founder's decision)
+
+- **The founder turned on DMARC Management** for `hrizzup.com` in Cloudflare's dashboard. It collects the DMARC reports that receiving mail services send, and shows who sends mail in hrizzup.com's name. No personal reports address is needed.
+- **What it changed:** Cloudflare edited our `_dmarc` record at 22:10 UTC on 2 November (03:40 India time on 3 November), adding its reports address. There is still exactly one DMARC record, as there must be:
+
+  | Type | Name | Value |
+  |---|---|---|
+  | TXT | `_dmarc` | `v=DMARC1; p=quarantine; rua=mailto:19d28cf72d49415dbe619c22c3a8f4fc@dmarc-reports.cloudflare.net;` |
+
+- **How it was checked:** Cloudflare's API shows one `_dmarc` record. Cloudflare's nameserver and 1.1.1.1, 8.8.8.8 and 9.9.9.9 all return the value above. There is no separate record for `mail.hrizzup.com`, so this policy covers Resend's mail too.
+- **Side effect:** the edit removed the Cloudflare comment we had put on that record. The record itself is right, so it was left as Cloudflare set it.
+
+### Test email (runbook 3.7, Claude Code): delivered, but into Spam
+
+- **Sent:** through Resend's API with `RESEND_API_KEY` from Doppler `stg` (through `doppler run`, never printed).
+  - **From and to:** `Hrizzup <no-reply@mail.hrizzup.com>` to `hrishikesh@hrizzup.com`.
+  - **Subject:** "Hrizzup staging test email (runbook 3.7) 2026-11-03 03:41 IST".
+  - **When:** 22:11 UTC on 2 November (03:41 India time on 3 November), a minute after the DMARC edit above.
+  - **Resend's ID:** `01a19e50-ef85-7b01-ad66-3a8c508219cd`. Resend accepted it.
+- **Result so far:** the founder reports it arrived, but in **Spam**, not the inbox. The step's goal (inbox, with DMARC passing) is **not met yet**.
+- **Still to do:**
+  - read the email's headers (the founder copies them from Proton) to see whether SPF, DKIM and DMARC passed and why Proton chose Spam;
+  - fix the cause, send again, and record the result here.
+
+**Documents updated:**
+- **Runbook:**
+  - step 3.3 now says DMARC reports go to Cloudflare's DMARC Management;
+  - step 3.7 is marked as started, with the email delivered into Spam.
+- **Blueprint:** sections 4 and 8.
+- **Status:** `docs/status/product.md`.
+
 ---
 
 ## Rules for this log
