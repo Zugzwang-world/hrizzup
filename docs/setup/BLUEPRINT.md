@@ -4,7 +4,7 @@
 > Claude Code commits it to `docs/setup/BLUEPRINT.md`. On the day it sets each value, it also records that value in `docs/setup.md`.
 > Secrets never go in either file.
 
-Status: proposed, 2 November 2026, and updated the same day with the founder's decisions. No **DECIDE** items remain open.
+Status: proposed, 2 November 2026, and updated with the founder's decisions since (latest 3 November 2026). No **DECIDE** items remain open.
 
 ---
 
@@ -28,14 +28,14 @@ Status: proposed, 2 November 2026, and updated the same day with the founder's d
 
 ## 2. Accounts and plans
 
-Default to paid tiers. The exception is Cloudflare, which stays on its Free plan during staging.
+Default to paid tiers. The exceptions are Cloudflare and Doppler, which stay on their free plans during staging and are upgraded in the production twin.
 
 | Service | Plan | Used for |
 |---|---|---|
 | GitHub | The founder's personal account `Zugzwang-world`, on **GitHub Pro**, with the **private** repo `hrizzup`. Pro covers the repository protections used on `main` (section 11), but not GitHub's own secret scanning or push protection for private repos: an open-source secret check runs on every pull request instead. | Code, pull requests, checks |
 | Vercel | Pro (the existing team), with one project `hrizzup` for previews, staging and production. Pro includes the one custom environment that staging needs. | Previews, staging and production |
 | Supabase | Pro (the existing organisation), with two projects set up the same way in Mumbai (ap-south-1): `hrizzup-staging` and `hrizzup-production` | Staging and production databases |
-| Doppler | Team plan. It adds service accounts and audit features; the free tier forced the audit to be cut back last time. | All secrets |
+| Doppler | The free **Developer** plan during staging: free for 3 users (then $8 a month each) and up to 5 syncs, of which staging uses 2. Only the founder and Claude Code use it until the upgrade. Upgraded to **Team** ($21 per user a month) in the production twin (runbook step 10.1), or earlier if a helper needs Doppler: the Team plan's roles let the founder keep production keys to himself once helpers use Doppler (section 7). Team also adds service accounts and audit features; the free tier forced the audit to be cut back last time, so until the upgrade the daily audit stays within what the free plan offers. | All secrets |
 | Cloudflare | A zone for `hrizzup.com` on the **Free** plan during staging, upgraded to **Pro** in the production twin (runbook Part 10). Image transformations are free up to 5,000 new sizes a month; the production twin also turns on Cloudflare Images' paid plan, so new sizes never fail (section 13). Its protection covers the names routed through Cloudflare, such as the public storage addresses; the app's own names point at Vercel, DNS only (section 4). Cloudflare Stream, for creator video, lives in the same account and is billed by minutes stored and watched; it is switched on when creator video is built. | DNS, file storage (R2), image delivery, video (Stream), Turnstile |
 | Proton | Duo (existing) | Email on hrizzup.com, plus a Proton Pass vault named `Hrizzup` |
 | Resend | Paid plan (existing). The free plan stops at 100 emails a day. | Sign-in and notification email |
@@ -146,6 +146,9 @@ Production is a twin of staging: the same services, versions, region and setting
   - `prd`: production, kept fully separate (rule 1).
   Doppler also gives each person a built-in, empty `dev_personal`; it can't be deleted, and it isn't used.
 - **Syncs:** `stg` goes to Vercel staging, `stg_preview` to Vercel previews, and `prd` to Vercel production.
+- **Plan and access:** the free Developer plan during staging, when only the founder and Claude Code use Doppler. That plan has no roles, so any member could open every config. The Team plan (runbook step 10.1) comes in the production twin, or before the first helper joins if that's sooner. With it:
+  - helpers get the Collaborator role on Development and Staging, and no access to Production;
+  - Claude Code's setup keys move out of `dev` into their own environment before the first helper joins, so helpers never see them.
 - **No variables made by hand on any platform**, and every change is followed by a redeploy.
 - **Every secret exists separately for each environment** (rule 1).
 - **Production keys:** before real users arrive, every production key is replaced with a new one that only the founder holds, and Claude Code's access to `prd` is removed (runbook, "Production hardening").
@@ -303,11 +306,11 @@ Every page and screen has a budget. The starting numbers below are Google's "goo
 
 1. **Domain and DNS:** add the zone to Cloudflare (Free plan), set the nameservers at GoDaddy, turn on DNSSEC, and create the Cloudflare API token. At the same time: check two-step login on your GitHub account, create the repo in that account (GitHub Pro), run the first Claude Code session, so every setting has somewhere to be recorded, then turn on Dependabot, the secret check on every pull request and the rule for `main`.
 2. **Email:** the Proton domain, addresses and DMARC record, then Resend's sending subdomain.
-3. **Doppler:** the project and its four configs. Move every key saved so far into it.
+3. **Doppler:** the project and its four configs, on the free Developer plan. Move every key saved so far into it.
 4. **Supabase:** the staging project.
 5. **Storage and bot protection:** the staging R2 buckets and their public subdomain, image transformations for the zone, and the staging Turnstile widget.
 6. **Redis and sign-in:** the staging Upstash database and the staging Google sign-in client.
 7. **Vercel:** the project, once the first app exists, synced from Doppler, with `staging.hrizzup.com`, hidden production builds and the holding page on `hrizzup.com`.
-8. **Production twin:** as soon as staging works, the production copy of every staging service, with Doppler `prd` synced to Vercel production. `hrizzup.com` moves to Cloudflare Pro, and Cloudflare Images' paid plan is turned on. Nothing public until launch.
+8. **Production twin:** as soon as staging works, the production copy of every staging service, with Doppler `prd` synced to Vercel production. Doppler moves to its Team plan first, `hrizzup.com` moves to Cloudflare Pro, and Cloudflare Images' paid plan is turned on. Nothing public until launch.
 9. **Later, with the team:** Sentry, PostHog, the Apple and Google Play accounts. Before real users arrive: the production hardening in the runbook.
 10. **Throughout:** Claude Code records every setting in `docs/setup.md`.

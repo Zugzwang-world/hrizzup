@@ -44,6 +44,7 @@ Label every change with its size at the start of the commit message and the pull
 
 - Staging is a sandbox: fully separate from production, no real user data, a spending cap on every paid service. The AI holds its keys.
 - Secrets live only in Doppler, project `hrizzup`: `dev` (local work and Claude Code's setup keys), `stg` (staging), `stg_preview` (previews: a branch of `stg` that copies every staging value automatically and holds only overrides) and `prd` (production). Never print, log or commit a secret value; refer to secrets by name only. Never ask the founder to paste a secret into chat. Production keys never go in this repository.
+- Doppler is on its free Developer plan during staging, which has no roles, so only the founder and Claude Code use it. Before any helper joins Doppler, it moves to the Team plan (runbook step 10.1), and helpers get no access to Production.
 - Mumbai is the region everywhere (Vercel `bom1`; Supabase `ap-south-1`), and `/api/health` shows the region.
 - **Production runs on the same platforms as staging:** Vercel plus Supabase, set up exactly like staging (same services, versions, region and settings), with its own data and keys. It is created as soon as staging works, with nothing public until launch (runbook Part 10, "Production twin").
 - **Releasing** means promoting the exact production build of a commit that passed staging, with one command: `vercel promote <deployment URL>`. No rebuild; `vercel rollback` goes back. The runbook's "Releasing to production" has the details.

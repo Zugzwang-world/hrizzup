@@ -324,6 +324,46 @@ The token is a user API token: active, **no expiry date**, and it can see only t
 
 ---
 
+## 3 November 2026
+
+### Doppler stays on the free plan during staging (founder's decision)
+
+- **Decision:** the Doppler workplace `zugzwang-world` stays on the free **Developer** plan during staging. The upgrade to **Team**, which was runbook step 4.1, is now step 10.1, the first step of Part 10, "Production twin". The founder's reason: the Team plan's roles let him keep production keys to himself once helpers use Doppler.
+- **What the two plans include** (Doppler's [pricing page](https://www.doppler.com/pricing) and [project permissions](https://docs.doppler.com/docs/project-permissions) docs, read 3 November 2026):
+
+  | | Developer (now) | Team (step 10.1) |
+  |---|---|---|
+  | Price | Free for 3 users, then $8 a month for each extra user | $21 per user a month |
+  | Syncs to other platforms | 5 (staging needs 2: `stg` to Vercel staging, `stg_preview` to Vercel previews) | 100 |
+  | Roles (who can open which environment) | None. Doppler's docs say role-based access needs the Team or Enterprise plan | Yes, including roles limited to chosen environments |
+
+  The pricing page also shows "25" users for Developer in its comparison table, which disagrees with "Free for 3 users" on the same page. It doesn't matter yet: only the founder uses the workplace.
+- **Added so the decision stays safe (Claude Code):** because the free plan has no roles, any member could open every config, including Claude Code's setup keys in `dev` and the workplace's other projects. So:
+  - until the upgrade, only the founder and Claude Code use Doppler;
+  - if a helper needs Doppler before Part 10, step 10.1 is done at that moment;
+  - helpers get the Collaborator role on Development and Staging, and no access to Production;
+  - before the first helper joins, Claude Code moves its own setup keys (such as `CLOUDFLARE_API_TOKEN`) out of `dev` into their own environment, which helpers can't open.
+- **Not checked:** the workplace's current plan. The command-line tool doesn't show it; the founder's instruction says it stays on Developer. This replaces the "Not checked" note in the 2 November Doppler entry.
+- **Renumbered:** Part 10's steps moved down by one. The old 10.1 (Cloudflare Pro) is now 10.2, and so on, up to the old 10.11 (side-by-side comparison), now 10.12. Entries above this one use the old numbers.
+
+### Cloudflare key: reminder to trim it (Claude Code)
+
+- **Reminder added** to runbook Part 2, just above its "Done when" line: the founder trims the key to the five permission rows in step 2.5, with step-by-step clicks. Step 2.6 now points to it.
+- **Checked again today, with read-only requests through `doppler run`** (the key was never printed): the key is unchanged. The five needed areas work (DNS, zone settings, R2, Turnstile, plus checking the key itself), and these extra areas still answer: Workers scripts, Workers routes on the zone, Page Rules, Email Routing settings and account details.
+- **Still open:** the founder trims the key; Claude Code then runs the full check from 2 November again and removes the reminder.
+
+**Documents updated:**
+- **Runbook:**
+  - Part 2: the reminder;
+  - Part 4: the free plan in "What we're doing", and step 4.1 marked as moved;
+  - Part 10: the new step 10.1, the renumbering, and "What we're doing" and "Done when";
+  - Production hardening: Claude Code's access to `prd` is removed through Doppler's roles.
+- **Blueprint:** section 2 (the Doppler row, and Doppler joins Cloudflare as a free plan during staging), section 7 (plan and access), section 15 (order of setup) and the status line.
+- **CLAUDE.md:** one line, so Claude Code keeps helpers out of Doppler until the Team plan is on.
+- **Status:** `docs/status/product.md`.
+
+---
+
 ## Rules for this log
 
 - It records every account, plan, region and setting configured for Hrizzup, on the day it is set. Add each new day above this section, newest day last.

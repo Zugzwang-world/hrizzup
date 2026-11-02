@@ -1,6 +1,6 @@
 # Product: status
 
-Last updated: 2 November 2026. Plan: [PLAN.md](../../PLAN.md). Code: [product/](../../product/).
+Last updated: 3 November 2026. Plan: [PLAN.md](../../PLAN.md). Code: [product/](../../product/).
 
 ## Done
 
@@ -13,10 +13,11 @@ Last updated: 2 November 2026. Plan: [PLAN.md](../../PLAN.md). Code: [product/](
 - **Production twin plan, 2 November 2026:** production runs on Vercel plus Supabase, set up exactly like staging with its own data and keys; AWS only later, if a concrete need appears, as its own project. Releasing promotes the hidden production build of a commit that passed staging with one command (`vercel promote`), with no rebuild. The new runbook Part 10, "Production twin", and "Releasing to production" document it. The hand-over is now Part 11. "Production hardening" holds only the founder-only production keys.
 - **Runbook Part 1 finished, 2 November 2026:** step 1.1 is done (the founder uses two-step login on GitHub).
 - **Helpers invited, 2 November 2026:** `Titan00714`, `Anupamhodl` and `Zoro47007` were invited as collaborators who can make changes. Each must accept within 7 days.
-- **How the app is built, decided 2 November 2026:** Expo app and Next.js website in one codebase, one typed API, Supabase Realtime for live updates, database text search from day one, shared links that open the app, and automatic tests of core journeys (Playwright for the website, Maestro for the app). Images are cleaned and capped at upload, stored once in R2 and delivered through Cloudflare image transformations. Cloudflare stays on Free during staging and moves to Pro (with Images' paid plan) in the production twin. Recorded in PLAN.md, the blueprint (new section 13) and the runbook (steps 2.1, 6.5, 6.6 and 10.1).
+- **How the app is built, decided 2 November 2026:** Expo app and Next.js website in one codebase, one typed API, Supabase Realtime for live updates, database text search from day one, shared links that open the app, and automatic tests of core journeys (Playwright for the website, Maestro for the app). Images are cleaned and capped at upload, stored once in R2 and delivered through Cloudflare image transformations. Cloudflare stays on Free during staging and moves to Pro (with Images' paid plan) in the production twin. Recorded in PLAN.md, the blueprint (new section 13) and the runbook (steps 2.1, 6.5, 6.6 and 10.2, numbered 10.1 at the time).
 - **Performance, paid tier and video, decided 2 November 2026:** performance and caching rules, from day one, are in CLAUDE.md (short) and blueprint section 14, "Production quality" (full): caching in layers, batching, no private data in shared caches, media and list rules, and a performance budget for every page and screen. The paid tier is in version one (new PLAN.md step 2.7, after the Google Play closed test starts); what's free and what's paid is decided before the paywall is built. Creator videos are stored and played through Cloudflare Stream. The founder's working rule now also says: solve the whole category behind an example, never just the example.
 - **Doppler project created, 2 November 2026 (runbook 4.2, brought forward):** project `hrizzup` with `dev` (local work and setup keys), `stg` (staging), `stg_preview` (previews, a branch of `stg` that copies staging's values and holds only overrides) and `prd` (production). No secrets added yet.
 - **Cloudflare zone checked and cleaned, 2 November 2026 (runbook 2.6):** `hrizzup.com` is active on Cloudflare's nameservers, and DNSSEC validates end to end (the registry's DS matches). The five records imported from GoDaddy were deleted, so the zone is empty. Full (strict), Always Use HTTPS, minimum TLS 1.2, TLS 1.3 and Automatic HTTPS Rewrites are on.
+- **Doppler plan, decided 3 November 2026:** Doppler stays on the free Developer plan during staging. The Team-plan upgrade moved from runbook step 4.1 to step 10.1, the first step of the production twin, because its roles let the founder keep production keys to himself once helpers use Doppler. Until then only the founder and Claude Code use Doppler; if a helper needs it sooner, the upgrade happens then. Runbook Part 2 now also carries a reminder to trim the Cloudflare key.
 
 ## Next
 
@@ -30,7 +31,7 @@ Last updated: 2 November 2026. Plan: [PLAN.md](../../PLAN.md). Code: [product/](
 
 ## Open questions
 
-- **For the founder: trim the Cloudflare API token** to the five permission rows in runbook step 2.5. It can currently also list Workers scripts, Workers routes, Page Rules and Email Routing settings. Claude Code re-checks afterwards.
+- **For the founder: trim the Cloudflare API token** to the five permission rows in runbook step 2.5 (the step-by-step reminder is in runbook Part 2). Checked again on 3 November 2026: it can still also list Workers scripts, Workers routes, Page Rules and Email Routing settings. Claude Code re-checks afterwards.
 
 - Which package manager and monorepo tools, and how is the shared code split up? (step 1.5; the frameworks are decided: Expo and Next.js)
 - Apple and email sign-in details (step 1.6). These must be settled before the iPhone build.
