@@ -79,7 +79,7 @@ Production is a twin of staging: the same services, versions, region and setting
 - **A Cloudflare API token** with only what Claude Code needs: hrizzup.com's DNS and zone settings, plus R2 and Turnstile on the account (the exact permission rows are in runbook step 2.5). It is kept in Doppler `dev` as `CLOUDFLARE_API_TOKEN` and used only through `doppler run`. Claude Code uses it to add DNS records and record them itself, instead of anyone typing them into the dashboard.
 - **Email records:**
   - Proton: verification, MX, SPF and the three DKIM records.
-  - DMARC: `v=DMARC1; p=quarantine`, with alignment left at its relaxed default.
+  - DMARC: `v=DMARC1; p=quarantine`, with alignment left at its relaxed default. A reports address (`rua`) is added once the Proton addresses exist (runbook step 3.3).
 - **Resend:** the sending subdomain `mail.hrizzup.com`, with its DKIM, SPF and bounce records exactly as Resend returns them, all DNS only (runbook step 3.6).
 - **`staging`:** points at Vercel, DNS only.
 - **The bare `hrizzup.com` and `www`:** production's names, pointing at Vercel, DNS only. Until launch they show a holding page, which carries the privacy policy that Google sign-in and the app stores ask for.

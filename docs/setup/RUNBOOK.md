@@ -111,12 +111,12 @@ The repo lives in your personal GitHub account, `Zugzwang-world`, on GitHub Pro,
 | Step | Who | What to do |
 |---|---|---|
 | 3.1 | You | In Proton, add `hrizzup.com` as a custom domain. Proton then shows the DNS records it needs. |
-| 3.2 | Claude Code | Add Proton's records in Cloudflare, all **DNS only**: the verification TXT, two MX records, the SPF TXT and three DKIM CNAMEs. Paste the values Proton shows into Claude Code; they aren't secret. Then add the DMARC record `v=DMARC1; p=quarantine; rua=mailto:<your address>`, leaving alignment relaxed. **Started 3 November 2026:** the verification TXT is in and visible in public DNS (setup log). |
-| 3.3 | You | In Proton, verify each record, then create your addresses (for example `founder@` and `hello@`; your choice). |
+| 3.2 | Claude Code | Add Proton's records in Cloudflare, all **DNS only**: the verification TXT, two MX records, the SPF TXT and three DKIM CNAMEs. Paste the values Proton shows into Claude Code; they aren't secret. Then add the DMARC record `v=DMARC1; p=quarantine`, leaving alignment relaxed. **Done, 3 November 2026:** all eight records answer in public DNS (setup log). |
+| 3.3 | You | In Proton, verify each record, then create your addresses (for example `founder@` and `hello@`; your choice). Then tell Claude Code which address should receive DMARC reports: Claude Code adds it to the DMARC record (`rua=mailto:…`), so you see who sends mail in hrizzup.com's name. |
 | 3.4 | You | Send a test email to the new address and one from it, and check both arrive. |
 | 3.5 | You | In Resend (paid plan), create a full-access API key for setup and save it straight into Doppler `dev` as `RESEND_SETUP_API_KEY`, never in a chat. **Done, 3 November 2026;** deleted again at the end of step 3.6. |
 | 3.6 | Claude Code | Through Resend's API, with the setup key through `doppler run`: create the sending domain `mail.hrizzup.com` in the Tokyo region (`ap-northeast-1`, the closest of Resend's regions to India), with open and click tracking off. Add the records Resend returns to Cloudflare (DNS only) and start verification. Create one sending-only key for staging, limited to `mail.hrizzup.com`, and put it into Doppler `stg` as `RESEND_API_KEY` without showing it; the production key comes in Part 10 (step 10.11). Then delete the setup key from Resend and Doppler. **Done, 3 November 2026:** verified (setup log). |
-| 3.7 | Claude Code | Send a test email from `no-reply@mail.hrizzup.com` to your address with the staging key, and check that it lands in the inbox and passes DMARC. DMARC can only pass once the DMARC record from step 3.2 is in. |
+| 3.7 | Claude Code | Send a test email from `no-reply@mail.hrizzup.com` to your address with the staging key, and check that it lands in the inbox and passes DMARC. |
 
 **Note:** the inbox that receives the Grok bots' results is designed in the Sourcing project. It has to be an address our pipeline can read automatically, not your Proton inbox.
 
