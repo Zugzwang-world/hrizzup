@@ -18,7 +18,7 @@ Status: proposed, 2 November 2026. Items marked **DECIDE** are still open.
 | The region is set in code and shown on the health page | Functions ran in Washington against a Mumbai database for three months before anyone noticed. |
 | Plans are chosen before anything is sized | AWS's Free plan refused an instance type in the middle of a deploy. The databases sat on the smallest default sizes by accident. |
 | Every setting made only in a dashboard is written into `docs/setup.md` on the day it is set | Most of the unknowns in the inventory were dashboard settings nobody recorded. |
-| Security settings are on from day one, and checked through the API | The repo claimed branch protection for 11 days when none existed. Secret scanning, push protection and the organisation's 2FA requirement were never switched on. |
+| Security settings are recorded truthfully and checked through the API. Staging runs with the basics (two-step login, Dependabot); the full set is on before real users arrive (runbook, "Production hardening") | The repo claimed branch protection for 11 days when none existed. Secret scanning, push protection and the organisation's 2FA requirement were never switched on. |
 | Previews never touch production data and are never public | Every preview address was public and connected to the production database. |
 | No sign-in on preview deployments | Google sign-in on previews never worked. Testing used the fixed staging address instead. |
 | A failing job is fixed or switched off the same day | Two scheduled jobs failed every day for weeks without anyone looking. |
@@ -32,7 +32,7 @@ Default to paid tiers.
 
 | Service | Plan | Used for |
 |---|---|---|
-| GitHub | The founder's personal account `Zugzwang-world`, on **GitHub Pro**, with the **private** repo `hrizzup`. Pro covers repository protections (rulesets, branch protection, required checks) for private repos, but not GitHub's own secret scanning or push protection: an open-source secret scanner does that job instead (section 11). | Code, checks, deploys |
+| GitHub | The founder's personal account `Zugzwang-world`, on **GitHub Pro**, with the **private** repo `hrizzup`. Pro covers repository protections (rulesets, branch protection, required checks) for private repos, but not GitHub's own secret scanning or push protection. Protections and an open-source secret check are added before real users arrive (section 11). | Code, checks, deploys |
 | Vercel | Pro (the existing team), with a new project `hrizzup` | Staging and previews |
 | Supabase | Pro (the existing organisation), with a new project `hrizzup-staging` in Mumbai (ap-south-1) | Staging database |
 | Doppler | Team plan. It adds service accounts and audit features; the free tier forced the audit to be cut back last time. | All secrets |
@@ -178,14 +178,13 @@ Default to paid tiers.
   - on a personal account every collaborator can push (there is no read-only role), so only people who change the code are added;
   - unused collaborators removed.
 - **Repo:** `hrizzup`, private, at `github.com/Zugzwang-world/hrizzup`.
-- **Security:**
-  - Dependabot alerts and security updates on, confirmed through GitHub's API;
-  - an open-source secret scanner (gitleaks) runs before every commit and in CI, so a secret can never be committed.
-- **How the secret scanner works:**
-  - Before every commit, a git hook in `.githooks/` scans the staged changes and stops the commit if it finds a secret, or if gitleaks isn't installed. Claude Code switches the hook on at the start of every session.
-  - In CI, a workflow scans the whole history on every push and pull request.
-  - GitHub Pro has no push protection for private repos, so CI can flag a secret but cannot stop it reaching GitHub. The commit hook is the real gate.
-- **Repository protections:** GitHub Pro includes rulesets, branch protection and required checks for private repos. They are not switched on yet (runbook, "Later, with the team"). When they are: on `main` and `staging`, changes only through pull requests, required checks green (including the secret scan), no force-push. Until then, GitHub itself cannot block a direct push to `main` or `staging`, so no file may claim that it does (rule 1).
+- **During staging:** changes are committed straight to `main`, with no pull-request requirement, no repository protections and no secret check before commits. Dependabot alerts and security updates stay on, confirmed through GitHub's API, and `.gitignore` keeps environment and key files out of the repo.
+- **Before real users arrive (runbook, "Production hardening"):**
+  - an open-source secret check (for example gitleaks) before every commit and in CI, starting with one scan of the whole history, with any key it finds replaced;
+  - pull requests before changes land;
+  - repository protections (included in GitHub Pro) on `main` and `staging`: changes only through pull requests, required checks green, no force-push;
+  - production keys held only by the founder.
+- **Until then,** GitHub itself cannot block a direct push or a pushed secret, so no file may claim that it does (rule 1).
 - **What GitHub Pro doesn't include for a private repo:** GitHub's own secret scanning and push protection. Only organisation plans can add them.
 - **Environment names:** pick ones that don't collide with the names Vercel creates (`Production`, `Preview`), for example `hrizzup-staging` and `hrizzup-production`.
 
@@ -212,12 +211,12 @@ Default to paid tiers.
 
 ## 13. Order of setup
 
-1. **Domain and DNS:** add the zone to Cloudflare, set the nameservers at GoDaddy, turn on DNSSEC, and create the Cloudflare API token. At the same time: check two-step login on your GitHub account, create the repo in that account (GitHub Pro), run the first Claude Code session, so every setting has somewhere to be recorded, then turn on Dependabot and the secret scanner.
+1. **Domain and DNS:** add the zone to Cloudflare, set the nameservers at GoDaddy, turn on DNSSEC, and create the Cloudflare API token. At the same time: check two-step login on your GitHub account, create the repo in that account (GitHub Pro), run the first Claude Code session, so every setting has somewhere to be recorded, then turn on Dependabot.
 2. **Email:** the Proton domain, addresses and DMARC record, then Resend's sending subdomain.
 3. **Doppler:** the project and its four configs. Move every key saved so far into it.
 4. **Supabase:** the staging project.
 5. **Storage and bot protection:** the staging R2 buckets and their public subdomain, and the staging Turnstile widget.
 6. **Redis and sign-in:** the staging Upstash database and the staging Google sign-in client.
 7. **Vercel:** the project, once the first app exists, synced from Doppler, with `staging.hrizzup.com` and the holding page.
-8. **Later, with the team:** Sentry, PostHog, the Apple and Google Play accounts, then AWS for production.
+8. **Later, with the team:** Sentry, PostHog, the Apple and Google Play accounts, then AWS for production, with the production hardening in the runbook done before real users arrive.
 9. **Throughout:** Claude Code records every setting in `docs/setup.md`.

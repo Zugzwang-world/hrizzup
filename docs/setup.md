@@ -115,6 +115,45 @@ Moved so the founder's GitHub Pro plan covers it. Done through GitHub's API (`PO
 - **"Turn on repository protections (included in GitHub Pro)":** the founder asked for this wording in a "Production hardening" section. No section with that name exists in any version of these files, so it went into the closest match, the production list under "Later, with the team" in the runbook.
 - **Left unchanged on purpose:** the blueprint's section 1 lesson that mentions "the organisation's 2FA requirement". It describes what happened at Zugzwang World, not where Hrizzup lives. Earlier entries in this log are a record and stay as written.
 
+### Staging stays free-flowing (founder's decision)
+
+Safety layers are added at production, not during staging. Repository protections stay **off** at the founder's request.
+
+| What | Change | How it was checked |
+|---|---|---|
+| Secret check before every commit | Removed: `.githooks/pre-commit` deleted, and `core.hooksPath` unset on the founder's Mac | `git config core.hooksPath` is empty; the `.githooks/` folder is gone |
+| Secret check in CI | Removed: `.github/workflows/secret-scan.yml` deleted. The repo now has no CI workflows | The `.github/` folder is gone |
+| Switching the hook on each session | Removed: it was a session-start setting in `.claude/settings.json` (not a line in CLAUDE.md). The file now holds only the four plugins | File contents |
+| Lefthook | Never installed or used, so there was nothing to remove | No Lefthook file or mention anywhere in the repo |
+| `.gitignore` | Unchanged | — |
+| Dependabot alerts and security updates | Still on, not paused | GitHub's API: `GET .../vulnerability-alerts` returned 204; `GET .../automated-security-fixes` returned enabled |
+| Repository protections | None | GitHub's API: `main` "Branch not protected"; no rulesets |
+| How changes land | Straight to `main` during staging, with no pull-request requirement | Written in CLAUDE.md (new section "Committing during staging") and the runbook ("How to use this runbook") |
+
+- **Runbook:** new section "Production hardening" at the end, listing what comes back before real users arrive: the secret check before every commit, pull requests before changes land, repository protections (included in GitHub Pro), and production keys held only by the founder. Claude Code added one detail to the first item: when the secret check comes back it first scans the whole history once, and any key it finds is replaced, because anything committed during staging stays in the history. The protections item moved there from the production list under "Later, with the team". Step 1.6 now covers Dependabot only, and Part 1's "Done when" line no longer mentions the scanner.
+- **Blueprint:** updated to match. Section 1's security rule now reads "recorded truthfully and checked through the API", with the basics during staging and the full set before real users arrive. Section 2's GitHub row, section 11 and section 13 were updated too.
+- **PLAN.md:** not changed. Its line "Claude merges a change once its checks pass" is read during staging as "Claude runs the checks before committing to `main`".
+
+### Screen rule: large text (founder's decision)
+
+The phone widths (320, 360, 390 and 412) are also tested with the phone's text size turned up to 200%, with the same pass-or-fail rule. Written into CLAUDE.md ("Screens fit every device") and the runbook ("Every screen fits every device").
+
+### Runbook step 1.1 done (founder)
+
+The founder confirmed on 2 November 2026 that they use two-step login on the `Zugzwang-world` GitHub account. GitHub's API doesn't show this setting with the current login's permissions, so it is recorded on the founder's word. **Runbook Part 1 is finished.**
+
+### Helpers invited as collaborators (Claude Code)
+
+Sent through GitHub's API on 2 November 2026 at 14:43 UTC (20:13 India time), with permission to make changes (on a personal account every collaborator can push).
+
+| GitHub account | Invitation | Permission | State |
+|---|---|---|---|
+| `Titan00714` | 341071169 | Write | Waiting to be accepted |
+| `Anupamhodl` | 341071174 | Write | Waiting to be accepted |
+| `Zoro47007` | 341071175 | Write | Waiting to be accepted |
+
+Checked through GitHub's API (`GET /repos/Zugzwang-world/hrizzup/invitations`): all three pending, none expired. GitHub cancels a repository invitation after 7 days if it hasn't been accepted.
+
 ---
 
 ## Rules for this log

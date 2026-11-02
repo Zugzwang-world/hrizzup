@@ -21,11 +21,15 @@ When the founder says "do runbook step X.Y", follow that step in [docs/setup/RUN
 
 ## End of every session
 
-Update the status file for the part you worked on in `docs/status/` (Done, Next, Open questions) and commit it (through a pull request once `main` is protected).
+Update the status file for the part you worked on in `docs/status/` (Done, Next, Open questions) and commit it.
+
+## Committing during staging
+
+During staging, commit changes straight to `main`, with no pull-request requirement. Run the checks for the change's size before committing. Pull requests, repository protections and the secret check before every commit come back before real users arrive ([runbook, "Production hardening"](docs/setup/RUNBOOK.md#production-hardening)).
 
 ## Checks sized to the change (PLAN.md section 3)
 
-Label every change with its size at the start of the commit message and pull request title: `[small]`, `[normal]` or `[risky]`.
+Label every change with its size at the start of the commit message (and the pull request title, once pull requests come back): `[small]`, `[normal]` or `[risky]`.
 
 - **Small** (text, colours, spacing, simple fixes): quick checks, plus the screen check and screenshots (see "Screens fit every device") if a screen changed.
 - **Normal:** quick checks, plus the tests for the parts the change touches.
@@ -50,5 +54,6 @@ Every screen adjusts itself to any device, from a small phone to a large monitor
 - **Phone-first:** design for the phone first, then let the layout grow.
 - **Flexible layouts:** build from flexible rules (proportions, wrapping, Tailwind and shadcn/ui responsive classes). Never use fixed pixel widths tuned to one screen.
 - **Automatic check before the founder sees any screen change:** test it in a real browser with Playwright, in both Chromium and WebKit (Safari's engine, which every iPhone uses), at 320, 360, 390, 412, 768, 820, 1024, 1280, 1366, 1440, 1536, 1920 and 2560 pixels wide, each at a typical height for that kind of device, and with phones and tablets turned sideways (width and height swapped). The check fails if anything overflows, overlaps or needs sideways scrolling.
+- **Large text:** also test the phone widths (320, 360, 390 and 412) with the phone's text size turned up to 200%. The same pass-or-fail rule applies.
 - **Windows laptops** at 125% and 150% display scaling show a narrower page; the 1280, 1366 and 1536 widths cover them.
 - **Screenshots for the founder** at phone, tablet, laptop and monitor sizes: 360, 768, 1440 and 1920 pixels wide.

@@ -10,6 +10,7 @@
 - **Save every login, password and recovery code in Proton Pass,** in a vault called **Hrizzup**. Switch on two-step login for every account.
 - **Never paste a secret into any chat.** Keys you create yourself go straight into Doppler's dashboard. Keys Claude Code creates go straight into Doppler without being shown.
 - **A part is finished when its "Done when" line is true.**
+- **During staging, Claude Code commits changes straight to `main`,** with no pull-request requirement. Staging stays free-flowing; the safety layers come back before real users arrive (see "Production hardening" at the end).
 
 ## Every screen fits every device
 
@@ -27,6 +28,7 @@
   | Monitors | 1920, 2560 |
 
   Each width is tested at a typical height for that kind of device. Phones and tablets are also tested turned sideways (width and height swapped). The check fails if anything overflows, overlaps or needs sideways scrolling.
+- **Large text.** The phone widths (320 to 412) are also tested with the phone's text size turned up to 200%, with the same pass-or-fail rule.
 - **Windows laptops.** At 125% and 150% display scaling, Windows laptops show a narrower page. The 1280, 1366 and 1536 widths cover them.
 - **Screenshots for you** at phone, tablet, laptop and monitor sizes: 360, 768, 1440 and 1920 pixels wide.
 
@@ -56,15 +58,17 @@
 
 | Step | Who | What to do |
 |---|---|---|
-| 1.1 | You | The repo lives in your personal GitHub account, `Zugzwang-world`, on GitHub Pro. Check that two-step login is on for that account and that its recovery codes are saved in Proton Pass. Anyone you add to the repo later must have two-step login on too. |
+| 1.1 | You | The repo lives in your personal GitHub account, `Zugzwang-world`, on GitHub Pro. Check that two-step login is on for that account and that its recovery codes are saved in Proton Pass. Anyone you add to the repo later must have two-step login on too. **Done, 2 November 2026:** you use two-step login on your GitHub account. |
 | 1.2 | You | Create the repository: owner `Zugzwang-world` (your personal account, on GitHub Pro), name `hrizzup`, **Private**, README off, no .gitignore, licence **No license**. |
 | 1.3 | You | In a terminal, clone the repo and start Claude Code (the commands are in the chat). |
 | 1.4 | Claude Code | First session (the brief is in the chat): puts the plan, blueprint and this runbook in place, plus the folders, status files, setup log, CLAUDE.md, the proprietary licence notice and .gitignore. It also installs the plugins and connectors, then commits and pushes. |
-| 1.6 | Claude Code | Turn on Dependabot alerts and security updates, and add an open-source secret scanner (for example gitleaks) that runs before every commit and in CI, so a secret can never be committed. |
+| 1.6 | Claude Code | Turn on Dependabot alerts and security updates, and confirm them through GitHub's API. |
 
-The repo lives in your personal GitHub account, `Zugzwang-world`, on GitHub Pro, so there is no step 1.5 (it was the paid-plan decision). The other step numbers are unchanged.
+The repo lives in your personal GitHub account, `Zugzwang-world`, on GitHub Pro, so there is no step 1.5 (it was the paid-plan decision). The other step numbers are unchanged. The secret check before every commit is not part of staging; it comes back in "Production hardening".
 
-**Done when:** the repo holds the plan files, two-step login is on for your GitHub account, Dependabot alerts and security updates are confirmed on through GitHub's API, and the secret scanner stops a test secret before it is committed and passes in CI.
+**Done when:** the repo holds the plan files, two-step login is on for your GitHub account, and Dependabot alerts and security updates are confirmed on through GitHub's API.
+
+**Part 1 finished on 2 November 2026.** The details are in the setup log.
 
 ---
 
@@ -235,9 +239,23 @@ The repo lives in your personal GitHub account, `Zugzwang-world`, on GitHub Pro,
 - **Sentry and PostHog:** one project per environment, with keys in Doppler.
 - **Apple Developer and Google Play accounts.** Start Google Play early: a personal account needs a closed test with at least 12 testers for 14 days before the app can go public.
 - **Production:**
-  - Turn on repository protections (included in GitHub Pro).
   - an AWS account;
   - the Doppler `prd` config;
   - production storage buckets, Redis, Google client and Turnstile widget;
   - CAA records;
   - Cloudflare's proxy with origin authentication.
+
+---
+
+# Production hardening
+
+**What we're doing:** bringing back the safety layers that staging goes without.
+
+**Why:** staging stays free-flowing, but all of these must be on before real users arrive.
+
+- **The secret check before every commit.** An open-source scanner (for example gitleaks) checks every commit and runs again in CI. When it comes back, it first scans the whole history once, and any key it finds is replaced, because anything committed during staging stays in the history.
+- **Pull requests before changes land.** Changes reach `main` only through a pull request whose checks have passed.
+- **Repository protections (included in GitHub Pro).** On `main` (and `staging`, if used): changes only through pull requests, required checks green, no force-push. Each one is confirmed through GitHub's API.
+- **Production keys held only by you.** They live in Doppler's `prd` config. Claude Code never holds them, and they never go in this repository.
+
+**Done when:** all four are on and confirmed, and recorded in the setup log, before the first real user signs in.
