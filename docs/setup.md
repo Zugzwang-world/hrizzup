@@ -362,6 +362,22 @@ The token is a user API token: active, **no expiry date**, and it can see only t
 - **CLAUDE.md:** one line, so Claude Code keeps helpers out of Doppler until the Team plan is on.
 - **Status:** `docs/status/product.md`.
 
+### Proton verification record (runbook 3.2, first record, Claude Code)
+
+Added through Cloudflare's API, using the Cloudflare key through `doppler run` (never printed). The zone was empty before.
+
+| Type | Name | Value | Proxy | TTL | Cloudflare comment |
+|---|---|---|---|---|---|
+| TXT | `@` (`hrizzup.com`) | `protonmail-verification=2f53d9a65aef17a994867e4edd0bf55e0156725e` | DNS only | Auto | Proton domain verification (runbook 3.2) |
+
+- **The value isn't secret:** it only proves to Proton that we control the domain.
+- **How it was checked:**
+  - Cloudflare's two nameservers (`joyce` and `kevin`) and the public resolvers 1.1.1.1, 8.8.8.8 and 9.9.9.9 all return the record, minutes after it was added;
+  - the answers are DNSSEC-signed (the `ad` flag from 1.1.1.1 and 8.8.8.8, and `AD: true` from Google's DNS-over-HTTPS service).
+- **Next (runbook 3.3):** the founder clicks verify in Proton. Proton's other records (two MX, SPF, three DKIM and DMARC) come next, in step 3.2.
+
+**Documents updated:** runbook step 3.2 (marked as started) and `docs/status/product.md`.
+
 ---
 
 ## Rules for this log

@@ -111,7 +111,7 @@ The repo lives in your personal GitHub account, `Zugzwang-world`, on GitHub Pro,
 | Step | Who | What to do |
 |---|---|---|
 | 3.1 | You | In Proton, add `hrizzup.com` as a custom domain. Proton then shows the DNS records it needs. |
-| 3.2 | Claude Code | Add Proton's records in Cloudflare, all **DNS only**: the verification TXT, two MX records, the SPF TXT and three DKIM CNAMEs. Paste the values Proton shows into Claude Code; they aren't secret. Then add the DMARC record `v=DMARC1; p=quarantine; rua=mailto:<your address>`, leaving alignment relaxed. |
+| 3.2 | Claude Code | Add Proton's records in Cloudflare, all **DNS only**: the verification TXT, two MX records, the SPF TXT and three DKIM CNAMEs. Paste the values Proton shows into Claude Code; they aren't secret. Then add the DMARC record `v=DMARC1; p=quarantine; rua=mailto:<your address>`, leaving alignment relaxed. **Started 3 November 2026:** the verification TXT is in and visible in public DNS (setup log). |
 | 3.3 | You | In Proton, verify each record, then create your addresses (for example `founder@` and `hello@`; your choice). |
 | 3.4 | You | Send a test email to the new address and one from it, and check both arrive. |
 | 3.5 | You | In Resend (paid plan), create a full-access API key for setup and put it into Doppler's `dev` config once Part 4 exists. Until then, keep it in Proton Pass. |
