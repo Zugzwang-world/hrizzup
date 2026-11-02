@@ -378,6 +378,72 @@ Added through Cloudflare's API, using the Cloudflare key through `doppler run` (
 
 **Documents updated:** runbook step 3.2 (marked as started) and `docs/status/product.md`.
 
+### Resend sending domain `mail.hrizzup.com` (runbook 3.5 and 3.6)
+
+**Step 3.5 (founder):** a full-access Resend key, "Claude Code setup – hrizzup", saved straight into Doppler `dev` as `RESEND_SETUP_API_KEY`.
+
+**Step 3.6 (Claude Code):** all through Resend's API, using that key through `doppler run`. No key was ever printed. Done between about 03:28 and 03:33 India time (2 November, 21:58 to 22:03 UTC).
+
+**The domain**
+
+| Setting | Value |
+|---|---|
+| Domain | `mail.hrizzup.com` (Resend ID `22086da6-b151-4f79-97e6-848d24df774b`) |
+| Region | `ap-northeast-1` (Tokyo). Resend offers four regions: `us-east-1`, `eu-west-1`, `sa-east-1` and `ap-northeast-1`. Tokyo is the closest to India, and also the fastest from the founder's Mac: about 0.14 s to connect to Tokyo's sending service, against 0.15 s for Ireland, 0.22 s for US East and 0.33 s for São Paulo |
+| Sending / receiving | Sending on; receiving off |
+| Open and click tracking | Off, so links in sign-in emails are never rewritten |
+| Encryption to receiving servers | Opportunistic TLS (Resend's default: always tries an encrypted connection) |
+| Bounce address | `send.mail.hrizzup.com` (Resend's default) |
+| Status | **Verified**, about 20 seconds after verification started |
+
+**DNS records added to Cloudflare** (all DNS only, TTL auto; each carries a Cloudflare comment naming runbook 3.6). The values are exactly as Resend returned them, and none is secret: the DKIM value is a public key.
+
+| Resend's label | Type | Name | Value |
+|---|---|---|---|
+| DKIM | TXT | `resend._domainkey.mail` | `p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQD4VzM6mZAi3nwAVmpeirawdzJ7TkYkj3A29hp03PnBTXFbBLS3LcwXB2rvmlgDVFIwyMsZxw3/q4orWSU891wZexY6/4HA7xODsHEmw13CusQiB9w+qB+9Ls5qGhcVB9JJDr+T9Mmu242k31lWKIZ5dzQttNqTtHWDtsFeuzy7AwIDAQAB` |
+| SPF (bounces) | MX | `send.mail` | `feedback-smtp.ap-northeast-1.amazonses.com`, priority 10 |
+| SPF | TXT | `send.mail` | `v=spf1 include:amazonses.com ~all` |
+| SPF | CNAME | `rsend.mail` | `send.forge.rmta.net` |
+
+- **The fourth record** (the CNAME) isn't in the example in Resend's documentation. It was added exactly as returned, and Resend verified it with the others.
+- **How it was checked:**
+  - Cloudflare's nameserver and the public resolvers 1.1.1.1, 8.8.8.8 and 9.9.9.9 return all four records;
+  - the answers are DNSSEC-signed;
+  - Resend shows all four records, and the domain, as verified.
+
+**Staging key**
+
+- **The key:** "Hrizzup staging (sending only, mail.hrizzup.com)", Resend ID `330e75e5-6d7e-4321-9765-44930086c1f0`. It can only send email, and only from `mail.hrizzup.com`.
+- **Where it is:** Doppler `stg`, as `RESEND_API_KEY`. It was piped from Resend's answer straight into Doppler and never shown. `stg_preview` inherits it, because it's a branch of `stg`, so previews send with the staging key.
+- **How it was checked:**
+  - the name appears in `stg` and `stg_preview` (names only);
+  - when asked to list domains with this key, Resend refuses with "This API key is restricted to only send emails", which shows the key is valid and sending-only;
+  - no email was sent (that's step 3.7).
+- **Production key:** not created. It comes in Part 10 (new steps 10.10 and 10.11).
+
+**Setup key deleted**
+
+- **Resend:** "Claude Code setup – hrizzup" (ID `5441aa15-b476-4228-aca3-850aee73f34b`, created 2 November 2026 at 21:55 UTC), identified by its name and creation time, then deleted through the API. Afterwards Resend answers "API key is invalid" to it.
+- **Doppler:** `RESEND_SETUP_API_KEY` deleted from `dev`, after the key was dead in Resend, so any copy in Doppler's history is useless.
+- **Doppler now holds:**
+  - `dev`: `CLOUDFLARE_API_TOKEN`;
+  - `stg`: `RESEND_API_KEY` (and `stg_preview` through inheritance);
+  - `prd`: nothing.
+
+**Left alone in the same Resend account** (from Zugzwang World): the domain `mail.zugzwangworld.com` (verified, `eu-west-1`) and an API key named "Onboarding" (created 14 May 2026, last used 26 October 2026). They aren't Hrizzup's; the founder decides whether to keep them.
+
+**Next:** step 3.7, a test email from `no-reply@mail.hrizzup.com`, sent with the staging key. DMARC can only pass once the DMARC record from step 3.2 is in.
+
+**Documents updated:**
+- **Runbook:**
+  - step 3.5 done, with the key going straight into Doppler;
+  - step 3.6 done: the Tokyo region, tracking off, and one staging key, with the production key moved to Part 10;
+  - step 3.7 now names the staging key and the DMARC dependency;
+  - step 4.3 no longer mentions the Resend setup key;
+  - Part 10: the new step 10.10 (a temporary setup key) and step 10.11 (it now also creates the production key). The old 10.10 to 10.12 are now 10.11 to 10.13.
+- **Blueprint:** sections 4 and 8.
+- **Status:** `docs/status/product.md`.
+
 ---
 
 ## Rules for this log

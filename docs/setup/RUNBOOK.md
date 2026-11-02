@@ -114,9 +114,9 @@ The repo lives in your personal GitHub account, `Zugzwang-world`, on GitHub Pro,
 | 3.2 | Claude Code | Add Proton's records in Cloudflare, all **DNS only**: the verification TXT, two MX records, the SPF TXT and three DKIM CNAMEs. Paste the values Proton shows into Claude Code; they aren't secret. Then add the DMARC record `v=DMARC1; p=quarantine; rua=mailto:<your address>`, leaving alignment relaxed. **Started 3 November 2026:** the verification TXT is in and visible in public DNS (setup log). |
 | 3.3 | You | In Proton, verify each record, then create your addresses (for example `founder@` and `hello@`; your choice). |
 | 3.4 | You | Send a test email to the new address and one from it, and check both arrive. |
-| 3.5 | You | In Resend (paid plan), create a full-access API key for setup and put it into Doppler's `dev` config once Part 4 exists. Until then, keep it in Proton Pass. |
-| 3.6 | Claude Code | Through Resend's API: create the sending domain `mail.hrizzup.com`, add the records Resend returns to Cloudflare (DNS only), and start verification. Create two sending-only keys, one for staging and one for production, and put them into Doppler. Then delete the setup key. |
-| 3.7 | Claude Code | Send a test email from `no-reply@mail.hrizzup.com` to your address, and check that it lands in the inbox and passes DMARC. |
+| 3.5 | You | In Resend (paid plan), create a full-access API key for setup and save it straight into Doppler `dev` as `RESEND_SETUP_API_KEY`, never in a chat. **Done, 3 November 2026;** deleted again at the end of step 3.6. |
+| 3.6 | Claude Code | Through Resend's API, with the setup key through `doppler run`: create the sending domain `mail.hrizzup.com` in the Tokyo region (`ap-northeast-1`, the closest of Resend's regions to India), with open and click tracking off. Add the records Resend returns to Cloudflare (DNS only) and start verification. Create one sending-only key for staging, limited to `mail.hrizzup.com`, and put it into Doppler `stg` as `RESEND_API_KEY` without showing it; the production key comes in Part 10 (step 10.11). Then delete the setup key from Resend and Doppler. **Done, 3 November 2026:** verified (setup log). |
+| 3.7 | Claude Code | Send a test email from `no-reply@mail.hrizzup.com` to your address with the staging key, and check that it lands in the inbox and passes DMARC. DMARC can only pass once the DMARC record from step 3.2 is in. |
 
 **Note:** the inbox that receives the Grok bots' results is designed in the Sourcing project. It has to be an address our pipeline can read automatically, not your Proton inbox.
 
@@ -134,7 +134,7 @@ The repo lives in your personal GitHub account, `Zugzwang-world`, on GitHub Pro,
 |---|---|---|
 | 4.1 | — | **Moved to Part 10, step 10.1:** the upgrade to Doppler's Team plan. Doppler stays on the free Developer plan during staging, and until the upgrade only you and Claude Code use it. |
 | 4.2 | Claude Code | Using Doppler's command-line tool, create the project `hrizzup` with four configs: `dev` (local work and Claude Code's setup keys), `stg` (staging), `stg_preview` (previews: a branch of `stg` that copies every staging value and holds only overrides) and `prd` (production). Claude Code asks you to log in if it needs to. **Done, 2 November 2026,** brought forward so the Cloudflare key has a safe home. |
-| 4.3 | You | Move every key saved so far from Proton Pass into Doppler by typing or pasting it into Doppler's dashboard: the Cloudflare token into `dev`, and the Resend setup key into `dev` if it's still there. From now on, Proton Pass holds only logins, recovery codes and the database password. |
+| 4.3 | You | Move any key still saved in Proton Pass into Doppler by typing or pasting it into Doppler's dashboard. (The Cloudflare key and the Resend setup key went straight into Doppler `dev`, and the Resend setup key has since been deleted.) From now on, Proton Pass holds only logins, recovery codes and the database password. |
 | 4.4 | Claude Code | Check that each config contains the expected secret **names** (never the values), and record the result. |
 
 **Done when:** the project and its four configs exist, and every key created so far is in Doppler.
@@ -250,9 +250,10 @@ Everything matches staging (the same services, versions, region and settings) ex
 | 10.7 | You | In Cloudflare R2, create an access key (object read and write) for each production bucket, and paste each one into Doppler `prd` under the names Claude Code gives you. |
 | 10.8 | You | In Upstash, create **`hrizzup-production`** on the same plan and in the same region as staging, and paste its REST URL and token into Doppler `prd`. |
 | 10.9 | You | In the Google Cloud project `hrizzup`, create an OAuth client of type **Web application** for production, with origins `https://hrizzup.com` and `https://www.hrizzup.com` and the redirect address Claude Code gives you. Paste the client ID and secret into Doppler `prd`. |
-| 10.10 | Claude Code | Create the Turnstile widget **"Hrizzup production"**: Managed mode, hostnames `hrizzup.com` and `www.hrizzup.com`. Put its keys into Doppler `prd` without showing them, and check that Resend's production sending key (step 3.6) is there too. |
-| 10.11 | You | In Doppler, sync `prd` to Vercel's production environment, marked Sensitive. |
-| 10.12 | Claude Code | Compare staging and production side by side: every service, version, region and setting must match, and only names, data and keys may differ. Confirm a hidden production build's private `/api/health` reports `bom1` and the production setup, that a test image loads resized from `media.hrizzup.com`, and that `hrizzup.com` still shows the holding page. Record the comparison. |
+| 10.10 | You | In Resend, create a temporary full-access API key named "Claude Code setup – hrizzup production", and save it straight into Doppler `dev` as `RESEND_SETUP_API_KEY`, never in a chat. |
+| 10.11 | Claude Code | Create the Turnstile widget **"Hrizzup production"**: Managed mode, hostnames `hrizzup.com` and `www.hrizzup.com`. Put its keys into Doppler `prd` without showing them. Create Resend's production key the same way as the staging one (step 3.6): sending only, limited to `mail.hrizzup.com`, stored in Doppler `prd` as `RESEND_API_KEY` without showing it. Then delete the temporary setup key from Resend and Doppler. |
+| 10.12 | You | In Doppler, sync `prd` to Vercel's production environment, marked Sensitive. |
+| 10.13 | Claude Code | Compare staging and production side by side: every service, version, region and setting must match, and only names, data and keys may differ. Confirm a hidden production build's private `/api/health` reports `bom1` and the production setup, that a test image loads resized from `media.hrizzup.com`, and that `hrizzup.com` still shows the holding page. Record the comparison. |
 
 **Done when:** Doppler is on the Team plan, `hrizzup.com` is on Cloudflare Pro with Images' paid plan on, every production service exists with the same settings as staging, its keys are in Doppler `prd` and synced to Vercel production, the side-by-side comparison passes, and nothing public has changed.
 

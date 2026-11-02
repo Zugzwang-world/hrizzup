@@ -80,7 +80,7 @@ Production is a twin of staging: the same services, versions, region and setting
 - **Email records:**
   - Proton: verification, MX, SPF and the three DKIM records.
   - DMARC: `v=DMARC1; p=quarantine`, with alignment left at its relaxed default.
-- **Resend:** a sending subdomain (for example `mail.hrizzup.com`), with the DKIM and bounce records exactly as Resend shows them.
+- **Resend:** the sending subdomain `mail.hrizzup.com`, with its DKIM, SPF and bounce records exactly as Resend returns them, all DNS only (runbook step 3.6).
 - **`staging`:** points at Vercel, DNS only.
 - **The bare `hrizzup.com` and `www`:** production's names, pointing at Vercel, DNS only. Until launch they show a holding page, which carries the privacy policy that Google sign-in and the app stores ask for.
 - **The app's names are never proxied through Cloudflare,** on staging or production. Vercel advises against putting another proxy in front of it, and its own firewall and DDoS protection cover the app.
@@ -163,8 +163,10 @@ Production is a twin of staging: the same services, versions, region and setting
 
 - **Proton:** the address you choose plus a contact address on hrizzup.com. DMARC reports go to one of them.
 - **Resend Pro:**
-  - a verified sending subdomain;
-  - separate API keys for staging and production;
+  - the verified sending subdomain `mail.hrizzup.com`, in Resend's Tokyo region (`ap-northeast-1`), the closest of its four regions to India;
+  - open and click tracking off, so links in sign-in emails are never rewritten;
+  - separate sending-only API keys for staging and production, each limited to `mail.hrizzup.com` and kept as `RESEND_API_KEY` in Doppler `stg` and `prd` (previews use the staging key through `stg_preview`);
+  - full-access setup keys exist only while Claude Code needs one, and are deleted straight after;
   - bounce notifications (webhooks) set up;
   - start sending real mail weeks before launch, so the domain builds a reputation.
 - **Production refuses to start** if it's set to Resend's test sender.
