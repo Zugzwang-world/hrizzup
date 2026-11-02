@@ -18,6 +18,7 @@ Last updated: 3 November 2026. Plan: [PLAN.md](../../PLAN.md). Code: [product/](
 - **Doppler project created, 2 November 2026 (runbook 4.2, brought forward):** project `hrizzup` with `dev` (local work and setup keys), `stg` (staging), `stg_preview` (previews, a branch of `stg` that copies staging's values and holds only overrides) and `prd` (production). No secrets added yet.
 - **Cloudflare zone checked and cleaned, 2 November 2026 (runbook 2.6):** `hrizzup.com` is active on Cloudflare's nameservers, and DNSSEC validates end to end (the registry's DS matches). The five records imported from GoDaddy were deleted, so the zone is empty. Full (strict), Always Use HTTPS, minimum TLS 1.2, TLS 1.3 and Automatic HTTPS Rewrites are on.
 - **Doppler plan, decided 3 November 2026:** Doppler stays on the free Developer plan during staging. The Team-plan upgrade moved from runbook step 4.1 to step 10.1, the first step of the production twin, because its roles let the founder keep production keys to himself once helpers use Doppler. Until then only the founder and Claude Code use Doppler; if a helper needs it sooner, the upgrade happens then. Runbook Part 2 now also carries a reminder to trim the Cloudflare key.
+- **Proton verification record, 3 November 2026 (runbook 3.2, first record):** the TXT record `protonmail-verification=…` is on `hrizzup.com`, DNS only, and every public resolver checked returns it, signed. Next: the founder verifies in Proton, then Proton's other records go in.
 
 ## Next
 
