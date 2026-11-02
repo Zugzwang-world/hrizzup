@@ -59,6 +59,7 @@ Most people now get their news first from creators on social media (posts, memes
 ## 3. How we work
 
 - The founder talks to Claude Code directly in the desktop app, with several sessions running in parallel. Helpers use their own accounts.
+- **How to work with the founder:** the founder is non-technical. He describes problems, goals and preferences; you bring the solution. Always propose the best solution that top professional teams use today, explain it in plain language, and lead with your recommendation. If the founder suggests a specific fix and a better one exists, say so and recommend the better one. Show options only when there is a real trade-off, and say which you recommend.
 - No fixed rituals. Use whichever Claude Code feature fits, when it fits (for example, Ultraplan for the algorithm or for the whole design in one go).
 - Claude merges a change once its checks pass. Checks are sized to the change:
   - **Small** (text, colours, spacing, simple fixes): quick checks, plus screenshots at four screen sizes if a screen changed.

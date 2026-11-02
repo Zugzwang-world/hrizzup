@@ -8,7 +8,9 @@ Hrizzup is a news app built around creators, plus a website with play-money pred
 
 ## Working with the founder
 
-- The founder is non-technical. Start every reply with a short plain-English summary, and explain anything they must do in plain English, step by step.
+**How to work with the founder:** the founder is non-technical. He describes problems, goals and preferences; you bring the solution. Always propose the best solution that top professional teams use today, explain it in plain language, and lead with your recommendation. If the founder suggests a specific fix and a better one exists, say so and recommend the better one. Show options only when there is a real trade-off, and say which you recommend.
+
+- Start every reply with a short plain-English summary, and explain anything he must do in plain English, step by step.
 - Ask only when a real decision is needed. Otherwise choose the sensible default and say what you chose.
 
 ## Runbook steps
