@@ -444,6 +444,39 @@ Added through Cloudflare's API, using the Cloudflare key through `doppler run` (
 - **Blueprint:** sections 4 and 8.
 - **Status:** `docs/status/product.md`.
 
+### Proton's mail records and DMARC (runbook 3.2, Claude Code)
+
+Added through Cloudflare's API, using the Cloudflare key through `doppler run` (never printed). The values are exactly as the founder pasted them from Proton; none is secret. All records are DNS only, TTL auto, and each carries a Cloudflare comment naming runbook 3.2.
+
+| Type | Name | Value | Priority |
+|---|---|---|---|
+| MX | `@` | `mail.protonmail.ch` | 10 |
+| MX | `@` | `mailsec.protonmail.ch` | 20 |
+| TXT | `@` | `v=spf1 include:_spf.protonmail.ch ~all` | |
+| CNAME | `protonmail._domainkey` | `protonmail.domainkey.dvaglryndy3a2l6vxccr2a4aeydxg4plxi7ivvdgjuenwai47zywa.domains.proton.ch` | |
+| CNAME | `protonmail2._domainkey` | `protonmail2.domainkey.dvaglryndy3a2l6vxccr2a4aeydxg4plxi7ivvdgjuenwai47zywa.domains.proton.ch` | |
+| CNAME | `protonmail3._domainkey` | `protonmail3.domainkey.dvaglryndy3a2l6vxccr2a4aeydxg4plxi7ivvdgjuenwai47zywa.domains.proton.ch` | |
+| TXT | `_dmarc` | `v=DMARC1; p=quarantine` | |
+
+- **How it was checked:**
+  - Cloudflare's nameserver `joyce` and the public resolvers 1.1.1.1, 8.8.8.8 and 9.9.9.9 all return every record, about 15 seconds after they were added;
+  - the answers are DNSSEC-signed;
+  - the first DKIM record follows through to Proton's public signing key.
+- **Proton's second and third DKIM slots** currently hold no key on Proton's side (Proton answers with an empty result). That is expected: Proton keeps them for future key rotation. Our records point at them, so a rotation needs no change here.
+- **The `@` TXT records:** `hrizzup.com` now has two, Proton's verification record and this SPF record. There's one SPF record per name: Resend's sits on `send.mail.hrizzup.com`, separately.
+- **DMARC:**
+  - the policy covers `hrizzup.com` and its subdomains, including Resend's `mail.hrizzup.com`. Resend's mail passes it through relaxed alignment, which is checked in step 3.7;
+  - it has no reports address yet, because the Proton addresses don't exist yet. Step 3.3 now ends with the founder choosing one, and Claude Code adding it to the record.
+- **The zone now holds 12 records:** these 7, Proton's verification TXT, and Resend's 4.
+
+**Documents updated:**
+- **Runbook:**
+  - step 3.2 done;
+  - step 3.3 now ends with choosing the DMARC reports address;
+  - step 3.7 no longer waits for DMARC.
+- **Blueprint:** section 4 (DMARC reports address).
+- **Status:** `docs/status/product.md`.
+
 ---
 
 ## Rules for this log
