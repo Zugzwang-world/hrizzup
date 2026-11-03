@@ -4,7 +4,7 @@ The Vercel project `hrizzup` (team `hrizzup`, Pro) hosts the website for preview
 
 | File | What it is |
 |---|---|
-| `project.json` | The project: its link to `Zugzwang-world/hrizzup` (production branch `main`), its settings, the custom environment `staging` (follows the `staging` branch, serves `staging.hrizzup.com`; the Staging workflow moves the branch and starts the build through the deploy hook "Staging workflow") and the production domains (`hrizzup.com`, with `www` redirecting to it) |
+| `project.json` | The project: its link to `Zugzwang-world/hrizzup` (production branch `main`), its settings, the custom environment `staging` (follows the `staging` branch, serves `staging.hrizzup.com`; the Staging workflow moves the branch and starts the build through the deploy hook "Staging workflow"; Vercel's own build on a push to `staging` is off in `product/web/vercel.json`) and the production domains (`hrizzup.com`, with `www` redirecting to it) |
 | `firewall.json` | The firewall: Bot Protection (challenge), AI bots (log only), and the rate limits on sign-in, on every route that sends email, and on `/api/health` |
 | `apply.py` | Sends both to Vercel's API, reads everything back, and fails, listing each difference, if Vercel doesn't match. `--check` only compares |
 | `../../product/web/vercel.json` | The deployment's own settings: framework and the function region (`bom1`, Mumbai) |

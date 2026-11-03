@@ -7,9 +7,9 @@
 #   3. Move the `staging` branch to this commit (only this workflow can: ruleset
 #      "staging"). Vercel's custom environment "staging" follows that branch.
 #   4. Ask Vercel to build it, through the deploy hook "Staging workflow" (it builds the
-#      newest commit of the `staging` branch with staging's keys, Doppler `stg`). Vercel
-#      doesn't build a branch push of a commit it has already built for production, which
-#      every commit on main is, so the push alone isn't enough (found 3 November 2026).
+#      newest commit of the `staging` branch with staging's keys, Doppler `stg`). This is
+#      the only way staging gets built: Vercel's own build on a push to `staging` is off
+#      (`git.deploymentEnabled` in product/web/vercel.json), so each merge builds once.
 #   5. Wait until staging.hrizzup.com serves this commit, from bom1, with every service
 #      answering. The workflow is green only when staging really runs the merge.
 #
@@ -75,7 +75,6 @@ jobs:
           COMMIT: ${{ github.sha }}
         run: git push origin "$COMMIT:refs/heads/staging"
 
-      # Vercel cancels a hook's earlier build of the same version, so a repeat is harmless.
       - name: 4. Ask Vercel to build staging
         env:
           VERCEL_STAGING_DEPLOY_HOOK: ${{ secrets.VERCEL_STAGING_DEPLOY_HOOK }}
