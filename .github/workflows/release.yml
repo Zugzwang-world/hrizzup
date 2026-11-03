@@ -114,18 +114,6 @@ jobs:
           [ "$passed" -ge 1 ] || { echo "$SHA hasn't passed staging (no successful Staging workflow run)" >&2; exit 1; }
           echo "$SHA is on main and passed staging."
 
-      - name: 1b. A rollback goes only to a commit older than the live one
-        if: inputs.action == 'rollback'
-        env:
-          SHA: ${{ steps.commit.outputs.sha }}
-        run: |
-          set -euo pipefail
-          live="$(curl -fsS -H 'Cache-Control: no-store' -A hrizzup-release https://hrizzup.com/api/health | python3 -c 'import json, sys; print(json.load(sys.stdin).get("commit", ""))')"
-          case "$live" in *[!0-9a-f]* | "") echo "Can't tell which commit is live ('$live')" >&2; exit 1 ;; esac
-          [ "$live" != "$SHA" ] || { echo "$SHA is already live" >&2; exit 1; }
-          git merge-base --is-ancestor "$SHA" "$live" || { echo "$SHA isn't older than the live commit $live: release it instead, so its database changes are applied" >&2; exit 1; }
-          echo "Rolling back from $live to $SHA (the database stays as it is)."
-
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         if: inputs.action == 'release'
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -141,6 +129,18 @@ jobs:
         with:
           doppler-token: ${{ secrets.DOPPLER_TOKEN }}
           inject-env-vars: true
+
+      - name: 1b. A rollback goes only to a commit older than the live one
+        if: inputs.action == 'rollback'
+        env:
+          SHA: ${{ steps.commit.outputs.sha }}
+        run: |
+          set -euo pipefail
+          # Which build hrizzup.com points at, from Vercel itself (works while the site is down).
+          live="$(python3 .github/scripts/production_build.py live)"
+          [ "$live" != "$SHA" ] || { echo "$SHA is already live" >&2; exit 1; }
+          git merge-base --is-ancestor "$SHA" "$live" || { echo "$SHA isn't older than the live commit $live: release it instead, so its database changes are applied" >&2; exit 1; }
+          echo "Rolling back from $live to $SHA (the database stays as it is)."
 
       - name: 2. Production's values are production's own and valid
         if: inputs.action == 'release'

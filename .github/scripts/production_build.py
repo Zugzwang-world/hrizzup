@@ -2,6 +2,7 @@
 """Finds one commit's hidden production build and checks it before it is promoted.
 
     python3 .github/scripts/production_build.py <commit sha> [--launch]
+    python3 .github/scripts/production_build.py live    # prints the commit hrizzup.com serves now
 
 Every merge to main makes a hidden production build (production keys, private address
 only). This asks Vercel itself, with the pipeline's own token, for the newest ready
@@ -18,8 +19,13 @@ reads it through that private address with the protection bypass for automation
     holding page (`data-page="holding"`), so a release can't make anything public by
     accident. `--launch` drops that check for the one release that is the launch.
 
-Writes id=<deployment id> and url=<private address> to $GITHUB_OUTPUT. Needs VERCEL_TOKEN,
-VERCEL_ORG_ID and VERCEL_PROJECT_ID. Prints no secrets.
+Writes id=<deployment id> and url=<private address> to $GITHUB_OUTPUT.
+
+`live` asks Vercel which build the address hrizzup.com points at, and prints that build's
+commit (falling back to the public health page, read whatever its status, if Vercel can't
+say), so a rollback can be checked against what is really live, even while it is down.
+
+Needs VERCEL_TOKEN, VERCEL_ORG_ID and VERCEL_PROJECT_ID. Prints no secrets.
 """
 import json
 import os
@@ -40,8 +46,8 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         return None  # a redirect is answered as it is, so the bypass header never leaves our build
 
 
-def vercel(path, query):
-    query = {**query, "teamId": os.environ["VERCEL_ORG_ID"]}
+def vercel(path, query=None):
+    query = {**(query or {}), "teamId": os.environ["VERCEL_ORG_ID"]}
     req = urllib.request.Request(f"https://api.vercel.com{path}?{urllib.parse.urlencode(query)}", headers={
         "Authorization": "Bearer " + os.environ["VERCEL_TOKEN"],
         "User-Agent": "hrizzup-production-build",
@@ -68,8 +74,11 @@ def private(url):
 
 
 def production_build(sha):
+    # Filtered by commit on Vercel's side, so an old commit's build is found however many
+    # builds came after it; the same conditions are checked again here.
     answer = vercel("/v6/deployments", {"projectId": os.environ["VERCEL_PROJECT_ID"],
-                                         "target": "production", "limit": 100})
+                                         "target": "production", "meta-githubCommitSha": sha,
+                                         "limit": 100})
     builds = [d for d in answer.get("deployments", [])
               if (d.get("meta") or {}).get("githubCommitSha") == sha
               and ((d.get("meta") or {}).get("githubOrg"), (d.get("meta") or {}).get("githubRepo")) == REPO
@@ -78,8 +87,40 @@ def production_build(sha):
     return max(builds, key=lambda d: d.get("created") or 0) if builds else None
 
 
+def live_commit():
+    """The commit of the build hrizzup.com points at: Vercel's alias first, then the health page."""
+    try:
+        alias = vercel("/v4/aliases/hrizzup.com")
+        build = vercel(f"/v13/deployments/{alias['deploymentId']}")
+        sha = (build.get("meta") or {}).get("githubCommitSha", "")
+        if re.fullmatch(r"[0-9a-f]{40}", sha):
+            return sha
+    except (SystemExit, KeyError, TypeError):
+        pass
+    req = urllib.request.Request("https://hrizzup.com/api/health",
+                                 headers={"User-Agent": "hrizzup-release", "Cache-Control": "no-store"})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            body = r.read()
+    except urllib.error.HTTPError as e:  # a 503 still carries the health report
+        body = e.read()
+    except (urllib.error.URLError, TimeoutError):
+        body = b"{}"
+    try:
+        sha = str(json.loads(body).get("commit", ""))
+    except (ValueError, AttributeError):
+        sha = ""
+    return sha if re.fullmatch(r"[0-9a-f]{40}", sha) else ""
+
+
 def main():
     args = sys.argv[1:]
+    if args == ["live"]:
+        sha = live_commit()
+        if not sha:
+            sys.exit("Can't tell which commit hrizzup.com serves (neither Vercel nor its health page says)")
+        print(sha)
+        return 0
     if not args or args[1:] not in ([], ["--launch"]):
         sys.exit(__doc__)
     sha, launch = args[0], args[1:] == ["--launch"]
