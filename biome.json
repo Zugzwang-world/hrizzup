@@ -1,0 +1,28 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.6.3/schema.json",
+  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+  "files": {
+    "includes": [
+      "product/**",
+      "infra/supabase/package.json",
+      "package.json",
+      "turbo.json",
+      "biome.json",
+      "!**/.expo",
+      "!**/.next",
+      "!**/next-env.d.ts",
+      "!**/expo-env.d.ts"
+    ]
+  },
+  "formatter": { "enabled": true, "indentStyle": "space", "indentWidth": 2, "lineWidth": 100 },
+  "javascript": {
+    "formatter": { "quoteStyle": "single", "jsxQuoteStyle": "double", "semicolons": "always" }
+  },
+  "css": { "parser": { "tailwindDirectives": true } },
+  "linter": {
+    "enabled": true,
+    "rules": { "preset": "recommended" },
+    "domains": { "next": "recommended", "react": "recommended" }
+  },
+  "assist": { "actions": { "source": { "organizeImports": "on" } } }
+}

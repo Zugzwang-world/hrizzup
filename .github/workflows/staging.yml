@@ -1,0 +1,73 @@
+# Hrizzup: every merge to main updates staging (runbook Part 9; blueprint section 6).
+#
+# In the same order as a production release: the database first, then the code.
+#   1. Apply any new migrations (infra/supabase/migrations) to staging's database, over
+#      DATABASE_URL_SESSION (Supabase's pooler in session mode).
+#   2. Check that every table of ours is still locked (row-level security).
+#   3. Move the `staging` branch to this commit (only this workflow can: ruleset
+#      "staging"). Vercel's custom environment "staging" follows that branch, builds the
+#      commit with staging's keys (Doppler `stg`) and serves it on staging.hrizzup.com.
+#
+# Staging's keys come from Doppler through a read-only token for `stg`, kept in the GitHub
+# environment "hrizzup-staging", which only `main` can use. Every value is masked in logs.
+
+name: Staging
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging
+  cancel-in-progress: false # merges reach staging one at a time, in order
+
+jobs:
+  staging:
+    name: Update staging
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: hrizzup-staging
+    permissions:
+      contents: read
+    steps:
+      # The ruleset "staging" lets only a deploy key move the staging branch. This one is
+      # held only by this workflow (secret STAGING_DEPLOY_KEY in the environment
+      # hrizzup-staging), so staging only ever runs commits that reached main.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          ssh-key: ${{ secrets.STAGING_DEPLOY_KEY }}
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --filter @hrizzup/database
+
+      - name: Staging's keys (Doppler stg, masked)
+        uses: dopplerhq/secrets-fetch-action@451892f16195f9ac360e1a5bcbf0b5fd0e957534 # v2.0.0
+        with:
+          doppler-token: ${{ secrets.DOPPLER_TOKEN }}
+          inject-env-vars: true
+
+      - name: 1. Apply new migrations to staging's database
+        working-directory: infra/supabase
+        run: pnpm exec supabase --workdir .. db push --db-url "$DATABASE_URL_SESSION" --skip-vault --yes
+
+      - name: 2. Check that every table is locked
+        env:
+          PGSSLMODE: verify-full
+          PGSSLROOTCERT: infra/supabase/supabase-root-2021-ca.crt
+        run: psql "$DATABASE_URL_SESSION" -q -v ON_ERROR_STOP=1 -f infra/supabase/checks/every_table_locked.sql
+
+      - name: 3. Send this commit to staging
+        env:
+          COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          git push origin "$COMMIT:refs/heads/staging"
+          echo "Staging now builds $COMMIT; Vercel serves it on https://staging.hrizzup.com"

@@ -1,0 +1,19 @@
+{
+  "name": "@hrizzup/core",
+  "private": true,
+  "description": "Code shared by the website and the app: the brand, the environment names and the Redis key rules.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@hrizzup/tsconfig": "workspace:*",
+    "@types/node": "^24.10.0",
+    "typescript": "6.0.3",
+    "vitest": "^5.0.0"
+  }
+}

@@ -1,5 +1,5 @@
 {
-  "_about": "Supabase Auth settings, applied by apply.py (README.md). Names and non-secret values only: each secret is named by the environment variable that supplies it at run time, from Doppler. Staging and production share every setting except the addresses, the project and the hourly email limit. The sign-in methods that are on are exactly the *_enabled switches set to true here; apply.py fails if any other is on.",
+  "_about": "Supabase Auth settings, applied by apply.py (README.md). Names and non-secret values only: each secret is named by the environment variable that supplies it at run time, from Doppler. Staging and production share every setting except the addresses, the project and the hourly email limit. No `vercel.app` address is ever allowed, because anyone can create one: previews sign in through staging's signed relay (`/auth/relay`, product/web/lib/auth-relay.ts). The sign-in methods that are on are exactly the *_enabled switches set to true here; apply.py fails if any other is on.",
   "environments": {
     "staging": {
       "project_ref": "mlccgqxtqmllwbyjfzzm",

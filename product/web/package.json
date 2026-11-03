@@ -1,0 +1,39 @@
+{
+  "name": "@hrizzup/web",
+  "private": true,
+  "description": "The Hrizzup website (Next.js): the holding page, the draft legal pages, the sign-in test page and /api/health.",
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "next typegen && tsc --noEmit",
+    "test": "vitest run",
+    "test:screens": "playwright test",
+    "test-accounts": "node scripts/test-accounts.ts"
+  },
+  "dependencies": {
+    "@hrizzup/core": "workspace:*",
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.110.0",
+    "@upstash/redis": "^1.40.0",
+    "@vercel/functions": "^3.10.0",
+    "aws4fetch": "^1.0.20",
+    "next": "~16.4.3",
+    "pg": "^8.20.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@hrizzup/tsconfig": "workspace:*",
+    "@playwright/test": "^1.63.0",
+    "@tailwindcss/postcss": "^4.3.0",
+    "@types/node": "^24.10.0",
+    "@types/pg": "^8.15.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.2.0",
+    "tailwindcss": "^4.3.0",
+    "typescript": "6.0.3",
+    "vitest": "^5.0.0"
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "ui": "stream",
+  "globalDependencies": [".node-version"],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "!e2e/**", "!**/*.test.ts", "!playwright.config.ts"],
+      "outputs": [".next/**", "!.next/cache/**"],
+      "env": ["VERCEL", "VERCEL_ENV", "VERCEL_TARGET_ENV"],
+      "passThroughEnv": ["VERCEL_*", "NEXT_*"]
+    },
+    "typecheck": {
+      "dependsOn": ["^typecheck"],
+      "outputs": []
+    },
+    "test": {
+      "outputs": []
+    },
+    "test:db": {
+      "inputs": ["migrations/**", "tests/**", "config.toml", "package.json"],
+      "outputs": []
+    },
+    "test:screens": {
+      "cache": false,
+      "passThroughEnv": [
+        "BASE_URL",
+        "VERCEL_AUTOMATION_BYPASS_SECRET",
+        "SUPABASE_URL",
+        "SUPABASE_PUBLISHABLE_KEY",
+        "SUPABASE_SECRET_KEY",
+        "SCREENSHOTS_DIR",
+        "CI"
+      ]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    }
+  }
+}

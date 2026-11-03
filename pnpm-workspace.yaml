@@ -1,0 +1,22 @@
+# Hrizzup's workspace: every package in the one codebase (PLAN.md step 1.5).
+packages:
+  - product/web # the website (Next.js), @hrizzup/web
+  - product/app # the app (Expo), @hrizzup/app
+  - product/packages/* # code shared by the website and the app
+  - infra/supabase # the database's migrations and tests, @hrizzup/database
+
+# Supply-chain safety: a package version is installed only once it has been public for
+# 3 days (4,320 minutes). Hijacked releases have so far been caught and pulled within
+# hours to a couple of days, so they never reach us. An urgent security fix can be let
+# through by name and version in minimumReleaseAgeExclude, with the reason in the pull
+# request.
+minimumReleaseAge: 4320
+
+# Install scripts are off unless a package is listed here (pnpm's default). Each one
+# listed was checked: it only downloads or builds its own program.
+allowBuilds:
+  supabase: true # downloads the Supabase CLI program
+  esbuild: true # unpacks its own program (used by the test runner)
+
+# Install exactly what the lockfile says, everywhere.
+preferFrozenLockfile: true

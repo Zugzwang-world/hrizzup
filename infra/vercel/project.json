@@ -1,0 +1,37 @@
+{
+  "_about": "The Vercel project's settings, applied and read back by apply.py (README.md). Names and values only; no secrets. Blueprint section 6.",
+  "team": "hrizzup",
+  "project": "hrizzup",
+  "git": {
+    "repo": "Zugzwang-world/hrizzup",
+    "productionBranch": "main"
+  },
+  "settings": {
+    "framework": "nextjs",
+    "rootDirectory": "product/web",
+    "sourceFilesOutsideRootDirectory": true,
+    "nodeVersion": "24.x",
+    "autoAssignCustomDomains": false,
+    "ssoProtection": { "deploymentType": "all_except_custom_domains" },
+    "skewProtectionMaxAge": 43200,
+    "enablePreviewFeedback": true,
+    "enableProductionFeedback": false,
+    "gitForkProtection": true,
+    "customerSupportCodeVisibility": false,
+    "directoryListing": false,
+    "enableAffectedProjectsDeployments": false,
+    "gitProviderOptions": { "createDeployments": "enabled", "disableRepositoryDispatchEvents": true },
+    "resourceConfig": { "fluid": true, "functionDefaultRegions": ["bom1"] }
+  },
+  "customEnvironments": {
+    "staging": {
+      "description": "Staging: every merge to main, after its migrations (.github/workflows/staging.yml moves the staging branch). Doppler stg.",
+      "branchMatcher": { "type": "equals", "pattern": "staging" },
+      "domains": ["staging.hrizzup.com"]
+    }
+  },
+  "domains": {
+    "hrizzup.com": {},
+    "www.hrizzup.com": { "redirect": "hrizzup.com", "redirectStatusCode": 308 }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "@hrizzup/tsconfig",
+  "private": true,
+  "description": "Shared TypeScript settings for the website, the app and the shared packages.",
+  "files": [
+    "base.json",
+    "nextjs.json",
+    "library.json"
+  ]
+}
