@@ -18,9 +18,12 @@ import {
 export default async function globalSetup(config: FullConfig) {
   const use = config.projects[0]?.use;
   const baseURL = use?.baseURL ?? 'http://localhost:3000';
-  const headers = (use?.extraHTTPHeaders ?? {}) as Record<string, string>;
+  // Only the bypass itself: the "set a cookie" header makes Vercel answer with a redirect
+  // that sets a cookie, which browsers keep but this plain request can't.
+  const { 'x-vercel-set-bypass-cookie': _cookie, ...headers } = (use?.extraHTTPHeaders ??
+    {}) as Record<string, string>;
 
-  const response = await fetch(new URL('/api/health', baseURL), { headers });
+  const response = await fetch(new URL('/api/health', baseURL), { headers, redirect: 'manual' });
   if (response.status !== 200 && response.status !== 503) {
     throw new Error(`${baseURL}/api/health answered ${response.status}; is the address right?`);
   }
