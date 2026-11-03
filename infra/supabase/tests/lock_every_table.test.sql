@@ -5,7 +5,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(7);
+select plan(8);
 
 select ok(
   exists (
@@ -40,6 +40,12 @@ select ok(
   (select bool_and(relrowsecurity) from pg_catalog.pg_class
    where oid in ('lock_test.parent'::regclass, 'lock_test.child'::regclass)),
   'a partitioned table and its partitions: row-level security is on'
+);
+
+create schema lock_test_embedded create table lock_test_embedded.d (id int);
+select ok(
+  (select relrowsecurity from pg_catalog.pg_class where oid = 'lock_test_embedded.d'::regclass),
+  'a table created inside CREATE SCHEMA: row-level security is on'
 );
 
 select throws_like(

@@ -27,7 +27,8 @@ type Props = { searchParams: Promise<{ error?: string | string[] }> };
 export default async function SignInTestPage({ searchParams }: Props) {
   if (!signInTestEnabled()) notFound();
   const { error } = await searchParams;
-  const message = typeof error === 'string' ? ERRORS[error] : undefined;
+  const message =
+    typeof error === 'string' && Object.hasOwn(ERRORS, error) ? ERRORS[error] : undefined;
 
   const supabase = await createClient();
   // getClaims checks the session's signature locally against the project's public key,

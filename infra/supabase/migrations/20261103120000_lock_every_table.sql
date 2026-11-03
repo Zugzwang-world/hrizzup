@@ -53,7 +53,9 @@ as $$
   order by 1;
 $$;
 
--- Runs after every CREATE TABLE, CREATE TABLE AS, SELECT INTO and ALTER TABLE.
+-- Runs after every CREATE TABLE, CREATE TABLE AS, SELECT INTO and ALTER TABLE, and after
+-- CREATE SCHEMA and CREATE EXTENSION, which can create tables inside themselves (each table
+-- they create is listed as its own CREATE TABLE).
 create or replace function private.lock_tables()
 returns event_trigger
 language plpgsql
@@ -94,7 +96,10 @@ revoke all on function private.lock_tables() from public;
 drop event trigger if exists lock_new_tables;
 create event trigger lock_new_tables
   on ddl_command_end
-  when tag in ('CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO', 'ALTER TABLE')
+  when tag in (
+    'CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO', 'ALTER TABLE',
+    'CREATE SCHEMA', 'CREATE EXTENSION'
+  )
   execute function private.lock_tables();
 
 -- Any table of ours that already exists gets locked too (there are none on 3 November 2026).

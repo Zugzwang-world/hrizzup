@@ -40,6 +40,11 @@ export function database(): Pool | null {
     connectionTimeoutMillis: 10_000,
     application_name: 'hrizzup-web',
   });
+  // An idle connection can drop (the pooler restarting, a network blip). pg reports that as
+  // an 'error' event; with no listener, Node would treat it as a crash. The broken
+  // connection is already discarded, and the next query opens a new one. Nothing is
+  // logged, because the error's text could include connection details.
+  pool.on('error', () => {});
   attachDatabasePool(pool);
   return pool;
 }
