@@ -3,3 +3,5 @@
 # Everything not listed here is a reference to staging (${stg.NAME}), kept in step by
 # dev_follows_staging.py. Example of a future entry:
 #   SITE_URL   # local runs answer on http://localhost:3000, not staging's address
+
+REDIS_KEY_PREFIX   # local runs share staging's Redis database; "dev" keeps their keys apart from staging's "stg" (blueprint section 14, Redis)
