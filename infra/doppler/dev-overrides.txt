@@ -1,0 +1,5 @@
+# Doppler hrizzup/dev: secrets whose local value deliberately differs from staging's.
+# One name per line, with the reason after a #. Names only, never a value.
+# Everything not listed here is a reference to staging (${stg.NAME}), kept in step by
+# dev_follows_staging.py. Example of a future entry:
+#   SITE_URL   # local runs answer on http://localhost:3000, not staging's address
