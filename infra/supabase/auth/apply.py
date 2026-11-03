@@ -10,9 +10,7 @@ SUPABASE_ACCESS_TOKEN for Supabase's Management API, plus the environment's own
 GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, RESEND_API_KEY, TURNSTILE_SECRET_KEY
 and SUPABASE_URL. Staging, by Claude Code:
 
-    doppler run --project hrizzup-tools --config claude -- \\
-      doppler run --project hrizzup --config stg -- \\
-      python3 infra/supabase/auth/apply.py staging
+    infra/doppler/run tools stg -- python3 infra/supabase/auth/apply.py staging
 
 Production is applied only by the release pipeline, with its own credentials (runbook
 Part 10). Claude Code's Supabase token reaches only hrizzup-staging, so Supabase itself

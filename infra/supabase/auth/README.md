@@ -12,9 +12,7 @@ Sign-in for the website and the app runs on Supabase Auth. Its settings live her
 **Staging** (Claude Code):
 
 ```sh
-doppler run --project hrizzup-tools --config claude -- \
-  doppler run --project hrizzup --config stg -- \
-  python3 infra/supabase/auth/apply.py staging          # or: ... staging --check
+infra/doppler/run tools stg -- python3 infra/supabase/auth/apply.py staging   # or: ... staging --check
 ```
 
 **Production:** only the release pipeline, with its own credentials (runbook Part 10). `project_ref` for production is filled in once `hrizzup-production` exists. Claude Code's Supabase token reaches only `hrizzup-staging`, so Supabase itself refuses it for production.

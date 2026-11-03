@@ -11,9 +11,10 @@ are left alone. `apply` adds missing references, turns any other value back into
 reference, and deletes dev secrets that no longer exist in staging (a reference left
 pointing at nothing could fill itself in later with the wrong value).
 
-Run it with your own Doppler login, not inside `doppler run`. It prints secret names only,
-never a value. It never reads or touches `prd`, and fails if any dev value points at
-production or at another project.
+Run it directly, not inside `doppler run`: it reads staging with Claude Code's read/write
+token for `stg` and changes `dev` with its token for `dev`, both from this Mac's keychain
+(README.md). Neither token can open `prd`. It prints secret names only, never a value, and
+fails if any dev value points at production or at another project.
 """
 import hashlib
 import json
@@ -26,20 +27,35 @@ PROJECT = "hrizzup"
 HERE = os.path.dirname(os.path.abspath(__file__))
 RESERVED = {"DOPPLER_CONFIG", "DOPPLER_ENVIRONMENT", "DOPPLER_PROJECT"}
 REFERENCE = re.compile(r"\$\{([^}]*)\}")
+SERVICE = "hrizzup-doppler"  # Claude Code's tokens in this Mac's keychain (README.md)
+CLI_DIR = os.path.expanduser("~/.config/hrizzup/doppler-cli")  # never holds a login
 
 
-def doppler(*args):
-    """Run a Doppler CLI command on the hrizzup project; output is returned, never printed."""
-    env = {k: v for k, v in os.environ.items() if k not in RESERVED}
-    result = subprocess.run(["doppler", *args, "--project", PROJECT, "--no-check-version"],
+def token(config):
+    r = subprocess.run(["security", "find-generic-password", "-s", SERVICE, "-a", f"{PROJECT}/{config}", "-w"],
+                       capture_output=True, text=True)
+    if r.returncode != 0 or not r.stdout.strip():
+        sys.exit(f"no Doppler token for {PROJECT}/{config} in this Mac's keychain (infra/doppler/README.md)")
+    return r.stdout.strip()
+
+
+def doppler(config, *args):
+    """Run a Doppler CLI command on hrizzup/<config> with that config's own token. The token
+    goes to the doppler process only, as an environment variable; output is returned, never
+    printed."""
+    env = {k: v for k, v in os.environ.items() if k not in RESERVED | {"DOPPLER_TOKEN"}}
+    env["DOPPLER_TOKEN"] = token(config)
+    os.makedirs(CLI_DIR, mode=0o700, exist_ok=True)
+    result = subprocess.run(["doppler", *args, "--project", PROJECT, "--config", config,
+                             "--config-dir", CLI_DIR, "--no-check-version"],
                             capture_output=True, text=True, env=env)
     if result.returncode != 0:
-        sys.exit(f"doppler {' '.join(args[:2])} failed (exit {result.returncode})")
+        sys.exit(f"doppler {' '.join(args[:2])} on {config} failed (exit {result.returncode})")
     return result.stdout
 
 
 def secrets(config):
-    return json.loads(doppler("secrets", "--config", config, "--json", "--raw"))
+    return json.loads(doppler(config, "secrets", "--json", "--raw"))
 
 
 def local_overrides():
@@ -100,11 +116,11 @@ def apply():
     to_set = sorted(n for n in app - local if n not in dev or dev[n]["raw"] != reference(n))
     stale = sorted(set(dev) - RESERVED - app - local)
     if to_set:
-        doppler("secrets", "set", *[f"{n}={reference(n)}" for n in to_set], "--config", "dev",
+        doppler("dev", "secrets", "set", *[f"{n}={reference(n)}" for n in to_set],
                 "--no-interactive", "--silent")
         print(f"set to the staging reference in dev: {', '.join(to_set)}")
     if stale:
-        doppler("secrets", "delete", *stale, "--config", "dev", "--yes", "--silent")
+        doppler("dev", "secrets", "delete", *stale, "--yes", "--silent")
         print(f"deleted from dev (no longer in staging): {', '.join(stale)}")
     if not to_set and not stale:
         print("nothing to change")

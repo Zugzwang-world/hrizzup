@@ -11,7 +11,7 @@ domains, and the firewall. It fails, listing every difference, if Vercel doesn't
 
 Needs VERCEL_TOKEN (Doppler project hrizzup-tools, config claude):
 
-    doppler run --project hrizzup-tools --config claude -- python3 infra/vercel/apply.py
+    infra/doppler/run tools -- python3 infra/vercel/apply.py
 
 The project and the firewall also cover production. Until Part 10 these settings are
 applied by Claude Code, before production has any keys or data (runbook step 9.4); from

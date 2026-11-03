@@ -12,8 +12,8 @@ The Vercel project `hrizzup` (team `hrizzup`, Pro) hosts the website for preview
 **Running it** (Claude Code; the Vercel token lives in Doppler `hrizzup-tools`):
 
 ```sh
-doppler run --project hrizzup-tools --config claude -- python3 infra/vercel/apply.py --check   # compare only
-doppler run --project hrizzup-tools --config claude -- python3 infra/vercel/apply.py           # apply, then compare
+infra/doppler/run tools -- python3 infra/vercel/apply.py --check   # compare only
+infra/doppler/run tools -- python3 infra/vercel/apply.py           # apply, then compare
 ```
 
 **These settings also cover production.** One Vercel project serves every environment, so the project's settings, its domains and its firewall reach production too. Claude Code applied them in runbook Part 9, before production had any keys or data. From Part 10 on, a change here that touches production is applied by the release pipeline. `--check` is safe at any time, and the release pipeline runs it before every promotion, because `autoAssignCustomDomains` must stay off (blueprint section 6).

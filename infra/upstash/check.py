@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Check an Upstash Redis database against the blueprint (section 14, "Redis (Upstash)").
 
-    doppler run -- python3 infra/upstash/check.py staging      # this Mac: dev refers to staging
+    infra/doppler/run dev -- python3 infra/upstash/check.py staging   # this Mac: dev refers to staging
     python3 infra/upstash/check.py production                  # release pipeline only (runbook 10.14)
 
 Reads UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN from the environment and prints
@@ -48,7 +48,7 @@ if env not in PREFIXES:
 url = urlparse(os.environ.get("UPSTASH_REDIS_REST_URL", ""))
 token = os.environ.get("UPSTASH_REDIS_REST_TOKEN", "")
 if not url.hostname or not token:
-    sys.exit("UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN must be set (run inside doppler run)")
+    sys.exit("UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN must be set (run it through infra/doppler/run)")
 HOST = url.hostname
 problems, notes = [], []
 

@@ -1081,6 +1081,44 @@ Not a problem: the worry that Claude Code could run the script on production. It
 - **New folders:** `product/`, `infra/vercel/`, `infra/supabase/` (migrations, tests, checks), `.github/workflows/checks.yml` and `staging.yml`, `.github/scripts/`.
 - **Status:** `docs/status/product.md`.
 
+### Claude Code's own Doppler access: service tokens, no personal login (runbook 10.1, founder's decision)
+
+**Asked by the founder:** stop using his personal Doppler login; use service tokens limited to `hrizzup`'s `dev`, `stg` and `stg_preview` and to `hrizzup-tools`, with write access only where needed, stored so only Claude Code's commands use them; prove `prd` can't be read; then give him the command to log his own login out of this Mac. This replaces the Team plan's service account in the old step 10.1; the Team plan now waits until a helper joins Doppler (runbook, "Later, with the team").
+
+**The tokens** (Doppler service tokens, each named `claude-code-mac`, no expiry, created at 15:24 UTC with the founder's login; Claude Code last used that login at 15:28 UTC, to read back the tokens' creation time):
+
+| Config | Access | Why |
+|---|---|---|
+| `hrizzup/dev` | Read and write | `dev_follows_staging.py` writes `dev`'s references |
+| `hrizzup/stg` | Read and write | Claude Code creates and replaces staging's keys |
+| `hrizzup/stg_preview` | Read only | The previews' overrides rarely change |
+| `hrizzup-tools/claude` | Read and write | Claude Code stores setup values it creates |
+
+- **Stored:** each went from Doppler's answer straight into this Mac's login keychain (service `hrizzup-doppler`, one item per config), through a pipe, never shown, never on a command line or in a file.
+- **Used only through** `infra/doppler/run <config> -- <command>` (new), which gives the token to the Doppler process alone and removes it before the command starts, runs Doppler with its own empty settings folder (`~/.config/hrizzup/doppler-cli`, checked: no token in it) so no personal login is ever used, and keeps no copy of secrets on disk. `dev_follows_staging.py` reads `stg` and writes `dev` with their own tokens.
+
+**Proof that `prd` can't be read** (`python3 infra/doppler/check_access.py`, new, run at about 15:26 UTC):
+
+| Token | Its own config | `hrizzup/prd` and `hrizzup/prd_release` (one secret, and a full download) | Writes |
+|---|---|---|---|
+| `hrizzup/dev` | Reads it | Refused: HTTP 400, "This token does not have access to requested config 'prd'" (and `'prd_release'`) | — |
+| `hrizzup/stg` | Reads it | Refused, the same | — |
+| `hrizzup/stg_preview` | Reads it | Refused, the same | Refused: HTTP 403, "You do not have write access to this config's secrets" (an empty write, which changes nothing) |
+| `hrizzup-tools/claude` | Reads it | Refused: "This token does not have access to requested project 'hrizzup'" | — |
+
+- `prd_release` doesn't exist yet; it is the release pipeline's branch of `prd` (Part 10). The check covers it so it stays covered.
+- `dev`'s references (`${stg.NAME}`) resolve with the `dev` token: `SUPABASE_URL` read through `dev` matches `stg` (compared by fingerprint).
+
+**Everything still works through the tokens:**
+- `dev_follows_staging.py check` and `apply`: OK, 20 references to `stg`, 1 local override, nothing to change;
+- `infra/supabase/auth/apply.py staging --check` (tools and stg together): matches the repo, 32 settings and 4 secrets;
+- `infra/vercel/apply.py --check`: matches the repo, `autoAssignCustomDomains` is False;
+- `infra/upstash/check.py staging` (through dev): OK.
+
+**The founder's login:** still saved on this Mac until he runs `doppler logout --yes` (the access check reports it). Claude Code's commands don't use it.
+
+**Documents updated:** CLAUDE.md ("Environments and secrets"), the blueprint (section 3's Doppler row, section 7), the runbook (steps 4.1, 4.5, the note under Part 4, step 10.1, and the Team plan moved to "Later, with the team"), `doppler.yaml`, and every command line in `infra/` (READMEs and script help). **New files:** `infra/doppler/run` and `infra/doppler/check_access.py`.
+
 ---
 
 ## Rules for this log
