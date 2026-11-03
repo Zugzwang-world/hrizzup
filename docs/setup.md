@@ -752,6 +752,94 @@ Part 6 is now done, apart from Cloudflare Stream, which waits for creator video.
 - **New files:** `infra/doppler/` (the script, the overrides list and a README) and `doppler.yaml`.
 - **Status:** `docs/status/product.md`.
 
+### Redis: Upstash staging database `hrizzup-staging` (runbook Part 7)
+
+**Created by the founder** (steps 7.1 and 7.2): Fixed plan, AWS Mumbai, with its keys saved in Doppler `stg` as `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` (09:30 UTC, per Doppler's activity log). The founder also deleted Zugzwang World's Upstash database, so the Upstash account now holds only `hrizzup-staging`.
+
+**Checked by Claude Code, about 09:35 to 09:45 UTC,** in three ways:
+- through the database itself, with the REST keys through `doppler run` (never printed). Only fields chosen in advance were printed, after listing the field names first;
+- from the outside, without the token;
+- in Upstash's console, through the founder's browser login, on the staging database only. The page was read from screenshots, and the password and token were never revealed.
+
+| Setting | Found | How it was checked |
+|---|---|---|
+| Name and address | `hrizzup-staging`, at `rare-sole-111677.upstash.io` | Console; REST address |
+| Plan and size | **Fixed 1GB**: 1 GB of data (1,073,741,824 bytes), up to 10,000 commands a second and 30,000 connections. Upstash's price list: $20 a month, with 100 GB of traffic a month and no per-command charges | Console; `INFO` (`max_data_size`, `max_ops_per_sec`, `maxclients`) |
+| Region | AWS Mumbai, `ap-south-1`. Primary copy `ap-south-1-r4`, standby copy `ap-south-1-r2`, both in Mumbai. No read regions elsewhere. Database type "Global" (Upstash's current type, here with one region) | Console; `INFO` (`all_members`, `primary_member`); all four of the address's IPs are in AWS's published ranges for `ap-south-1` (EC2) |
+| Software | Compatible with Redis 8.4.0; Upstash 1.19.4; standalone (no cluster) | `INFO` |
+| Encrypted connections only | **Yes.** Plain-text Redis on port 6379 gets no answer (the server closes the connection). Port 80 (plain HTTP) isn't open. HTTPS without the token gets 401. TLS 1.0 and 1.1 are refused on ports 443 and 6379 (a "protocol version" alert); TLS 1.2 and 1.3 work. Certificate `*.upstash.io` from Let's Encrypt, valid until 11 January 2027, renewed by Upstash. Upstash's docs say TLS is always on and can't be switched off | From the outside, without the token |
+| Address list | Open to all addresses (the default) | Console. Vercel has no fixed addresses |
+| Eviction | Was **off** (`noeviction`). **Turned on** by Claude Code; `INFO` now reports `optimistic-volatile` | Console switch, then `INFO` read again |
+| Auto-upgrade | Was **on**. **Turned off** by Claude Code (below) | Console switch, then the page reloaded |
+| Prod Pack | Not active | Console |
+| Stored keys | None | `INFO`, `DBSIZE` |
+
+**Eviction, the recommendation applied:** Upstash offers a single eviction behaviour, "optimistic-volatile": when the database is full, it removes keys at random, taking keys with an expiry first. With eviction off, a full database refuses every write, so caches, rate limits and locks would all fail together, and the site with them. With it on, a full database only loses entries that are rebuilt from the main database. That's safe under the new rules: every key has an expiry, and Redis never holds the only copy of anything that matters (blueprint section 14). The other professional option, a second database with eviction off for locks and counters, costs a second plan per environment; it's worth revisiting only if the database ever nears 1 GB.
+
+**Auto-upgrade, turned off on staging:** on the Fixed plan, auto-upgrade moves the database to the next tier (Fixed 5GB, $100 a month) when a limit is reached. With it off, Upstash blocks traffic once the month's 100 GB is used, and blocks writes when storage is full (which eviction now prevents). For staging that's the spending cap CLAUDE.md asks of every paid service: a runaway load test is stopped, not billed. Production keeps it on (runbook step 10.8), so a limit never takes the live site offline. Supabase's spend cap is split the same way.
+
+**Round trip from the founder's Mac.** This Mac's internet exits in Mumbai (Cloudflare's `colo=BOM`, `loc=IN`). Upstash doesn't answer ICMP ping, so the timing was done over HTTPS:
+
+| Measured | First run (n=60) | Second run, 09:40 UTC (n=100) |
+|---|---|---|
+| Network round trip (opening a connection) | median 8.1 ms (6.7 to 37.3) | median 7.5 ms (6.5 to 46.6) |
+| One command on an open connection | median **7.6 ms**, 95% under 12.3 ms | median **7.2 ms**, 95% under 20.7 ms |
+| First command on a new connection (connection, encryption, command) | median 40.9 ms | median 40.8 ms |
+| 10 commands as 10 separate trips, against one pipeline | 72 ms against 7.2 ms | 125 ms against 7.1 ms |
+
+- The old database took about 135 ms, because it was in the wrong region; this one takes about 8.
+- Batching is the biggest single saving: one trip instead of ten.
+
+**From Vercel's Mumbai servers (explained, not yet measured):** Vercel's `bom1` runs in AWS `ap-south-1` (Vercel's region list), the same AWS region as the database. The network part of each trip drops from about 7 ms to about a millisecond, so a command should take about 1 to 3 ms, plus a few more for a fresh server instance's first command, which also sets up encryption. Runbook step 9.6 now measures it once staging runs on Vercel.
+
+**Write test:** one pipeline request wrote a test key under `stg:selftest:` with a 60-second expiry, read it back, read its expiry (60), deleted it and confirmed it was gone. The database was empty again afterwards.
+
+**Doppler (project `hrizzup`):**
+- **`dev` references:** `dev_follows_staging.py apply` added `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` as `${stg.NAME}`. A local run through `dev` reached the database with them.
+- **New: `REDIS_KEY_PREFIX`,** the environment that starts every Redis key (not a secret). Previews and local runs share staging's database, so each place gets its own value:
+  - `stg`: `stg`;
+  - `stg_preview`: `pre` (an override);
+  - `dev`: `dev`, its own value, listed in `infra/doppler/dev-overrides.txt` (its first entry);
+  - `prd`: `prd`, added by the founder in runbook step 10.8.
+- **Checked:** `dev_follows_staging.py check` reports OK: 17 references to `stg`, 1 local override, nothing stale, nothing pointing at production.
+- **The `hrizzup` project's description** still said "all secrets (configs dev, preview, stg, prd)". It now says it holds the app's keys only, and that Claude Code's setup keys are in `hrizzup-tools`.
+
+**Doppler workplace:**
+- **`example-project`** (Doppler's sample) was **already deleted** when this step started: the activity log shows it deleted at 09:18 UTC through the founder's account (Claude Code uses the same login, so the log can't say which of the two). Nothing was left to delete. The workplace now uses 3 of the free plan's 10 projects: `hrizzup`, `hrizzup-tools` and `zugzwang-experiment`.
+- **`zugzwang-experiment`** is kept until Zugzwang World is retired:
+  - its configs `stg` (44 secrets) and `prd` (39) each hold `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`. Only names were read, nothing was changed, and nothing from its `prd` was used;
+  - **the keys are dead:** run through its `stg` config, a check printing only the outcome found that the old address no longer exists in DNS;
+  - recorded in the new retirement list, `docs/setup/RETIREMENT.md`. There wasn't a list before, only a note in the product status file. The new list also carries the Resend and R2 leftovers.
+
+**New check in the repo: `infra/upstash/check.py`.** It does by script what was done by hand above, so staging can be re-checked at any time, and the release pipeline can check production the same way (runbook step 10.14) without Claude Code holding production's keys. It covers:
+- region, size and eviction;
+- encrypted-only connections;
+- that every stored key starts with an allowed environment and has an expiry;
+- round-trip time.
+
+It prints chosen facts only, never the token. Run on staging at 09:44 UTC: **all checks pass.**
+- **Proven to catch problems:** two deliberately wrong keys were planted, one without an environment prefix and one without an expiry. The check failed and named both. They were then deleted, and the database was empty again.
+- **Key names kept out of production's logs** (after an automatic security review of the pull request): on production, a key that breaks a rule is shown only as its environment label (or `?`) and a short fingerprint, never its name, because a bad key might hold an ID and the pipeline's output is logged. Tested by running the check in production mode against staging's database with the two planted keys: they showed as `?:…#6ca42ac3` and `stg:…#2ee890c3`. Staging still shows the names, since it has no real users.
+
+**Correction:** the first check of old TLS versions used the `openssl` command and reported TLS 1.0 and 1.1 as refused. A control test against a server that does accept TLS 1.1 then showed that this Mac's `openssl` command can't offer TLS 1.1 at all, so that first result proved nothing. Redone in Python, which can offer it (the control server accepted): Upstash refused TLS 1.0 and 1.1 with a "protocol version" alert on both ports. That method is the one in `check.py`.
+
+**Seen, for the founder:** Upstash's database page lists recommended security steps, including "MFA Requirement", all unticked. Two-step login on the Upstash account is the founder's check in runbook step 0.2.
+
+**Documents updated:**
+- **Runbook:**
+  - Part 7 rewritten as it was done (steps 7.1 to 7.5), with why eviction is on, why auto-upgrade is off on staging, and what to check before a big load test;
+  - step 9.6: measure the Redis round trip from Vercel's Mumbai functions;
+  - Part 10: the introduction (billing limits differ on purpose), step 10.8 (production's Redis settings and `REDIS_KEY_PREFIX`) and step 10.14 (the pipeline runs `check.py production`).
+- **Blueprint:**
+  - rule 9 points at the retirement list;
+  - section 2: Upstash is on Fixed 1GB for staging and production;
+  - section 3: a Redis row in the environments table;
+  - section 14: a new subsection, "Redis (Upstash)", with the settings, why eviction is on, the four rules, the keys and the round-trip times.
+- **CLAUDE.md:** the Redis rules under "Performance and caching", and where the retirement list lives.
+- **New files:** `infra/upstash/check.py` and its README, and `docs/setup/RETIREMENT.md`.
+- **Changed:** `infra/doppler/dev-overrides.txt` and the README in that folder.
+- **Status:** `docs/status/product.md`.
+
 ---
 
 ## Rules for this log

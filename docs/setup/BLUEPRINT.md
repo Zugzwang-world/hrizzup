@@ -22,7 +22,7 @@ Status: proposed, 2 November 2026, and updated with the founder's decisions sinc
 | Previews never touch production data and are never public | Every preview address was public and connected to the production database. |
 | No sign-in on preview deployments | Google sign-in on previews never worked. Testing used the fixed staging address instead. |
 | A failing job is fixed or switched off the same day | Two scheduled jobs failed every day for weeks without anyone looking. |
-| Teardown is planned as carefully as a launch | The experiment left DNS records pointing at deleted servers, syncs still running, AWS resources kept after deletion, and no record of any of it. |
+| Teardown is planned as carefully as a launch. What Zugzwang World still has in shared accounts is in the retirement list, `docs/setup/RETIREMENT.md` | The experiment left DNS records pointing at deleted servers, syncs still running, AWS resources kept after deletion, and no record of any of it. |
 
 ---
 
@@ -39,7 +39,7 @@ Default to paid tiers. The exceptions are Cloudflare and Doppler, which stay on 
 | Cloudflare | A zone for `hrizzup.com` on the **Free** plan during staging, upgraded to **Pro** in the production twin (runbook Part 10). Image transformations are free up to 5,000 new sizes a month; the production twin also turns on Cloudflare Images' paid plan, so new sizes never fail (section 13). Its protection covers the names routed through Cloudflare, such as the public storage addresses; the app's own names point at Vercel, DNS only (section 4). Cloudflare Stream, for creator video, lives in the same account and is billed by minutes stored and watched; it is switched on when creator video is built. | DNS, file storage (R2), image delivery, video (Stream), Turnstile |
 | Proton | Duo (existing) | Email on hrizzup.com, plus a Proton Pass vault named `Hrizzup` |
 | Resend | Paid plan (existing). The free plan stops at 100 emails a day. | Sign-in and notification email |
-| Upstash Redis | Paid plan (existing), with one database per environment, in the region closest to Mumbai | The shared fast layer: feeds, rankings, counters, sessions, rate limits, computed results, locks (section 14) |
+| Upstash Redis | **Fixed 1GB** ($20 a month per database), the same for staging and production: one database per environment, `hrizzup-staging` and `hrizzup-production`, in AWS Mumbai (`ap-south-1`). A fixed price with **no per-command charges**, so load tests can't run up a bill by the number of commands (section 14, "Redis (Upstash)") | The shared fast layer: feeds, rankings, counters, sessions, rate limits, computed results, locks (section 14) |
 | Sentry | Later, set up with the team: Team plan, one project per environment | Error reporting |
 | PostHog | Later, set up with the team: one project per environment | Analytics and feature flags |
 | RevenueCat | Set up with the app (version one, PLAN.md step 2.7) | Subscriptions in the app |
@@ -63,6 +63,7 @@ Production is a twin of staging: the same services, versions, region and setting
 | Hosting | Your machine | Vercel | Vercel | Vercel |
 | Doppler config | `dev` (refers to `stg`'s values) | `stg_preview` (a branch of `stg`) | `stg` | `prd` |
 | Database | Staging | Staging | Supabase `hrizzup-staging` | Supabase `hrizzup-production` |
+| Redis | Staging's, keys starting `dev:` | Staging's, keys starting `pre:` | Upstash `hrizzup-staging`, keys starting `stg:` | Upstash `hrizzup-production`, keys starting `prd:` |
 | Sign-in | Test accounts only | None | Google (staging client) and email | Google (production client), email, Apple |
 | Access | — | Vercel deployment protection | Protected until testers join | Holding page until launch, then public. Hidden builds stay private |
 | Changed by | You and Claude Code | Claude Code | Claude Code | **The release pipeline only**, with its own production credentials |
@@ -345,12 +346,47 @@ Caching is designed in for every page and every API from the start, not added af
 | **The device** | Browser and app caches. Long-lived files (code, fonts, icons) get versioned names, so they can be cached for a year. The app keeps recent data and images on the phone | A new version means a new file name, so nothing stale is ever served. Data on the phone is shown at once and refreshed in the background |
 | **The edge** | Public pages at Vercel's edge; images, video and other media at Cloudflare | Refreshed in the background ("stale-while-revalidate"), and cleared by tag the moment the page's data changes |
 | **The server** | Data caches for the results pages and APIs build | Updated or cleared the moment the underlying data changes (tagged caches, cleared on write) |
-| **Upstash Redis** (paid plan, closest region to Mumbai) | The shared fast layer for anything read often: feeds, rankings, counters, sessions, rate limits and computed results | Every entry has an explicit expiry, and is cleared or rewritten when its data changes |
+| **Upstash Redis** (Fixed plan, Mumbai; rules below) | The shared fast layer for anything read often: feeds, rankings, counters, sessions, rate limits and computed results | Every entry has an explicit expiry, and is cleared or rewritten when its data changes |
 | **The database** | The source of truth | An index for every search and sort, page-by-page loading (each page starts where the last one ended, not by counting rows), and no repeated small queries |
 
 **Rules for every layer:**
 - **Batch:** never make several separate trips to Redis or the database when one batched request will do (one multi-key read or pipeline for Redis; one query with a join or a list of IDs for the database).
 - **Private data is never shared:** one user's private data never goes into a shared cache. Pages with private data are marked so the edge doesn't keep them. Cache keys always include the environment (for example `stg:` or `prd:`), and the user where needed.
+
+### Redis (Upstash)
+
+**Set up the same way on staging and production** (production in the production twin, runbook step 10.8):
+
+| Setting | Value | Why |
+|---|---|---|
+| Plan | **Fixed 1GB**, $20 a month per database: up to 1 GB of data, 100 GB of traffic a month and 10,000 commands a second | A fixed price with **no per-command charges**, so a load test can't run up a bill by the number of commands (pay-as-you-go charges $0.20 per 100,000) |
+| Region | AWS Mumbai (`ap-south-1`), no read regions. Upstash keeps a standby copy in the same region | Next to the app's functions (Vercel's `bom1` is AWS `ap-south-1`) and the main database |
+| Connections | Encrypted only (TLS 1.2 or 1.3). Plain-text Redis and plain HTTP get no answer. Open to all addresses, protected by the token | Upstash can't switch encryption off. Vercel has no fixed addresses, so an address list isn't possible |
+| How the app connects | Upstash's REST interface, through Upstash's own client (`@upstash/redis`), with `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` | HTTPS requests suit serverless functions: no connections to hold open or run out of |
+| Eviction | **On** (Upstash's only policy, "optimistic-volatile") | Below |
+| Auto-upgrade | Staging **off**, production **on** | On staging, a test that hits a limit is blocked, never billed: its spending cap. On production, a limit never takes the site offline; the database moves up a tier instead |
+| Prod Pack ($200 a month per database: uptime SLA, multi-zone failover, encryption at rest) | Not used | Redis never holds the only copy of anything, so an outage costs speed, not data |
+| Checked by | `infra/upstash/check.py`: staging by Claude Code, production only by the release pipeline | Settings and stored keys are checked the same way on both |
+
+**Why eviction is on:** Upstash has one eviction behaviour. When the database is full, it removes keys at random, taking keys that have an expiry first. With eviction off, a full database refuses every write, so caches, rate limits and locks would all stop at once, and the site with them. With it on, a full database drops some entries, which are rebuilt from the main database. The rules below make that safe. The usual alternative at larger scale, a second database with eviction off for locks and counters, costs a second plan per environment; it's worth revisiting only if the database ever nears its size limit.
+
+**Rules for every use of Redis:**
+1. **Every key name starts with its environment,** taken from `REDIS_KEY_PREFIX` in Doppler: `prd` (production), `stg` (staging), `pre` (previews) or `dev` (this Mac). Previews and local runs share staging's database, so the prefix keeps their keys apart from staging's. Next comes what the key is for, then its name: `stg:cache:feed:home`, `stg:rate:signin-email:<id>`, `stg:lock:settle-market:<id>`, `stg:count:views:<post-id>`. Key names hold IDs, never email addresses or other personal data.
+2. **Every key has an expiry:** caches, rate limits, locks and counters alike, so nothing piles up. Cache entries are also cleared or rewritten the moment their data changes. When the shape of cached data changes, the key name gets a new version (`stg:cache:feed:v2:home`), so a new release never reads entries written by the old one.
+3. **Batch:** one request per need, never several separate trips. Use a multi-key command (`MGET`, `MSET`) or a pipeline; a transaction (`MULTI`/`EXEC`) when the commands must apply together; a script (`EVAL`) for read-then-write logic such as a rate limit. Upstash's client gathers commands issued together into one request automatically (auto-pipelining, on by default); keep it on. Measured from the founder's Mac on 3 November 2026: 10 separate trips took 72 to 125 ms, and the same 10 commands in one pipeline took 7 ms.
+4. **Redis is never the only copy of anything that matters.** The main database is the source of truth: play money, market maths, and anything a user would miss. Locks expire, and only stop duplicate work; correctness comes from the database (unique rules, writes that are safe to repeat). Counters that matter are copied into the database regularly.
+
+`infra/upstash/check.py` also checks rules 1 and 2 on the keys actually stored.
+
+**Keys in Doppler** (names only here):
+- `stg`: `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` and `REDIS_KEY_PREFIX` (`stg`);
+- `stg_preview`: inherits them, with its own `REDIS_KEY_PREFIX` (`pre`);
+- `dev`: refers to staging's two keys, with its own `REDIS_KEY_PREFIX` (`dev`, listed in `infra/doppler/dev-overrides.txt`);
+- `prd`: the same three, created by the founder (runbook step 10.8).
+
+**Round trip:**
+- **From the founder's Mac** (its internet exits in Mumbai), 3 November 2026: about 8 ms per command on an open connection, and about 41 to 50 ms for the first command on a new connection, which also sets up encryption. The old database took about 135 ms, because it was in the wrong region.
+- **From Vercel's Mumbai functions:** they run in the same AWS region, so the network part shrinks to about a millisecond. Expected: about 1 to 3 ms per command, and a few more for a fresh instance's first command. Measured in runbook step 9.6.
 
 ### Media
 

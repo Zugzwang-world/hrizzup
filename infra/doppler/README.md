@@ -5,7 +5,7 @@ Doppler holds every secret; this folder holds only names and the rules for how c
 | File | What it is |
 |---|---|
 | `dev_follows_staging.py` | Keeps `hrizzup/dev` (running the app on this Mac) following staging: every app secret in `stg` appears in `dev` as the reference `${stg.NAME}`, never a copy. `apply` fixes `dev`, then checks; `check` only reports. Prints names only. Fails if anything in `dev` points at `prd` or at another project. |
-| `dev-overrides.txt` | Names whose local value deliberately differs from staging's, each with its reason. Empty for now. |
+| `dev-overrides.txt` | Names whose local value deliberately differs from staging's, each with its reason. Today one: `REDIS_KEY_PREFIX`, which is `dev` on this Mac so local runs never mix their Redis keys with staging's (`stg`). An override is set in `dev` by hand (`doppler secrets set NAME=value --config dev`) and the script leaves it alone. |
 
 **When to run it:** whenever a key is added to or removed from `stg`, run `python3 infra/doppler/dev_follows_staging.py apply` in the same step (CLAUDE.md, "Environments and secrets"). Run it with a normal Doppler login, not inside `doppler run`.
 

@@ -2,7 +2,7 @@
 
 Hrizzup is a news app built around creators, plus a website with play-money prediction markets. Our AI finds news as it breaks on X and turns it into developing stories that readers see through creators' takes. Android first, then iPhone; the website is phone-first; one shared account.
 
-**[PLAN.md](PLAN.md) is the single source of truth.** If anything disagrees with it, PLAN.md wins. The setup blueprint and the runbook live in [docs/setup/](docs/setup/).
+**[PLAN.md](PLAN.md) is the single source of truth.** If anything disagrees with it, PLAN.md wins. The setup blueprint, the runbook and the Zugzwang World retirement list live in [docs/setup/](docs/setup/).
 
 **Layout:** `sourcing/` (Grok bots, news pipeline, market data), `news-desk/` (our content, creators), `product/` (app, website, markets), `infra/` (service settings applied from the repo, such as the storage rules). Projects never copy code between each other; this repository is the only route.
 
@@ -77,6 +77,12 @@ Every page and every screen is built to load fast and stay fast. Performance is 
 
 - **Cache in layers, designed in for every page and API from the start:** the device (browser and app caches, long-lived files with versioned names), the edge (Cloudflare and Vercel, refreshed in the background), server data caches (updated or cleared the moment the data changes), Upstash Redis (the shared fast layer; every entry has an expiry and is cleared when its data changes), and the database (indexes for every search and sort, page-by-page loading, no repeated small queries).
 - **Batch:** one request to Redis or the database, never several separate trips when one will do.
+- **Redis (Upstash; full rules in [blueprint section 14, "Redis (Upstash)"](docs/setup/BLUEPRINT.md#redis-upstash)):**
+  - **every key name starts with the environment,** from `REDIS_KEY_PREFIX` (`prd`, `stg`, `pre` for previews, `dev` for this Mac), then what the key is for: `stg:cache:feed:home`. Never personal data in a key name;
+  - **every key has an expiry:** caches, rate limits, locks and counters alike. When a cached shape changes, its key name gets a new version (`v2`);
+  - **batch:** a pipeline or a multi-key command instead of several separate trips, and a transaction or script when commands must apply together. Keep the client's auto-pipelining on;
+  - **never the only copy:** eviction is on, so Redis may drop keys when full. Anything that matters lives in the database;
+  - **staging and production both use Upstash's Fixed plan** (Fixed 1GB), which has no per-command charges, so load tests can't run up a bill by command count. Staging's auto-upgrade is off (a test that hits a limit is blocked, not billed); production's is on. `infra/upstash/check.py` checks the settings and the stored keys.
 - **Never put one user's private data in a shared cache.** Cache keys always include the environment, and the user where needed.
 - **Media:** images resized and in modern formats through the image service; video through adaptive streaming; anything below the visible screen loads later.
 - **Lists and feeds:** draw only what's on screen, and load the next page before the user reaches it.

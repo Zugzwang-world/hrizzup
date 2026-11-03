@@ -42,6 +42,14 @@ Last updated: 3 November 2026. Plan: [PLAN.md](../../PLAN.md). Code: [product/](
   - `hrizzup/dev` is now for running the app on this Mac: all 15 staging values are references (`${stg.NAME}`), not copies, kept in step by `infra/doppler/dev_follows_staging.py`;
   - a local run through `dev` reaches staging's database, sign-in service, storage and Turnstile;
   - Doppler's Action Required lists for `dev` and `stg` are empty.
+- **Redis, 3 November 2026 (runbook Part 7):**
+  - the founder's Upstash database `hrizzup-staging` is checked: Fixed 1GB, AWS Mumbai (`ap-south-1`) with every copy in Mumbai, encrypted connections only (TLS 1.2 and 1.3; plain text and old TLS refused);
+  - eviction is now **on** and auto-upgrade **off** (staging's spending cap; production keeps it on);
+  - a command takes about 8 ms from the founder's Mac, against about 135 ms for the old database; from Vercel's Mumbai functions, about 1 to 3 ms is expected, measured in step 9.6;
+  - `dev` refers to the two Upstash keys, and the new `REDIS_KEY_PREFIX` (`stg`, `pre` for previews, `dev` on this Mac) keeps each place's keys apart in the shared database;
+  - the Redis rules (environment prefix on every key, an expiry on every key, batching, Redis never the only copy, Fixed plan on staging and production) are in CLAUDE.md and blueprint section 14;
+  - `infra/upstash/check.py` checks the settings and the stored keys, and is proven to catch bad keys;
+  - Doppler's `example-project` was already deleted. `zugzwang-experiment` is kept, and its dead Upstash keys are noted in the new retirement list, `docs/setup/RETIREMENT.md`.
 
 ## Next
 
@@ -69,6 +77,7 @@ Last updated: 3 November 2026. Plan: [PLAN.md](../../PLAN.md). Code: [product/](
 - **For the founder: Supabase spend cap on and usage alerts on** (runbook 5.2). These are organisation settings, which Claude Code's token can't see.
 - **Supabase token expires around 1 February 2027.** Replace it before then, in Doppler `hrizzup-tools` (config `claude`); a GitHub issue opens on 15 January 2027 as a reminder.
 - **Test email in Spam (runbook 3.7):** the staging test email from `no-reply@mail.hrizzup.com` reached `hrishikesh@hrizzup.com`, but in Spam. Waiting for its headers from the founder, to see whether SPF, DKIM and DMARC passed and why.
-- **For the founder: Zugzwang World leftovers.** The same Resend account still has the domain `mail.zugzwangworld.com` and an API key named "Onboarding" (last used 26 October 2026). Doppler also holds two projects from May 2026, `example-project` and `zugzwang-experiment` (4 of the free plan's 10 projects are in use). Keep them or delete them?
+- **Zugzwang World leftovers:** now kept in the retirement list, `docs/setup/RETIREMENT.md`: the Doppler project `zugzwang-experiment` (kept until retirement; its Upstash keys are already dead), the Resend domain `mail.zugzwangworld.com` and its "Onboarding" key, and five R2 buckets. They are removed when the founder retires Zugzwang World.
+- **For the founder: Upstash two-step login.** Upstash's database page lists "MFA Requirement" among its recommended security steps, unticked. Confirm two-step login is on for your Upstash account (runbook step 0.2).
 - **Helpers' invitations:** sent 2 November 2026 and still waiting to be accepted (checked again the same evening). GitHub cancels them after 7 days; Claude Code can resend them.
 - **Staging following `main` (runbook 9.2):** confirm whether Vercel lets the `staging` environment track `main` while `main` is the production branch; if not, add a small deploy workflow that sends every merge to staging.

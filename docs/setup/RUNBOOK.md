@@ -205,17 +205,27 @@ The repo lives in your personal GitHub account, `Zugzwang-world`, on GitHub Pro,
 
 # Part 7: Redis (Upstash)
 
-**What we're doing:** the Upstash staging database.
+**What we're doing:** the Upstash staging database, its settings, and the rules for using it.
 
-**Why:** rate limits, caches and locks.
+**Why:** caches, rate limits, locks and counters, shared by every server instance.
 
 | Step | Who | What to do |
 |---|---|---|
-| 7.1 | You | In Upstash (paid plan), create the database **`hrizzup-staging`** in the Mumbai region, or the nearest region Upstash offers. Note the region it shows after creation. |
-| 7.2 | You | Paste its REST URL and token into Doppler `stg`. |
-| 7.3 | Claude Code | Measure how long a request takes from Mumbai (last time about 135 ms suggested the database was in the wrong region). Record the result. |
+| 7.1 | You | In Upstash, create the database **`hrizzup-staging`**: **Fixed** plan, size **1GB** ($20 a month), AWS **Mumbai (`ap-south-1`)**, no read regions. **Done, 3 November 2026.** |
+| 7.2 | You | Save its REST URL and token into Doppler `stg` as `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`. **Done, 3 November 2026.** |
+| 7.3 | Claude Code | Add the matching references to `dev` (`dev_follows_staging.py apply`), and the key prefix `REDIS_KEY_PREFIX`: `stg` in `stg`, `pre` for previews (in `stg_preview`) and `dev` on this Mac (listed in `infra/doppler/dev-overrides.txt`). **Done, 3 November 2026.** |
+| 7.4 | Claude Code | Confirm the region, plan and size, and that only encrypted connections are accepted. In Upstash's console, turn **eviction on** and **auto-upgrade off**. Check everything with `infra/upstash/check.py staging`. **Done, 3 November 2026.** |
+| 7.5 | Claude Code | Measure the round trip from this Mac and record it (last time, about 135 ms showed the database was in the wrong region). **Done, 3 November 2026:** about 8 ms. The time from Vercel's Mumbai servers is measured in step 9.6. |
 
-**Done when:** the database exists in or near Mumbai, its keys are in Doppler, and the response time is recorded.
+**Why eviction is on:** with eviction off, a full database refuses every write, so caches, rate limits and locks would all stop at once, and the site with them. With it on, a full database drops some entries, keys with an expiry first, and they're rebuilt from the main database. That's safe because every key has an expiry and Redis never holds the only copy of anything that matters (blueprint section 14, "Redis (Upstash)").
+
+**Why auto-upgrade is off on staging:** the Fixed plan has no per-command charges, so a load test can't run up a bill by the number of commands. Its limits are 1 GB of data, 100 GB of traffic a month and 10,000 commands a second. With auto-upgrade on, a test that used up the traffic would move staging to the next tier (Fixed 5GB, $100 a month). With it off, staging's Redis is blocked instead: the spending cap every staging service has. Production keeps auto-upgrade on (step 10.8), so a limit never takes the live site offline.
+
+**Before a big load test:** check this month's traffic on the database's **Usage** tab in Upstash. A long test at full speed can use the month's 100 GB (10,000 commands a second with 1 KB answers is about 36 GB an hour), after which staging's Redis stays blocked until the month ends. A test that needs more is planned with you before it runs.
+
+**Done when:** the database exists in Mumbai on the Fixed plan, its keys and the key prefix are in Doppler with `dev` following staging, eviction is on and auto-upgrade off, encrypted-only connections are confirmed, and the round-trip time is recorded.
+
+**Part 7 finished on 3 November 2026.** The details are in the setup log.
 
 ---
 
@@ -250,7 +260,7 @@ The repo lives in your personal GitHub account, `Zugzwang-world`, on GitHub Pro,
 | 9.3 | You | In Doppler, connect to Vercel: sync `stg` to Vercel's staging environment and `stg_preview` to Vercel's previews, both marked Sensitive. |
 | 9.4 | Claude Code | Add the domains: `staging.hrizzup.com` for staging, and `hrizzup.com` and `www` for production. Add the records Vercel asks for in Cloudflare, **DNS only**. Make the first production deployment the holding page with its privacy policy, and promote it once; it stays live until launch. This holding page is the one change Claude Code makes on the production side, and it's made before production has any keys or data. From Part 10 on, production changes only through the release pipeline. |
 | 9.5 | You | In Vercel, turn on deployment protection (Standard Protection), which covers previews and the private addresses of hidden production builds. Keep staging protected until testers join. |
-| 9.6 | Claude Code | Confirm `autoAssignCustomDomains` is off, set and record the firewall rules, confirm `/api/health` reports `bom1`, run a test deploy to `staging.hrizzup.com`, and check that a pull request gets a preview link. Add the previews' address pattern to the staging upload rule (`infra/cloudflare/r2/uploads.cors.staging.json`) and apply it. |
+| 9.6 | Claude Code | Confirm `autoAssignCustomDomains` is off, set and record the firewall rules, confirm `/api/health` reports `bom1`, run a test deploy to `staging.hrizzup.com`, and check that a pull request gets a preview link. Add the previews' address pattern to the staging upload rule (`infra/cloudflare/r2/uploads.cors.staging.json`) and apply it. Measure the Redis round trip from staging's functions in Mumbai (expected about 1 to 3 ms per command, since both are in AWS `ap-south-1`) and record it. |
 
 **Done when:** `staging.hrizzup.com` loads securely from Mumbai, `hrizzup.com` shows the holding page with its privacy policy, merges to `main` make hidden production builds, pull requests get preview links, and previews are protected.
 
@@ -264,7 +274,7 @@ The repo lives in your personal GitHub account, `Zugzwang-world`, on GitHub Pro,
 
 **Claude Code never reads, holds or uses production keys.** You create each production service and key yourself, following Claude Code's exact clicks, and save the keys straight into Doppler `prd`. The release pipeline, which Claude Code builds in the repo and tests on staging, is the only thing that uses them, with its own credentials (step 10.12). Claude Code checks production only from the outside and through the pipeline's reports.
 
-Everything matches staging (the same services, versions, region and settings) except the names, the data and the keys, plus two deliberate differences: production's database is sized for launch, and only production has point-in-time recovery. Production starts empty.
+Everything matches staging (the same services, versions, region and settings) except the names, the data and the keys, plus two deliberate differences: production's database is sized for launch, and only production has point-in-time recovery. Billing limits also differ on purpose: on staging they stop surprise bills (Supabase's spend cap on, Upstash's auto-upgrade off); on production they never take the site offline (Supabase's spend cap off, Upstash's auto-upgrade on). Production starts empty.
 
 | Step | Who | What to do |
 |---|---|---|
@@ -275,13 +285,13 @@ Everything matches staging (the same services, versions, region and settings) ex
 | 10.5 | Release pipeline | Its production check (you start it from GitHub's Actions tab, or Claude Code starts it when you say so) connects through both addresses with production's own credentials. It reports the region, Postgres version, compute size, pooler mode and extensions, and applies the same migrations as staging. Claude Code compares the report with staging and records it. |
 | 10.6 | You, then the release pipeline | In Cloudflare R2, create **`hrizzup-production-uploads`** (private) and **`hrizzup-production-media`** (public), both with location Asia-Pacific. Connect the media bucket to **`media.hrizzup.com`** (bucket **Settings**, **Custom Domains**, **Connect Domain**), and leave its `r2.dev` address off. The pipeline then applies the repo's production CORS and lifecycle rules (`infra/cloudflare/r2/apply.sh production`). Image transformations (step 6.5) already cover the bucket, because they are on for the whole zone. |
 | 10.7 | You | Create one R2 access key for both production buckets, the same way as step 6.3 (named `hrizzup-production-app`), and save it in Doppler `prd` as `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY`. |
-| 10.8 | You | In Upstash, create **`hrizzup-production`** on the same plan and in the same region as staging, and save its REST URL and token into Doppler `prd`. |
+| 10.8 | You | In Upstash, create **`hrizzup-production`** on the same plan, size and region as staging (Fixed 1GB, AWS Mumbai `ap-south-1`, no read regions). On its **Settings** tab, turn **Eviction** on and leave **Auto Upgrade** on (staging has it off as a spending cap; production must never be blocked by a limit). Save its REST URL and token into Doppler `prd` as `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`, and add `REDIS_KEY_PREFIX` with the value `prd`. |
 | 10.9 | You | In the Google Cloud project `hrizzup`, create an OAuth client of type **Web application** for production, with origins `https://hrizzup.com` and `https://www.hrizzup.com` and the redirect address Claude Code gives you. Save the client ID and secret into Doppler `prd`. |
 | 10.10 | You | In Resend, create an API key named "Hrizzup production" with **Sending access**, limited to the domain `mail.hrizzup.com`, and save it straight into Doppler `prd` as `RESEND_API_KEY`. |
 | 10.11 | You | In Cloudflare **Turnstile**, add the widget **"Hrizzup production"**: Managed mode, hostnames `hrizzup.com` and `www.hrizzup.com` (no `localhost`). Save its keys into Doppler `prd` as `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY`. |
 | 10.12 | You | Give the release pipeline its own production credentials, following Claude Code's clicks: a read-only Doppler service token for `prd`, saved as a secret of the GitHub environment `hrizzup-production`; a Vercel token, for promoting builds; and a Cloudflare token limited to R2 settings, for applying the storage rules. The last two go into Doppler `prd`. |
 | 10.13 | You | In Doppler, sync `prd` to Vercel's production environment, marked Sensitive. |
-| 10.14 | Release pipeline, then Claude Code | The pipeline's production check confirms that a hidden production build's private `/api/health` reports `bom1` and the production setup, and that a test image loads resized from `media.hrizzup.com`. Claude Code compares staging and production side by side from the pipeline's report and the public addresses: every service, version, region and setting must match, and only names, data and keys may differ. It also confirms that `hrizzup.com` still shows the holding page, then records the comparison. |
+| 10.14 | Release pipeline, then Claude Code | The pipeline's production check confirms that a hidden production build's private `/api/health` reports `bom1` and the production setup, that a test image loads resized from `media.hrizzup.com`, and that production's Redis passes `infra/upstash/check.py production`. Claude Code compares staging and production side by side from the pipeline's report and the public addresses: every service, version, region and setting must match, and only names, data and keys may differ. It also confirms that `hrizzup.com` still shows the holding page, then records the comparison. |
 
 **To decide before Part 10:** Claude Code works through your own GitHub account and merges its own pull requests, so in principle it could change the release pipeline itself. The recommended fix is a separate GitHub account for Claude Code with write access, plus your approval for changes to the pipeline's files (status file, open questions).
 
