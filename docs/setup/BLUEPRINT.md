@@ -65,6 +65,26 @@ Production is a twin of staging: the same services, versions, region and setting
 | Database | Staging | Staging | Supabase `hrizzup-staging` | Supabase `hrizzup-production` |
 | Sign-in | Test accounts only | None | Google (staging client) and email | Google (production client), email, Apple |
 | Access | — | Vercel deployment protection | Protected until testers join | Holding page until launch, then public. Hidden builds stay private |
+| Changed by | You and Claude Code | Claude Code | Claude Code | **The release pipeline only**, with its own production credentials |
+
+### Production is off-limits to Claude Code
+
+- **The rule:** Claude Code never reads, holds or uses production keys. Production is changed only by the release pipeline, which gets its own production credentials in the production twin (runbook step 10.12).
+- **Who does what:**
+  - the founder creates every production service and key, following Claude Code's exact clicks, and saves the keys straight into Doppler `prd`;
+  - Claude Code builds and tests the pipeline in the repo and on staging, and checks production only from the outside (public addresses) and through the pipeline's reports;
+  - the founder starts each release, and Claude Code starts the pipeline only when the founder says "release".
+- **The one exception:** the holding page on `hrizzup.com` (runbook step 9.4), deployed before production has any keys or data.
+- **Where Claude Code's tools could still reach production, and how each is closed:**
+
+  | Tool | Why it reaches production | How it's closed |
+  |---|---|---|
+  | Doppler | Claude Code uses the founder's own Doppler login on this Mac, which can open `prd` | Before the first production key goes in: Claude Code gets its own Doppler service account with no access to Production, and the founder's login is signed out of this Mac (runbook step 10.1). `prd` is empty until then |
+  | Vercel | One project for every environment, so the same login can promote or roll back production | Production's variables are synced from Doppler as Sensitive, so they can't be read back. Promotion and rollback run only through the pipeline, with its own token (step 10.12) |
+  | Cloudflare | Claude Code's key covers the whole `hrizzup.com` zone and every R2 bucket in the account | The founder creates production's buckets, domain and widget. The pipeline applies production's storage rules with its own key, and Claude Code's key is never used on production names or buckets. A separate staging domain or account would close this fully, if ever needed |
+  | GitHub | Claude Code works through the founder's account and merges its own pull requests, so it could change the pipeline | Production credentials live only in the GitHub environment `hrizzup-production`, whose secrets can't be read back. **Open:** a separate GitHub account for Claude Code, with the founder's approval needed for changes to the pipeline's files (decided before Part 10) |
+
+  Before real users arrive, the founder confirms each row (runbook, "Production hardening").
 
 ---
 
@@ -87,7 +107,11 @@ Production is a twin of staging: the same services, versions, region and setting
 - **Storage (R2):**
   - two buckets per environment: staging, and production in the production twin;
   - public files are served from a single-level subdomain: `media-staging.hrizzup.com` for staging and `media.hrizzup.com` for production. Cloudflare's standard certificate covers only one level below the domain, and `r2.dev` addresses are rate-limited;
-  - bucket CORS and lifecycle rules are written into the repo, and both environments use the same ones;
+  - bucket CORS and lifecycle rules are written into the repo (`infra/cloudflare/r2/`) and applied by `apply.sh`, which reads them back and fails if Cloudflare's copy differs. Staging is applied by Claude Code, production only by the release pipeline:
+    - **uploads bucket:** browsers may only `PUT` (with a `content-type` header), and only from our own sites: staging, local (`http://localhost:3000`), and previews (added in runbook Part 9) on staging; `hrizzup.com` and `www` on production;
+    - **media bucket:** browser reads (`GET`, `HEAD`) from the same sites; everyone else can still load the images normally;
+    - **lifecycle:** incomplete uploads are aborted after a day on both buckets, and raw uploads are deleted a day after upload, once the server has made the clean copy (section 13). Media is never deleted by a rule;
+  - the uploads bucket has no public address; the media bucket's only public address is its own subdomain, with its `r2.dev` address off;
   - images are processed and delivered as described in section 13.
 - **Logging:** every record added or removed is logged in `docs/setup.md`. When a service is removed, its records go with it, so nothing points at a server that no longer exists.
 
@@ -130,11 +154,11 @@ Production is a twin of staging: the same services, versions, region and setting
   - **Supabase's certificate authority:** "Supabase Root 2021 CA", valid until 26 April 2031, SHA-256 fingerprint `80:70:25:AD:50:D4:ED:21:9D:2C:9C:7D:29:9C:00:4F:82:4E:B0:0C:F7:F6:5A:FE:F6:07:D0:7B:72:E6:CA:FA`.
 - **Migrations:**
   - **Every change to the database's structure goes through migration files in the repo**, and is applied the same way everywhere, so production receives exactly the same changes in the same order.
-  - They run in order, over `DATABASE_URL_SESSION`: staging first, then production at release.
+  - They run in order, over `DATABASE_URL_SESSION`: staging first; then production at release, by the release pipeline only.
   - A release's database changes reach production before its build is promoted, written so the version that is live keeps working with them.
   - Changing test data directly in staging is fine.
   - The migration tool is chosen with the codebase (PLAN.md step 1.5).
-- **Never use the Supabase token or any database key against production.** The token in `dev` and the keys in `stg` belong to staging; production has its own, in `prd`.
+- **Claude Code never connects to production's database** and never holds its keys (section 3). Production's database is changed only by the release pipeline, with its own credentials.
 - **Keys** (in Doppler; names only here):
   - `stg`: `SUPABASE_DB_PASSWORD`, `DATABASE_URL`, `DATABASE_URL_SESSION`, `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` and `SUPABASE_SECRET_KEY`. The publishable key is safe in the app and browser, for Realtime. The secret key is for the server only.
   - `dev`: `SUPABASE_ACCESS_TOKEN`, Claude Code's token for Supabase's API. Full access to `hrizzup-staging` only, with no account or organisation access. It expires around **1 February 2027** and is replaced before then (runbook Part 5).
@@ -143,7 +167,10 @@ Production is a twin of staging: the same services, versions, region and setting
   - point-in-time recovery for **production only** (runbook step 10.3);
   - staging keeps Supabase's daily backups;
   - one test restore before launch, because no restore was ever tried last time.
-- **Spending:** spend cap off, usage alerts on. A billing limit must never take the site offline.
+- **Spending:**
+  - **During staging,** the organisation's spend cap stays **on**. Staging has no users, so a limit can't hurt anyone; it blocks surprise bills and doesn't stop the database being enlarged.
+  - **From the production twin on** (runbook step 10.3), it's **off**: a billing limit must never take the site offline.
+  - Usage alerts are on throughout.
 - **Extensions:** only what the code needs, the same on both. Staging starts with Supabase's defaults: `pg_stat_statements`, `pgcrypto`, `supabase_vault` and `uuid-ossp`. Scheduled jobs inside the database run in the app's own database.
 
 ---
@@ -165,13 +192,13 @@ Production is a twin of staging: the same services, versions, region and setting
 ### Releasing
 
 - **Why the hidden production build:** Vercel puts each environment's keys into its build. Promoting a staging or preview build makes Vercel rebuild it with production keys, so it would no longer be the build that was checked. The build that goes live is therefore the hidden production build of the commit that passed staging: built once, checked, then promoted untouched.
-- **How a release goes:**
-  1. The commit has passed staging.
+- **How a release goes** (the release pipeline does steps 2 to 4, with its own production credentials):
+  1. The commit has passed staging, and the founder says "release".
   2. Its database changes, if any, are applied to production first (section 5).
-  3. Claude Code checks that the hidden build's private `/api/health` shows that commit and Mumbai.
+  3. The pipeline checks that the hidden build's private `/api/health` shows that commit and Mumbai, and that `autoAssignCustomDomains` is still off.
   4. One command: `vercel promote <address of the hidden build> --yes`. It goes live instantly, with no rebuild.
-  5. The release counts as done only when `hrizzup.com/api/health` shows that commit.
-- **Going back:** `vercel rollback`, also instant, with no rebuild.
+  5. The release counts as done only when `hrizzup.com/api/health` shows that commit (Claude Code checks this from the outside).
+- **Going back:** `vercel rollback` through the pipeline, also instant, with no rebuild.
 - **Before launch:** `hrizzup.com` shows the holding page, so the first promotion of an app build is the launch.
 
 ---
@@ -187,10 +214,11 @@ Production is a twin of staging: the same services, versions, region and setting
 - **Syncs:** `stg` goes to Vercel staging, `stg_preview` to Vercel previews, and `prd` to Vercel production.
 - **Plan and access:** the free Developer plan during staging, when only the founder and Claude Code use Doppler. That plan has no roles, so any member could open every config. The Team plan (runbook step 10.1) comes in the production twin, or before the first helper joins if that's sooner. With it:
   - helpers get the Collaborator role on Development and Staging, and no access to Production;
-  - Claude Code's setup keys move out of `dev` into their own environment before the first helper joins, so helpers never see them.
+  - Claude Code's setup keys move out of `dev` into their own environment before the first helper joins, so helpers never see them;
+  - Claude Code gets its own Doppler service account with no access to Production, and the founder's own login is signed out of the Mac Claude Code runs on, before the first production key goes in.
 - **No variables made by hand on any platform**, and every change is followed by a redeploy.
 - **Every secret exists separately for each environment** (rule 1).
-- **Production keys:** before real users arrive, every production key is replaced with a new one that only the founder holds, and Claude Code's access to `prd` is removed (runbook, "Production hardening").
+- **Production keys:** the founder creates them and saves them straight into `prd` (runbook Part 10). Only production itself and the release pipeline use them; Claude Code never reads, holds or uses them (section 3).
 - **Pitfalls from last time:**
   - the configs are named `stg` and `prd`, not `staging` and `production`;
   - `doppler configure --json` prints the access token;
@@ -219,7 +247,8 @@ Production is a twin of staging: the same services, versions, region and setting
   - the consent screen published as "In production" before launch, and tested with an account that isn't on the test list.
 - **Apple:** Sign in with Apple wherever Google sign-in appears on iPhone.
 - **Turnstile:**
-  - one widget per environment;
+  - one widget per environment: "Hrizzup staging" (Managed mode, `staging.hrizzup.com` and `localhost`) and "Hrizzup production" (`hrizzup.com` and `www`, no `localhost`);
+  - keys in Doppler as `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY`. Previews use Cloudflare's official test keys, as overrides of the same names in `stg_preview`, because preview addresses change with every pull request;
   - the real widget actually on the page;
   - production refuses test keys, and is proven to reject a fake token.
 - **Every route that can send email** is rate-limited and protected by Turnstile.
@@ -259,7 +288,8 @@ Production is a twin of staging: the same services, versions, region and setting
 - **Dependabot:** alerts and security updates on.
 - **Every setting above is confirmed through GitHub's API** and recorded in `docs/setup.md`.
 - **What GitHub Pro doesn't include for a private repo:** GitHub's own secret scanning and push protection (only organisation plans can add them). So a secret pushed to a branch reaches GitHub before the secret check flags it; the check keeps it out of `main`. If it ever fires, the key is replaced, not just deleted from the file.
-- **Environment names:** pick ones that don't collide with the names Vercel creates (`Production`, `Preview`), for example `hrizzup-staging` and `hrizzup-production`.
+- **Environment names:** pick ones that don't collide with the names Vercel creates (`Production`, `Preview`), for example `hrizzup-staging` and `hrizzup-production`. The release pipeline's production credentials live in `hrizzup-production` (runbook step 10.12).
+- **Reminders:** `.github/workflows/reminders.yml` runs every day at 10:00 India time. For each entry in `.github/reminders.json` whose date has arrived, it opens a GitHub issue once, which GitHub notifies the founder about. Dated chores, such as replacing an expiring token, go in that file.
 
 ---
 
@@ -352,6 +382,6 @@ Every page and screen has a budget. The starting numbers below are Google's "goo
 5. **Storage and bot protection:** the staging R2 buckets and their public subdomain, image transformations for the zone, and the staging Turnstile widget.
 6. **Redis and sign-in:** the staging Upstash database and the staging Google sign-in client.
 7. **Vercel:** the project, once the first app exists, synced from Doppler, with `staging.hrizzup.com`, hidden production builds and the holding page on `hrizzup.com`.
-8. **Production twin:** as soon as staging works, the production copy of every staging service, with Doppler `prd` synced to Vercel production. Doppler moves to its Team plan first, `hrizzup.com` moves to Cloudflare Pro, and Cloudflare Images' paid plan is turned on. Nothing public until launch.
+8. **Production twin:** as soon as staging works, the production copy of every staging service, created by the founder (Claude Code never holds production keys), with Doppler `prd` synced to Vercel production and the release pipeline given its own credentials. Doppler moves to its Team plan first, `hrizzup.com` moves to Cloudflare Pro, and Cloudflare Images' paid plan is turned on. Nothing public until launch.
 9. **Later, with the team:** Sentry, PostHog, the Apple and Google Play accounts. Before real users arrive: the production hardening in the runbook.
 10. **Throughout:** Claude Code records every setting in `docs/setup.md`.

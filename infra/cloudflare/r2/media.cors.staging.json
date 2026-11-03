@@ -1,0 +1,12 @@
+{
+  "rules": [
+    {
+      "id": "reads-from-our-sites",
+      "allowed": {
+        "origins": ["https://staging.hrizzup.com", "http://localhost:3000"],
+        "methods": ["GET", "HEAD"]
+      },
+      "maxAgeSeconds": 86400
+    }
+  ]
+}

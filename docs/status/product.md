@@ -27,6 +27,15 @@ Last updated: 3 November 2026. Plan: [PLAN.md](../../PLAN.md). Code: [product/](
   - the connection details and the new-style API keys are in Doppler `stg`;
   - encrypted connections are now enforced, and the legacy keys and signing secret are switched off;
   - the connection settings, the migrations rule and the reasons behind each setting are in the blueprint and CLAUDE.md.
+- **Production off-limits to Claude Code, decided 3 November 2026:** Claude Code never reads, holds or uses production keys, and production is changed only by the release pipeline, which gets its own credentials in Part 10. Written into CLAUDE.md, PLAN.md, the blueprint (section 3) and the runbook (Part 10, Releasing and Production hardening).
+- **Supabase spend cap on during staging,** off from Part 10 (decided 3 November 2026).
+- **Reminders, 3 November 2026:** a daily GitHub workflow opens an issue for each dated reminder in `.github/reminders.json`. The first one is to replace the Supabase token, due 15 January 2027.
+- **Storage and bot protection, 3 November 2026 (runbook Part 6, apart from the founder's key and the tests):**
+  - the two staging R2 buckets are in Asia-Pacific;
+  - `media-staging.hrizzup.com` is live, with its certificate active;
+  - image transformations are on, limited to our own images;
+  - the CORS and lifecycle rules are in `infra/cloudflare/r2/`, applied and checked;
+  - the "Hrizzup staging" Turnstile widget exists, with its keys in Doppler `stg`, and previews use Cloudflare's test keys.
 
 ## Next
 
@@ -48,9 +57,12 @@ Last updated: 3 November 2026. Plan: [PLAN.md](../../PLAN.md). Code: [product/](
 - What are the exact market questions? (step 3.2, with Sourcing)
 - Paid tier: what's free and what's paid? Decided before the paywall is built (step 2.7).
 - Comment threads: in or out?
-- **Automatic row-level security isn't in effect** in `hrizzup-staging`: a table created with SQL came out unprotected. The first migration adds the safeguard, with a check on every pull request (with step 1.5, before any table exists).
-- **For the founder: Supabase spend cap off and usage alerts on** (runbook 5.2). These are organisation settings, which Claude Code's token can't see.
-- **Supabase token expires around 1 February 2027.** Replace it before then (runbook Part 5 reminder).
+- **Automatic row-level security isn't in effect** in `hrizzup-staging`. The founder approved the fix for step 1.5: a first migration that locks every new table, and a check on every pull request.
+- **For the founder: the R2 access key (runbook 6.3).** One key for both staging buckets, saved in Doppler `stg` as `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY`. Then Claude Code runs the storage tests (6.6).
+- **Before Part 10: Claude Code's GitHub identity.** Claude Code works through the founder's GitHub account and merges its own pull requests, so it could in principle change the release pipeline. Recommended: a separate GitHub account for Claude Code, with the founder's approval needed for changes to the pipeline's files.
+- **Previews in the upload rule:** added in runbook step 9.6, once Vercel gives previews their addresses.
+- **For the founder: Supabase spend cap on and usage alerts on** (runbook 5.2). These are organisation settings, which Claude Code's token can't see.
+- **Supabase token expires around 1 February 2027.** Replace it before then; a GitHub issue opens on 15 January 2027 as a reminder.
 - **Test email in Spam (runbook 3.7):** the staging test email from `no-reply@mail.hrizzup.com` reached `hrishikesh@hrizzup.com`, but in Spam. Waiting for its headers from the founder, to see whether SPF, DKIM and DMARC passed and why.
 - **For the founder: Zugzwang World leftovers in Resend.** The same Resend account still has the domain `mail.zugzwangworld.com` and an API key named "Onboarding" (last used 26 October 2026). Keep them or delete them?
 - **Helpers' invitations:** sent 2 November 2026 and still waiting to be accepted (checked again the same evening). GitHub cancels them after 7 days; Claude Code can resend them.
