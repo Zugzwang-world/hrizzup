@@ -1,0 +1,14 @@
+{
+  "rules": [
+    {
+      "id": "uploads-from-our-sites",
+      "allowed": {
+        "origins": ["https://hrizzup.com", "https://www.hrizzup.com"],
+        "methods": ["PUT"],
+        "headers": ["content-type"]
+      },
+      "exposeHeaders": ["ETag"],
+      "maxAgeSeconds": 3600
+    }
+  ]
+}

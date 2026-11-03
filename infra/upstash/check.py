@@ -2,7 +2,7 @@
 """Check an Upstash Redis database against the blueprint (section 14, "Redis (Upstash)").
 
     infra/doppler/run dev -- python3 infra/upstash/check.py staging   # this Mac: dev refers to staging
-    python3 infra/upstash/check.py production                  # release pipeline only (runbook 10.14)
+    python3 infra/upstash/check.py production                         # release pipeline only (release.yml)
 
 Reads UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN from the environment and prints
 only facts chosen in advance: never the token, never a whole server answer, never a value.
@@ -10,7 +10,8 @@ Key names that break a rule are shown as examples on staging; on production only
 first part and a short fingerprint are shown, because the output lands in the pipeline's
 logs. Checks:
 
-  - the database is in Mumbai (ap-south-1) with no copies elsewhere, its size, and
+  - the database is in Mumbai (ap-south-1) with no copies elsewhere, its size (staging:
+    Fixed 1GB; production is pay as you go until launch, so its size is only reported), and
     eviction on (Upstash's only policy, "optimistic-volatile");
   - it accepts only encrypted connections: plain-text Redis gets no answer, plain HTTP
     isn't served, and TLS older than 1.2 is refused;
@@ -33,7 +34,10 @@ import time
 from urllib.parse import urlparse
 
 REGION = "ap-south-1"
-MAX_DATA_SIZE = 1024 ** 3          # Fixed 1GB, staging and production alike
+SIZES = {                          # the database's size limit, as Upstash reports it
+    "staging": 1024 ** 3,          # Fixed 1GB
+    "production": None,            # pay as you go until launch (reported, not checked);
+}                                  # Fixed 1GB from the pre-launch checklist, then set here
 POLICY = "optimistic-volatile"     # what Upstash reports when eviction is on
 PREFIXES = {
     "staging": ("stg", "pre", "dev"),   # staging, previews and this Mac share staging's database
@@ -157,7 +161,11 @@ for line in rest.cmd("INFO").splitlines():
 members = [m for m in info.get("all_members", "").split(",") if m]
 result(bool(members) and all(m.startswith(REGION + "-") for m in members), "every copy in Mumbai",
        f"{', '.join(members)}; primary {info.get('primary_member')}")
-result(int(info.get("max_data_size", 0)) == MAX_DATA_SIZE, "size", info.get("max_data_size_human", "?"))
+if SIZES[env] is None:
+    print(f"       size limit {info.get('max_data_size_human', '?')} (pay as you go until launch; "
+          "Fixed 1GB is in the runbook's pre-launch checklist)")
+else:
+    result(int(info.get("max_data_size", 0)) == SIZES[env], "size", info.get("max_data_size_human", "?"))
 result(info.get("maxmemory_policy") == POLICY, "eviction on", info.get("maxmemory_policy", "?"))
 print(f"       Redis {info.get('redis_version')}, Upstash {info.get('upstash_version')}, "
       f"up to {info.get('max_ops_per_sec')} commands a second, "

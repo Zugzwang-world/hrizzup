@@ -1,0 +1,29 @@
+{
+  "_about": "Each environment's Supabase project, and the project-level settings apply.py applies and checks (README.md): Claude Code on staging, only the release pipeline on production. Names and values only, no secrets. A project's reference ID isn't secret: it is part of every public Supabase address. infra/supabase/auth/apply.py reads the references from here too.",
+  "environments": {
+    "staging": {
+      "name": "hrizzup-staging",
+      "project_ref": "mlccgqxtqmllwbyjfzzm"
+    },
+    "production": {
+      "name": "hrizzup-production",
+      "project_ref": null,
+      "_note": "Filled in once the founder has created hrizzup-production (runbook Part 10). Before launch, production's compute is sized for launch and point-in-time recovery is switched on (runbook, pre-launch checklist); both are then set here, under \"checked\", for production only."
+    }
+  },
+  "checked": {
+    "region": "ap-south-1",
+    "postgres_engine": "17",
+    "release_channel": "ga",
+    "compute": "ci_micro",
+    "point_in_time_recovery": false,
+    "data_api_schemas": "",
+    "network": "open",
+    "branches": 0
+  },
+  "applied": {
+    "ssl_enforcement": true,
+    "legacy_api_keys": false,
+    "legacy_jwt_secret": "revoked"
+  }
+}

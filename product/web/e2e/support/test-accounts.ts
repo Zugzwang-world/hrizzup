@@ -1,6 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
-import authSettings from '../../../../infra/supabase/auth/settings.json' with { type: 'json' };
+import projects from '../../../../infra/supabase/project/settings.json' with { type: 'json' };
 
 /**
  * Test accounts for the automatic checks (runbook step 9.6). They exist only in staging's
@@ -19,7 +19,7 @@ export const TEST_ACCOUNTS = {
 
 export type Engine = keyof typeof TEST_ACCOUNTS;
 
-const STAGING_REF = authSettings.environments.staging.project_ref;
+const STAGING_REF = projects.environments.staging.project_ref;
 
 type Keys = { url: string; publishableKey: string; secretKey: string };
 

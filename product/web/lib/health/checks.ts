@@ -4,7 +4,7 @@ import { database } from '../db.ts';
 
 export type ServiceResult =
   | { status: 'ok'; ms: number; [detail: string]: unknown }
-  | { status: 'error'; ms: number; error: 'timeout' | 'refused' | 'unreachable' }
+  | { status: 'error'; ms: number; error: 'timeout' | 'refused' | 'unreachable' | 'misconfigured' }
   | { status: 'not_configured' };
 
 const TIMEOUT_MS = 4000;
@@ -35,8 +35,17 @@ async function timed(
   }
 }
 
+/**
+ * The database answers a query through the app's own pool (transaction pooler). An address
+ * that is set up wrongly (runbook Part 10) shows as `misconfigured`, never its text.
+ */
 export function checkDatabase(): Promise<ServiceResult> {
-  const pool = database();
+  let pool: ReturnType<typeof database>;
+  try {
+    pool = database();
+  } catch {
+    return Promise.resolve({ status: 'error', ms: 0, error: 'misconfigured' });
+  }
   if (!pool) return Promise.resolve({ status: 'not_configured' });
   return timed(async () => {
     const { rows } = await pool.query<{ ok: number }>('select 1 as ok');

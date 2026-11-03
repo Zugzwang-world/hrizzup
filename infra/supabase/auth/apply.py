@@ -32,6 +32,7 @@ import urllib.error
 import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+PROJECTS = os.path.join(HERE, "..", "project", "settings.json")  # each environment's project
 API = "https://api.supabase.com/v1/projects/{ref}/config/auth"
 # Switches that turn on a way to sign in. Besides these, every external_*_enabled is one.
 SIGN_IN_SWITCHES = {"saml_enabled", "passkey_enabled", "custom_oauth_enabled", "oauth_server_enabled"}
@@ -51,6 +52,12 @@ def load():
         return json.load(f)
 
 
+def project_ref(env):
+    """The environment's project reference, kept with the project's own settings."""
+    with open(PROJECTS) as f:
+        return json.load(f)["environments"][env]["project_ref"]
+
+
 def wanted(cfg, env):
     """The settings Supabase should hold for env, plus the secrets, from the environment."""
     e = cfg["environments"][env]
@@ -65,7 +72,7 @@ def wanted(cfg, env):
         if not value:
             fail(f"{var} is not set (it fills {field})")
         secrets[field] = value
-    return e["project_ref"], plain, secrets
+    return project_ref(env), plain, secrets
 
 
 def guard(ref, env, plain, secrets):
@@ -143,8 +150,8 @@ def main():
         sys.exit(__doc__)
     env, check_only = args[0], args[1:] == ["--check"]
     cfg = load()
-    if not cfg["environments"][env]["project_ref"]:
-        fail(f"{env} has no project_ref in settings.json yet")
+    if not project_ref(env):
+        fail(f"{env} has no project_ref in infra/supabase/project/settings.json yet")
     ref, plain, secrets = wanted(cfg, env)
     if not os.environ.get("SUPABASE_ACCESS_TOKEN"):
         fail("SUPABASE_ACCESS_TOKEN is not set")

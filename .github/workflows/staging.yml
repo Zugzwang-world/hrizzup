@@ -2,7 +2,8 @@
 #
 # In the same order as a production release: the database first, then the code.
 #   1. Apply any new migrations (infra/supabase/migrations) to staging's database, over
-#      DATABASE_URL_SESSION (Supabase's pooler in session mode).
+#      DATABASE_URL_SESSION (Supabase's pooler in session mode; infra/supabase/database_url.py
+#      fills in the password, as production's release pipeline does).
 #   2. Check that every table of ours is still locked (row-level security).
 #   3. Move the `staging` branch to this commit (only this workflow can: ruleset
 #      "staging"). Vercel's custom environment "staging" follows that branch.
@@ -62,13 +63,13 @@ jobs:
 
       - name: 1. Apply new migrations to staging's database
         working-directory: infra/supabase
-        run: pnpm exec supabase --workdir .. db push --db-url "$DATABASE_URL_SESSION" --skip-vault --yes
+        run: python3 database_url.py run session -- sh -c 'pnpm exec supabase --workdir .. db push --db-url "$DATABASE_ADDRESS" --skip-vault --yes'
 
       - name: 2. Check that every table is locked
         env:
           PGSSLMODE: verify-full
           PGSSLROOTCERT: infra/supabase/supabase-root-2021-ca.crt
-        run: psql "$DATABASE_URL_SESSION" -q -v ON_ERROR_STOP=1 -f infra/supabase/checks/every_table_locked.sql
+        run: python3 infra/supabase/database_url.py run session -- sh -c 'psql "$DATABASE_ADDRESS" -q -v ON_ERROR_STOP=1 -f infra/supabase/checks/every_table_locked.sql'
 
       - name: 3. Move the staging branch to this commit
         env:

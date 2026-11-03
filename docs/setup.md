@@ -1119,6 +1119,59 @@ Not a problem: the worry that Claude Code could run the script on production. It
 
 **Documents updated:** CLAUDE.md ("Environments and secrets"), the blueprint (section 3's Doppler row, section 7), the runbook (steps 4.1, 4.5, the note under Part 4, step 10.1, and the Team plan moved to "Later, with the team"), `doppler.yaml`, and every command line in `infra/` (READMEs and script help). **New files:** `infra/doppler/run` and `infra/doppler/check_access.py`.
 
+### Production twin, lean: storage, the release pipeline, and the founder's checklist (runbook Part 10, founder's decisions)
+
+**Asked by the founder ("Stage 10, lean"):** production is a quiet copy of staging, nothing public until launch, no paid extras now. Claude Code creates the pieces that hold no secret; production's secrets never pass through it; every production value is copied straight from a dashboard, with no hand-built connection strings; the release pipeline applies the database changes and the sign-in and storage settings, reading production through a Doppler token the founder saves in GitHub; one checklist for the founder; a pre-launch checklist in the runbook.
+
+**Decided by the founder, written into the runbook, blueprint and CLAUDE.md:**
+
+| What | Now | Before launch (runbook, pre-launch checklist) |
+|---|---|---|
+| Supabase `hrizzup-production` | Mumbai, Micro, Data API off, automatic row-level security on, not linked to GitHub, no point-in-time recovery; organisation spend cap stays on | Point-in-time recovery, compute sized for launch, spend cap off |
+| Upstash `hrizzup-production` | Mumbai, **pay as you go**, eviction on, $10 monthly budget | Fixed 1GB with auto-upgrade on |
+| Cloudflare | Free | Pro, plus Images' paid plan |
+| Google sign-in | A **separate Google Cloud project**, `hrizzup-production`, in Testing, with its own web client (this settles old step 10.15's question: staging's project stays in Testing for good) | Publishing and brand verification, with the custom sign-in address (`auth.hrizzup.com`), started 3 weeks before launch |
+| Doppler | Free plan; Claude Code on its own service tokens (entry above) | Team plan before any helper joins |
+
+**Production's storage, created by Claude Code** (the founder's instruction; the one-time exception, like the holding page, before production had any keys or data), about 15:35 to 15:45 UTC, with Claude Code's Cloudflare key through `infra/doppler/run tools`:
+
+| Setting | Value | How it was checked |
+|---|---|---|
+| Buckets | `hrizzup-uploads` (private) and `hrizzup-media`, Asia-Pacific (`APAC`), Standard storage, created 3 November 2026 | `apply.py production` read both back |
+| `r2.dev` addresses | Off on both | Read back |
+| Public address | `media.hrizzup.com` on `hrizzup-media` only, minimum TLS 1.2, ownership and certificate active about a minute after connecting; `hrizzup-uploads` has none | Read back; anonymous listing of the uploads bucket refused (400) |
+| DNS record (added by R2) | CNAME `media` → `public.r2.dev`, **proxied**, read-only, managed by R2 for `hrizzup-media`. The zone now has 18 records | Cloudflare's API; public resolvers answer, DNSSEC-signed (`ad`) |
+| CORS | Uploads: `PUT` with `content-type`, `ETag` exposed, from `https://hrizzup.com` and `https://www.hrizzup.com`, cached an hour. Media: `GET` and `HEAD` from the same two, cached a day (new files `uploads.cors.production.json`, `media.cors.production.json`) | Upload preflight from `hrizzup.com` and `www` 204; from `staging.hrizzup.com` and another site 403. Media preflight from `hrizzup.com` 204, another site 403 |
+| Lifecycle | The same files as staging: incomplete uploads aborted after a day on both; raw uploads deleted after a day | Read back |
+| Image test (one-time, before any data) | A generated 1600×1000 PNG (3.1 MB) under a random name in `_selftest/`: public download identical; resized through `/cdn-cgi/image/width=640,format=auto/` to AVIF (26.6 KB) or WebP (22.0 KB) by the browser's `Accept`; second requests served from Cloudflare's cache (`HIT`) | Then deleted (200); a fresh download answers 404 |
+
+- **New script:** `infra/cloudflare/r2/apply.py` replaces `apply.sh`. Besides the CORS and lifecycle rules, it checks (and creates if missing) both buckets, `r2.dev` off and each bucket's public address, with `--check` to change nothing. Staging was checked with it first: matches the repo.
+- **From now on** production's storage settings change only through the release pipeline, with its own R2-only Cloudflare key.
+
+**Database addresses from the dashboard, with no hand-built strings** (new): `DATABASE_URL` and `DATABASE_URL_SESSION` are Supabase's own shared-pooler strings, copied with the `[YOUR-PASSWORD]` placeholder still in them; the code fills in `SUPABASE_DB_PASSWORD`, percent-encoded, in memory:
+- the website: `product/web/lib/db.ts` (`databaseAddress`, 8 unit tests: the dashboard string, special characters round-trip, spaces and TLS options dropped, a complete address used as it is, missing values, the placeholder twice). A wrongly set address shows on the health page as `misconfigured`, never its text;
+- workflows and scripts: `infra/supabase/database_url.py` (`check`, and `run session|transaction -- <command>`, which masks the address in GitHub's logs). It refuses a string that isn't Supabase's shared pooler (`*.pooler.supabase.com`), has the wrong port for its mode, or belongs to another project than `SUPABASE_URL`: each tried and refused;
+- **checked on staging:** the exact strings staging's Connect dialog shows (looked at in the founder's browser: Direct → Transaction or Session pooler → "Use IPv4 connection", labelled "Shared pooler"; without that switch the dialog shows the IPv6-only dedicated pooler, which the script refuses) connected through both addresses with full certificate checks (Postgres 17.11), and `supabase db push --dry-run` through the helper answered "Remote database is up to date" without calling Supabase's API;
+- the Staging workflow now uses the helper. **Still to do, after this change merges:** switch staging's own two values in Doppler `stg` to the dashboard form, so staging and production run the same code path.
+
+**Supabase project settings in the repo** (new `infra/supabase/project/`): each project's ID (moved here from `auth/settings.json`; `auth/apply.py` and the Screen check's test-account guard read it from here) and the settings that must match. `apply.py staging --check` on staging: name, `ap-south-1`, healthy, Postgres 17 (`17.11.0.011`), GA channel, `ci_micro`, point-in-time recovery off, no Data API schemas, network open, no branches, encrypted connections only, legacy API keys off, legacy JWT secret revoked, ES256 in use: matches the repo (15 settings). Its guards (another project's `SUPABASE_URL`; production with no ID yet) were tried and refuse.
+
+**Key check** (new `infra/keys/check.py`): proves every key the health page doesn't use is right, without using it for real. On staging: Google client accepted and staging's callback registered; Resend key valid and sending-only; Turnstile secret accepted and not a test key; Supabase secret key reaches the admin address; public sign-in settings show only Google and email; R2 key lists staging's buckets and is refused for production's (403). Proven to catch: the previews' config fails (Cloudflare's test keys), and an unregistered callback fails.
+
+**The release pipeline** (new `.github/workflows/release.yml`, started by hand only; runbook "Releasing to production"): reads Doppler `prd_release` through a read-only token in the GitHub environment `hrizzup-production`; checks the commit passed staging; checks production's values and keys; applies Supabase's project settings, the commit's migrations (then the lock check), the sign-in and storage settings; checks Redis and the Vercel project; finds the commit's hidden production build through GitHub's deployment record and requires its private health page to show production, `bom1`, the commit and every service answering, and (until launch) the holding page; then `vercel promote` with Vercel's command-line tool pinned at 65.8.0 (released 29 October 2026), told the team and project so it never links or creates one; and waits until `hrizzup.com/api/health` shows the commit. Rollback is the same workflow with action `rollback`.
+- **The holding page carries `data-page="holding"`** so the pipeline can tell it apart; a build without it is refused until the "launch" box is ticked.
+- **Tried before relying on it:** the build finder against `main`'s current hidden build (`1c83e61`, `https://hrizzup-kym8ntdpm-hrizzup.vercel.app`) refused it, as it must: no production keys (every service `not_configured`) and no holding-page marker yet. Promotion itself can't be tried anywhere but production; it runs for the first time when the founder says "done".
+- **GitHub environment `hrizzup-production`:** created, deployment branches `main` only, no secrets yet (the founder adds `DOPPLER_TOKEN`).
+- **Why `prd_release`:** if the pipeline's Vercel, Supabase and Cloudflare tokens sat in `prd`, its sync would copy them into every production build, so any production server bug could leak the power to promote or reconfigure production. A branch of `prd` sees every production value and adds the three tokens, and has no sync.
+
+**Found while checking the dashboards** (the founder's browser, staging only; nothing changed):
+- **Staging's Supabase project is connected to the GitHub repo** (Project Settings → Integrations → GitHub: `Zugzwang-world/hrizzup`, working directory `.`), with **Deploy to production off** and **Automatic branching off**, so it does nothing today. The earlier record said "not linked (as far as visible)": the API doesn't show it. Left for the founder to decide: disconnecting matches the plan.
+- **This Mac holds the founder's own command-line logins** for Supabase (a LEGACY full-access token, "cli_hrishikesh@…", that never expires; Supabase showed it last used at about 15:44 UTC. Re-run with debug output, this session's migration dry run made no calls to Supabase's API, so the use wasn't that; what it was isn't known), Vercel and Cloudflare's Wrangler. Each would reach production. Claude Code doesn't use them; the founder is advised to log them out (runbook step 10.1).
+
+**Reminders added** (`.github/reminders.json`): check the pipeline's Supabase token (15 January 2027); replace the pipeline's Vercel and Cloudflare tokens (15 October 2027).
+
+**Documents updated:** runbook (Part 10 rewritten with the founder's checklist; "Releasing to production"; new "Pre-launch checklist"; steps 2.1, 3.6, 4.5, 5.2, 6.2, 7's auto-upgrade note, 8.2, 8.6, 9.3 and Part 9's notes; "Production hardening"), blueprint (sections 2, 3, 4, 5, 6, 7, 9, 14 and 15), CLAUDE.md (production exceptions, `prd_release`, releasing, dashboard values, Redis, database addresses, Supabase project settings), the READMEs in `infra/cloudflare/r2/`, `infra/supabase/auth/`, `infra/upstash/`, and the new ones in `infra/supabase/project/` and `infra/keys/`.
+
 ---
 
 ## Rules for this log
