@@ -107,10 +107,10 @@ export default async function SignInTestPage({ searchParams }: Props) {
               <input type="hidden" name="next" value="/sign-in-test" />
               <button
                 type="submit"
-                className="inline-flex min-h-11 max-w-full items-center gap-3 rounded-md border border-line bg-white px-5 font-medium text-[#1f1f1f] hover:bg-[#f2f2f2]"
+                className="inline-flex min-h-11 max-w-full items-center gap-3 rounded-md border border-line bg-white px-5 py-2 text-left font-medium text-[#1f1f1f] hover:bg-[#f2f2f2]"
               >
                 <GoogleMark />
-                <span>Continue with Google</span>
+                <span className="min-w-0">Continue with Google</span>
               </button>
             </form>
           </section>
