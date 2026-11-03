@@ -5,7 +5,10 @@
     python3 infra/upstash/check.py production                  # release pipeline only (runbook 10.14)
 
 Reads UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN from the environment and prints
-only facts chosen in advance: never the token, never a whole server answer. Checks:
+only facts chosen in advance: never the token, never a whole server answer, never a value.
+Key names that break a rule are shown as examples on staging; on production only their
+first part and a short fingerprint are shown, because the output lands in the pipeline's
+logs. Checks:
 
   - the database is in Mumbai (ap-south-1) with no copies elsewhere, its size, and
     eviction on (Upstash's only policy, "optimistic-volatile");
@@ -18,6 +21,7 @@ Exits 1 if anything differs from the blueprint. Auto-upgrade can't be read throu
 it is checked in Upstash's console (staging off, production on). Claude Code never runs
 this against production: the release pipeline does, with its own credentials.
 """
+import hashlib
 import http.client
 import json
 import os
@@ -121,6 +125,17 @@ def old_tls(port):
         return "untestable"
 
 
+def example(key):
+    """How a problem key is shown. Staging has no real users, so its keys are shown (shortened).
+    Production's output lands in the pipeline's logs, and a key that breaks the rules may hold
+    an ID or worse, so only its first part and a short fingerprint are shown there."""
+    if env == "production":
+        first = key.split(":", 1)[0]
+        label = first if ":" in key and first.isalnum() and len(first) <= 8 else "?"
+        return f"{label}:…#{hashlib.sha256(key.encode()).hexdigest()[:8]}"
+    return key if len(key) <= 60 else key[:57] + "..."
+
+
 def show_ms(xs):
     xs = sorted(xs)
     return f"median {statistics.median(xs):.1f} ms, fastest {xs[0]:.1f}, slowest {xs[-1]:.1f} (n={len(xs)})"
@@ -175,9 +190,9 @@ for i in range(0, len(keys), 500):
     no_expiry += [k for k, ttl in zip(chunk, rest.pipeline([["TTL", k] for k in chunk])) if ttl == -1]
 scanned = f"{len(keys)} keys looked at" + (" (stopped early)" if cursor != "0" else "")
 result(not bad_prefix, f"every key starts with an allowed environment ({', '.join(PREFIXES[env])})",
-       scanned + (f"; {len(bad_prefix)} don't, e.g. {bad_prefix[:3]}" if bad_prefix else ""))
+       scanned + (f"; {len(bad_prefix)} don't, e.g. {[example(k) for k in bad_prefix[:3]]}" if bad_prefix else ""))
 result(not no_expiry, "every key has an expiry",
-       f"{len(no_expiry)} without, e.g. {no_expiry[:3]}" if no_expiry else "")
+       f"{len(no_expiry)} without, e.g. {[example(k) for k in no_expiry[:3]]}" if no_expiry else "")
 
 print("Round trip from here")
 tcp = []

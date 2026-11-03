@@ -819,6 +819,7 @@ Part 6 is now done, apart from Cloudflare Stream, which waits for creator video.
 
 It prints chosen facts only, never the token. Run on staging at 09:44 UTC: **all checks pass.**
 - **Proven to catch problems:** two deliberately wrong keys were planted, one without an environment prefix and one without an expiry. The check failed and named both. They were then deleted, and the database was empty again.
+- **Key names kept out of production's logs** (after an automatic security review of the pull request): on production, a key that breaks a rule is shown only as its environment label (or `?`) and a short fingerprint, never its name, because a bad key might hold an ID and the pipeline's output is logged. Tested by running the check in production mode against staging's database with the two planted keys: they showed as `?:…#6ca42ac3` and `stg:…#2ee890c3`. Staging still shows the names, since it has no real users.
 
 **Correction:** the first check of old TLS versions used the `openssl` command and reported TLS 1.0 and 1.1 as refused. A control test against a server that does accept TLS 1.1 then showed that this Mac's `openssl` command can't offer TLS 1.1 at all, so that first result proved nothing. Redone in Python, which can offer it (the control server accepted): Upstash refused TLS 1.0 and 1.1 with a "protocol version" alert on both ports. That method is the one in `check.py`.
 

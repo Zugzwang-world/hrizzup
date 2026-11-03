@@ -4,7 +4,7 @@ Upstash's settings (plan, region, eviction, auto-upgrade) are made in its consol
 
 | File | What it is |
 |---|---|
-| `check.py` | Confirms that a database is in Mumbai with no copies elsewhere, is the expected size, has eviction on, and accepts only encrypted connections. Checks that every stored key starts with an allowed environment prefix and has an expiry. Reports the round-trip time. Prints chosen facts only, never the token or a whole server answer. Exits 1 if anything differs from the blueprint. |
+| `check.py` | Confirms that a database is in Mumbai with no copies elsewhere, is the expected size, has eviction on, and accepts only encrypted connections. Checks that every stored key starts with an allowed environment prefix and has an expiry. Reports the round-trip time. Prints chosen facts only, never the token, a value or a whole server answer. A key that breaks a rule is shown as an example on staging, but on production only as its environment label (or `?`) and a short fingerprint, because that output lands in the pipeline's logs. Exits 1 if anything differs from the blueprint. |
 
 **How to run it:**
 
