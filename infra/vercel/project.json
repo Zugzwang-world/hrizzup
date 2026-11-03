@@ -20,6 +20,7 @@
     "customerSupportCodeVisibility": false,
     "directoryListing": false,
     "enableAffectedProjectsDeployments": false,
+    "gitProviderOptions": { "createDeployments": "enabled", "disableRepositoryDispatchEvents": true },
     "resourceConfig": { "fluid": true, "functionDefaultRegions": ["bom1"] }
   },
   "customEnvironments": {
