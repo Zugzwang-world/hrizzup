@@ -3,8 +3,8 @@
 # then reads them back and fails if Cloudflare's copy differs from the repo's.
 #
 # Usage: apply.sh staging|production
-# Needs CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID in the environment (for example
-# through `doppler run`). Staging is applied by Claude Code; production only by the
+# Needs CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID in the environment (for staging,
+# `doppler run --project hrizzup-tools --config claude`). Staging is applied by Claude Code; production only by the
 # release pipeline, with its own credentials (runbook Part 10). Never prints the token.
 set -euo pipefail
 env="${1:?usage: apply.sh staging|production}"

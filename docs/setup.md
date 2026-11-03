@@ -681,6 +681,77 @@ The account also holds five buckets from Zugzwang World (`zugzwang-market-media`
 - **New files:** `infra/cloudflare/r2/` (four rule files and `apply.sh`), plus the reminders workflow, script and file.
 - **Status:** `docs/status/product.md`.
 
+### Storage tests (runbook 6.3 and 6.6)
+
+**The founder's R2 key (step 6.3):** an account token for both staging buckets, saved in Doppler `stg` as `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY` (previews inherit it through `stg_preview`). Claude Code used it only through `doppler run` and never printed it, a signature or a signed address.
+
+**Tests (step 6.6), about 09:00 UTC,** with a generated 1600×1000 PNG (137 KB) under a random name in `_selftest/`:
+
+| Test | Result |
+|---|---|
+| Browser-style upload: a signed upload address valid for 5 minutes, `PUT` from `https://staging.hrizzup.com` | 200. Cloudflare answered `Access-Control-Allow-Origin: https://staging.hrizzup.com` and exposed `ETag` |
+| The server reads the raw upload back (as the cleaning step will) | 200, identical byte for byte |
+| The server writes the copy to the media bucket | 200 |
+| Public download from `media-staging.hrizzup.com` | 200, identical bytes. First a cache miss, then a cache hit |
+| Resized copy from `/cdn-cgi/image/width=640,format=auto/…` | 640×400. AVIF, 2.2 KB, for browsers that accept AVIF; WebP, 3.5 KB, for the others. First request a cache miss (1.75 s), then cache hits from Mumbai (0.11 s and 0.08 s, `Age` 3 s and 6 s). Cloudflare keeps one cached copy per format (`Vary: accept`) |
+| The key reaches only our two buckets | It lists the staging buckets (200). It is refused for a bucket outside its scope (`zugzwang-uploads`, 403 AccessDenied) and for listing all buckets (403) |
+| Raw uploads have no public address | `uploads-staging.hrizzup.com` doesn't exist |
+| Clean-up | The test files were deleted from both buckets (204, then 404). Cached copies under their random names are linked from nowhere and drop out of Cloudflare's cache by themselves. Claude Code's Cloudflare key has no cache-purge permission, by design |
+
+**Correction:** in the first run, the resized-image cache check looked for Cloudflare's cache header with the wrong capitalisation and saw nothing. A second, focused run read it correctly (the results above).
+
+Part 6 is now done, apart from Cloudflare Stream, which waits for creator video.
+
+### Doppler tidied: setup keys in their own project, `dev` follows staging (runbook 4.5, Claude Code)
+
+**Founder's request:** each place holds one kind of key. Claude Code's setup keys leave the app's project, and `dev` becomes the place for running the app on this Mac, with staging's values by reference, not by copy.
+
+**New project `hrizzup-tools`** for Claude Code's setup keys:
+- One environment, "Claude Code", with one config, `claude`. Doppler's empty default environments in the new project (`dev`, `stg`, `prd`) were deleted, so there's nothing else to confuse. The `hrizzup` project's configs were not touched, apart from `dev` below.
+- **Moved from `hrizzup/dev`:** `CLOUDFLARE_API_TOKEN` and `SUPABASE_ACCESS_TOKEN`:
+  - copied through stdin, never shown, and checked identical by comparing fingerprints in memory;
+  - both tested from the new place: the Cloudflare key sees `hrizzup.com` as active, and the Supabase token sees only `hrizzup-staging`, healthy;
+  - the repo's storage rules were re-applied through it (`apply.sh staging`: all four match);
+  - only then deleted from `dev`.
+- **Added:** `CLOUDFLARE_ACCOUNT_ID` (`4ddce98b4a4cbc9146d4269f36b03f68`) and `CLOUDFLARE_ZONE_ID` (`da46254f6736da51ef130e7bc927efd6`). These are identifiers, not secrets; having them there lets `apply.sh` run with nothing typed by hand.
+- **Used only as** `doppler run --project hrizzup-tools --config claude -- <command>`.
+- **Old copies:** `dev`'s history may still show the two keys. The free plan keeps 3 days of activity logs, and only the founder and Claude Code can open Doppler. Runbook step 10.1 now replaces both keys before the first helper joins.
+
+**`hrizzup/dev` now follows staging:**
+- **References first tested** with a value that isn't secret (`MEDIA_BASE_URL`): the reference `${stg.MEDIA_BASE_URL}` resolved on the free plan, and the test value was deleted. Doppler's docs say references between configs need a paid plan, but its pricing page lists secret references on the free Developer plan, and they work. References between projects aren't used.
+- `dev` holds 15 references, one per staging value, each exactly `${stg.NAME}`: `DATABASE_URL`, `DATABASE_URL_SESSION`, `MEDIA_BASE_URL`, `R2_ACCESS_KEY_ID`, `R2_BUCKET_MEDIA`, `R2_BUCKET_UPLOADS`, `R2_ENDPOINT`, `R2_SECRET_ACCESS_KEY`, `RESEND_API_KEY`, `SUPABASE_DB_PASSWORD`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`, `SUPABASE_URL`, `TURNSTILE_SECRET_KEY` and `TURNSTILE_SITE_KEY`. No copied values and no setup keys.
+- **Kept in step by** `infra/doppler/dev_follows_staging.py`:
+  - `apply` adds missing references, turns any other value back into a reference and deletes stale ones;
+  - `check` reports;
+  - both print names only;
+  - local-only values are listed in `infra/doppler/dev-overrides.txt`, which is empty for now;
+  - the script fails if anything in `dev` points at `prd` or at another project.
+- **`doppler.yaml`** in the repo makes `hrizzup/dev` the default here, and this folder was set up with it (`doppler setup`). A plain `doppler run` in the repo now injects `hrizzup/dev`, with no setup keys.
+
+**Checked:**
+- `dev_follows_staging.py check`: OK (15 references, no overrides, nothing stale, nothing pointing at production).
+- **A local run through `dev`** receives all 15 values, resolved and identical to staging's (compared by fingerprint), and neither setup key. With them it:
+  - connects to the staging database through both pooler addresses with full certificate checks (Postgres 17.11);
+  - gets 200 from Supabase's sign-in service with the publishable key;
+  - has its Turnstile secret accepted by Cloudflare;
+  - gets 401 from Resend when listing domains, as a sending-only key should;
+  - lists both staging buckets with the R2 key.
+- **Action Required:** the `dev` and `stg` pages in Doppler's dashboard, viewed after the tidy-up, each show "Active (15)" and no Action Required section. `prd` was not opened.
+
+**Doppler workplace:** 4 of the free plan's 10 projects are in use: `hrizzup`, `hrizzup-tools`, and two from May 2026, `example-project` and `zugzwang-experiment`.
+
+**Documents updated:**
+- **CLAUDE.md:** "Environments and secrets".
+- **Runbook:**
+  - new step 4.5 and "How `dev` keeps following staging";
+  - steps 2.5, 3.5, 4.2, 4.3, 5.3 and 10.1, and the Supabase token reminder;
+  - steps 6.3 and 6.6 marked done.
+- **Blueprint:** sections 2 (Doppler), 3 (environments table and the Doppler row), 4 (the Cloudflare key, the R2 key, resized-image caching), 5 (keys), 7 (rewritten for the two projects) and 8.
+- **Reminder** in `.github/reminders.json`: points at `hrizzup-tools`.
+- **`infra/cloudflare/r2/`:** `apply.sh` and `README.md` say how staging is applied.
+- **New files:** `infra/doppler/` (the script, the overrides list and a README) and `doppler.yaml`.
+- **Status:** `docs/status/product.md`.
+
 ---
 
 ## Rules for this log
