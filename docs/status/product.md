@@ -50,6 +50,14 @@ Last updated: 3 November 2026. Plan: [PLAN.md](../../PLAN.md). Code: [product/](
   - the Redis rules (environment prefix on every key, an expiry on every key, batching, Redis never the only copy, Fixed plan on staging and production) are in CLAUDE.md and blueprint section 14;
   - `infra/upstash/check.py` checks the settings and the stored keys, and is proven to catch bad keys;
   - Doppler's `example-project` was already deleted. `zugzwang-experiment` is kept, and its dead Upstash keys are noted in the new retirement list, `docs/setup/RETIREMENT.md`.
+- **Sign-in, 3 November 2026 (runbook Part 8):**
+  - decided: Supabase Auth for the website and the app; Google first; Apple and email codes before the iPhone build; the app's native Google and Apple sign-in with the app builds (PLAN.md, blueprint section 9);
+  - the founder's Google Cloud project `hrizzup` (`hrizzup-513610`, owned by the Hrizzup Google account) has its consent screen (Testing) and the staging web client, whose keys are in Doppler `stg`; checked from the outside to be valid, with staging's callback registered;
+  - Google sign-in is on in `hrizzup-staging`, with the site address `https://staging.hrizzup.com` and redirects allowed only to staging and `localhost:3000` (proven: other addresses fall back to staging);
+  - Supabase's emails now go through Resend from `no-reply@mail.hrizzup.com`, each as an 8-digit code valid for 10 minutes, with no links (sign-up, sign-in, password reset and email change); a test code went out through Resend;
+  - Turnstile is on for Supabase Auth's email routes; a request without it is refused;
+  - the settings live in `infra/supabase/auth/` and are applied and checked with `apply.py`, so production gets the same ones through the release pipeline;
+  - `dev` follows staging (19 references).
 
 ## Next
 
@@ -57,7 +65,7 @@ Last updated: 3 November 2026. Plan: [PLAN.md](../../PLAN.md). Code: [product/](
 2. **Draft the hand-over agreement (step 0.7):** what a story, an update, a creation and a market look like when they pass between projects, including the Grok bots' result format. All three projects agree it. No project writes content before this is done.
 3. **Design (step 1.4):** can start now. References (Mobbin and the founder's own), then the design system (shadcn/ui, Claude Design), then the core screens: board, story page, feed, app frame and market page.
 4. **One codebase for the app and the website (step 1.5):** set up the Expo app and the Next.js website in one codebase that shares code, with one typed API, and get a first empty app running on an Android phone. Settle the package manager and how the code is split up at the same time. Needs 0.6.
-5. **Accounts and login (step 1.6):** Google first. Needs 0.6.
+5. **Accounts and login (step 1.6):** Supabase Auth, with Google set up on staging (runbook Part 8). Build the website's sign-in with it, then confirm it end to end on staging (runbook step 9.6). Apple and email codes before the iPhone build; the app's native Google and Apple sign-in with the app builds. Needs 0.6.
 6. **Market engine (step 1.7):** copy Manifold's engine with its tests. On 2 November 2026 GitHub reported Manifold's licence as MIT; confirm it again at the moment of copying and record the notice in THIRD_PARTY_NOTICES.md. Needs 0.6.
 7. **Then** the news app (Phase 2) and the markets website (Phase 3), in the order in PLAN.md section 5.
 
@@ -66,7 +74,10 @@ Last updated: 3 November 2026. Plan: [PLAN.md](../../PLAN.md). Code: [product/](
 - **For the founder: trim the Cloudflare API token** to the five permission rows in runbook step 2.5 (the step-by-step reminder is in runbook Part 2). Checked again on 3 November 2026: it can still also list Workers scripts, Workers routes, Page Rules and Email Routing settings. Claude Code re-checks afterwards.
 
 - Which package manager and monorepo tools, which database migration tool, and how is the shared code split up? (step 1.5; the frameworks are decided: Expo and Next.js)
-- Apple and email sign-in details (step 1.6). These must be settled before the iPhone build.
+- **How the app shows the bot check on its email-code screen** (step 1.6): Turnstile is on in Supabase Auth, so the app needs the widget too (usually inside a small web view). Settled with the app's sign-in, before the iPhone build.
+- **Block password sign-in** (with the first migrations, step 1.5): Supabase can't switch passwords off while email codes are on. Strict password rules are on for now; a small database function (Supabase's password hook) then refuses every password sign-in.
+- **Part 10, sign-in (steps 10.15 and 10.16):** decide on Supabase's Custom Domain add-on (`auth.hrizzup.com`, `auth-staging.hrizzup.com`; $10 a month each, checked 3 November 2026), and with it whether production gets its own Google Cloud project, because both clients share one consent screen. Before publishing: the home page and privacy-policy links on Google's Branding page, and `hrizzup.com` verified in Search Console.
+- **For the founder: Google Cloud billing** (runbook 8.1) wasn't mentioned. Google sign-in doesn't need it; say if it's on.
 - Feed design in depth (step 2.3).
 - What are the exact market questions? (step 3.2, with Sourcing)
 - Paid tier: what's free and what's paid? Decided before the paywall is built (step 2.7).

@@ -34,7 +34,7 @@ Default to paid tiers. The exceptions are Cloudflare and Doppler, which stay on 
 |---|---|---|
 | GitHub | The founder's personal account `Zugzwang-world`, on **GitHub Pro**, with the **private** repo `hrizzup`. Pro covers the repository protections used on `main` (section 11), but not GitHub's own secret scanning or push protection for private repos: an open-source secret check runs on every pull request instead. | Code, pull requests, checks |
 | Vercel | Pro (the existing team), with one project `hrizzup` for previews, staging and production. Pro includes the one custom environment that staging needs. | Previews, staging and production |
-| Supabase | Pro (the existing organisation), with two projects set up the same way in Mumbai (ap-south-1): `hrizzup-staging` and `hrizzup-production` | Staging and production databases |
+| Supabase | Pro (the existing organisation), with two projects set up the same way in Mumbai (ap-south-1): `hrizzup-staging` and `hrizzup-production` | Staging and production databases, and sign-in (Supabase Auth, section 9) |
 | Doppler | The free **Developer** plan during staging: free for 3 users (then $8 a month each) and up to 5 syncs, of which staging uses 2, and 10 projects. Secret references, which `dev` uses to follow staging, are included. Only the founder and Claude Code use it until the upgrade. Upgraded to **Team** ($21 per user a month) in the production twin (runbook step 10.1), or earlier if a helper needs Doppler: the Team plan's roles let the founder keep production keys to himself once helpers use Doppler (section 7). Team also adds service accounts and audit features; the free tier forced the audit to be cut back last time, so until the upgrade the daily audit stays within what the free plan offers. | All secrets |
 | Cloudflare | A zone for `hrizzup.com` on the **Free** plan during staging, upgraded to **Pro** in the production twin (runbook Part 10). Image transformations are free up to 5,000 new sizes a month; the production twin also turns on Cloudflare Images' paid plan, so new sizes never fail (section 13). Its protection covers the names routed through Cloudflare, such as the public storage addresses; the app's own names point at Vercel, DNS only (section 4). Cloudflare Stream, for creator video, lives in the same account and is billed by minutes stored and watched; it is switched on when creator video is built. | DNS, file storage (R2), image delivery, video (Stream), Turnstile |
 | Proton | Duo (existing) | Email on hrizzup.com, plus a Proton Pass vault named `Hrizzup` |
@@ -44,7 +44,7 @@ Default to paid tiers. The exceptions are Cloudflare and Doppler, which stay on 
 | PostHog | Later, set up with the team: one project per environment | Analytics and feature flags |
 | RevenueCat | Set up with the app (version one, PLAN.md step 2.7) | Subscriptions in the app |
 | Razorpay | Set up with the app (version one, PLAN.md step 2.7) | Subscriptions on the website, with UPI |
-| Google Cloud | One project with separate sign-in (OAuth) clients for staging and production, and billing switched on | Google sign-in |
+| Google Cloud | One project, **`hrizzup`** (ID `hrizzup-513610`), owned by the **Hrizzup Google account** (`hrishikesh@hrizzup.com`), not the Zugzwang World one. Separate sign-in (OAuth) clients for staging and production, and billing switched on | Google sign-in |
 | Apple Developer | Individual account | The iPhone app and Sign in with Apple |
 | Google Play | Personal account | The Android app |
 | SuperGrok | Existing | The Grok bots that find news |
@@ -64,7 +64,7 @@ Production is a twin of staging: the same services, versions, region and setting
 | Doppler config | `dev` (refers to `stg`'s values) | `stg_preview` (a branch of `stg`) | `stg` | `prd` |
 | Database | Staging | Staging | Supabase `hrizzup-staging` | Supabase `hrizzup-production` |
 | Redis | Staging's, keys starting `dev:` | Staging's, keys starting `pre:` | Upstash `hrizzup-staging`, keys starting `stg:` | Upstash `hrizzup-production`, keys starting `prd:` |
-| Sign-in | Test accounts only | None | Google (staging client) and email | Google (production client), email, Apple |
+| Sign-in (Supabase Auth, section 9) | Staging's: Google test users and email codes, returning to `http://localhost:3000` | None | Google (staging client) and email codes | Google (production client), email codes, Apple |
 | Access | — | Vercel deployment protection | Protected until testers join | Holding page until launch, then public. Hidden builds stay private |
 | Changed by | You and Claude Code | Claude Code | Claude Code | **The release pipeline only**, with its own production credentials |
 
@@ -224,6 +224,7 @@ Production is a twin of staging: the same services, versions, region and setting
   - before a helper first gets access, any key they shouldn't see that ever sat in the configs they'll open is replaced: today, the Cloudflare key and the Supabase access token, which were in `dev` until 3 November 2026 and may show in its history;
   - Claude Code gets its own Doppler service account with access to `hrizzup-tools` and to `hrizzup`'s Development and Staging, and no access to Production, and the founder's own login is signed out of the Mac Claude Code runs on, before the first production key goes in.
 - **No variables made by hand on any platform**, and every change is followed by a redeploy.
+- **Copies held by Supabase Auth:** it keeps its own copies of `GOOGLE_OAUTH_CLIENT_SECRET`, `RESEND_API_KEY` and `TURNSTILE_SECRET_KEY` (section 9). Whenever one changes in Doppler, `infra/supabase/auth/apply.py` is run for that environment the same day; that is its redeploy.
 - **Every secret exists separately for each environment** (rule 1).
 - **Production keys:** the founder creates them and saves them straight into `prd` (runbook Part 10). Only production itself and the release pipeline use them; Claude Code never reads, holds or uses them (section 3).
 - **Pitfalls from last time:**
@@ -242,6 +243,7 @@ Production is a twin of staging: the same services, versions, region and setting
   - separate sending-only API keys for staging and production, each limited to `mail.hrizzup.com` and kept as `RESEND_API_KEY` in Doppler `stg` and `prd` (previews use the staging key through `stg_preview`);
   - full-access setup keys exist only while Claude Code needs one (kept in `hrizzup-tools`), and are deleted straight after;
   - bounce notifications (webhooks) set up;
+  - **Supabase Auth sends its sign-in codes through Resend's SMTP** (`smtp.resend.com`, port 465, user `resend`) from `Hrizzup <no-reply@mail.hrizzup.com>`, with the environment's own `RESEND_API_KEY`, not Supabase's built-in sender (which only reaches the project's own team);
   - start sending real mail weeks before launch, so the domain builds a reputation.
 - **Production refuses to start** if it's set to Resend's test sender.
 
@@ -249,16 +251,42 @@ Production is a twin of staging: the same services, versions, region and setting
 
 ## 9. Sign-in and abuse protection
 
+**Decided 3 November 2026:** sign-in for the website and the app runs on **Supabase Auth**, so one account works on both (PLAN.md section 2).
+
+- **Order:**
+  - **Google first.**
+  - **Apple and email codes before the iPhone build.** Email codes are a code sent by email, with no passwords and no links to click, so they work the same in the browser and in the app.
+  - **The app's native Google and Apple sign-in come with the app builds:** an Android sign-in client in Google Cloud with the app's signing fingerprint (SHA-1, for the test and the release builds), and an iOS client. Their client IDs join the web client in Supabase (`external_google_additional_client_ids`).
+- **Settings kept in the repo:** `infra/supabase/auth/` holds every Supabase Auth setting and the email template. `apply.py` applies them and reads them back: staging by Claude Code, production only by the release pipeline (runbook Part 10). Only the addresses and the keys differ between the two.
+- **Addresses:** each environment has one site address, and redirects are allowed only to its own addresses. Any other address falls back to the site address.
+
+  | | Site address | Redirects allowed |
+  |---|---|---|
+  | Staging | `https://staging.hrizzup.com` | `https://staging.hrizzup.com/**` and `http://localhost:3000/**` (this Mac) |
+  | Production | `https://hrizzup.com` | `https://hrizzup.com/**` and `https://www.hrizzup.com/**`; the app's own links join with the app builds |
+
+  Previews have no sign-in (rule 1); their addresses are never allowed.
 - **Google:**
-  - separate sign-in clients for staging and production, with only fixed addresses registered;
-  - the consent screen published as "In production" before launch, and tested with an account that isn't on the test list.
+  - **Google Cloud project `hrizzup`** (ID `hrizzup-513610`), owned by the Hrizzup Google account, `hrishikesh@hrizzup.com`, not the Zugzwang World one;
+  - **consent screen:** External, in **Testing** (only listed test users can sign in) until it's published before launch. Basic information only (`openid`, `email`, `profile`), so no Google review of sensitive data access is needed. Authorised domains: `hrizzup.com` and the Supabase project's own domain;
+  - **separate web clients for staging and production,** with only fixed addresses registered. Staging's client is "Hrizzup staging", returning to `https://mlccgqxtqmllwbyjfzzm.supabase.co/auth/v1/callback`. Its ID and secret are in Doppler `stg` as `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`; production's go in `prd` under the same names;
+  - **the Supabase domain shows on Google's sign-in screen** until a custom domain (`auth.hrizzup.com`) replaces it. Google can only verify the branding (Hrizzup's name and logo on that screen) once every authorised domain is verified as ours, which the Supabase domain can't be. The decision is runbook step 10.15;
+  - **before publishing:** the home page and privacy-policy links on Google's Branding page, and `hrizzup.com` verified in Google Search Console (runbook step 10.16). Then the consent screen is published as "In production" and tested with an account that isn't on the test list.
+- **Email codes:**
+  - 8 digits (Supabase's default; harder to guess than 6), valid for 10 minutes;
+  - the email (`infra/supabase/auth/templates/sign-in-code.html`) shows only the code: no links, images or tracking. Sign-up, sign-in and password reset all send this same email; a change of email address sends its own code to the old and the new address. No email Supabase sends carries a link;
+  - sent through Resend from `no-reply@mail.hrizzup.com` (section 8);
+  - limits: at most one email a minute to the same address, and 30 emails an hour for the whole project (Supabase's starting limit for custom email). Production's hourly limit is raised before launch, to fit expected sign-ups (it's set per environment in `settings.json`);
+  - **no passwords:** Supabase can't switch passwords off while email codes are on, so its password rules are strict (at least 12 characters, leaked passwords refused), and password sign-in is blocked with Supabase's password hook, a small database function, once migrations exist (PLAN.md step 1.5).
 - **Apple:** Sign in with Apple wherever Google sign-in appears on iPhone.
 - **Turnstile:**
   - one widget per environment: "Hrizzup staging" (Managed mode, `staging.hrizzup.com` and `localhost`) and "Hrizzup production" (`hrizzup.com` and `www`, no `localhost`);
   - keys in Doppler as `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY`. Previews use Cloudflare's official test keys, as overrides of the same names in `stg_preview`, because preview addresses change with every pull request;
+  - **on in Supabase Auth** for every route that sends email or takes a password: sign-up, sign-in codes and password reset. A request without a valid Turnstile answer is refused. Google sign-in doesn't need it. The website's and the app's email-code screens show the widget;
   - the real widget actually on the page;
-  - production refuses test keys, and is proven to reject a fake token.
+  - production refuses test keys (`apply.py` refuses them too), and is proven to reject a fake token.
 - **Every route that can send email** is rate-limited and protected by Turnstile.
+- **Supabase keeps copies of three keys** (section 7): when one changes in Doppler, `apply.py` is run the same day.
 
 ---
 

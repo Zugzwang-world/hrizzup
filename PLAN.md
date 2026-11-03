@@ -2,7 +2,7 @@
 
 > This is the single plan for the whole product. Claude Code keeps it current: it turns the order of work below into GitHub milestones and updates the three status files at the end of every session. Nobody maintains this file by hand. Changes to the plan go through Claude Code, like any other change.
 
-Last agreed: 2 November 2026
+Last agreed: 3 November 2026
 
 ---
 
@@ -51,6 +51,7 @@ Most people now get their news first from creators on social media (posts, memes
 - **One codebase, two apps:** the app is built with Expo (React Native) and the website with Next.js, in one codebase that shares code between them.
 - **One typed API** that both the app and the website use.
 - **Live updates** (market prices, new posts) through Supabase Realtime.
+- **Sign-in (decided 3 November 2026):** Supabase Auth for the website and the app, so one account works on both. Google first. Apple and email codes (a code sent by email, no passwords) come before the iPhone build. The app's own native Google and Apple sign-in, including its Android sign-in client and the app's signing fingerprint, come with the app builds.
 - **Search from day one,** starting with the database's own text search.
 - **Shared links open the app** if it's installed (Android App Links and iOS Universal Links).
 - **Core journeys are tested automatically:** Playwright for the website, Maestro for the app.
@@ -149,7 +150,7 @@ No time estimates, only order. **Needs** means it must be finished first.
 | 1.3 | Content formats and the first batch of our own content for the launch categories; a list of creators to invite | News Desk | 0.7 | Enough content to fill the feeds in the launch categories |
 | 1.4 | Design: references, then the design system, then the core screens (board, story page, feed, app frame, market page) | Product, in Claude Design | — | Design system approved and screens handed to Claude Code |
 | 1.5 | Set up the one codebase (Expo app and Next.js website sharing code, with one typed API); get a first empty app running on an Android phone. The first database migration locks every new table (row-level security on automatically), and a check on every pull request fails if any table is unprotected (approved 3 November 2026) | Product | 0.6 | The website runs on staging and the app opens on a phone |
-| 1.6 | Accounts and login: Google first; Apple and email sign-in decided before the iPhone build | Product | 0.6 | Sign-in works on the web and on Android |
+| 1.6 | Accounts and login with Supabase Auth: Google first; Apple and email codes before the iPhone build; the app's native Google and Apple sign-in with the app builds | Product | 0.6 | Sign-in works on the web and on Android |
 | 1.7 | Copy the market engine from Manifold, with its tests (licence confirmed first) | Product | 0.6 | A market can be created, traded and settled on staging |
 
 ### Phase 2: The news app (most of the effort)
@@ -206,7 +207,7 @@ No time estimates, only order. **Needs** means it must be finished first.
 - How the Grok bots are set up, how often they run, and the fixed format of their results (steps 0.7 and 1.1). Each run starts fresh, so matching new items to existing stories happens in our pipeline.
 - Confirm that Grok's subscription terms allow its results to feed a public app (step 0.8)
 - Background jobs: which tool runs scheduled and queued work (decided in the Sourcing project)
-- Apple and email sign-in details (step 1.6)
+- How the app shows the bot check (Turnstile) on its email-code screen (step 1.6)
 - Feed design in depth (step 2.3)
 - Exact market questions (step 3.2)
 - Paid tier: what's free and what's paid (decided before the paywall is built, step 2.7)
