@@ -97,7 +97,8 @@ Most people now get their news first from creators on social media (posts, memes
   - Every change is labelled small, normal or risky.
 - **Staging** is a sandbox. The AI holds all of its keys. It is fully separate from production, holds no real user data, and every paid service on it has a spending cap. Auto mode stays on.
 - **Production** runs on the same platforms as staging: Vercel plus Supabase, set up exactly like staging (same services, versions, region and settings), with its own data and keys. This "production twin" is created as soon as staging works, with nothing public until launch, so going live is a promotion, not a migration. The founder holds the production keys, and production starts clean.
-- **Releasing** means promoting the exact production build of a commit that passed staging, with one command (`vercel promote`). Nothing is rebuilt, and going back is one command too.
+- **Releasing** means promoting the exact production build of a commit that passed staging (`vercel promote`), through the release pipeline. Nothing is rebuilt, and going back is one step too.
+- **Production is off-limits to the AI:** Claude Code never reads, holds or uses production keys. Production is changed only by the release pipeline, which gets its own production credentials in the production twin (runbook Part 10).
 - **Phone first.** Every screen is checked at phone, tablet, laptop and large-monitor sizes.
 - **Fast from day one.** Every page and screen is built to load fast and stay fast: caching in layers (device, edge, server, Upstash Redis, database), and a performance budget checked automatically on every pull request and measured on real users once live. Performance is part of "done", never a later fix. The full rules are in the blueprint, "Production quality".
 - **Design** starts from references (Mobbin and the founder's own) and is built with shadcn/ui and Claude Design.
@@ -147,7 +148,7 @@ No time estimates, only order. **Needs** means it must be finished first.
 | 1.2 | Data sources for the markets: prices (Bitcoin, gold or oil), scores (cricket, football), an AI model ranking, with their costs | Sourcing | — | Every market subject has a named source |
 | 1.3 | Content formats and the first batch of our own content for the launch categories; a list of creators to invite | News Desk | 0.7 | Enough content to fill the feeds in the launch categories |
 | 1.4 | Design: references, then the design system, then the core screens (board, story page, feed, app frame, market page) | Product, in Claude Design | — | Design system approved and screens handed to Claude Code |
-| 1.5 | Set up the one codebase (Expo app and Next.js website sharing code, with one typed API); get a first empty app running on an Android phone | Product | 0.6 | The website runs on staging and the app opens on a phone |
+| 1.5 | Set up the one codebase (Expo app and Next.js website sharing code, with one typed API); get a first empty app running on an Android phone. The first database migration locks every new table (row-level security on automatically), and a check on every pull request fails if any table is unprotected (approved 3 November 2026) | Product | 0.6 | The website runs on staging and the app opens on a phone |
 | 1.6 | Accounts and login: Google first; Apple and email sign-in decided before the iPhone build | Product | 0.6 | Sign-in works on the web and on Android |
 | 1.7 | Copy the market engine from Manifold, with its tests (licence confirmed first) | Product | 0.6 | A market can be created, traded and settled on staging |
 

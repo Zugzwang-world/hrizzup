@@ -4,7 +4,7 @@ Hrizzup is a news app built around creators, plus a website with play-money pred
 
 **[PLAN.md](PLAN.md) is the single source of truth.** If anything disagrees with it, PLAN.md wins. The setup blueprint and the runbook live in [docs/setup/](docs/setup/).
 
-**Layout:** `sourcing/` (Grok bots, news pipeline, market data), `news-desk/` (our content, creators), `product/` (app, website, markets). Projects never copy code between each other; this repository is the only route.
+**Layout:** `sourcing/` (Grok bots, news pipeline, market data), `news-desk/` (our content, creators), `product/` (app, website, markets), `infra/` (service settings applied from the repo, such as the storage rules). Projects never copy code between each other; this repository is the only route.
 
 **Repository:** [github.com/Zugzwang-world/hrizzup](https://github.com/Zugzwang-world/hrizzup), private, in the founder's personal GitHub account on GitHub Pro.
 
@@ -40,6 +40,13 @@ Label every change with its size at the start of the commit message and the pull
 - **Risky** (market maths, play money, login, database structure, the core of the news engine, payments): the full test suite plus AI review.
 - **Production release:** everything, once.
 
+## Production is off-limits to Claude Code
+
+- **Claude Code never reads, holds or uses production keys.** It never opens Doppler `prd`, never connects to production's database or services, and never creates, copies or moves a production key, not even "without showing it".
+- **Production is changed only by the release pipeline,** which gets its own production credentials in runbook Part 10. Claude Code builds and tests the pipeline in the repo and on staging. The founder starts each release; Claude Code starts the pipeline only when the founder says "release".
+- **Tools that also reach production are never used on it:** the Cloudflare key (it covers the whole `hrizzup.com` zone and every R2 bucket), the Vercel login (one project for all environments) and the founder's own logins on this Mac. Claude Code checks production only from the outside (public addresses) and through the pipeline's reports.
+- If a task would need production access, stop and say so: the founder or the pipeline does it.
+
 ## Environments and secrets
 
 - Staging is a sandbox: fully separate from production, no real user data, a spending cap on every paid service. The AI holds its keys.
@@ -47,13 +54,13 @@ Label every change with its size at the start of the commit message and the pull
 - Doppler is on its free Developer plan during staging, which has no roles, so only the founder and Claude Code use it. Before any helper joins Doppler, it moves to the Team plan (runbook step 10.1), and helpers get no access to Production.
 - Mumbai is the region everywhere (Vercel `bom1`; Supabase `ap-south-1`), and `/api/health` shows the region.
 - **Production runs on the same platforms as staging:** Vercel plus Supabase, set up exactly like staging (same services, versions, region and settings), with its own data and keys. It is created as soon as staging works, with nothing public until launch (runbook Part 10, "Production twin").
-- **Releasing** means promoting the exact production build of a commit that passed staging, with one command: `vercel promote <deployment URL>`. No rebuild; `vercel rollback` goes back. The runbook's "Releasing to production" has the details.
+- **Releasing** means the release pipeline applying a commit's database changes to production, then promoting the exact production build of that commit, which passed staging (`vercel promote`). No rebuild; going back (`vercel rollback`) also runs through the pipeline. The runbook's "Releasing to production" has the details.
 
 ## Database changes
 
 - **Every change to the database's structure goes through migration files in the repo** and is applied the same way everywhere, so production receives exactly the same changes in the same order. Changing test data directly in staging is fine.
-- **Never use the Supabase token or any database key against production.** The token in `dev` and the keys in `stg` belong to staging; production has its own, in `prd`.
-- Every table has row-level security on; the first migration adds the safeguard that switches it on automatically.
+- **Production's database is changed only by the release pipeline,** which applies the same migration files with its own credentials. Claude Code never connects to it.
+- Every table has row-level security on: the first migration adds a safeguard that switches it on for every new table, and a check on every pull request fails if any table lacks it (approved for PLAN.md step 1.5).
 - The app connects through `DATABASE_URL` (pooler, transaction mode, port 6543) and migrations through `DATABASE_URL_SESSION` (session mode, port 5432). Pool and timeout settings: blueprint section 5.
 
 ## Building

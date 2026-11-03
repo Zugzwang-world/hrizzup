@@ -597,6 +597,90 @@ Added through Cloudflare's API, using the Cloudflare key through `doppler run` (
 - **CLAUDE.md:** a new "Database changes" section.
 - **Status:** `docs/status/product.md`.
 
+### Founder's answers on the Supabase report (founder's decisions)
+
+1. **Production is off-limits to Claude Code**, stricter than the rule recorded earlier today. Claude Code never reads, holds or uses production keys, and production is changed only by the release pipeline, which gets its own production credentials in Part 10. Written into CLAUDE.md (new section), PLAN.md section 3, blueprint section 3 (a new subsection, with a table of where Claude Code's tools could still reach production and how each is closed), and sections 5, 6, 7 and 15. The runbook changes are:
+   - "How to use";
+   - Part 10, rewritten: the founder creates every production service and key, the release pipeline does the connecting, migrating and promoting, and a new step 10.12 gives the pipeline its own credentials;
+   - "Releasing to production" and "Production hardening".
+   Two consequences were written in too:
+   - **Doppler:** Claude Code uses the founder's own Doppler login on this Mac, which can open `prd`. So step 10.1 gives Claude Code its own service account with no access to Production, and signs the founder's login out of this Mac, before the first production key goes in. `prd` is empty until then.
+   - **The holding page** on `hrizzup.com` (step 9.4) is the one change Claude Code makes on the production side, and it's made before production has any keys or data. This is marked as the single exception.
+   Still open, for before Part 10: Claude Code works through the founder's GitHub account and merges its own pull requests. The recommended fix is a separate GitHub account for Claude Code, with the founder's approval needed for changes to the pipeline's files.
+2. **Supabase spend cap stays on during staging,** and is turned off in step 10.3, when production joins the organisation. Runbook step 5.2 and blueprint section 5 changed to match.
+3. **Reminder to replace the Supabase token:** a cloud routine was tried first and refused, because Anthropic's cloud has no access to this private repo. Set up instead inside the repo, which needs no extra access:
+   - `.github/workflows/reminders.yml` runs daily at 10:00 India time;
+   - `.github/reminders.json` holds the reminders;
+   - `.github/scripts/reminders.py` opens a GitHub issue once for each reminder whose date has arrived, and GitHub notifies the founder.
+   The first reminder is "Replace the Supabase access token before 1 February 2027", due **15 January 2027**. Tested locally: it lists the reminder as not yet due.
+4. **Locking tables approved** for PLAN.md step 1.5: a first migration that switches row-level security on for every new table, plus a check on every pull request that fails if any table is unprotected. Written into PLAN.md step 1.5 and CLAUDE.md.
+
+### Storage and bot protection (runbook Part 6, Claude Code)
+
+All through Cloudflare's API with `CLOUDFLARE_API_TOKEN` (Doppler `dev`, through `doppler run`, never printed). **The key had every permission these steps needed**, so nothing had to be worked around.
+
+**Buckets** (account `4ddce98b4a4cbc9146d4269f36b03f68`):
+
+| Bucket | Location | Storage class | Public access | Created (UTC) |
+|---|---|---|---|---|
+| `hrizzup-staging-uploads` | Asia-Pacific (`apac`) | Standard | None: no custom domain, `r2.dev` address off | 3 November 2026, 07:31 |
+| `hrizzup-staging-media` | Asia-Pacific (`apac`) | Standard | Only through `media-staging.hrizzup.com`; `r2.dev` address off | 3 November 2026, 07:31 |
+
+The account also holds five buckets from Zugzwang World (`zugzwang-market-media`, `zugzwang-pfp`, `zugzwang-staging-pfp`, `zugzwang-staging-uploads` and `zugzwang-uploads`), left alone.
+
+**Public address:**
+- `media-staging.hrizzup.com` is connected to the media bucket, with minimum TLS 1.2.
+- Cloudflare created the DNS record itself: CNAME `media-staging` to `public.r2.dev`, **proxied**, marked read-only and managed by R2. It has to be proxied, because the media addresses are the ones that run through Cloudflare (blueprint section 4).
+- Ownership and certificate are both active. The certificate is from Google Trust Services, valid until 1 February 2027, and Cloudflare renews it automatically.
+- A missing file answers 404, served from Cloudflare's Mumbai edge.
+
+**Image transformations:** zone setting `transformations` changed from off to **on** (it also shows as `image_resizing: on`, not `open`). Requests to resize an image from another site are refused: HTTP 403, with Cloudflare's `cf-not-resized` header. So only our own images can be resized.
+
+**Rules kept in the repo and applied** (`infra/cloudflare/r2/`, applied with `apply.sh staging`, which reads each rule back and checks it matches the repo exactly):
+
+| Bucket | CORS (browsers) | Lifecycle |
+|---|---|---|
+| `hrizzup-staging-uploads` | `PUT` only, `content-type` header, `ETag` exposed, from `https://staging.hrizzup.com` and `http://localhost:3000`; preflight cached for an hour | Incomplete uploads aborted after 1 day; raw uploads deleted 1 day after upload |
+| `hrizzup-staging-media` | `GET` and `HEAD` from the same two sites; cached for a day | Incomplete uploads aborted after 1 day; media never deleted by a rule |
+
+- **Checked from the outside:**
+  - an upload preflight from staging and from localhost is allowed, and from any other site is refused (403);
+  - a read preflight on the uploads bucket is refused;
+  - an anonymous read of the uploads bucket is refused;
+  - a read preflight on media from staging is allowed, and from any other site is refused.
+- **Previews:** not in the upload rule yet, because preview addresses only exist once Vercel is connected. Runbook step 9.6 now adds them.
+- **Why raw uploads are deleted after a day:** our server makes the clean copy (location data removed) straight after an upload and writes it to the media bucket (blueprint section 13). One day is a safety net if that ever fails, and it keeps photos with location data from piling up. These rules replace R2's default, which aborts incomplete uploads after 7 days.
+
+**Turnstile:** widget "Hrizzup staging" created at 07:33 UTC:
+- Managed mode, hostnames `staging.hrizzup.com` and `localhost`, region world, no pre-clearance.
+- Its keys are in Doppler `stg` as `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY`, never shown.
+- `stg_preview` overrides both with Cloudflare's official test keys: site key `1x00000000000000000000AA` (always passes, visible) and secret `1x0000000000000000000000000000000AA` (always passes). These are published by Cloudflare and aren't secrets.
+- **Checked:** with Cloudflare's dummy token, the staging secret answers "invalid-input-response" (the secret is real, and the fake token is rightly refused), and the preview secret answers "success".
+
+**Non-secret storage settings, stored in Doppler `stg`** (previews inherit them):
+
+| Name | Value |
+|---|---|
+| `R2_ENDPOINT` | `https://4ddce98b4a4cbc9146d4269f36b03f68.r2.cloudflarestorage.com` |
+| `R2_BUCKET_UPLOADS` | `hrizzup-staging-uploads` |
+| `R2_BUCKET_MEDIA` | `hrizzup-staging-media` |
+| `MEDIA_BASE_URL` | `https://media-staging.hrizzup.com` |
+
+**Waiting for the founder (step 6.3):** one R2 access key, Object Read & Write, limited to the two staging buckets, saved in Doppler `stg` as `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY`. Then Claude Code tests an upload, a public download and a resized image (step 6.6).
+
+**Not done, as agreed:** Cloudflare Stream is switched on when video is built.
+
+**Documents updated:**
+- **Runbook:**
+  - Part 6 rewritten as it was done, with the click-by-click steps for the R2 key;
+  - step 9.4 (the holding-page exception) and step 9.6 (previews join the upload rule);
+  - Parts 3, 5 and 10, "How to use", "Releasing to production" and "Production hardening", for the decisions above.
+- **Blueprint:** sections 3, 4, 5, 6, 7, 9, 11 and 15.
+- **CLAUDE.md:** the production section, the database section, the layout line (`infra/`) and the releasing line.
+- **PLAN.md:** section 3 and step 1.5.
+- **New files:** `infra/cloudflare/r2/` (four rule files and `apply.sh`), plus the reminders workflow, script and file.
+- **Status:** `docs/status/product.md`.
+
 ---
 
 ## Rules for this log

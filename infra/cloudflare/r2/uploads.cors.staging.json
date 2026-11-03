@@ -1,0 +1,14 @@
+{
+  "rules": [
+    {
+      "id": "uploads-from-our-sites",
+      "allowed": {
+        "origins": ["https://staging.hrizzup.com", "http://localhost:3000"],
+        "methods": ["PUT"],
+        "headers": ["content-type"]
+      },
+      "exposeHeaders": ["ETag"],
+      "maxAgeSeconds": 3600
+    }
+  ]
+}

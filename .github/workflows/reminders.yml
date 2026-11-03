@@ -1,0 +1,24 @@
+name: Reminders
+
+# Every day at 10:00 India time, opens a GitHub issue for each reminder in
+# .github/reminders.json whose date has arrived (once per reminder). GitHub then
+# notifies the founder. Add a reminder by adding an entry to that file.
+on:
+  schedule:
+    - cron: "30 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  reminders:
+    name: Open due reminders
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Open issues for reminders that are due
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/reminders.py
