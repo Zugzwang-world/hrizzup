@@ -6,7 +6,7 @@
       "inputs": [
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/infra/supabase/supabase-root-2021-ca.crt",
-        "$TURBO_ROOT$/infra/supabase/auth/settings.json"
+        "$TURBO_ROOT$/infra/supabase/project/settings.json"
       ]
     }
   }

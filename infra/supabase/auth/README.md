@@ -4,7 +4,7 @@ Sign-in for the website and the app runs on Supabase Auth. Its settings live her
 
 | File | What it is |
 |---|---|
-| `settings.json` | Every setting this folder manages: shared ones, plus each environment's addresses, project and hourly email limit. Secrets appear only as the names of the Doppler keys that supply them |
+| `settings.json` | Every setting this folder manages: shared ones, plus each environment's addresses and hourly email limit (each environment's project is in `../project/settings.json`). Secrets appear only as the names of the Doppler keys that supply them |
 | `templates/sign-in-code.html` | The sign-in code email, used for the "confirm sign-up", "sign-in" and "reset password" emails, so every way of asking for a code gets the same email |
 | `templates/email-change-code.html` | The code to confirm a change of email address (sent to both the old and the new address) |
 | `apply.py` | Sends the settings to Supabase's Management API, reads them back and fails if anything differs. `--check` only compares |
@@ -15,7 +15,7 @@ Sign-in for the website and the app runs on Supabase Auth. Its settings live her
 infra/doppler/run tools stg -- python3 infra/supabase/auth/apply.py staging   # or: ... staging --check
 ```
 
-**Production:** only the release pipeline, with its own credentials (runbook Part 10). `project_ref` for production is filled in once `hrizzup-production` exists. Claude Code's Supabase token reaches only `hrizzup-staging`, so Supabase itself refuses it for production.
+**Production:** only the release pipeline, with its own credentials (runbook Part 10, `.github/workflows/release.yml` step 5). Each environment's project ID lives in `infra/supabase/project/settings.json`; production's is filled in once `hrizzup-production` exists. Claude Code's Supabase token reaches only `hrizzup-staging`, so Supabase itself refuses it for production.
 
 **Safeguards:**
 - It refuses to run if `SUPABASE_URL` belongs to a different project than the chosen environment, so one environment's keys can't land in the other.

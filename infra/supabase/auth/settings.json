@@ -1,8 +1,7 @@
 {
-  "_about": "Supabase Auth settings, applied by apply.py (README.md). Names and non-secret values only: each secret is named by the environment variable that supplies it at run time, from Doppler. Staging and production share every setting except the addresses, the project and the hourly email limit. No `vercel.app` address is ever allowed, because anyone can create one: previews sign in through staging's signed relay (`/auth/relay`, product/web/lib/auth-relay.ts). The sign-in methods that are on are exactly the *_enabled switches set to true here; apply.py fails if any other is on.",
+  "_about": "Supabase Auth settings, applied by apply.py (README.md). Names and non-secret values only: each secret is named by the environment variable that supplies it at run time, from Doppler. Staging and production share every setting except the addresses and the hourly email limit; each environment's project is in infra/supabase/project/settings.json. No `vercel.app` address is ever allowed, because anyone can create one: previews sign in through staging's signed relay (`/auth/relay`, product/web/lib/auth-relay.ts). The sign-in methods that are on are exactly the *_enabled switches set to true here; apply.py fails if any other is on.",
   "environments": {
     "staging": {
-      "project_ref": "mlccgqxtqmllwbyjfzzm",
       "settings": {
         "site_url": "https://staging.hrizzup.com",
         "uri_allow_list": "https://staging.hrizzup.com/**,http://localhost:3000/**",
@@ -10,8 +9,7 @@
       }
     },
     "production": {
-      "project_ref": null,
-      "_note": "project_ref is filled in when hrizzup-production exists (runbook step 10.3). rate_limit_email_sent (emails an hour, whole project) is raised before launch to fit expected sign-ups. Native app redirects join uri_allow_list with the app builds.",
+      "_note": "rate_limit_email_sent (emails an hour, whole project) is raised before launch to fit expected sign-ups. Native app redirects join uri_allow_list with the app builds.",
       "settings": {
         "site_url": "https://hrizzup.com",
         "uri_allow_list": "https://hrizzup.com/**,https://www.hrizzup.com/**",

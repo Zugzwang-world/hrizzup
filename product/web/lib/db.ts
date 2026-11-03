@@ -4,6 +4,14 @@ import { SUPABASE_ROOT_CA } from './supabase-ca.ts';
 
 let pool: Pool | null | undefined;
 
+type Env = Readonly<Record<string, string | undefined>>;
+
+/** The placeholder Supabase's Connect dialog puts where the password goes. */
+export const PASSWORD_PLACEHOLDER = '[YOUR-PASSWORD]';
+
+/** The database address isn't set up as runbook Part 10 describes. Its text never holds a value. */
+export class DatabaseAddressError extends Error {}
+
 /**
  * The connection string without its TLS options: they would replace the full certificate
  * check below, so they are removed and the check is always set here.
@@ -17,22 +25,47 @@ export function withoutTlsOptions(connectionString: string): string {
 }
 
 /**
+ * The app's database address, from the values Supabase's dashboard shows (runbook Part 10):
+ * `DATABASE_URL` is the "Transaction pooler" string copied as it is from the Connect dialog,
+ * with Supabase's `[YOUR-PASSWORD]` placeholder still in it, and `SUPABASE_DB_PASSWORD` is
+ * the database password. The password is filled in here, percent-encoded, so nobody ever
+ * builds a connection string by hand. A complete address (no placeholder) is used as it is.
+ * Null where the database isn't configured.
+ */
+export function databaseAddress(env: Env = process.env): string | null {
+  const template = env.DATABASE_URL?.trim();
+  if (!template) return null;
+  if (!template.includes(PASSWORD_PLACEHOLDER)) return withoutTlsOptions(template);
+  const password = env.SUPABASE_DB_PASSWORD;
+  if (!password) {
+    throw new DatabaseAddressError(
+      'DATABASE_URL has the password placeholder, but SUPABASE_DB_PASSWORD is not set',
+    );
+  }
+  if (template.split(PASSWORD_PLACEHOLDER).length !== 2) {
+    throw new DatabaseAddressError('DATABASE_URL must hold the password placeholder exactly once');
+  }
+  return withoutTlsOptions(template.replace(PASSWORD_PLACEHOLDER, encodeURIComponent(password)));
+}
+
+/**
  * The app's database pool (blueprint section 5): Supabase's pooler in transaction mode
  * (`DATABASE_URL`, port 6543), 2 connections per running instance, no named prepared
  * statements, idle connections closed after 20 seconds and replaced after 30 minutes, and
  * the server's certificate checked against Supabase's own certificate authority. On Vercel,
  * `attachDatabasePool` lets idle connections close cleanly before an instance is suspended.
- * Null where the database isn't configured (production, until Part 10).
+ * Null where the database isn't configured. Throws DatabaseAddressError if it is set up
+ * wrongly.
  */
 export function database(): Pool | null {
   if (pool !== undefined) return pool;
-  const url = process.env.DATABASE_URL;
-  if (!url) {
+  const address = databaseAddress();
+  if (!address) {
     pool = null;
     return pool;
   }
   pool = new Pool({
-    connectionString: withoutTlsOptions(url),
+    connectionString: address,
     ssl: { ca: SUPABASE_ROOT_CA, rejectUnauthorized: true },
     max: 2,
     idleTimeoutMillis: 20_000,

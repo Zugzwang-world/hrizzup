@@ -83,7 +83,7 @@ The repo lives in your personal GitHub account, `Zugzwang-world`, on GitHub Pro,
 
 | Step | Who | What to do |
 |---|---|---|
-| 2.1 | You | In Cloudflare, add the site `hrizzup.com` and choose the **Free** plan (it moves to Pro in Part 10, "Production twin"). Copy the two nameservers Cloudflare gives you. |
+| 2.1 | You | In Cloudflare, add the site `hrizzup.com` and choose the **Free** plan (it moves to Pro in the pre-launch checklist). Copy the two nameservers Cloudflare gives you. |
 | 2.2 | You | In GoDaddy, open `hrizzup.com` and check DNSSEC is **off**. Replace the nameservers with Cloudflare's two. Turn on the transfer lock and auto-renew. |
 | 2.3 | You | Wait until Cloudflare shows `hrizzup.com` as **Active**. This can take from minutes to a few hours. |
 | 2.4 | You | In Cloudflare, turn on **DNSSEC**. It will show a DS record. In GoDaddy, add that DS record in `hrizzup.com`'s DNSSEC section, then wait for Cloudflare to confirm DNSSEC is active. |
@@ -116,7 +116,7 @@ The repo lives in your personal GitHub account, `Zugzwang-world`, on GitHub Pro,
 | 3.3 | You | In Proton, verify each record, then create your addresses (for example `founder@` and `hello@`; your choice). DMARC reports go to Cloudflare's **DMARC Management** (turn it on for `hrizzup.com`): it adds its own reports address to the DMARC record and shows who sends mail in hrizzup.com's name, so no personal address is needed. **DMARC Management on, 3 November 2026** (setup log). |
 | 3.4 | You | Send a test email to the new address and one from it, and check both arrive. |
 | 3.5 | You | In Resend (paid plan), create a full-access API key for setup and save it straight into Doppler `dev` as `RESEND_SETUP_API_KEY`, never in a chat. **Done, 3 November 2026;** deleted again at the end of step 3.6. Setup keys now go in `hrizzup-tools` instead (step 4.5). |
-| 3.6 | Claude Code | Through Resend's API, with the setup key through `doppler run`: create the sending domain `mail.hrizzup.com` in the Tokyo region (`ap-northeast-1`, the closest of Resend's regions to India), with open and click tracking off. Add the records Resend returns to Cloudflare (DNS only) and start verification. Create one sending-only key for staging, limited to `mail.hrizzup.com`, and put it into Doppler `stg` as `RESEND_API_KEY` without showing it; the production key comes in Part 10 (step 10.10), created by you. Then delete the setup key from Resend and Doppler. **Done, 3 November 2026:** verified (setup log). |
+| 3.6 | Claude Code | Through Resend's API, with the setup key through `doppler run`: create the sending domain `mail.hrizzup.com` in the Tokyo region (`ap-northeast-1`, the closest of Resend's regions to India), with open and click tracking off. Add the records Resend returns to Cloudflare (DNS only) and start verification. Create one sending-only key for staging, limited to `mail.hrizzup.com`, and put it into Doppler `stg` as `RESEND_API_KEY` without showing it; the production key comes in Part 10 (your checklist, step G), created by you. Then delete the setup key from Resend and Doppler. **Done, 3 November 2026:** verified (setup log). |
 | 3.7 | Claude Code | Send a test email from `no-reply@mail.hrizzup.com` to your address with the staging key, and check that it lands in the inbox and passes DMARC. **Started 3 November 2026:** sent and delivered, but into **Spam**; the header check is still to do (setup log). |
 
 **Note:** the inbox that receives the Grok bots' results is designed in the Sourcing project. It has to be an address our pipeline can read automatically, not your Proton inbox.
@@ -144,7 +144,7 @@ The repo lives in your personal GitHub account, `Zugzwang-world`, on GitHub Pro,
 - A value that must differ on this Mac (for example the site's own address, `http://localhost:3000`) is listed in `infra/doppler/dev-overrides.txt` with its reason, and `dev` gets its own value for it.
 - `dev` never points at `prd` or at another project; the script fails if it does.
 - Claude Code runs commands with `dev`'s values as `infra/doppler/run dev -- <command>`, through its own service token (step 10.1).
-- **Action Required:** Doppler flags a key that exists in one environment but not another. The lists for `dev` and `stg` stay empty. `prd`'s list shows the app's keys until Part 10 fills it: leave those warnings in place, because they are Part 10's checklist.
+- **Action Required:** Doppler flags a key that exists in one environment but not another. The lists for `dev` and `stg` stay empty. `prd`'s list shows only `AUTH_RELAY_SECRET` once Part 10 fills it: staging and previews alone use that one, so the warning stays.
 
 **Done when:** the project and its four configs exist, Claude Code's setup keys are in `hrizzup-tools`, `dev` follows staging, and every key created so far is in Doppler.
 
@@ -159,7 +159,7 @@ The repo lives in your personal GitHub account, `Zugzwang-world`, on GitHub Pro,
 | Step | Who | What to do |
 |---|---|---|
 | 5.1 | You | In the Supabase Pro organisation, create the project **`hrizzup-staging`**: region **Mumbai**, compute size **Micro** to start, standard Postgres, Data API **off**, automatic row-level security **on**, not linked to GitHub. Save the generated database password straight into Doppler `stg` as `SUPABASE_DB_PASSWORD`. **Done, 3 November 2026.** |
-| 5.2 | You | Keep the organisation's spend cap **on** during staging, and turn usage alerts on. Staging has no users, so a limit can't hurt anyone; it blocks surprise bills and doesn't stop the database being enlarged. The spend cap is turned off in step 10.3, when production joins the organisation. Point-in-time recovery is for production only (step 10.3); staging keeps Supabase's daily backups. |
+| 5.2 | You | Keep the organisation's spend cap **on** during staging, and turn usage alerts on. Staging has no users, so a limit can't hurt anyone; it blocks surprise bills and doesn't stop the database being enlarged. The spend cap stays on while production has no users either, and is turned off in the pre-launch checklist. Point-in-time recovery is for production only (pre-launch checklist); staging keeps Supabase's daily backups. |
 | 5.3 | You | Create a Supabase access token for Claude Code with full access to `hrizzup-staging` only, no account or organisation access, expiring in 90 days. Save it straight into Doppler as `SUPABASE_ACCESS_TOKEN` (project `hrizzup-tools`, config `claude`, since step 4.5). **Done, 3 November 2026; it expires around 1 February 2027** (see the reminder below). |
 | 5.4 | Claude Code | Using the token and password through `doppler run` (never printed): confirm the project's settings through Supabase's API. Put the connection details into Doppler `stg` without showing them: `DATABASE_URL` (the pooler in transaction mode, port 6543, for the app), `DATABASE_URL_SESSION` (the pooler in session mode, port 5432, for migrations), both with the password percent-encoded, plus `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` and `SUPABASE_SECRET_KEY` for Realtime. **Done, 3 November 2026** (setup log). |
 | 5.5 | Claude Code | Connect once through each address. Confirm the region, the Postgres version and the pooler mode, and write the connection settings into blueprint section 5: a small pool, prepared statements off, and explicit idle and lifetime timeouts. **Done, 3 November 2026.** |
@@ -185,7 +185,7 @@ The repo lives in your personal GitHub account, `Zugzwang-world`, on GitHub Pro,
 | Step | Who | What to do |
 |---|---|---|
 | 6.1 | Claude Code | Create two staging buckets with location Asia-Pacific: **`hrizzup-staging-uploads`** (private) and **`hrizzup-staging-media`** (public). **Done, 3 November 2026.** |
-| 6.2 | Claude Code | Connect the media bucket to **`media-staging.hrizzup.com`**, with its `r2.dev` address left off. Apply the CORS and lifecycle rules kept in the repo (`infra/cloudflare/r2/`, applied with `apply.sh staging`): uploads only from our own sites, incomplete uploads aborted after a day, and raw uploads deleted after a day. **Done, 3 November 2026.** The previews' addresses joined the upload rule in Part 9 (3 November 2026). |
+| 6.2 | Claude Code | Connect the media bucket to **`media-staging.hrizzup.com`**, with its `r2.dev` address left off. Apply the CORS and lifecycle rules kept in the repo (`infra/cloudflare/r2/`, applied with `apply.py staging`, which since Part 10 also checks the buckets, `r2.dev` and the public address): uploads only from our own sites, incomplete uploads aborted after a day, and raw uploads deleted after a day. **Done, 3 November 2026.** The previews' addresses joined the upload rule in Part 9 (3 November 2026). |
 | 6.3 | You | Create one R2 access key for both staging buckets, and save it in Doppler `stg` (the exact clicks are below). **Done, 3 November 2026.** |
 | 6.4 | Claude Code | Create the Turnstile widget **"Hrizzup staging"**: Managed mode, hostnames `staging.hrizzup.com` and `localhost`. Put its keys into Doppler `stg` as `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` without showing them. Previews use Cloudflare's official test keys instead, as overrides of the same names in `stg_preview`. **Done, 3 November 2026.** |
 | 6.5 | Claude Code | Turn on Cloudflare image transformations for `hrizzup.com`, limited to our own images (images from any other site are refused). **Done, 3 November 2026.** |
@@ -219,7 +219,7 @@ The repo lives in your personal GitHub account, `Zugzwang-world`, on GitHub Pro,
 
 **Why eviction is on:** with eviction off, a full database refuses every write, so caches, rate limits and locks would all stop at once, and the site with them. With it on, a full database drops some entries, keys with an expiry first, and they're rebuilt from the main database. That's safe because every key has an expiry and Redis never holds the only copy of anything that matters (blueprint section 14, "Redis (Upstash)").
 
-**Why auto-upgrade is off on staging:** the Fixed plan has no per-command charges, so a load test can't run up a bill by the number of commands. Its limits are 1 GB of data, 100 GB of traffic a month and 10,000 commands a second. With auto-upgrade on, a test that used up the traffic would move staging to the next tier (Fixed 5GB, $100 a month). With it off, staging's Redis is blocked instead: the spending cap every staging service has. Production keeps auto-upgrade on (step 10.8), so a limit never takes the live site offline.
+**Why auto-upgrade is off on staging:** the Fixed plan has no per-command charges, so a load test can't run up a bill by the number of commands. Its limits are 1 GB of data, 100 GB of traffic a month and 10,000 commands a second. With auto-upgrade on, a test that used up the traffic would move staging to the next tier (Fixed 5GB, $100 a month). With it off, staging's Redis is blocked instead: the spending cap every staging service has. Production is on pay as you go until launch, then moves to the Fixed plan with auto-upgrade on (pre-launch checklist), so a limit never takes the live site offline.
 
 **Before a big load test:** check this month's traffic on the database's **Usage** tab in Upstash. A long test at full speed can use the month's 100 GB (10,000 commands a second with 1 KB answers is about 36 GB an hour), after which staging's Redis stays blocked until the month ends. A test that needs more is planned with you before it runs.
 
@@ -240,7 +240,7 @@ The repo lives in your personal GitHub account, `Zugzwang-world`, on GitHub Pro,
 | Step | Who | What to do |
 |---|---|---|
 | 8.1 | You | In Google Cloud, create the project **`hrizzup`** and turn billing on. It belongs to the **Hrizzup Google account** (`hrishikesh@hrizzup.com`), not the Zugzwang World one. **Done, 3 November 2026:** project `hrizzup`, ID `hrizzup-513610`. Billing is on (a free trial with a prepayment), confirmed by the founder on 3 November 2026; Google sign-in doesn't need it. |
-| 8.2 | You | Set up the OAuth consent screen: **External**, **Testing**, app name Hrizzup, your support email, authorised domains `hrizzup.com` and `mlccgqxtqmllwbyjfzzm.supabase.co` (staging's Supabase project), and the three basic scopes (`openid`, `email`, `profile`). The home page and privacy-policy links wait for the holding page (Part 9); they're added before publishing (step 10.16). **Done, 3 November 2026.** |
+| 8.2 | You | Set up the OAuth consent screen: **External**, **Testing**, app name Hrizzup, your support email, authorised domains `hrizzup.com` and `mlccgqxtqmllwbyjfzzm.supabase.co` (staging's Supabase project), and the three basic scopes (`openid`, `email`, `profile`). The home page and privacy-policy links wait for the holding page (Part 9); they're added before publishing (pre-launch checklist). **Done, 3 November 2026.** |
 | 8.3 | You | Create the OAuth client **"Hrizzup staging"**, type **Web application**, with the origins and the redirect address Claude Code gives you (`https://mlccgqxtqmllwbyjfzzm.supabase.co/auth/v1/callback`). Save its ID and secret into Doppler `stg` as `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`. **Done, 3 November 2026.** |
 | 8.4 | You | Add yourself and your testers as test users. The consent screen stays in Testing mode until it's published before launch. **Done, 3 November 2026.** |
 | 8.5 | Claude Code | Switch on Google sign-in in `hrizzup-staging` with the client from Doppler. Set the site address to `https://staging.hrizzup.com`, and allow redirects only to staging and this Mac (`http://localhost:3000`). Kept in the repo as `infra/supabase/auth/` and applied with `apply.py staging`. **Done, 3 November 2026** (setup log). |
@@ -252,7 +252,7 @@ The repo lives in your personal GitHub account, `Zugzwang-world`, on GitHub Pro,
 **Done when:** the staging client's keys are in Doppler (with `dev` following), the consent screen is saved, Google sign-in is on in `hrizzup-staging` with only staging's and this Mac's addresses allowed, and Supabase's emails go through Resend. Signing in end to end is checked in step 9.6, once the website runs on Vercel.
 
 **Part 8 finished on 3 November 2026,** apart from the end-to-end check in step 9.6. The details are in the setup log.
-*(The production Google client is created in Part 10, step 10.9.)*
+*(Production's Google client is in its own Google Cloud project, created in Part 10, your checklist, step F.)*
 
 ---
 
@@ -266,7 +266,7 @@ The repo lives in your personal GitHub account, `Zugzwang-world`, on GitHub Pro,
 |---|---|---|
 | 9.1 | Claude Code | **The codebase:** one repo for the Next.js website (`product/web`) and the Expo app (`product/app`, an empty shell for now), with shared packages (`product/packages`): pnpm workspaces, Turborepo with Vercel's Remote Cache, Biome, TypeScript, Vitest, Playwright, and the Supabase CLI for migrations (CLAUDE.md, "Codebase"; blueprint section 13). The **first migration** locks every table (row-level security), and the **Database check** fails any pull request that leaves a table unprotected. The website has the holding page, draft privacy and terms pages, the sign-in test page (not on production) and `/api/health` (environment, region, commit, and whether the database, Redis, storage and sign-in answer). **Done, 3 November 2026.** |
 | 9.2 | Claude Code | **The Vercel project `hrizzup`** in the Pro team, linked to the repo, with every setting kept in `infra/vercel/` and applied with `apply.py`: functions in Mumbai (`bom1`), production branch `main` with **Auto-assign Custom Production Domains off** (every merge makes a hidden production build), Skew Protection, the Vercel Toolbar and comments on previews, and the firewall. The custom environment **`staging`** follows the branch `staging`, which only the Staging workflow moves, after each merge's migrations have reached staging's database (branch tracking on `main` itself couldn't put the database first); the workflow then starts the build through a deploy hook and waits until staging serves the commit. **Done, 3 November 2026.** |
-| 9.3 | You | In Doppler, connect to Vercel: `stg` to Vercel's `staging` environment and `stg_preview` to Vercel's Preview, variable type **Secret** (Vercel's "Sensitive"). **Done, 3 November 2026.** Production's sync is step 10.13. Claude Code's setup keys (`hrizzup-tools`) are never synced. |
+| 9.3 | You | In Doppler, connect to Vercel: `stg` to Vercel's `staging` environment and `stg_preview` to Vercel's Preview, variable type **Secret** (Vercel's "Sensitive"). **Done, 3 November 2026.** Production's sync is Part 10, your checklist, step J. Claude Code's setup keys (`hrizzup-tools`) are never synced. |
 | 9.4 | Claude Code | Add the domains (`staging.hrizzup.com` for staging; `hrizzup.com` for production, with `www` redirecting to it) and their records in Cloudflare, **DNS only**. Make the first production deployment the holding page with its draft privacy policy and terms, and promote it once; it stays live until launch. This holding page is the one change Claude Code makes on the production side, made before production has any keys or data. From Part 10 on, production changes only through the release pipeline. **Done, 3 November 2026** (promoted once). |
 | 9.5 | Claude Code | **Deployment protection:** Standard Protection with Vercel Authentication, so every preview, staging and the private address of every hidden production build need a Vercel login, and only `hrizzup.com` and `www` are public. Create the **protection bypass for automation** and keep it in Doppler `hrizzup-tools` (with a copy in GitHub's secrets for the Screen check). **Done, 3 November 2026.** |
 | 9.6 | Claude Code | The checks: `autoAssignCustomDomains` is off (`apply.py --check`); `/api/health` reports `bom1` and every service answers, on a preview and on staging; the Redis round trip measured from Vercel's Mumbai functions; Google sign-in end to end on staging and on a preview; the previews' addresses in the storage upload rule; the screen check passes on the holding page. Results are in the setup log. **Done, 3 November 2026**, except one check that needs a second Google account: an account that isn't a test user is refused (for the founder; status file). |
@@ -276,7 +276,7 @@ The repo lives in your personal GitHub account, `Zugzwang-world`, on GitHub Pro,
 
 **Test accounts** for the automatic checks exist only on staging (which previews share): `delivered+screen-check-chromium@resend.dev` and `delivered+screen-check-webkit@resend.dev`. Nobody can sign in to them; a check gets a session only through staging's own server key. Production is a separate project, so they can't exist there.
 
-**Not used now** (founder's decision, 3 November 2026): Password Protection, Preview Deployment Suffix, extra custom environments, Flat Rate CDN and Flags Explorer. Speed Insights and Web Analytics stay off until launch (decided in Part 10). Observability Plus is on and covers the project. Vercel's spending limit is $50 a month, pausing if reached, and is revisited before launch.
+**Not used now** (founder's decision, 3 November 2026): Password Protection, Preview Deployment Suffix, extra custom environments, Flat Rate CDN and Flags Explorer. Speed Insights and Web Analytics stay off until launch (pre-launch checklist). Observability Plus is on and covers the project. Vercel's spending limit is $50 a month, pausing if reached, and is revisited before launch (pre-launch checklist).
 
 **Reminder: the Vercel token expires around 1 February 2027.** Before then, create a new one with the same scope (team `hrizzup` only), save it in Doppler `hrizzup-tools`, config `claude`, as `VERCEL_TOKEN`, and delete the old one in Vercel. A GitHub issue opens on 15 January 2027 as a reminder.
 
@@ -286,42 +286,107 @@ The repo lives in your personal GitHub account, `Zugzwang-world`, on GitHub Pro,
 
 # Part 10: Production twin
 
-**What we're doing:** a production copy of the staging setup (Supabase project, Vercel production, Doppler `prd`, R2 buckets, Redis database, Google sign-in client, Turnstile widget), created as soon as staging works, with nothing public until launch. Doppler moves to its Team plan and Cloudflare to Pro first.
+**What we're doing:** a quiet copy of staging for production: the same services, settings, versions and region, with its own data and keys, and nothing public until launch. Lean, by the founder's decision (3 November 2026): no paid extras now; they wait for the pre-launch checklist below.
 
 **Why:** going live becomes a promotion, not a migration.
 
-**Claude Code never reads, holds or uses production keys.** You create each production service and key yourself, following Claude Code's exact clicks, and save the keys straight into Doppler `prd`. The release pipeline, which Claude Code builds in the repo and tests on staging, is the only thing that uses them, with its own credentials (step 10.12). Claude Code checks production only from the outside and through the pipeline's reports.
+**Claude Code never reads, holds or uses production keys.** You create each production key yourself and copy it straight from that service's dashboard into Doppler, with the service's own copy button: nothing is typed or built by hand (the code fills the database password into Supabase's own connection strings). Claude Code creates only what holds no secret (the storage buckets and `media.hrizzup.com`, the GitHub environment) and checks production only through the release pipeline's report and from the outside.
 
-Everything matches staging (the same services, versions, region and settings) except the names, the data and the keys, plus two deliberate differences: production's database is sized for launch, and only production has point-in-time recovery. Billing limits also differ on purpose: on staging they stop surprise bills (Supabase's spend cap on, Upstash's auto-upgrade off); on production they never take the site offline (Supabase's spend cap off, Upstash's auto-upgrade on). Production starts empty.
+**Two Doppler configs for production:**
+- **`prd`:** the website's production keys, synced to Vercel's production environment.
+- **`prd_release`:** the release pipeline's own config, a branch of `prd` (like `stg_preview` is of `stg`). It sees every `prd` value and adds the pipeline's three credentials. It is never synced, so those credentials never reach the website.
+
+**Different from staging on purpose, until launch:** Upstash is pay as you go (staging: Fixed 1GB); the Supabase organisation's spend cap stays on (production has no users either); no point-in-time recovery. The pre-launch checklist changes each one.
 
 | Step | Who | What to do |
 |---|---|---|
-| 10.1 | Claude Code, then you | **Claude Code's own Doppler access, before the first production key goes in** (founder's decision, 3 November 2026: service tokens on the free plan instead of the Team plan's service account). Claude Code creates four Doppler service tokens, each limited to one config: `hrizzup/dev`, `hrizzup/stg` and `hrizzup-tools/claude` read and write, `hrizzup/stg_preview` read only. They go straight into this Mac's keychain, unseen, and are used only through `infra/doppler/run`. `python3 infra/doppler/check_access.py` proves that none can open `prd`. Then **you** sign your own Doppler login out of this Mac: in Terminal (or in Claude Code, starting the line with `!`), run `doppler logout --yes`. From then on you use Doppler's website, and Claude Code never uses a personal login. **Done, 3 November 2026** (setup log). |
-| 10.2 | You | In Cloudflare, upgrade `hrizzup.com` to the **Pro** plan, and turn on Cloudflare Images' paid plan, so new image sizes never fail once the free 5,000 a month are used up. |
-| 10.3 | You | In the Supabase Pro organisation, create **`hrizzup-production`** with the same settings as staging (step 5.1: Mumbai, standard Postgres, Data API off, not linked to GitHub), a compute size chosen for launch, and a generated database password of **letters and numbers only**, saved straight into Doppler `prd` as `SUPABASE_DB_PASSWORD`. Turn on point-in-time recovery (production only). Turn the organisation's spend cap **off** (it stayed on during staging) and keep usage alerts on. |
-| 10.4 | You | In Doppler `prd`, add `DATABASE_URL` and `DATABASE_URL_SESSION` exactly as Claude Code writes them out for you. They point at the pooler (transaction mode, port 6543, and session mode, port 5432) and refer to `${SUPABASE_DB_PASSWORD}` instead of containing the password, so you never copy it. |
-| 10.5 | Release pipeline | Its production check (you start it from GitHub's Actions tab, or Claude Code starts it when you say so) connects through both addresses with production's own credentials. It reports the region, Postgres version, compute size, pooler mode and extensions, and applies the same migrations as staging. Claude Code compares the report with staging and records it. |
-| 10.6 | You, then the release pipeline | In Cloudflare R2, create **`hrizzup-production-uploads`** (private) and **`hrizzup-production-media`** (public), both with location Asia-Pacific. Connect the media bucket to **`media.hrizzup.com`** (bucket **Settings**, **Custom Domains**, **Connect Domain**), and leave its `r2.dev` address off. The pipeline then applies the repo's production CORS and lifecycle rules (`infra/cloudflare/r2/apply.sh production`). Image transformations (step 6.5) already cover the bucket, because they are on for the whole zone. |
-| 10.7 | You | Create one R2 access key for both production buckets, the same way as step 6.3 (named `hrizzup-production-app`), and save it in Doppler `prd` as `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY`. |
-| 10.8 | You | In Upstash, create **`hrizzup-production`** on the same plan, size and region as staging (Fixed 1GB, AWS Mumbai `ap-south-1`, no read regions). On its **Settings** tab, turn **Eviction** on and leave **Auto Upgrade** on (staging has it off as a spending cap; production must never be blocked by a limit). Save its REST URL and token into Doppler `prd` as `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`, and add `REDIS_KEY_PREFIX` with the value `prd`. |
-| 10.9 | You | After the decision in step 10.15 (it sets production's redirect address): in the Google Cloud project `hrizzup`, create an OAuth client of type **Web application** for production, with origins `https://hrizzup.com` and `https://www.hrizzup.com` and the redirect address Claude Code gives you, and add production's sign-in domain to the consent screen's authorised domains. Save the client ID and secret into Doppler `prd` as `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`. The release pipeline then applies production's sign-in settings from the repo, the same as staging's (`infra/supabase/auth/apply.py production`, once Claude Code has added production's project ID to `settings.json`). |
-| 10.10 | You | In Resend, create an API key named "Hrizzup production" with **Sending access**, limited to the domain `mail.hrizzup.com`, and save it straight into Doppler `prd` as `RESEND_API_KEY`. |
-| 10.11 | You | In Cloudflare **Turnstile**, add the widget **"Hrizzup production"**: Managed mode, hostnames `hrizzup.com` and `www.hrizzup.com` (no `localhost`). Save its keys into Doppler `prd` as `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY`. |
-| 10.12 | You | Give the release pipeline its own production credentials, following Claude Code's clicks: a read-only Doppler service token for `prd`, saved as a secret of the GitHub environment `hrizzup-production`; a Vercel token, for promoting builds and for applying the Vercel settings that reach production (`infra/vercel/apply.py`); a Cloudflare token limited to R2 settings, for applying the storage rules; and a Supabase access token limited to `hrizzup-production`, for applying the sign-in settings. The last three go into Doppler `prd`. |
-| 10.13 | You | In Doppler, sync `prd` to Vercel's production environment, marked Sensitive. |
-| 10.14 | Release pipeline, then Claude Code | The pipeline's production check confirms that a hidden production build's private `/api/health` reports `bom1` and the production setup, that a test image loads resized from `media.hrizzup.com`, that production's Redis passes `infra/upstash/check.py production`, and that production's sign-in settings pass `infra/supabase/auth/apply.py production --check`. Claude Code compares staging and production side by side from the pipeline's report and the public addresses: every service, version, region and setting must match, and only names, data and keys may differ. It also confirms that `hrizzup.com` still shows the holding page, then records the comparison. |
-| 10.15 | You, with Claude Code | **Decide on Supabase's Custom Domain add-on,** before step 10.9. It puts sign-in on our own name: `auth.hrizzup.com` for production and `auth-staging.hrizzup.com` for staging, instead of the project's `….supabase.co` address. **Price, checked 3 November 2026:** $10 a month per project ($0.0137 an hour, billed by the hour), so $20 a month for both; it needs a paid plan, which we have. **Why it matters:** Google's sign-in screen shows the Supabase address until then, and Google only verifies the branding (Hrizzup's name and logo on that screen) once every authorised domain is verified as ours, which a `supabase.co` address can't be. **Also part of the decision:** both clients share the Google project's one consent screen, so staging's Supabase address would also block production's branding, and once the screen is published, anyone with a Google account could sign in to staging. Either staging also gets its custom domain and stays behind Vercel's protection, or production gets its own Google Cloud project, so staging's stays in Testing with test users only. Claude Code checks the price again, recommends one way, and gives you the clicks. If you add it: a CNAME and a TXT record in Cloudflare (DNS only), each new callback address added to the Google client before the domain is switched on, and the old one kept. |
-| 10.16 | You | **Before publishing the consent screen** (before launch): on Google's **Branding** page, add the home page (`https://hrizzup.com`) and the privacy-policy link (on the holding page from step 9.4), and verify `hrizzup.com` in Google Search Console with the Hrizzup Google account (Claude Code adds the TXT record in Cloudflare). Then publish, and test with an account that isn't on the test list. |
+| 10.1 | Claude Code, then you | **Claude Code's own Doppler access, before the first production key goes in** (founder's decision, 3 November 2026: service tokens on the free plan instead of the Team plan's service account). Claude Code creates four Doppler service tokens, each limited to one config: `hrizzup/dev`, `hrizzup/stg` and `hrizzup-tools/claude` read and write, `hrizzup/stg_preview` read only. They go straight into this Mac's keychain, unseen, and are used only through `infra/doppler/run`. `python3 infra/doppler/check_access.py` proves that none can open `prd` or `prd_release`. Then **you** sign your own Doppler login out of this Mac: in Terminal (or in Claude Code, starting the line with `!`), run `doppler logout --yes`. From then on you use Doppler's website, and Claude Code never uses a personal login. **Also recommended** (they hold your own logins, which reach production too): `supabase logout`, `vercel logout` and `npx wrangler logout`, then in Supabase, **Account → Access Tokens**, delete the token named `cli_hrishikesh@…` (marked LEGACY, full access, never expires). Claude Code doesn't need any of them. **Claude Code's part done, 3 November 2026** (setup log). |
+| 10.2 | Claude Code | **Production's storage:** the buckets **`hrizzup-uploads`** (private) and **`hrizzup-media`** (public only at **`media.hrizzup.com`**, its `r2.dev` address off), both in Asia-Pacific, with the same rules as staging (origins `https://hrizzup.com` and `https://www.hrizzup.com`), kept in `infra/cloudflare/r2/` and applied with `apply.py production`. Tested once with an image: public download, a resized copy (AVIF and WebP, from Cloudflare's cache the second time) and the CORS rules. **Done, 3 November 2026:** the one-time exception, like the holding page, made before production had any keys or data. From now on only the release pipeline changes production's storage settings. |
+| 10.3 | Claude Code | **The release pipeline** (`.github/workflows/release.yml`, see "Releasing to production") and the GitHub environment **`hrizzup-production`**, which only `main` can use. Every production check it runs is first run on staging by Claude Code. **Done, 3 November 2026.** |
+| 10.4 | You | **Your checklist, below,** in order, about 45 minutes. |
+| 10.5 | Claude Code | When you say "done" (with production's project ID): it records the project ID in the repo (a pull request), then runs the release pipeline once and confirms that `hrizzup.com` still shows the holding page and that its health page reports every production service answering. It compares staging and production side by side from the pipeline's report, then records everything. |
 
-**To decide before Part 10:** Claude Code works through your own GitHub account and merges its own pull requests, so in principle it could change the release pipeline itself. The recommended fix is a separate GitHub account for Claude Code with write access, plus your approval for changes to the pipeline's files (status file, open questions).
+**Done when:** Claude Code's Doppler access can't open production and your login is signed out of this Mac; every production service exists with staging's settings and its keys in Doppler; the release pipeline has run once; `hrizzup.com` still shows the holding page, with every production service answering on its health page.
 
-**Done when:**
-- Doppler is on the Team plan, and Claude Code's own Doppler access can't open `prd`;
-- `hrizzup.com` is on Cloudflare Pro with Images' paid plan on;
-- every production service exists with the same settings as staging, created by you, with its keys in Doppler `prd` and synced to Vercel production;
-- the release pipeline has its own credentials;
-- the side-by-side comparison passes;
-- nothing public has changed.
+## Your checklist, click by click
+
+**How to copy each value:** keep two browser tabs open, Doppler and the service you're in. Click the service's copy button, then in Doppler click **+** (top right of the secrets list), type the **name** shown here, paste the value, and click **Save** (top right). Never paste a value into a chat, and never change a copied value.
+
+**0. Doppler: the pipeline's config** (2 minutes)
+1. Doppler → **Projects** → **hrizzup**.
+2. On the **Production** row, click **+** (right side), type `release` after `prd_`, click **Create Branch Config**. You now have `prd` and `prd_release`.
+
+**A. Supabase: the production project** (10 minutes)
+1. Supabase → **New project** (in Zugzwang-world's Org, Pro).
+2. **GitHub (optional):** leave it empty. **Project name:** `hrizzup-production`. **Compute size:** MICRO.
+3. **Database password:** click **Generate a password**, copy it, and save it in Doppler `prd` as `SUPABASE_DB_PASSWORD`.
+4. **Region:** open the list; under "Specific regions" choose **South Asia (Mumbai)** (`ap-south-1`).
+5. **Security:** untick **Enable Data API**; tick **Enable automatic RLS**. Leave **Advanced configuration** at **Postgres** (the default).
+6. Click **Create new project** (it shows $10 a month). Wait until the project page says **Healthy**.
+7. On the project's home page, next to its address (`https://….supabase.co`), click **Copy** → `prd` as `SUPABASE_URL`.
+8. Click **Connect** (top bar) → **Direct** → **Transaction pooler** → switch on **Use IPv4 connection** (the box above the string then says **Shared pooler**) → copy the `postgresql://…:6543/postgres` line → `prd` as `DATABASE_URL`. Leave `[YOUR-PASSWORD]` in it exactly as it is.
+9. Same panel: **Session pooler** → copy the `…:5432/postgres` line (Shared pooler) → `prd` as `DATABASE_URL_SESSION`.
+10. **Project Settings → API Keys:** the **Publishable key** → `prd` as `SUPABASE_PUBLISHABLE_KEY`; under **Secret keys**, the `default` key (click the eye, then copy) → `prd` as `SUPABASE_SECRET_KEY`.
+11. **Authentication → Sign In / Providers → Google:** copy **Callback URL (for OAuth)** and keep it for step F6. Close the panel **without saving** (the pipeline switches Google on).
+12. **Project Settings → General:** copy the **Project ID**. It isn't secret; you'll give it to Claude Code at the end.
+
+**B. Supabase: the pipeline's own access token** (2 minutes)
+1. Supabase → your picture (top right) → **Account preferences** → **Access Tokens** → **Generate new token**.
+2. Name `Hrizzup release pipeline`; access to the project **`hrizzup-production` only**, full access, no account or organisation access (the same scope as Claude Code's staging token); the longest expiry offered.
+3. Copy → Doppler **`prd_release`** as `SUPABASE_ACCESS_TOKEN`.
+
+**C. Upstash: the production database** (3 minutes)
+1. Upstash → **Redis** → **Create Database**. **Name:** `hrizzup-production`. **Primary Region:** Amazon Web Services → **Mumbai, India** (`ap-south-1`). **Read Regions:** none. **Eviction:** on. **Next**.
+2. Plan: **Pay as You Go**. **Max budget:** $10 a month (production has no users; this is its spending cap until launch). Finish creating it.
+3. On the database's page, in the **REST API** section, copy `UPSTASH_REDIS_REST_URL` → `prd` under that name, and `UPSTASH_REDIS_REST_TOKEN` → `prd` under that name.
+
+**D. Cloudflare R2: the website's storage key** (3 minutes; the buckets already exist)
+1. Cloudflare → **R2 Object Storage** → **Overview** → next to **API Tokens**, **Manage** → **Create Account API token**.
+2. **Token name:** `hrizzup-production-app`. **Permissions:** **Object Read & Write**. **Apply to specific buckets only:** `hrizzup-uploads` and `hrizzup-media`. **TTL:** Forever. No IP filtering. **Create Account API token**.
+3. Copy **Access Key ID** → `prd` as `R2_ACCESS_KEY_ID`, and **Secret Access Key** → `prd` as `R2_SECRET_ACCESS_KEY`. Ignore the other values on that page.
+
+**E. Cloudflare Turnstile: the production widget** (2 minutes)
+1. Cloudflare → **Turnstile** → **Add widget**. **Widget name:** `Hrizzup production`. **Hostnames:** `hrizzup.com` and `www.hrizzup.com` (no `localhost`). **Widget mode:** Managed. **Pre-clearance:** No. **Create**.
+2. Copy **Site Key** → `prd` as `TURNSTILE_SITE_KEY`; **Secret Key** → `prd` as `TURNSTILE_SECRET_KEY`.
+
+**F. Google: a separate Cloud project for production sign-in** (10 minutes, signed in as `hrishikesh@hrizzup.com`)
+1. console.cloud.google.com → the project picker (top left) → **New project** → **Project name** `hrizzup-production` → **Create**, then select it.
+2. **☰ → Google Auth Platform → Get started.** **App name** `Hrizzup`; **User support email** yours → **Next**; **Audience** External → **Next**; **Contact information** your email → **Next**; agree → **Continue** → **Create**.
+3. **Audience:** leave it in **Testing**; under **Test users**, **Add users**: your own Google address and your testers' → **Save**.
+4. **Data Access → Add or remove scopes:** tick `…/auth/userinfo.email`, `…/auth/userinfo.profile` and `openid` → **Update** → **Save**.
+5. **Branding → Authorized domains → Add domain:** `hrizzup.com`, then production's Supabase address without `https://` (from step A7: `<project id>.supabase.co`) → **Save**. Leave the home page and privacy links empty for now (pre-launch).
+6. **Clients → Create client:** **Application type** Web application; **Name** `Hrizzup production`; **Authorized JavaScript origins** `https://hrizzup.com` and `https://www.hrizzup.com`; **Authorized redirect URIs**: the Callback URL from step A11 → **Create**.
+7. The dialog shows the **Client ID** and **Client secret** (the secret only now): copy each → `prd` as `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`.
+
+**G. Resend: the production sending key** (1 minute)
+1. Resend → **API Keys** → **Create API Key**. **Name** `Hrizzup production`; **Permission** Sending access; **Domain** `mail.hrizzup.com` → **Add**.
+2. Copy → `prd` as `RESEND_API_KEY`.
+
+**H. The pipeline's Vercel and Cloudflare tokens** (4 minutes)
+1. Vercel → your picture → **Account Settings → Tokens** → create: **Name** `Hrizzup release pipeline`; **Scope** Hrizzup; **Expiration** 1 year → **Create** → copy → Doppler **`prd_release`** as `VERCEL_TOKEN`. (It promotes builds and checks the project's settings.)
+2. Cloudflare → the person icon → **My Profile → API Tokens → Create Token → Create Custom Token**. **Name** `Hrizzup release pipeline (R2 settings)`; **Permissions:** one row, **Account · Workers R2 Storage · Edit**; **Account Resources:** Include your account; no IP filtering; **TTL** 1 year → **Continue to summary → Create Token** → copy → Doppler **`prd_release`** as `CLOUDFLARE_API_TOKEN`. (It applies production's storage rules.)
+
+**I. Doppler: five fixed values** (1 minute; names and addresses, not secrets)
+1. Doppler → **hrizzup** → **prd** → the small arrow next to **+** → **Import Secrets** → paste these five lines exactly → import → **Save**:
+   ```
+   R2_ENDPOINT=https://4ddce98b4a4cbc9146d4269f36b03f68.r2.cloudflarestorage.com
+   R2_BUCKET_UPLOADS=hrizzup-uploads
+   R2_BUCKET_MEDIA=hrizzup-media
+   MEDIA_BASE_URL=https://media.hrizzup.com
+   REDIS_KEY_PREFIX=prd
+   ```
+2. `prd` now holds 20 secrets. Doppler's **Action Required** list will still name one, `AUTH_RELAY_SECRET`: leave it, staging and previews alone use it.
+
+**J. Doppler → Vercel: the production sync** (2 minutes)
+1. Doppler → **hrizzup** → **prd** → **Config Syncs** → add a sync → **Vercel** → the **Hrizzup** connection → project **hrizzup**, environment **Production**, type **Sensitive**, and don't import anything from Vercel → set it up. (The same way as staging's sync in step 9.3.)
+
+**K. Doppler → GitHub: the pipeline's one secret** (2 minutes)
+1. Doppler → **hrizzup** → **prd_release** → **Access** → the **+** button next to **Service Tokens**. **Name** `github-actions-release`; **Access:** Read only (leave Write unticked); no expiry → **Generate Service Token** → copy.
+2. github.com/Zugzwang-world/hrizzup → **Settings → Environments → hrizzup-production → Add environment secret**. **Name** `DOPPLER_TOKEN`; paste → **Add secret**.
+
+**L. Tell Claude Code: "done"**, with the **Project ID** from step A12. Claude Code then does step 10.5.
+
+**If anything is unclear on a page,** stop and tell Claude Code which step and what the page shows; never paste a key to explain.
 
 ---
 
@@ -352,14 +417,47 @@ Everything matches staging (the same services, versions, region and settings) ex
 
 | Step | Who | What to do |
 |---|---|---|
-| R.1 | Claude Code | Pick the commit that passed staging and find its hidden production build. Check that the commit's database changes, if it has any, are written so the version that is live keeps working with them. |
-| R.2 | You | Say "release". You or Claude Code then start the **Release** workflow in GitHub for that commit. |
-| R.3 | Release pipeline | With its own production credentials, it does three things in order. It applies the commit's database changes to production. It checks that `autoAssignCustomDomains` is still off and that the Vercel project still matches the repo (`infra/vercel/apply.py --check`) and that the hidden build's private `/api/health` shows that commit and `bom1`. Then it runs `vercel promote <address of the hidden build> --yes`, which goes live instantly, with no rebuild. |
+| R.1 | Claude Code | Pick the commit that passed staging (normally the newest). Check that its database changes, if it has any, are written so the version that is live keeps working with them. |
+| R.2 | You | Say "release". You or Claude Code then start the **Release** workflow: in GitHub, **Actions → Release → Run workflow** (leave "commit" empty for the newest commit that passed staging), or Claude Code runs `gh workflow run release.yml`. |
+| R.3 | Release pipeline | With its own production credentials (Doppler `prd_release`), in order, stopping at the first failure: (1) the commit is on `main` and passed staging; (2) production's values are production's own and valid (database addresses, every key); (3) Supabase's project settings; (4) the commit's database changes, then every table checked locked; (5) the sign-in and storage settings, Redis, and the Vercel project (`autoAssignCustomDomains` still off); (6) the hidden build's private `/api/health` shows that commit, `bom1` and every service answering, and until launch its home page is the holding page; (7) Vercel's promote (the same request `vercel promote` makes, sent by the repo's own script), live instantly with no rebuild; (8) it waits until `hrizzup.com/api/health` shows that commit with every service answering. |
 | R.4 | Claude Code | Confirm from the outside that `hrizzup.com/api/health` shows that commit, and record the release in `docs/setup.md`. |
 
-**Going back:** the pipeline's rollback (`vercel rollback`), started the same way. It's also instant, with no rebuild.
+**A build made before a production key changed** has the old keys (Vercel puts keys into each build). The pipeline refuses one that is missing keys; after any change in `prd`, merge a change (or redeploy that commit in Vercel) and release the new build.
 
-**Before launch:** `hrizzup.com` shows the holding page, so the first promotion of an app build is the launch.
+**Going back:** **Run workflow** again with **action** `rollback` and the commit to go back to (it must be older than the live one). It checks that commit's build and makes Vercel's rollback: instant, no rebuild. The database stays as it is, which is why every database change is written so the version before it keeps working.
+
+**Before launch:** `hrizzup.com` shows the holding page, and the pipeline refuses any build whose home page isn't it. The first promotion of an app build is the launch: tick **launch** when starting that one; Claude Code then switches the holding-page check off in the repo (`HOLDING_PAGE_UNTIL_LAUNCH` in `release.yml`).
+
+---
+
+# Pre-launch checklist
+
+**What we're doing:** the paid extras and final decisions that the lean production twin left for later (founder's decision, 3 November 2026).
+
+**Why:** production costs almost nothing until real users arrive; each item here is switched on once it matters, and before the first real user signs in.
+
+**Not for now.** Start it about **3 weeks before launch**, because Google's publishing and brand verification take time. Claude Code gives the exact clicks for each item when you start it, and records each one in `docs/setup.md`.
+
+| # | Item | What it means |
+|---|---|---|
+| P.1 | **Point-in-time recovery** | Supabase → `hrizzup-production` → **Add-ons**: turn on point-in-time recovery (production only; staging keeps daily backups). At the same time, size production's compute for launch (it starts on Micro), then Claude Code sets both in `infra/supabase/project/settings.json` so the pipeline checks them. One test restore before launch. |
+| P.2 | **Cloudflare Pro** | Upgrade `hrizzup.com` to the **Pro** plan, and turn on Cloudflare Images' paid plan, so new image sizes never fail once the free 5,000 a month are used up. |
+| P.3 | **Upstash's Fixed plan with auto-upgrade** | Move `hrizzup-production` from pay as you go to **Fixed 1GB** (the same as staging), with **Auto Upgrade on**, so a limit never takes the live site offline (eviction stays on). Claude Code then sets its size in `infra/upstash/check.py`. |
+| P.4 | **Google publishing and brand verification, with the custom sign-in address** (start 3 weeks before launch) | Supabase's **Custom Domain** add-on for production ($10 a month), so Google's sign-in screen shows `auth.hrizzup.com` instead of the `….supabase.co` address. Claude Code adds its two records in Cloudflare (DNS only), and the new callback goes into the production Google client before the domain is switched on. Then on the production project's **Branding** page: the home page (`https://hrizzup.com`), the privacy-policy link, the logo, and `hrizzup.com` verified in Google Search Console (Claude Code adds the TXT record). Then publish the consent screen and test with an account that isn't a test user. Staging's Google project stays in Testing. |
+| P.5 | **Analytics** | Decide what to measure on real users (Vercel's Web Analytics and Speed Insights for the performance budget, PostHog later). They are off until then; Claude Code switches them on in `infra/vercel/project.json`, where they are now checked off. |
+| P.6 | **Spending limits, revisited** | Vercel's limit ($50 a month, pausing if reached) raised to fit launch traffic; Supabase's organisation spend cap **off** (usage alerts stay on); Upstash's budget replaced by the Fixed plan (P.3); Resend's plan and Google Cloud's billing checked. On production, a billing limit must never take the site offline. |
+| P.7 | **Trim Claude Code's Cloudflare key** | Remove its **R2** and **Turnstile** rights (they reach production's buckets and widget too), as well as the extras it never needed (Part 2's reminder). Staging's storage rules and widget then change through you or the release pipeline, or staging moves to its own Cloudflare account; Claude Code recommends one when you start. |
+| P.8 | **CAA records** | Claude Code adds CAA records naming every certificate authority that Cloudflare and Vercel use (checked against each provider's current list at the time), so no other authority can issue a certificate for `hrizzup.com`. |
+| P.9 | **The legal pages' open gaps** | Fill the highlighted gaps on `/privacy` and `/terms`: the legal entity, its address, the contact email, the Grievance Officer, the retention days and the courts' city. The final versions go live through the release pipeline. |
+| P.10 | **Link previews in WhatsApp and X** | Share a link to `hrizzup.com` in WhatsApp and X and check that the preview (title, image) shows. Bot Protection may challenge their link fetchers; if so, Claude Code allows them in the firewall (`infra/vercel/firewall.json`). |
+| P.11 | **The AI-crawler decision** | Decide whether AI crawlers may read the site. The firewall's AI bots rule only logs them now; Claude Code switches it to block (and updates `robots.txt`) if you choose that. |
+
+**Also before launch** (Claude Code's additions, from earlier decisions):
+- **Production's hourly email limit** (`rate_limit_email_sent` in `infra/supabase/auth/settings.json`) raised to fit expected sign-ups.
+- **Claude Code's GitHub identity:** a separate GitHub account for Claude Code, with your approval needed for changes to the release pipeline's files (it merges its own pull requests today).
+- **Production hardening** (below), before the first real user signs in.
+
+**Done when:** every item is done or decided, and recorded in the setup log.
 
 ---
 
@@ -370,7 +468,6 @@ Everything matches staging (the same services, versions, region and settings) ex
 - **Apple Developer and Google Play accounts.** Start Google Play early: a personal account needs a closed test with at least 12 testers for 14 days before the app can go public. Their app IDs and signing fingerprints go into the two files the website serves so that shared links open the app (`/.well-known/assetlinks.json` and `/.well-known/apple-app-site-association`).
 - **RevenueCat and Razorpay:** set up with the app, for the paid tier, which is in version one (PLAN.md step 2.7). Razorpay with UPI on the website.
 - **Cloudflare Stream:** switched on in the same Cloudflare account when creator video is built (PLAN.md step 2.4), with separate API tokens for staging and production, a budget alert, and the tokens kept in Doppler.
-- **At launch:** CAA records naming every certificate authority that Cloudflare and Vercel use.
 - **AWS:** later, only if a concrete need appears, as its own project.
 
 ---
@@ -381,7 +478,7 @@ Everything matches staging (the same services, versions, region and settings) ex
 
 **Why:** real users' data must sit behind keys that only you and the release pipeline hold.
 
-- **Production keys held only by you and the pipeline.** Since Part 10, Claude Code never reads, holds or uses production keys, so there are none to take back. Before real users arrive, check that every route by which Claude Code's tools could still reach production is closed or covered (blueprint section 3, "Production is off-limits to Claude Code"), and that you created every key in `prd`. If a production key was ever exposed, replace it. Production keys never go in this repository.
+- **Production keys held only by you and the pipeline.** Since Part 10, Claude Code never reads, holds or uses production keys, so there are none to take back. Before real users arrive, check that every route by which Claude Code's tools could still reach production is closed or covered (blueprint section 3, "Production is off-limits to Claude Code"), and that you created every key in `prd` and `prd_release`. If a production key was ever exposed, replace it. Production keys never go in this repository.
 
 **Done when:** that check is recorded in the setup log, before the first real user signs in.
 

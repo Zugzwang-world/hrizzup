@@ -1,0 +1,194 @@
+# Hrizzup: the release pipeline (runbook "Releasing to production"; blueprint section 6).
+#
+# The only thing that changes production. The founder starts it ("release"): from GitHub's
+# Actions tab (Release, "Run workflow"), or Claude Code runs it when he says so:
+#   gh workflow run release.yml                    # the newest commit that passed staging
+#   gh workflow run release.yml -f commit=<sha>    # a chosen commit that passed staging
+#
+# Production's keys come only from Doppler `prd_release` (a branch of `prd` holding the
+# pipeline's own credentials as well, so those never reach Vercel), through a read-only
+# token kept only in the GitHub environment "hrizzup-production", which only main can use.
+# Every value is masked in logs. No downloaded tool runs next to them: the steps are this
+# repo's own scripts (Python's standard library only) and the Supabase CLI from the
+# frozen lockfile. In order, stopping at the first failure:
+#   1. The commit is on main and passed staging (its Staging workflow run succeeded).
+#   2. Production's values: the database addresses are Supabase's pooler for production's
+#      project, and every key is valid and production's own (infra/keys/check.py).
+#   3. Production's Supabase project settings, applied and checked (encrypted connections
+#      only, legacy keys off; region, compute, Data API off) (infra/supabase/project).
+#   4. The commit's database changes (migrations), then every table checked locked.
+#   5. Sign-in settings (infra/supabase/auth) and storage settings (infra/cloudflare/r2),
+#      applied and read back; Redis checked (infra/upstash); the Vercel project checked
+#      against the repo, with autoAssignCustomDomains still off (infra/vercel, --check).
+#   6. The commit's hidden production build, looked up through Vercel's own API: its
+#      private /api/health shows production, bom1, this commit and every service
+#      answering, and until launch its home page is the holding page.
+#   7. Promote exactly that build (Vercel's promote: instant, no rebuild).
+#   8. Wait until hrizzup.com/api/health shows the commit with every service answering.
+#
+# Going back: action "rollback" with the commit to return to, which must be older than the
+# one live now. It skips 2 to 5 (the database stays as it is), checks that commit's build
+# (6), rolls back to it and waits (8).
+
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: "Commit to release (full SHA). Empty: the newest commit that passed staging. Required for a rollback."
+        required: false
+        default: ""
+      action:
+        description: "release, or rollback to an earlier commit's build"
+        type: choice
+        options: [release, rollback]
+        default: release
+      launch:
+        description: "Only for the launch itself: allow a build whose home page isn't the holding page"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production
+  cancel-in-progress: false # one release at a time, in order
+
+jobs:
+  release:
+    name: ${{ inputs.action == 'rollback' && 'Roll back production' || 'Release to production' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: hrizzup-production
+    permissions:
+      contents: read
+      actions: read # did the commit pass staging?
+    env:
+      # Identifiers, not secrets (blueprint section 4 and the Vercel project).
+      CLOUDFLARE_ACCOUNT_ID: 4ddce98b4a4cbc9146d4269f36b03f68
+      CLOUDFLARE_ZONE_ID: da46254f6736da51ef130e7bc927efd6
+      VERCEL_ORG_ID: team_m0d8TiC9xuPrm9qI8ob6byBM
+      VERCEL_PROJECT_ID: prj_HKlwGJVxgagU9pAmqcmAxwupNjuD
+      # Until launch, only builds whose home page is the holding page are released. At
+      # launch, the release that is the launch ticks "launch"; then a pull request sets
+      # this to "false".
+      HOLDING_PAGE_UNTIL_LAUNCH: "true"
+    steps:
+      - name: Which commit
+        id: commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WANTED: ${{ inputs.commit }}
+          ACTION: ${{ inputs.action }}
+        run: |
+          set -euo pipefail
+          if [ -z "$WANTED" ]; then
+            if [ "$ACTION" = rollback ]; then
+              echo "A rollback needs the commit to go back to (its full SHA)" >&2; exit 1
+            fi
+            WANTED="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/staging.yml/runs?branch=main&status=success&per_page=1" --jq '.workflow_runs[0].head_sha')"
+          fi
+          case "$WANTED" in
+            *[!0-9a-f]* | "") echo "Not a full commit SHA: '$WANTED'" >&2; exit 1 ;;
+          esac
+          [ "${#WANTED}" -eq 40 ] || { echo "Give the full 40-character commit SHA" >&2; exit 1; }
+          echo "sha=$WANTED" >> "$GITHUB_OUTPUT"
+          echo "Commit: $WANTED ($ACTION)"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.commit.outputs.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: 1. The commit is on main and passed staging
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ steps.commit.outputs.sha }}
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor "$SHA" origin/main || { echo "$SHA isn't on main" >&2; exit 1; }
+          passed="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/staging.yml/runs?head_sha=$SHA&status=success&per_page=1" --jq '.total_count')"
+          [ "$passed" -ge 1 ] || { echo "$SHA hasn't passed staging (no successful Staging workflow run)" >&2; exit 1; }
+          echo "$SHA is on main and passed staging."
+
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        if: inputs.action == 'release'
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: inputs.action == 'release'
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --filter @hrizzup/database
+        if: inputs.action == 'release'
+
+      - name: Production's keys (Doppler prd_release, masked)
+        uses: dopplerhq/secrets-fetch-action@451892f16195f9ac360e1a5bcbf0b5fd0e957534 # v2.0.0
+        with:
+          doppler-token: ${{ secrets.DOPPLER_TOKEN }}
+          inject-env-vars: true
+
+      - name: 1b. A rollback goes only to a commit older than the live one
+        if: inputs.action == 'rollback'
+        env:
+          SHA: ${{ steps.commit.outputs.sha }}
+        run: |
+          set -euo pipefail
+          # Which build hrizzup.com points at, from Vercel itself (works while the site is down).
+          live="$(python3 .github/scripts/production_build.py live)"
+          [ "$live" != "$SHA" ] || { echo "$SHA is already live" >&2; exit 1; }
+          git merge-base --is-ancestor "$SHA" "$live" || { echo "$SHA isn't older than the live commit $live: release it instead, so its database changes are applied" >&2; exit 1; }
+          echo "Rolling back from $live to $SHA (the database stays as it is)."
+
+      - name: 2. Production's values are production's own and valid
+        if: inputs.action == 'release'
+        run: |
+          set -euo pipefail
+          python3 infra/supabase/database_url.py check
+          python3 infra/keys/check.py production
+
+      - name: 3. Supabase project settings
+        if: inputs.action == 'release'
+        run: python3 infra/supabase/project/apply.py production
+
+      - name: 4a. Apply the commit's database changes
+        if: inputs.action == 'release'
+        working-directory: infra/supabase
+        run: python3 database_url.py run session -- sh -c 'pnpm exec supabase --workdir .. db push --db-url "$DATABASE_ADDRESS" --skip-vault --yes'
+
+      - name: 4b. Check that every table is locked
+        if: inputs.action == 'release'
+        env:
+          PGSSLMODE: verify-full
+          PGSSLROOTCERT: infra/supabase/supabase-root-2021-ca.crt
+        run: python3 infra/supabase/database_url.py run session -- sh -c 'psql "$DATABASE_ADDRESS" -q -v ON_ERROR_STOP=1 -f infra/supabase/checks/every_table_locked.sql'
+
+      - name: 5. Sign-in and storage settings; Redis and the Vercel project checked
+        if: inputs.action == 'release'
+        run: |
+          set -euo pipefail
+          python3 infra/supabase/auth/apply.py production
+          python3 infra/cloudflare/r2/apply.py production
+          python3 infra/upstash/check.py production
+          python3 infra/vercel/apply.py --check
+
+      - name: 6. The commit's hidden production build is ready
+        id: build
+        env:
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+          SHA: ${{ steps.commit.outputs.sha }}
+          LAUNCH: ${{ inputs.launch && '--launch' || '' }}
+        run: python3 .github/scripts/production_build.py "$SHA" $LAUNCH
+
+      - name: 7. Promote that exact build (no rebuild)
+        env:
+          ID: ${{ steps.build.outputs.id }}
+          ACTION: ${{ inputs.action == 'rollback' && 'rollback' || 'promote' }}
+        run: python3 .github/scripts/promote.py "$ACTION" "$ID"
+
+      - name: 8. Wait until hrizzup.com serves it
+        env:
+          SHA: ${{ steps.commit.outputs.sha }}
+        run: python3 .github/scripts/wait_for_production.py "$SHA"
