@@ -95,17 +95,56 @@ Production is a twin of staging: the same services, versions, region and setting
 
 ## 5. Database (Supabase, staging and production)
 
-- **Projects:** `hrizzup-staging` and `hrizzup-production`, both in Mumbai (ap-south-1), on the same Postgres version, compute size and settings. Production starts empty.
-- **Compute size:** chosen on purpose, not left at the default.
-- **Connection:**
-  - Connect through Supabase's pooler, because the direct address only works over IPv6.
-  - From Vercel's serverless functions, use transaction mode (port 6543) with prepared statements off.
-  - Keep each instance's connection pool small (last time it ended at `max: 2`), and set the idle and lifetime timeouts explicitly.
-  - The connection mode is stated in configuration, never guessed.
-- **Migrations:** the same migrations run on both, staging first. A release's database changes reach production before its build is promoted, written so the version that is live keeps working with them.
-- **Backups:** point-in-time recovery on for both, plus one test restore before launch. No restore was ever tried last time.
+- **Projects:** `hrizzup-staging` (created 3 November 2026) and `hrizzup-production` (Part 10), both in Mumbai (ap-south-1), on the same Postgres version and settings. Production starts empty.
+- **Settings on both:**
+  - standard Postgres (17 on staging);
+  - Data API off;
+  - row-level security on every table (below);
+  - not linked to GitHub;
+  - encrypted connections enforced;
+  - Supabase's new API keys only, with the old ("legacy") keys switched off;
+  - user sign-in tokens signed with an ES256 key pair, with the old shared signing secret revoked.
+- **Compute size:** chosen on purpose, never left at a default by accident (rule 5).
+  - Staging runs on **Micro** while it's a sandbox.
+  - Before any load test, staging is enlarged to production's size, then shrunk again afterwards.
+  - Production is sized for launch.
+- **Why the Data API is off:** the app reaches the database only through our own typed API on the server (section 13). Supabase's automatic public data API isn't needed, so it's off: one fewer way into the data, and a missing access rule can't leak anything through it. Realtime doesn't use it.
+- **Row-level security on every table:** a table shows each user only the rows its rules allow, and nothing until rules exist, so no table can be created open by mistake.
+  - On 3 November 2026 the project's own "automatic" option was found not to reach tables made in code: a test table came out unprotected.
+  - So the **first migration** in the repo adds an event trigger that switches row-level security on for every new table.
+  - An automatic check on every pull request fails if any table lacks it.
+- **Connection** (through Supabase's pooler, Supavisor, at `aws-0-ap-south-1.pooler.supabase.com`, because the direct address only works over IPv6). The mode is stated in configuration, never guessed.
+
+  | Setting | App: `DATABASE_URL` | Migrations: `DATABASE_URL_SESSION` |
+  |---|---|---|
+  | Pooler mode and port | Transaction mode, port 6543 | Session mode, port 5432 |
+  | Pool size | **2** per running server instance to start (where the last project settled); raised only after measuring | 1 |
+  | Prepared statements | **Off** (transaction mode can't keep them) | Allowed |
+  | Idle timeout | **20 seconds**, so idle connections close before an instance goes to sleep | Default |
+  | Lifetime | **30 minutes**, then the connection is replaced | Default |
+  | Connect timeout | 10 seconds | 10 seconds |
+  | Encryption | Required, with the server's certificate checked against Supabase's own certificate authority (`verify-full`). The certificate file goes into the repo with the code | Same |
+  | On Vercel | The pool is registered with `attachDatabasePool` from `@vercel/functions`, so connections are released before an instance is suspended | — |
+
+  - **Limits on Micro:** 200 client connections to the pooler and 60 direct database connections. Total app connections (instances × pool size) stay well under the pooler limit.
+  - **Supabase's certificate authority:** "Supabase Root 2021 CA", valid until 26 April 2031, SHA-256 fingerprint `80:70:25:AD:50:D4:ED:21:9D:2C:9C:7D:29:9C:00:4F:82:4E:B0:0C:F7:F6:5A:FE:F6:07:D0:7B:72:E6:CA:FA`.
+- **Migrations:**
+  - **Every change to the database's structure goes through migration files in the repo**, and is applied the same way everywhere, so production receives exactly the same changes in the same order.
+  - They run in order, over `DATABASE_URL_SESSION`: staging first, then production at release.
+  - A release's database changes reach production before its build is promoted, written so the version that is live keeps working with them.
+  - Changing test data directly in staging is fine.
+  - The migration tool is chosen with the codebase (PLAN.md step 1.5).
+- **Never use the Supabase token or any database key against production.** The token in `dev` and the keys in `stg` belong to staging; production has its own, in `prd`.
+- **Keys** (in Doppler; names only here):
+  - `stg`: `SUPABASE_DB_PASSWORD`, `DATABASE_URL`, `DATABASE_URL_SESSION`, `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` and `SUPABASE_SECRET_KEY`. The publishable key is safe in the app and browser, for Realtime. The secret key is for the server only.
+  - `dev`: `SUPABASE_ACCESS_TOKEN`, Claude Code's token for Supabase's API. Full access to `hrizzup-staging` only, with no account or organisation access. It expires around **1 February 2027** and is replaced before then (runbook Part 5).
+- **Network:** open to the internet, because Vercel has no fixed addresses. Protected by the password and enforced encryption.
+- **Backups:**
+  - point-in-time recovery for **production only** (runbook step 10.3);
+  - staging keeps Supabase's daily backups;
+  - one test restore before launch, because no restore was ever tried last time.
 - **Spending:** spend cap off, usage alerts on. A billing limit must never take the site offline.
-- **Extensions:** only what the code needs, the same on both. Scheduled jobs inside the database run in the app's own database.
+- **Extensions:** only what the code needs, the same on both. Staging starts with Supabase's defaults: `pg_stat_statements`, `pgcrypto`, `supabase_vault` and `uuid-ossp`. Scheduled jobs inside the database run in the app's own database.
 
 ---
 

@@ -508,6 +508,95 @@ Added through Cloudflare's API, using the Cloudflare key through `doppler run` (
 - **Blueprint:** sections 4 and 8.
 - **Status:** `docs/status/product.md`.
 
+### Supabase staging project `hrizzup-staging` (runbook Part 5)
+
+**Created by the founder** in Supabase's dashboard (steps 5.1 and 5.3). **Checked and connected by Claude Code** (steps 5.4 and 5.5), using `SUPABASE_ACCESS_TOKEN` (Doppler `dev`) and the database password through `doppler run`.
+
+**The project, as Supabase's API reports it**
+
+| Setting | Founder's description | Found | Match |
+|---|---|---|---|
+| Name and reference | `hrizzup-staging` | `hrizzup-staging`, reference `mlccgqxtqmllwbyjfzzm`, created 07:04 UTC on 3 November 2026, healthy | Yes |
+| Organisation | Pro | Organisation `ricebmnezbfuolqartfi`. The token can't read organisations, by design, so the plan isn't shown; Micro compute is the Pro plan's included size (the free plan uses Nano) | Yes, indirectly |
+| Region | Mumbai | `ap-south-1`; pooler `aws-0-ap-south-1.pooler.supabase.com` | Yes |
+| Compute | Micro | Micro (`ci_micro`: 2 shared cores, 1 GB memory, 60 direct and 200 pooler connections) | Yes |
+| Postgres | Standard | Postgres 17.11 (`17.11.0.011`, engine `17`, GA channel); the OrioleDB engine isn't installed | Yes |
+| Data API | Off | No schemas exposed. Requests get no data, even with the secret key ("Could not query the database for the schema cache") | Yes |
+| Automatic row-level security | On | **Not in effect in the database.** No event trigger does it, and a test table created with SQL inside a transaction (then rolled back, so nothing was left behind) had row-level security off | **No**, see below |
+| GitHub | Not linked | No branches. The GitHub connection itself isn't visible to this token | Yes, as far as visible |
+| Point-in-time recovery | Production only | Off; one daily backup completed at 07:09 UTC | Yes |
+
+**The token:** it sees only `hrizzup-staging`, and its organisation list is empty, which matches "full access to `hrizzup-staging` only, no account or organisation access". The founder says it expires in 90 days, so around **1 February 2027**. The runbook carries a reminder to replace it.
+
+**Mistake, and how it was fixed**
+
+- **What happened:** one check printed Supabase's full answer for the Data API settings. That answer includes the project's legacy signing secret (`jwt_secret`), so the secret appeared in the Claude Code session. It is not in any file or commit.
+- **Fixed within minutes:**
+  - the two legacy API keys (`anon` and `service_role`), which depend on that secret, were switched off;
+  - the secret itself was revoked;
+  - the project signs with its ES256 key pair, which was already in use, so nothing else changed.
+- **Checked:**
+  - a token forged with the exposed secret is refused ("token signature is invalid");
+  - the old legacy key is refused;
+  - the new secret key still works.
+- **From now on:** checks print only fields chosen in advance, never a whole answer.
+
+**Database password:** it was in Doppler `dev`, not `stg` as described. It was copied to `stg` as `SUPABASE_DB_PASSWORD` without being shown, checked to match exactly (by comparison, not by printing), and removed from `dev`.
+
+**Stored in Doppler `stg`** (never shown; names only):
+
+| Name | What it is |
+|---|---|
+| `DATABASE_URL` | Pooler, transaction mode, port 6543, user `postgres.mlccgqxtqmllwbyjfzzm`, database `postgres`. The password is percent-encoded, which it needed, and checked by parsing it back |
+| `DATABASE_URL_SESSION` | The same, in session mode, port 5432, for migrations |
+| `SUPABASE_URL` | `https://mlccgqxtqmllwbyjfzzm.supabase.co` |
+| `SUPABASE_PUBLISHABLE_KEY` | The new-style publishable key (`default`), safe in the app and browser, for Realtime |
+| `SUPABASE_SECRET_KEY` | The new-style secret key (`default`), for the server only |
+| `SUPABASE_DB_PASSWORD` | Moved here from `dev` (above) |
+
+`stg_preview` inherits all of them, so previews use the staging database. Doppler `dev` now holds `CLOUDFLARE_API_TOKEN` and `SUPABASE_ACCESS_TOKEN`.
+
+**Connection tests** (from the founder's Mac, through `doppler run`, with the certificate checked in full against Supabase's certificate authority):
+
+| | `DATABASE_URL` (6543) | `DATABASE_URL_SESSION` (5432) |
+|---|---|---|
+| Connects | Yes (0.42 s including the connection) | Yes (0.15 s) |
+| Postgres version | 17.11 | 17.11 |
+| User and database | `postgres` / `postgres` | `postgres` / `postgres` |
+| Pooler mode, proven | **Transaction:** a second client got the same database worker while the first sat idle | **Session:** the second client got its own worker; the first kept its own |
+| Unencrypted connection | Refused (after the change below) | Refused |
+
+- **Region:** shown by Supabase's API (`ap-south-1`) and the pooler's name. A database connection doesn't report its region by itself.
+- **Certificate authority:** "Supabase Root 2021 CA", valid until 26 April 2031, SHA-256 fingerprint `80:70:25:AD:50:D4:ED:21:9D:2C:9C:7D:29:9C:00:4F:82:4E:B0:0C:F7:F6:5A:FE:F6:07:D0:7B:72:E6:CA:FA`.
+
+**Changed by Claude Code** (security settings on from day one, blueprint rule 7):
+- **Encrypted connections enforced** (`ssl-enforcement`: database on). Before, unencrypted connections were allowed. Encrypted ones still work through both addresses; unencrypted ones are refused.
+- **Legacy API keys off, and the legacy signing secret revoked** (above).
+
+**Seen and left as they are:**
+- Network access open to all addresses (Vercel has no fixed addresses).
+- Extensions: `pg_stat_statements`, `pgcrypto`, `plpgsql`, `supabase_vault` and `uuid-ossp` (Supabase's defaults).
+- `max_connections` 60, `statement_timeout` 2 minutes for `postgres`, `wal_level` logical (needed by Realtime), time zone UTC.
+
+**Automatic row-level security, what happens next:** the database doesn't switch it on by itself, so the **first migration** in the repo will add an event trigger that does, with a check on every pull request that no table lacks it. That migration comes with the codebase and its migration tool (PLAN.md step 1.5), before any table exists. Until then the database has no tables of ours, and the Data API is off, so nothing is exposed.
+
+**Not checked:** the spend cap and usage alerts (step 5.2) are organisation settings, which the token can't read. The founder confirms them.
+
+**Decisions recorded (founder's):**
+- staging stays on Micro and is enlarged before any load test;
+- point-in-time recovery is for production only;
+- the reasons for Data API off and automatic row-level security on;
+- the token's 90-day life, with a reminder;
+- the migrations rule, and never using the Supabase token or any database key against production.
+
+**Documents updated:**
+- **Runbook:**
+  - Part 5 rewritten as it was done: steps 5.1 to 5.5, the reasons, the load-test rule, the token reminder and "Done when";
+  - Part 10's introduction and step 10.3: production sized for launch, point-in-time recovery there only, and the password straight into Doppler `prd`.
+- **Blueprint:** section 5 rewritten: settings, compute, the reasons, row-level security, the connection settings table, migrations, keys, network and backups.
+- **CLAUDE.md:** a new "Database changes" section.
+- **Status:** `docs/status/product.md`.
+
 ---
 
 ## Rules for this log

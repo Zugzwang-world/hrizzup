@@ -149,12 +149,21 @@ The repo lives in your personal GitHub account, `Zugzwang-world`, on GitHub Pro,
 
 | Step | Who | What to do |
 |---|---|---|
-| 5.1 | You | In the Supabase Pro organisation, create the project **`hrizzup-staging`**: region **Mumbai**, compute size **Small or larger** (not Micro or Nano), and a generated database password saved in Proton Pass. |
-| 5.2 | You | Turn on point-in-time recovery. Turn the spend cap off and usage alerts on. |
-| 5.3 | You | Claude Code gives you the exact secret names. Copy the two connection addresses Supabase shows for its **connection pooler** (transaction mode, port 6543, and session mode, port 5432) into Doppler `stg` under those names. |
-| 5.4 | Claude Code | Connect once through each address. Confirm the region is Mumbai, the Postgres version, and the pooler mode. Write the connection settings into code: a small pool, prepared statements off, and explicit idle and lifetime timeouts. Record everything. |
+| 5.1 | You | In the Supabase Pro organisation, create the project **`hrizzup-staging`**: region **Mumbai**, compute size **Micro** to start, standard Postgres, Data API **off**, automatic row-level security **on**, not linked to GitHub. Save the generated database password straight into Doppler `stg` as `SUPABASE_DB_PASSWORD`. **Done, 3 November 2026.** |
+| 5.2 | You | Turn the spend cap off and usage alerts on. Point-in-time recovery is for production only (step 10.3); staging keeps Supabase's daily backups. |
+| 5.3 | You | Create a Supabase access token for Claude Code with full access to `hrizzup-staging` only, no account or organisation access, expiring in 90 days. Save it straight into Doppler `dev` as `SUPABASE_ACCESS_TOKEN`. **Done, 3 November 2026; it expires around 1 February 2027** (see the reminder below). |
+| 5.4 | Claude Code | Using the token and password through `doppler run` (never printed): confirm the project's settings through Supabase's API. Put the connection details into Doppler `stg` without showing them: `DATABASE_URL` (the pooler in transaction mode, port 6543, for the app), `DATABASE_URL_SESSION` (the pooler in session mode, port 5432, for migrations), both with the password percent-encoded, plus `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` and `SUPABASE_SECRET_KEY` for Realtime. **Done, 3 November 2026** (setup log). |
+| 5.5 | Claude Code | Connect once through each address. Confirm the region, the Postgres version and the pooler mode, and write the connection settings into blueprint section 5: a small pool, prepared statements off, and explicit idle and lifetime timeouts. **Done, 3 November 2026.** |
 
-**Done when:** the project is in Mumbai, point-in-time recovery is on, Claude Code connects through both addresses, and the settings are recorded.
+**Why the Data API is off:** the app reaches the database only through our own typed API on the server. Supabase's automatic public data API isn't needed, so it's switched off: one fewer way into the data, and a missing access rule can't leak anything through it. Realtime keeps working; it doesn't use the Data API.
+
+**Why automatic row-level security:** row-level security means a table shows each user only the rows its rules allow, and nothing at all until rules are written. Switching it on automatically for every new table means no table can ever be created open by mistake. **Found on 3 November 2026:** the option chosen when the project was created doesn't reach tables made in code, and a test table came out unprotected. So the first migration in the repo adds the safeguard (blueprint section 5), and production gets it the same way.
+
+**Before any load test:** enlarge staging's compute to production's size first, so the results mean something, and shrink it again afterwards.
+
+**Reminder: the Supabase token expires around 1 February 2027.** Before then, create a new one with the same scope, save it in Doppler `dev` under the same name, and delete the old one in Supabase. Claude Code checks the new one.
+
+**Done when:** the project is in Mumbai with the settings in step 5.1, the connection details are in Doppler `stg`, Claude Code connects through both addresses, and the settings are recorded.
 
 ---
 
@@ -237,13 +246,13 @@ The repo lives in your personal GitHub account, `Zugzwang-world`, on GitHub Pro,
 
 **Why:** going live becomes a promotion, not a migration.
 
-Everything matches staging (the same services, versions, region and settings) except the names, the data and the keys. Production starts empty.
+Everything matches staging (the same services, versions, region and settings) except the names, the data and the keys, plus two deliberate differences: production's database is sized for launch, and only production has point-in-time recovery. Production starts empty.
 
 | Step | Who | What to do |
 |---|---|---|
 | 10.1 | You | Upgrade the Doppler workplace to the **Team** plan ($21 per user a month). Do it before any helper joins Doppler, even if that's before Part 10. **Why:** the Team plan's roles let you keep production keys to yourself once helpers use Doppler; on the free plan, Doppler can't limit what a member opens. Give each helper the **Collaborator** role on Development and Staging, and no access to Production. Before the first helper joins, Claude Code moves its own setup keys (such as the Cloudflare key) out of `dev` into their own environment, which helpers can't open. |
 | 10.2 | You | In Cloudflare, upgrade `hrizzup.com` to the **Pro** plan, and turn on Cloudflare Images' paid plan, so new image sizes never fail once the free 5,000 a month are used up. |
-| 10.3 | You | In the Supabase Pro organisation, create **`hrizzup-production`**: region **Mumbai**, the same compute size as staging, and a generated database password saved in Proton Pass. Turn on point-in-time recovery; turn the spend cap off and usage alerts on. |
+| 10.3 | You | In the Supabase Pro organisation, create **`hrizzup-production`** with the same settings as staging (step 5.1: Mumbai, standard Postgres, Data API off, not linked to GitHub), a compute size chosen for launch, and a generated database password saved straight into Doppler `prd` as `SUPABASE_DB_PASSWORD`. Turn on point-in-time recovery (production only); turn the spend cap off and usage alerts on. |
 | 10.4 | You | Copy its two connection-pooler addresses (transaction mode, port 6543, and session mode, port 5432) into Doppler `prd`, under the names Claude Code gives you. |
 | 10.5 | Claude Code | Connect through each address. Confirm the region, Postgres version, compute size, pooler mode and extensions match staging, and run the same migrations. Record the comparison. |
 | 10.6 | Claude Code | Create the production buckets with the same location as staging: **`hrizzup-production-uploads`** (private) and **`hrizzup-production-media`** (public). Connect the public one to **`media.hrizzup.com`**, and apply the same CORS and lifecycle rules from the repo. Image transformations (step 6.5) already cover it, because they are switched on for the whole zone. |

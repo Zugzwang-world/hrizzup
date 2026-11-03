@@ -21,6 +21,12 @@ Last updated: 3 November 2026. Plan: [PLAN.md](../../PLAN.md). Code: [product/](
 - **Proton verification record, 3 November 2026 (runbook 3.2, first record):** the TXT record `protonmail-verification=…` is on `hrizzup.com`, DNS only, and every public resolver checked returns it, signed. Next: the founder verifies in Proton, then Proton's other records go in.
 - **Resend sending domain, 3 November 2026 (runbook 3.5 and 3.6):** `mail.hrizzup.com` is verified in Resend's Tokyo region (the closest to India), with open and click tracking off and its four records in Cloudflare (DNS only). A sending-only staging key, limited to that domain, is in Doppler `stg` as `RESEND_API_KEY`. The production key comes in Part 10. The setup key was deleted from Resend and Doppler.
 - **Proton's mail records and DMARC, 3 November 2026 (runbook 3.2 done):** two MX, SPF, three DKIM and DMARC `v=DMARC1; p=quarantine` are on `hrizzup.com`, DNS only, and every public resolver checked returns them, signed. The founder then created `hrishikesh@hrizzup.com` (step 3.3) and turned on Cloudflare's DMARC Management, which receives the DMARC reports; its reports address is in the `_dmarc` record.
+- **Supabase staging, 3 November 2026 (runbook Part 5):** `hrizzup-staging` is checked:
+  - Mumbai, Micro, Postgres 17.11, Data API off, not linked to GitHub;
+  - both pooler addresses connect with full certificate checks, and their modes are proven (transaction on 6543, session on 5432);
+  - the connection details and the new-style API keys are in Doppler `stg`;
+  - encrypted connections are now enforced, and the legacy keys and signing secret are switched off;
+  - the connection settings, the migrations rule and the reasons behind each setting are in the blueprint and CLAUDE.md.
 
 ## Next
 
@@ -36,12 +42,15 @@ Last updated: 3 November 2026. Plan: [PLAN.md](../../PLAN.md). Code: [product/](
 
 - **For the founder: trim the Cloudflare API token** to the five permission rows in runbook step 2.5 (the step-by-step reminder is in runbook Part 2). Checked again on 3 November 2026: it can still also list Workers scripts, Workers routes, Page Rules and Email Routing settings. Claude Code re-checks afterwards.
 
-- Which package manager and monorepo tools, and how is the shared code split up? (step 1.5; the frameworks are decided: Expo and Next.js)
+- Which package manager and monorepo tools, which database migration tool, and how is the shared code split up? (step 1.5; the frameworks are decided: Expo and Next.js)
 - Apple and email sign-in details (step 1.6). These must be settled before the iPhone build.
 - Feed design in depth (step 2.3).
 - What are the exact market questions? (step 3.2, with Sourcing)
 - Paid tier: what's free and what's paid? Decided before the paywall is built (step 2.7).
 - Comment threads: in or out?
+- **Automatic row-level security isn't in effect** in `hrizzup-staging`: a table created with SQL came out unprotected. The first migration adds the safeguard, with a check on every pull request (with step 1.5, before any table exists).
+- **For the founder: Supabase spend cap off and usage alerts on** (runbook 5.2). These are organisation settings, which Claude Code's token can't see.
+- **Supabase token expires around 1 February 2027.** Replace it before then (runbook Part 5 reminder).
 - **Test email in Spam (runbook 3.7):** the staging test email from `no-reply@mail.hrizzup.com` reached `hrishikesh@hrizzup.com`, but in Spam. Waiting for its headers from the founder, to see whether SPF, DKIM and DMARC passed and why.
 - **For the founder: Zugzwang World leftovers in Resend.** The same Resend account still has the domain `mail.zugzwangworld.com` and an API key named "Onboarding" (last used 26 October 2026). Keep them or delete them?
 - **Helpers' invitations:** sent 2 November 2026 and still waiting to be accepted (checked again the same evening). GitHub cancels them after 7 days; Claude Code can resend them.

@@ -49,6 +49,13 @@ Label every change with its size at the start of the commit message and the pull
 - **Production runs on the same platforms as staging:** Vercel plus Supabase, set up exactly like staging (same services, versions, region and settings), with its own data and keys. It is created as soon as staging works, with nothing public until launch (runbook Part 10, "Production twin").
 - **Releasing** means promoting the exact production build of a commit that passed staging, with one command: `vercel promote <deployment URL>`. No rebuild; `vercel rollback` goes back. The runbook's "Releasing to production" has the details.
 
+## Database changes
+
+- **Every change to the database's structure goes through migration files in the repo** and is applied the same way everywhere, so production receives exactly the same changes in the same order. Changing test data directly in staging is fine.
+- **Never use the Supabase token or any database key against production.** The token in `dev` and the keys in `stg` belong to staging; production has its own, in `prd`.
+- Every table has row-level security on; the first migration adds the safeguard that switches it on automatically.
+- The app connects through `DATABASE_URL` (pooler, transaction mode, port 6543) and migrations through `DATABASE_URL_SESSION` (session mode, port 5432). Pool and timeout settings: blueprint section 5.
+
 ## Building
 
 - Build on standard, portable pieces. AWS is not the production plan: it comes later only if a concrete need appears, as its own project.
