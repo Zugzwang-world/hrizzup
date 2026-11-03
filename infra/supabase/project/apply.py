@@ -124,8 +124,9 @@ def check(api, want_name, checked, applied):
     net = api.call("GET", "/network-restrictions").get("config") or {}
     is_open = net.get("dbAllowedCidrs") == ["0.0.0.0/0"] and net.get("dbAllowedCidrsV6") == ["::/0"]
     expect("network", "open" if is_open else "restricted", checked["network"])
-    branches = api.call("GET", "/branches")
-    expect("branches", len(branches) if isinstance(branches, list) else None, checked["branches"])
+    # A project that never had branching may answer with an error instead of an empty list.
+    branches = api.call("GET", "/branches", ok=(200, 400, 404, 422))
+    expect("branches", len(branches) if isinstance(branches, list) else 0, checked["branches"])
 
     ssl = (api.call("GET", "/ssl-enforcement").get("currentConfig") or {}).get("database")
     expect("encrypted connections only", ssl, applied["ssl_enforcement"])

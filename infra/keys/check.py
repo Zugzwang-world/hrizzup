@@ -16,8 +16,10 @@ shows up here rather than at launch:
   - Turnstile: Cloudflare's check is sent a made-up answer. The real secret gets
     "invalid-input-response"; a wrong one gets "invalid-input-secret". Cloudflare's published
     test keys are refused (they belong to previews only).
-  - Supabase: the secret key can use the server-only admin address, and the public sign-in
-    settings show exactly Google and email codes on.
+  - Supabase: the secret key can use the server-only admin address, and the publishable key
+    reads the public sign-in settings, which show no way to sign in but Google and email
+    codes (Google may still be off on a new project: infra/supabase/auth/apply.py turns it
+    on, and checks every switch exactly).
   - R2: the app's key lists both of this environment's buckets, and is refused for the other
     environment's buckets.
 
@@ -148,7 +150,8 @@ def supabase(url):
         status, _, body = http("GET", f"{url}/auth/v1/settings", headers={"apikey": publishable})
         external = (body or {}).get("external") or {}
         on = sorted(k for k, v in external.items() if v is True)
-        result(status == 200 and on == ["email", "google"], "public sign-in settings: Google and email codes only",
+        result(status == 200 and set(on) <= {"email", "google"},
+               "publishable key works; no sign-in methods but Google and email codes",
                ", ".join(on) if status == 200 else f"HTTP {status}")
 
 
