@@ -4,7 +4,7 @@ Hrizzup is a news app built around creators, plus a website with play-money pred
 
 **[PLAN.md](PLAN.md) is the single source of truth.** If anything disagrees with it, PLAN.md wins. The setup blueprint, the runbook and the Zugzwang World retirement list live in [docs/setup/](docs/setup/).
 
-**Layout:** `sourcing/` (Grok bots, news pipeline, market data), `news-desk/` (our content, creators), `product/` (app, website, markets), `infra/` (service settings applied from the repo, such as the storage rules). Projects never copy code between each other; this repository is the only route.
+**Layout:** `sourcing/` (Grok bots, news pipeline, market data), `news-desk/` (our content, creators), `product/` (app, website, markets), `infra/` (service settings applied from the repo, such as the storage rules and the sign-in settings). Projects never copy code between each other; this repository is the only route.
 
 **Repository:** [github.com/Zugzwang-world/hrizzup](https://github.com/Zugzwang-world/hrizzup), private, in the founder's personal GitHub account on GitHub Pro.
 
@@ -53,6 +53,7 @@ Label every change with its size at the start of the commit message and the pull
 - Secrets live only in Doppler, in two projects, so each place holds one kind of key:
   - **`hrizzup`, the app's keys only:** `dev` (running the app on this Mac: every staging value as a reference, `${stg.NAME}`, never a copy), `stg` (staging), `stg_preview` (previews: a branch of `stg` that copies every staging value automatically and holds only overrides) and `prd` (production). In this repo a plain `doppler run -- <command>` uses `dev` (`doppler.yaml`). Whenever a key is added to or removed from `stg`, run `python3 infra/doppler/dev_follows_staging.py apply` in the same step; a value that must differ locally is listed in `infra/doppler/dev-overrides.txt`.
   - **`hrizzup-tools`, Claude Code's own setup keys** (the Cloudflare key, the Supabase access token, and any future ones), in its one config, `claude`. Use them only as `doppler run --project hrizzup-tools --config claude -- <command>`, and never put one in `hrizzup`.
+- **Supabase Auth keeps its own copies** of `GOOGLE_OAUTH_CLIENT_SECRET`, `RESEND_API_KEY` and `TURNSTILE_SECRET_KEY`. Its settings live in `infra/supabase/auth/`; whenever one of those keys changes in `stg`, or a setting there changes, run `infra/supabase/auth/apply.py staging` the same day (its README has the command).
 - Never print, log or commit a secret value; refer to secrets by name only. Never ask the founder to paste a secret into chat. Production keys never go in this repository.
 - Doppler is on its free Developer plan during staging, which has no roles, so only the founder and Claude Code use it. Before any helper joins Doppler, it moves to the Team plan (runbook step 10.1), and helpers get no access to Production or to `hrizzup-tools`.
 - Mumbai is the region everywhere (Vercel `bom1`; Supabase `ap-south-1`), and `/api/health` shows the region.

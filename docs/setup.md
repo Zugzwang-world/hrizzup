@@ -840,6 +840,103 @@ It prints chosen facts only, never the token. Run on staging at 09:44 UTC: **all
 - **Changed:** `infra/doppler/dev-overrides.txt` and the README in that folder.
 - **Status:** `docs/status/product.md`.
 
+### Sign-in: Google on Supabase Auth, and Supabase's emails through Resend (runbook Part 8)
+
+**Decided by the founder:** sign-in for the website and the app runs on Supabase Auth. Google first; Apple and email codes before the iPhone build; the app's native Google and Apple sign-in, including the Android client and its fingerprint, come with the app builds. Written into PLAN.md (section 2, step 1.6, section 7) and blueprint section 9.
+
+**The founder's steps (8.1 to 8.4),** as reported:
+
+| Setting | Value |
+|---|---|
+| Google Cloud project | `hrizzup`, ID `hrizzup-513610`, owned by the **Hrizzup Google account** (`hrishikesh@hrizzup.com`), not the Zugzwang World one |
+| Billing | Not reported. Google sign-in works without it |
+| Consent screen | External, Testing, test users added; authorised domains `hrizzup.com` and `mlccgqxtqmllwbyjfzzm.supabase.co`; the three basic scopes (`openid`, `email`, `profile`). No home page or privacy-policy link yet (they wait for the holding page; step 10.16) |
+| Web client | "Hrizzup staging", Web application, with the origins and redirect address Claude Code gave |
+| Keys | Doppler `stg`: `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`. `stg_preview` inherits them (previews have no sign-in, and their addresses aren't allowed) |
+
+**The Google client, checked from the outside** (no Google login, nothing printed):
+- **ID and secret:** Google's token service was sent a deliberately fake code. With the real ID and secret it answered `invalid_grant` (client accepted, only the code is wrong); a control with a wrong secret got `invalid_client`.
+- **Redirect address:** with our client and staging's callback (`https://mlccgqxtqmllwbyjfzzm.supabase.co/auth/v1/callback`), Google opens its normal sign-in page (`/v3/signin/identifier`). Controls: a wrong callback and an unknown client both land on Google's error page (`/signin/oauth/error`).
+- **Not visible from outside:** the client's JavaScript origins and the consent screen itself; recorded on the founder's word.
+
+**Supabase Auth on `hrizzup-staging` (8.5 and 8.6, Claude Code):** applied through Supabase's Management API with the Supabase token from `hrizzup-tools` and the app's keys from `hrizzup/stg`, both through `doppler run`, never printed. The settings now live in the repo, in the new folder `infra/supabase/auth/` (`settings.json`, the email template, and `apply.py`, which applies them and reads them back).
+
+| Setting | Before | After |
+|---|---|---|
+| Site address | `http://localhost:3000` | `https://staging.hrizzup.com` |
+| Redirects allowed | None | `https://staging.hrizzup.com/**` and `http://localhost:3000/**` only |
+| Google | Off | **On**, with the client from Doppler `stg`; nonce check on; an email address required |
+| Email sign-in | On (Supabase's default) | On, for email codes |
+| Email sender | Supabase's built-in sender (only reaches the project's team; 2 emails an hour) | **Resend's SMTP:** `smtp.resend.com`, port 465 (encrypted from the start), user `resend`, password `RESEND_API_KEY` from `stg`, from `Hrizzup <no-reply@mail.hrizzup.com>` |
+| Emails an hour, whole project | 2 | 30 (Supabase's starting limit for custom email) |
+| Emails to the same address | At most one a minute | Unchanged, now written in the repo |
+| Code-request and verification limits | 30 each (Supabase's defaults) | Unchanged, now written in the repo |
+| Code | 8 digits, valid 1 hour | 8 digits, valid **10 minutes** |
+| Sign-up, sign-in and password-reset emails | A link to click; subjects "Confirm your email address", "Your sign-in link" and "Reset your password" | **The code only,** with no links, images or tracking; subject "Your Hrizzup sign-in code" for all three, so every way of asking for a code gets the same email |
+| Email-change email (sent to the old and the new address) | A link to click | The code only; subject "Confirm your Hrizzup email change" |
+| Password rules | At least 6 characters; leaked-password check off | At least **12** characters, and passwords known from data leaks refused (see "Passwords" below) |
+| Turnstile in Supabase Auth | Off (hCaptcha selected, no key) | **On:** Turnstile, with the staging widget's secret (`TURNSTILE_SECRET_KEY` from `stg`) |
+| Sign-in methods on | Email only | Email and Google only (`apply.py` fails if anything else is ever on) |
+
+- **Read back:** `apply.py staging --check` reports that Supabase matches the repo: 32 settings, plus the 4 secrets.
+- **Found:** Supabase doesn't return secrets as stored. It returns an HMAC-SHA256 fingerprint keyed with the project ID (found by trying common methods in memory; the Google client ID comes back as stored). `apply.py` compares secrets that way, so it can confirm them without printing anything.
+- **The script's safeguards, each tested:**
+  - a deliberately wrong Google secret is caught;
+  - the previews' config (Cloudflare's Turnstile test keys) is refused;
+  - another project's address in `SUPABASE_URL` is refused, so one environment's keys can't land in the other;
+  - production is refused until its project exists;
+  - any other way to sign in left on in Supabase (another provider, SAML, passkeys, custom OAuth, Supabase as an OAuth server) fails the check;
+  - an email whose stated expiry doesn't match the code's life is refused.
+- **Claude Code's Supabase token can't reach production:** it lists only `hrizzup-staging` and no organisations, and another project's sign-in settings answer 404.
+
+**Checked from the outside:**
+- **Public sign-in settings:** email and Google on, nothing else; sign-ups allowed.
+- **"Sign in with Google":** Supabase sends the browser to Google with our client, staging's callback, the scopes `email profile`, and the code flow.
+- **Allowed redirects** (through Supabase's verify address, which uses the same check, with a fake code): addresses on staging and `localhost:3000` are honoured. `https://evil.example`, the look-alike `https://staging.hrizzup.com.evil.example`, `http://localhost:4000` and `https://hrizzup.com` all fall back to `https://staging.hrizzup.com`.
+- **Bot check:** a code request with the public (publishable) key and no Turnstile answer is refused: 400, `captcha_failed`, "no captcha_token found".
+- **An email through Resend:** a code request made with the server key, which Supabase lets past the bot check, for Resend's test address `delivered@resend.dev` (it accepts mail without affecting our sending reputation): 200 in 2.8 seconds, and Supabase recorded the email as sent. Supabase's built-in sender only delivers to the project's team, so this send could only have gone through Resend. The test user was then deleted; staging has no users.
+- **Not checked:** the email in a real inbox, and Supabase's own logs of the send. The old logs endpoint now answers "410 Gone", and the new one's query format isn't documented. The email shows in Resend's dashboard (Emails), and Claude Code can send a test code to the founder's address on request.
+- **Signing in end to end** waits for the website on Vercel: added to runbook step 9.6.
+
+**AI review (the change is labelled risky, because it touches login):** a review of the change found ten points. Fixed:
+- the password-reset and email-change emails still carried links (above);
+- production's hourly email limit is now set per environment, so it can be raised before launch;
+- the script's error messages, its check for other sign-in methods, the expiry check, and the order of its checks were tightened.
+
+Not a problem: the worry that Claude Code could run the script on production. Its token can't reach any project but staging (above), and production's settings are applied only by the release pipeline.
+
+**Passwords:** Supabase has no switch that turns passwords off while email codes are on, so someone who controls an email address could also give it a password. It can't be used to take over anyone else's account, because an account needs its emailed code confirmed first. So the password rules are strict for now, and password sign-in is blocked fully with Supabase's password hook (a small database function) once migrations exist (PLAN.md step 1.5; status file).
+
+**Doppler (8.7):** `dev_follows_staging.py apply` added `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET` to `dev` as references. `check`: OK, 19 references to `stg`, 1 local override, nothing stale, nothing pointing at production.
+
+**Choices Claude Code made:**
+- **Settings in the repo,** like the storage rules, so production gets exactly the same ones through the release pipeline. Only the addresses and keys differ.
+- **Codes, not links,** in the emails: the founder chose email codes; a code works the same in the browser and in the app, and an email with no links is harder to fake and is never rewritten.
+- **10 minutes,** the usual life of a sign-in code, instead of Supabase's hour. The 8 digits are Supabase's default and harder to guess than 6.
+- **Turnstile on now:** the blueprint already says every route that can send email is protected by Turnstile, and Supabase's own advice for custom email says the same. Google sign-in isn't affected. The website's email-code screen will show the widget.
+- **Supabase keeps copies** of the Google secret, the Resend key and the Turnstile secret. Whenever one changes in Doppler, `apply.py` is run the same day (CLAUDE.md and blueprint section 7).
+
+**Checked for Part 10:**
+- **Supabase's Custom Domain add-on:** $10 a month per project ($0.0137 an hour, billed by the hour), on a paid plan ([Supabase: Manage Custom Domain usage](https://supabase.com/docs/guides/platform/manage-your-usage/custom-domains)).
+- **Google's branding:** Google verifies the branding only once every authorised domain is verified in Search Console ([Google: brand verification](https://developers.google.com/identity/protocols/oauth2/production-readiness/brand-verification)). A `supabase.co` address can't be verified by us, which is why the custom domain matters.
+- Both points are in the new steps 10.15 and 10.16.
+
+**Documents updated:**
+- **PLAN.md:** section 2 ("Sign-in"), step 1.6, section 7, and "Last agreed".
+- **Blueprint:**
+  - section 2: the Google Cloud and Supabase rows;
+  - section 3: the sign-in row;
+  - section 7: Supabase's copies of keys;
+  - section 8: emails through Resend's SMTP;
+  - section 9: rewritten for Supabase Auth.
+- **Runbook:**
+  - Part 8 rewritten as it was done (steps 8.1 to 8.7);
+  - step 9.6: sign-in end to end;
+  - Part 10: steps 10.9, 10.12 and 10.14, plus the new 10.15 (the custom-domain decision) and 10.16 (branding links before publishing).
+- **CLAUDE.md:** the layout line, and re-applying the sign-in settings when a copied key changes.
+- **New files:** `infra/supabase/auth/` (`settings.json`, `templates/sign-in-code.html`, `templates/email-change-code.html`, `apply.py`, `README.md`).
+- **Status:** `docs/status/product.md`.
+
 ---
 
 ## Rules for this log
