@@ -101,3 +101,7 @@ Thumbs.db
 !.vscode/extensions.json
 *.swp
 *~
+
+# Python bytecode caches
+__pycache__/
+*.pyc
