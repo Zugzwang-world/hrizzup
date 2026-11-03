@@ -68,6 +68,7 @@ Last updated: 3 November 2026. Plan: [PLAN.md](../../PLAN.md). Code: [product/](
   - **checks on every pull request**, all required on `main`: Secret check, Quick checks, Database check and Screen check (13 widths, sideways, 200% text, Chromium and WebKit, signed out and signed in with two staging-only test accounts, screenshots for the founder);
   - **checked end to end (runbook 9.6):** the founder signed in with Google on staging and on a preview; Supabase has his Google identity, and signing out ended each session on the server. Both health pages report `bom1` with every service answering (Redis about 2 to 3 ms a command from Mumbai); the screen check passes 58 of 58 on a preview and on staging;
   - **found and fixed:** `VERCEL_TOKEN` was in the app's staging config, which Vercel syncs into builds; it moved to `hrizzup-tools` before the first sync. An open redirect in the sign-in's return path, and three points from the AI review, were fixed before merging.
+- **Claude Code's own Doppler access, 3 November 2026 (runbook 10.1, founder's decision):** four Doppler service tokens, one per config (`dev`, `stg` and `hrizzup-tools/claude` read and write; `stg_preview` read only), kept in this Mac's keychain and used only through `infra/doppler/run`. `infra/doppler/check_access.py` proves that none can open `prd` and that the read-only one can't write. Claude Code no longer uses the founder's Doppler login; every script and README now uses the tokens.
 
 ## Next
 
@@ -82,6 +83,7 @@ Last updated: 3 November 2026. Plan: [PLAN.md](../../PLAN.md). Code: [product/](
 
 ## Open questions
 
+- **For the founder: sign your Doppler login out of this Mac.** In Terminal (or in Claude Code, starting the line with `!`), run `doppler logout --yes`. Claude Code then runs `python3 infra/doppler/check_access.py`, which should report "Personal Doppler login: none saved on this Mac". From then on, use Doppler's website for production.
 - **Vercel token expires around 1 February 2027.** Replace it before then, in Doppler `hrizzup-tools` (config `claude`); a GitHub issue opens on 15 January 2027 as a reminder.
 - **Google sign-in refused for accounts that aren't test users** (runbook 9.6): needs a second Google account that isn't on the consent screen's test list, which Claude Code doesn't have. The founder can try it once on `staging.hrizzup.com/sign-in-test`.
 - **AI crawlers** (firewall): the AI bots ruleset only logs for now. Decide before launch whether to block them.

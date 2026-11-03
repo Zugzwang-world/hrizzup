@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# Runs one command with secrets from Doppler, through Claude Code's own service tokens.
+#
+#   infra/doppler/run dev -- <command>           # hrizzup/dev: this Mac (refers to staging)
+#   infra/doppler/run stg -- <command>           # hrizzup/stg: staging
+#   infra/doppler/run stg_preview -- <command>   # hrizzup/stg_preview: previews (read-only)
+#   infra/doppler/run tools -- <command>         # hrizzup-tools/claude: Claude Code's setup keys
+#   infra/doppler/run tools stg -- <command>     # several: tools' keys, then staging's on top
+#
+# Each token is limited by Doppler to one config, and none of them can open hrizzup/prd
+# (`python3 infra/doppler/check_access.py` proves it). They live in this Mac's login
+# keychain (service "hrizzup-doppler", one item per config). A token reaches only the
+# Doppler process that fetches the secrets: never the command itself, a command line, a
+# file or the screen. Doppler runs with its own empty settings folder, so a personal
+# Doppler login on this Mac is never used, even while one exists. Secrets are not cached
+# on disk (--no-fallback).
+set -euo pipefail
+
+SERVICE="hrizzup-doppler"
+CLI_DIR="${HOME}/.config/hrizzup/doppler-cli" # Doppler's settings for these runs: never a login
+
+usage() {
+  sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//' >&2
+  exit 2
+}
+
+account_for() {
+  case "$1" in
+    dev | stg | stg_preview) echo "hrizzup/$1" ;;
+    tools) echo "hrizzup-tools/claude" ;;
+    *)
+      echo "infra/doppler/run: unknown config '$1' (dev, stg, stg_preview or tools)" >&2
+      exit 2
+      ;;
+  esac
+}
+
+configs=()
+while [ $# -gt 0 ] && [ "$1" != "--" ]; do
+  configs+=("$1")
+  shift
+done
+[ "${1:-}" = "--" ] || usage
+shift
+[ ${#configs[@]} -ge 1 ] && [ $# -ge 1 ] || usage
+
+account="$(account_for "${configs[0]}")"
+if ! token="$(security find-generic-password -s "$SERVICE" -a "$account" -w 2>/dev/null)"; then
+  echo "infra/doppler/run: no Doppler token for $account in this Mac's keychain (infra/doppler/README.md)" >&2
+  exit 1
+fi
+mkdir -p "$CLI_DIR"
+chmod 700 "$CLI_DIR"
+
+# The next step: the same script for the remaining configs, or the command itself.
+if [ ${#configs[@]} -gt 1 ]; then
+  next=("$0" "${configs[@]:1}" -- "$@")
+else
+  next=("$@")
+fi
+
+# The token is given to doppler alone, as an environment variable, and removed again
+# (env -u) before the command starts. Doppler's own labels from an outer run are removed
+# first, so each run reads exactly the config its token is for.
+DOPPLER_TOKEN="$token" exec env -u DOPPLER_PROJECT -u DOPPLER_CONFIG -u DOPPLER_ENVIRONMENT \
+  doppler run --config-dir "$CLI_DIR" --no-check-version --no-fallback --silent -- \
+  env -u DOPPLER_TOKEN "${next[@]}"

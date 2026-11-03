@@ -4,7 +4,7 @@
 #
 # Usage: apply.sh staging|production
 # Needs CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID in the environment (for staging,
-# `doppler run --project hrizzup-tools --config claude`). Staging is applied by Claude Code; production only by the
+# `infra/doppler/run tools`). Staging is applied by Claude Code; production only by the
 # release pipeline, with its own credentials (runbook Part 10). Never prints the token.
 set -euo pipefail
 env="${1:?usage: apply.sh staging|production}"

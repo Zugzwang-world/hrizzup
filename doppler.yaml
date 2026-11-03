@@ -1,8 +1,8 @@
-# Doppler's default for this repository: `doppler setup` reads this, so a plain
-# `doppler run -- <command>` here runs it with the app's local config (hrizzup/dev),
-# which references staging's values. Claude Code's own setup keys live in the separate
-# project hrizzup-tools and are only ever used with an explicit
-# `doppler run --project hrizzup-tools --config claude -- <command>`.
+# Doppler's default for this repository, for a person logged in with their own Doppler
+# account: `doppler setup` reads this, so a plain `doppler run -- <command>` here then runs
+# with the app's local config (hrizzup/dev), which references staging's values.
+# Claude Code never uses a personal login: it runs `infra/doppler/run <config> -- <command>`
+# with its own service tokens (infra/doppler/README.md).
 setup:
   - project: hrizzup
     config: dev

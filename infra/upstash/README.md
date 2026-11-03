@@ -8,7 +8,7 @@ Upstash's settings (plan, region, eviction, auto-upgrade) are made in its consol
 
 **How to run it:**
 
-- **Staging, on this Mac:** `doppler run -- python3 infra/upstash/check.py staging`. A plain `doppler run` here uses `hrizzup/dev`, which refers to staging's keys. Allowed key prefixes: `stg`, `pre` (previews) and `dev` (this Mac), because all three share staging's database.
+- **Staging, on this Mac:** `infra/doppler/run dev -- python3 infra/upstash/check.py staging`. `hrizzup/dev` refers to staging's keys. Allowed key prefixes: `stg`, `pre` (previews) and `dev` (this Mac), because all three share staging's database.
 - **Production:** only the release pipeline runs `python3 infra/upstash/check.py production`, with its own credentials, as part of its production check (runbook step 10.14). Allowed prefix: `prd`. Claude Code never runs it against production.
 
 **What it can't see:** auto-upgrade is a console setting with no Redis equivalent. Staging keeps it off (a limit blocks, never bills) and production keeps it on (a limit never takes the site offline). It's checked by eye in Upstash's console and recorded in `docs/setup.md`.
