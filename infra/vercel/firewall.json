@@ -1,0 +1,74 @@
+{
+  "_about": "The Vercel firewall for the project hrizzup (all environments), applied and read back by apply.py. Rules run top to bottom. Rate limits count per visitor IP address over 60 seconds and answer 429 when exceeded. Blueprint section 9: every route that signs in or sends email is rate-limited. Our routes that sign in live under /auth/, and any route of ours that sends email must live under /auth/email/ or /api/email/ so these rules cover it. (Email codes requested straight from Supabase Auth are limited by Supabase itself and by Turnstile: infra/supabase/auth/settings.json.)",
+  "firewallEnabled": true,
+  "managedRules": {
+    "bot_protection": { "active": true, "action": "challenge" },
+    "ai_bots": { "active": true, "action": "log" }
+  },
+  "rules": [
+    {
+      "name": "Rate limit: routes that send email",
+      "description": "At most 5 requests a minute per IP to any route that sends email.",
+      "active": true,
+      "conditionGroup": [
+        { "conditions": [{ "type": "path", "op": "pre", "value": "/auth/email/" }] },
+        { "conditions": [{ "type": "path", "op": "pre", "value": "/api/email/" }] }
+      ],
+      "action": {
+        "mitigate": {
+          "action": "rate_limit",
+          "rateLimit": {
+            "algo": "fixed_window",
+            "window": 60,
+            "limit": 5,
+            "keys": ["ip"],
+            "action": "rate_limit"
+          }
+        }
+      }
+    },
+    {
+      "name": "Rate limit: sign-in",
+      "description": "At most 20 requests a minute per IP to the sign-in routes (/auth/).",
+      "active": true,
+      "conditionGroup": [{ "conditions": [{ "type": "path", "op": "pre", "value": "/auth/" }] }],
+      "action": {
+        "mitigate": {
+          "action": "rate_limit",
+          "rateLimit": {
+            "algo": "fixed_window",
+            "window": 60,
+            "limit": 20,
+            "keys": ["ip"],
+            "action": "rate_limit"
+          }
+        }
+      }
+    },
+    {
+      "name": "Rate limit: health page",
+      "description": "At most 60 requests a minute per IP to /api/health.",
+      "active": true,
+      "conditionGroup": [{ "conditions": [{ "type": "path", "op": "eq", "value": "/api/health" }] }],
+      "action": {
+        "mitigate": {
+          "action": "rate_limit",
+          "rateLimit": {
+            "algo": "fixed_window",
+            "window": 60,
+            "limit": 60,
+            "keys": ["ip"],
+            "action": "rate_limit"
+          }
+        }
+      }
+    },
+    {
+      "name": "Health page: no bot challenge",
+      "description": "Uptime monitors and the release pipeline read /api/health without a browser. It holds no data and is rate-limited by the rule above.",
+      "active": true,
+      "conditionGroup": [{ "conditions": [{ "type": "path", "op": "eq", "value": "/api/health" }] }],
+      "action": { "mitigate": { "action": "bypass" } }
+    }
+  ]
+}

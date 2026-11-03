@@ -1,11 +1,11 @@
 {
-  "_about": "Supabase Auth settings, applied by apply.py (README.md). Names and non-secret values only: each secret is named by the environment variable that supplies it at run time, from Doppler. Staging and production share every setting except the addresses, the project and the hourly email limit. The sign-in methods that are on are exactly the *_enabled switches set to true here; apply.py fails if any other is on.",
+  "_about": "Supabase Auth settings, applied by apply.py (README.md). Names and non-secret values only: each secret is named by the environment variable that supplies it at run time, from Doppler. Staging and production share every setting except the addresses, the project and the hourly email limit. Staging also allows Vercel previews of the project hrizzup in the team hrizzup (`https://hrizzup-*-hrizzup.vercel.app/**`: Supabase's documented Vercel pattern, narrowed to our project name), so Google sign-in works on every preview; production never does. The sign-in methods that are on are exactly the *_enabled switches set to true here; apply.py fails if any other is on.",
   "environments": {
     "staging": {
       "project_ref": "mlccgqxtqmllwbyjfzzm",
       "settings": {
         "site_url": "https://staging.hrizzup.com",
-        "uri_allow_list": "https://staging.hrizzup.com/**,http://localhost:3000/**",
+        "uri_allow_list": "https://staging.hrizzup.com/**,http://localhost:3000/**,https://hrizzup-*-hrizzup.vercel.app/**",
         "rate_limit_email_sent": 30
       }
     },

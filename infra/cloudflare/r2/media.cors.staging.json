@@ -3,7 +3,7 @@
     {
       "id": "reads-from-our-sites",
       "allowed": {
-        "origins": ["https://staging.hrizzup.com", "http://localhost:3000"],
+        "origins": ["https://staging.hrizzup.com", "http://localhost:3000", "https://hrizzup-*-hrizzup.vercel.app"],
         "methods": ["GET", "HEAD"]
       },
       "maxAgeSeconds": 86400

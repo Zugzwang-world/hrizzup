@@ -1,0 +1,14 @@
+{
+  "expo": {
+    "name": "Hrizzup",
+    "slug": "hrizzup",
+    "scheme": "hrizzup",
+    "version": "0.1.0",
+    "orientation": "default",
+    "userInterfaceStyle": "automatic",
+    "android": { "package": "com.hrizzup.app" },
+    "ios": { "bundleIdentifier": "com.hrizzup.app", "supportsTablet": true },
+    "plugins": ["expo-router"],
+    "experiments": { "typedRoutes": true }
+  }
+}
