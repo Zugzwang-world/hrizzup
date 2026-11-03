@@ -4,7 +4,9 @@ Hrizzup is a news app built around creators, plus a website with play-money pred
 
 **[PLAN.md](PLAN.md) is the single source of truth.** If anything disagrees with it, PLAN.md wins. The setup blueprint, the runbook and the Zugzwang World retirement list live in [docs/setup/](docs/setup/).
 
-**Layout:** `sourcing/` (Grok bots, news pipeline, market data), `news-desk/` (our content, creators), `product/` (app, website, markets), `infra/` (service settings applied from the repo, such as the storage rules and the sign-in settings). Projects never copy code between each other; this repository is the only route.
+**Layout:** `sourcing/` (Grok bots, news pipeline, market data), `news-desk/` (our content, creators), `product/` (`web/` the Next.js website, `app/` the Expo app, `packages/` the code they share), `infra/` (service settings applied from the repo: the database's migrations in `infra/supabase/`, the sign-in settings, the storage rules, the Vercel project and firewall). Projects never copy code between each other; this repository is the only route.
+
+**Codebase (decided 3 November 2026, PLAN.md step 1.5):** pnpm 11 workspaces with Turborepo (Vercel Remote Cache), Biome for formatting and lint, TypeScript 6, Vitest for unit tests, Playwright for screens, and the Supabase CLI for migrations. `pnpm check` runs the quick checks on this Mac. New packages wait 3 days after release before they can be installed (`pnpm-workspace.yaml`).
 
 **Repository:** [github.com/Zugzwang-world/hrizzup](https://github.com/Zugzwang-world/hrizzup), private, in the founder's personal GitHub account on GitHub Pro.
 
@@ -28,8 +30,10 @@ Update the status file for the part you worked on in `docs/status/` (Done, Next,
 - **Every change goes on its own branch and pull request.** Never commit to `main` directly; GitHub refuses it anyway.
 - **You open the pull request, the checks that fit the change run, and you merge it yourself as soon as they pass.** No human approval. Turn on auto-merge when you open it (`gh pr merge --auto --squash`), so it merges the moment the checks are green.
 - **The secret check** (gitleaks, `.github/workflows/secret-check.yml`) runs automatically on every pull request over the whole history.
-- **Preview link:** once Vercel is connected, every pull request gets one.
-- **GitHub enforces it:** the ruleset "main" requires the checks to pass before merging, blocks force-pushes and deletion of `main`, and requires no reviews. Merges are squash-only, and the branch is deleted after merging.
+- **Preview link:** every pull request gets one from Vercel (behind a Vercel login). It is a complete working copy of the site: staging's data and keys (Doppler `stg_preview`), Google sign-in (through staging's relay), and Cloudflare's Turnstile test keys.
+- **A change is checked on its preview, never by deploying it to staging.** The screen check and any manual check run against the pull request's preview. Staging only ever receives what has already merged into `main` (the "Staging" workflow: migrations first, then the code, then it waits until staging serves that commit).
+- **GitHub enforces it:** the ruleset "main" requires the checks (Secret check, Quick checks, Database check, Screen check) to pass before merging, blocks force-pushes and deletion of `main`, and requires no reviews. Merges are squash-only, and the branch is deleted after merging. The ruleset "staging" lets only the Staging workflow's deploy key move the `staging` branch.
+- **Risky changes wait for the AI review** before auto-merge is turned on: open the pull request as a draft, review it, then mark it ready with `gh pr merge --auto --squash`.
 
 ## Checks sized to the change (PLAN.md section 3)
 
@@ -44,7 +48,8 @@ Label every change with its size at the start of the commit message and the pull
 
 - **Claude Code never reads, holds or uses production keys.** It never opens Doppler `prd`, never connects to production's database or services, and never creates, copies or moves a production key, not even "without showing it".
 - **Production is changed only by the release pipeline,** which gets its own production credentials in runbook Part 10. Claude Code builds and tests the pipeline in the repo and on staging. The founder starts each release; Claude Code starts the pipeline only when the founder says "release".
-- **Tools that also reach production are never used on it:** the Cloudflare key (it covers the whole `hrizzup.com` zone and every R2 bucket), the Vercel login (one project for all environments) and the founder's own logins on this Mac. Claude Code checks production only from the outside (public addresses) and through the pipeline's reports.
+- **Tools that also reach production are never used on it:** the Cloudflare key (it covers the whole `hrizzup.com` zone and every R2 bucket), the Vercel token and login (one project for all environments) and the founder's own logins on this Mac. Claude Code checks production only from the outside (public addresses) and through the pipeline's reports.
+- **Project-wide Vercel settings also cover production** (`infra/vercel/`: the project, its domains and the firewall). Claude Code applied them in Part 9, before production had keys or data, together with the one-time promotion of the holding page. From Part 10 on, a change there that touches production goes through the release pipeline; `apply.py --check` stays safe to run at any time.
 - If a task would need production access, stop and say so: the founder or the pipeline does it.
 
 ## Environments and secrets
@@ -52,7 +57,8 @@ Label every change with its size at the start of the commit message and the pull
 - Staging is a sandbox: fully separate from production, no real user data, a spending cap on every paid service. The AI holds its keys.
 - Secrets live only in Doppler, in two projects, so each place holds one kind of key:
   - **`hrizzup`, the app's keys only:** `dev` (running the app on this Mac: every staging value as a reference, `${stg.NAME}`, never a copy), `stg` (staging), `stg_preview` (previews: a branch of `stg` that copies every staging value automatically and holds only overrides) and `prd` (production). In this repo a plain `doppler run -- <command>` uses `dev` (`doppler.yaml`). Whenever a key is added to or removed from `stg`, run `python3 infra/doppler/dev_follows_staging.py apply` in the same step; a value that must differ locally is listed in `infra/doppler/dev-overrides.txt`.
-  - **`hrizzup-tools`, Claude Code's own setup keys** (the Cloudflare key, the Supabase access token, and any future ones), in its one config, `claude`. Use them only as `doppler run --project hrizzup-tools --config claude -- <command>`, and never put one in `hrizzup`.
+  - **`hrizzup-tools`, Claude Code's own setup keys** (the Cloudflare key, the Supabase access token, the Vercel token, the previews' protection bypass, and any future ones), in its one config, `claude`. Use them only as `doppler run --project hrizzup-tools --config claude -- <command>`, and never put one in `hrizzup`: `stg` and `stg_preview` are synced into Vercel's staging and previews, so anything there reaches every build.
+- **GitHub Actions holds only what its workflows need,** each piped in without being shown: read-only Doppler tokens for `stg` (environment `hrizzup-staging`, `main` only) and `stg_preview`, the staging deploy key and deploy hook, and a copy of the protection bypass. The Remote Cache signs in through OIDC, so no Vercel token is stored in GitHub.
 - **Supabase Auth keeps its own copies** of `GOOGLE_OAUTH_CLIENT_SECRET`, `RESEND_API_KEY` and `TURNSTILE_SECRET_KEY`. Its settings live in `infra/supabase/auth/`; whenever one of those keys changes in `stg`, or a setting there changes, run `infra/supabase/auth/apply.py staging` the same day (its README has the command).
 - Never print, log or commit a secret value; refer to secrets by name only. Never ask the founder to paste a secret into chat. Production keys never go in this repository.
 - Doppler is on its free Developer plan during staging, which has no roles, so only the founder and Claude Code use it. Before any helper joins Doppler, it moves to the Team plan (runbook step 10.1), and helpers get no access to Production or to `hrizzup-tools`.
@@ -62,9 +68,9 @@ Label every change with its size at the start of the commit message and the pull
 
 ## Database changes
 
-- **Every change to the database's structure goes through migration files in the repo** and is applied the same way everywhere, so production receives exactly the same changes in the same order. Changing test data directly in staging is fine.
+- **Every change to the database's structure goes through migration files in the repo** (`infra/supabase/migrations/`, Supabase CLI, plain SQL, in timestamp order) and is applied the same way everywhere, so production receives exactly the same changes in the same order. Staging gets them from the Staging workflow on every merge to `main`. Each migration's tests go in `infra/supabase/tests/` and run on a fresh database in the Database check. Changing test data directly in staging is fine.
 - **Production's database is changed only by the release pipeline,** which applies the same migration files with its own credentials. Claude Code never connects to it.
-- Every table has row-level security on: the first migration adds a safeguard that switches it on for every new table, and a check on every pull request fails if any table lacks it (approved for PLAN.md step 1.5).
+- Every table has row-level security on: the first migration switches it on for every new table and refuses any attempt to switch it off, and the Database check (every pull request) and the Staging workflow (every merge) fail if any table lacks it. To let people read or change rows, write a policy.
 - The app connects through `DATABASE_URL` (pooler, transaction mode, port 6543) and migrations through `DATABASE_URL_SESSION` (session mode, port 5432). Pool and timeout settings: blueprint section 5.
 
 ## Building

@@ -4,7 +4,7 @@
 > Claude Code commits it to `docs/setup/BLUEPRINT.md`. On the day it sets each value, it also records that value in `docs/setup.md`.
 > Secrets never go in either file.
 
-Status: proposed, 2 November 2026, and updated with the founder's decisions since (latest 3 November 2026). No **DECIDE** items remain open.
+Status: proposed, 2 November 2026, and updated with the founder's decisions and the setup as built since (latest 3 November 2026, runbook Part 9). No **DECIDE** items remain open.
 
 ---
 
@@ -20,7 +20,7 @@ Status: proposed, 2 November 2026, and updated with the founder's decisions sinc
 | Every setting made only in a dashboard is written into `docs/setup.md` on the day it is set | Most of the unknowns in the inventory were dashboard settings nobody recorded. |
 | Security settings are on from day one, and checked through the API. Only the founder-held production keys wait until just before real users arrive (runbook, "Production hardening") | The repo claimed branch protection for 11 days when none existed. Secret scanning, push protection and the organisation's 2FA requirement were never switched on. |
 | Previews never touch production data and are never public | Every preview address was public and connected to the production database. |
-| No sign-in on preview deployments | Google sign-in on previews never worked. Testing used the fixed staging address instead. |
+| Previews are complete working copies, sign-in included, and a change is checked on its preview, never by putting it on staging | Google sign-in on previews never worked, so testing used the fixed staging address instead, and unfinished work had to go onto staging to be checked. |
 | A failing job is fixed or switched off the same day | Two scheduled jobs failed every day for weeks without anyone looking. |
 | Teardown is planned as carefully as a launch. What Zugzwang World still has in shared accounts is in the retirement list, `docs/setup/RETIREMENT.md` | The experiment left DNS records pointing at deleted servers, syncs still running, AWS resources kept after deletion, and no record of any of it. |
 
@@ -59,13 +59,13 @@ Production is a twin of staging: the same services, versions, region and setting
 | | Local | Preview | Staging | Production |
 |---|---|---|---|---|
 | Address | localhost | Vercel preview URLs | `staging.hrizzup.com` | `hrizzup.com` (holding page until launch) |
-| Deployed from | Your machine | Each pull request | Every merge to `main` | Every merge to `main`, as a hidden build; it goes live only when promoted |
+| Deployed from | Your machine | Each pull request | Every merge to `main`, after its migrations (the Staging workflow moves the `staging` branch, which Vercel's `staging` environment follows, and asks Vercel to build it) | Every merge to `main`, as a hidden build; it goes live only when promoted |
 | Hosting | Your machine | Vercel | Vercel | Vercel |
 | Doppler config | `dev` (refers to `stg`'s values) | `stg_preview` (a branch of `stg`) | `stg` | `prd` |
 | Database | Staging | Staging | Supabase `hrizzup-staging` | Supabase `hrizzup-production` |
 | Redis | Staging's, keys starting `dev:` | Staging's, keys starting `pre:` | Upstash `hrizzup-staging`, keys starting `stg:` | Upstash `hrizzup-production`, keys starting `prd:` |
-| Sign-in (Supabase Auth, section 9) | Staging's: Google test users and email codes, returning to `http://localhost:3000` | None | Google (staging client) and email codes | Google (production client), email codes, Apple |
-| Access | — | Vercel deployment protection | Protected until testers join | Holding page until launch, then public. Hidden builds stay private |
+| Sign-in (Supabase Auth, section 9) | Staging's: Google test users and email codes, returning to `http://localhost:3000` | Staging's: Google test users, returning through staging's signed relay; Turnstile's test keys | Google (staging client) and email codes | Google (production client), email codes, Apple |
+| Access | — | Vercel login (deployment protection); checks use the protection bypass | Vercel login until testers join | Holding page until launch, then public. Hidden builds stay private |
 | Changed by | You and Claude Code | Claude Code | Claude Code | **The release pipeline only**, with its own production credentials |
 
 ### Production is off-limits to Claude Code
@@ -102,14 +102,14 @@ Production is a twin of staging: the same services, versions, region and setting
   - Proton: verification, MX, SPF and the three DKIM records.
   - DMARC: `v=DMARC1; p=quarantine`, with alignment left at its relaxed default. Reports go to Cloudflare's DMARC Management, which adds its own reports address (`rua`) to the record.
 - **Resend:** the sending subdomain `mail.hrizzup.com`, with its DKIM, SPF and bounce records exactly as Resend returns them, all DNS only (runbook step 3.6).
-- **`staging`:** points at Vercel, DNS only.
-- **The bare `hrizzup.com` and `www`:** production's names, pointing at Vercel, DNS only. Until launch they show a holding page, which carries the privacy policy that Google sign-in and the app stores ask for.
+- **`staging`:** points at Vercel, DNS only (a CNAME to the project's own Vercel address, added 3 November 2026).
+- **The bare `hrizzup.com` and `www`:** production's names, pointing at Vercel, DNS only (two A records for the bare name and a CNAME for `www`, as Vercel recommends; `www` redirects to `hrizzup.com`). Until launch they show a holding page, with the privacy policy and terms that Google sign-in and the app stores ask for.
 - **The app's names are never proxied through Cloudflare,** on staging or production. Vercel advises against putting another proxy in front of it, and its own firewall and DDoS protection cover the app.
 - **Storage (R2):**
   - two buckets per environment: staging, and production in the production twin;
   - public files are served from a single-level subdomain: `media-staging.hrizzup.com` for staging and `media.hrizzup.com` for production. Cloudflare's standard certificate covers only one level below the domain, and `r2.dev` addresses are rate-limited;
   - bucket CORS and lifecycle rules are written into the repo (`infra/cloudflare/r2/`) and applied by `apply.sh`, which reads them back and fails if Cloudflare's copy differs. Staging is applied by Claude Code, production only by the release pipeline:
-    - **uploads bucket:** browsers may only `PUT` (with a `content-type` header), and only from our own sites: staging, local (`http://localhost:3000`), and previews (added in runbook Part 9) on staging; `hrizzup.com` and `www` on production;
+    - **uploads bucket:** browsers may only `PUT` (with a `content-type` header), and only from our own sites: staging, local (`http://localhost:3000`), and previews of our project (`https://hrizzup-*-hrizzup.vercel.app`, added 3 November 2026) on staging; `hrizzup.com` and `www` on production. A pattern is acceptable here, unlike in sign-in, because every upload also needs a short-lived signed address that only our server makes;
     - **media bucket:** browser reads (`GET`, `HEAD`) from the same sites; everyone else can still load the images normally;
     - **lifecycle:** incomplete uploads are aborted after a day on both buckets, and raw uploads are deleted a day after upload, once the server has made the clean copy (section 13). Media is never deleted by a rule;
   - the uploads bucket has no public address; the media bucket's only public address is its own subdomain, with its `r2.dev` address off;
@@ -138,8 +138,9 @@ Production is a twin of staging: the same services, versions, region and setting
 - **Why the Data API is off:** the app reaches the database only through our own typed API on the server (section 13). Supabase's automatic public data API isn't needed, so it's off: one fewer way into the data, and a missing access rule can't leak anything through it. Realtime doesn't use it.
 - **Row-level security on every table:** a table shows each user only the rows its rules allow, and nothing until rules exist, so no table can be created open by mistake.
   - On 3 November 2026 the project's own "automatic" option was found not to reach tables made in code: a test table came out unprotected.
-  - So the **first migration** in the repo adds an event trigger that switches row-level security on for every new table.
-  - An automatic check on every pull request fails if any table lacks it.
+  - So the **first migration** (`infra/supabase/migrations/20261103120000_lock_every_table.sql`) adds an event trigger that switches row-level security on for every new table in every schema of ours (everything except Postgres's and Supabase's own), and refuses any `ALTER TABLE` that would switch it off. It follows Supabase's documented example, widened from `public` to all of our schemas.
+  - `private.unprotected_tables()` lists any table of ours without it, and must always be empty. The Database check (every pull request, on a fresh database built from the migrations) and the Staging workflow (every merge, on staging itself, `infra/supabase/checks/every_table_locked.sql`) both fail if it isn't.
+  - To let people read or change rows, write a policy; never switch row-level security off.
 - **Connection** (through Supabase's pooler, Supavisor, at `aws-0-ap-south-1.pooler.supabase.com`, because the direct address only works over IPv6). The mode is stated in configuration, never guessed.
 
   | Setting | App: `DATABASE_URL` | Migrations: `DATABASE_URL_SESSION` |
@@ -160,7 +161,9 @@ Production is a twin of staging: the same services, versions, region and setting
   - They run in order, over `DATABASE_URL_SESSION`: staging first; then production at release, by the release pipeline only.
   - A release's database changes reach production before its build is promoted, written so the version that is live keeps working with them.
   - Changing test data directly in staging is fine.
-  - The migration tool is chosen with the codebase (PLAN.md step 1.5).
+  - **Tool: the Supabase CLI** (decided 3 November 2026), with plain SQL files in `infra/supabase/migrations/`, named by timestamp and applied strictly in that order (`supabase db push`, never `--include-all`). Plain SQL covers everything Supabase needs (row-level security policies, triggers, Realtime publications, the password hook), and the CLI keeps the history in the database's own `supabase_migrations` schema.
+  - **Tests** for each migration go in `infra/supabase/tests/` (pgTAP). The Database check builds a throwaway database from the migrations with the CLI's local Supabase Postgres and runs them; Turborepo's cache skips it when neither changed.
+  - **Staging** gets new migrations from the Staging workflow on every merge to `main`, before the code (the same order as a release). `infra/supabase/config.toml` is for that throwaway database only; it is never pushed to a real project.
 - **Claude Code never connects to production's database** and never holds its keys (section 3). Production's database is changed only by the release pipeline, with its own credentials.
 - **Keys** (in Doppler; names only here):
   - `stg`: `SUPABASE_DB_PASSWORD`, `DATABASE_URL`, `DATABASE_URL_SESSION`, `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` and `SUPABASE_SECRET_KEY`. The publishable key is safe in the app and browser, for Realtime. The secret key is for the server only.
@@ -181,17 +184,24 @@ Production is a twin of staging: the same services, versions, region and setting
 
 ## 6. Hosting (Vercel: previews, staging and production)
 
-- **Region:** Mumbai, set in `vercel.json`. `/api/health` shows the region and the commit it was built from.
+**Set up 3 November 2026 (runbook Part 9).** Every setting below lives in the repo (`infra/vercel/project.json` and `firewall.json`, applied and read back by `infra/vercel/apply.py`; the region in `product/web/vercel.json`), never only in the dashboard.
+
+- **The project:** `hrizzup` in the Pro team `hrizzup`, linked to `Zugzwang-world/hrizzup`, root directory `product/web` (the website), Next.js, Node 24, Fluid compute.
+- **Region:** Mumbai (`bom1`), set in `vercel.json` and as the project's function region. `/api/health` shows the environment, the region, the commit it was built from, and whether the database, Redis, storage and sign-in answer.
 - **One project, three environments:**
-  - **Preview:** every pull request, Doppler `stg_preview`, behind deployment protection.
-  - **Staging:** a custom environment named `staging`, deployed on every merge to `main`, Doppler `stg`, at `staging.hrizzup.com`. It uses the staging environment's branch tracking if Vercel allows it on the production branch; otherwise a deploy workflow kept in the repo.
-  - **Production:** Doppler `prd`, at `hrizzup.com`. The production branch is `main`, with **Auto-assign Custom Production Domains off**. Every merge to `main` makes a hidden ("staged") production build with production keys and data, reachable only at its private address. Nothing goes live until it is promoted.
-- **Build-skip rule (Ignored Build Step):** written in the repo, not only in the dashboard.
-- **Deployment protection:** Standard Protection, which keeps previews and the private addresses of hidden production builds behind Vercel's login.
-- **Firewall:** rules set and recorded, for staging and production.
-- **Environment variables:** only from Doppler syncs, marked Sensitive. None are created by hand. If an integration writes keys straight into Vercel (Sentry, for example), those keys are also added to Doppler.
+  - **Preview:** every pull request and every branch push, Doppler `stg_preview`, behind a Vercel login. A preview is a complete working copy of the site: staging's data and keys, Google sign-in (through staging's relay, section 9) and Turnstile's test keys. **A change is checked on its preview, never by deploying it to staging** (rule 1): the Screen check runs against it, and the founder looks at it there.
+  - **Staging:** the custom environment `staging` (Pro includes one), Doppler `stg`, at `staging.hrizzup.com`. It follows the branch `staging`, which only the Staging workflow (`.github/workflows/staging.yml`) moves, after every merge to `main`: first the new migrations go to staging's database and every table is checked, then the branch moves, the workflow asks Vercel to build it through the deploy hook "Staging workflow" (Vercel doesn't build a branch push of a commit it has already built for production, which every commit on `main` is), and the workflow passes only once `staging.hrizzup.com/api/health` reports that commit, from `bom1`, with every service answering. That is the same order as a release (database first, then code), which branch tracking on `main` itself couldn't guarantee. The ruleset "staging" lets only the workflow's deploy key move the branch, so staging only ever runs what reached `main`.
+  - **Production:** Doppler `prd`, at `hrizzup.com` (`www` redirects to it, 308). The production branch is `main`, with **Auto-assign Custom Production Domains off**. Every merge to `main` makes a hidden ("staged") production build with production keys and data, reachable only at its private address. Nothing goes live until it is promoted.
+- **Builds:** every commit builds (no Ignored Build Step, and Vercel's "skip unaffected projects" is off), so every pull request gets a preview and every merge reaches staging. Turborepo's Remote Cache makes unchanged builds fast. Vercel reports each deployment to GitHub (`createDeployments`), which is how the Screen check finds the preview.
+- **Deployment protection:** Standard Protection with Vercel Authentication (`all_except_custom_domains`): previews, staging and the private addresses of hidden production builds all need a Vercel login; only the production domains are public. Automated checks get in with the **protection bypass for automation**, whose secret is in Doppler `hrizzup-tools` (with a copy in GitHub's secrets for the Screen check). It also skips the bot challenge, but not the rate limits.
+- **Skew Protection:** on, for 12 hours, so a page that is already open keeps talking to the deployment that served it.
+- **Vercel Toolbar and comments:** on for previews (and staging), off on production.
+- **Firewall (all environments):** Bot Protection challenges clients that don't behave like browsers (verified search engines pass); the AI bots ruleset only logs, for now. Custom rules, top to bottom: every route that sends email (`/auth/email/`, `/api/email/`) at most 5 requests a minute per IP; sign-in (`/auth/`) 20 a minute; `/api/health` 60 a minute, and exempt from the bot challenge so uptime monitors and the release pipeline can read it. Vercel doesn't bill for blocked requests.
+- **Not on until launch:** Speed Insights and Web Analytics (decided in Part 10). Observability Plus covers the project (a team setting, on for all projects).
+- **Environment variables:** only from Doppler syncs, marked Sensitive (Doppler's "Secret" type). None are created by hand. If an integration writes keys straight into Vercel (Sentry, for example), those keys are also added to Doppler. Claude Code's own setup keys (`hrizzup-tools`) are never synced.
 - **Scheduled jobs:** declared in `vercel.json`.
-- **`autoAssignCustomDomains` stays off,** checked before every release and recorded. Last time it switched itself back on twice; here that would put every merge live without a release.
+- **`autoAssignCustomDomains` stays off,** checked before every release (`apply.py --check`) and recorded. Last time it switched itself back on twice; here that would put every merge live without a release.
+- **Project-wide settings reach production too.** Claude Code applied them in Part 9, before production had keys or data; from Part 10 on, a change that touches production goes through the release pipeline.
 
 ### Releasing
 
@@ -216,9 +226,11 @@ Production is a twin of staging: the same services, versions, region and setting
     - `stg_preview`: previews. It is a **branch of `stg`**: it copies every staging value automatically and holds only the values that must differ on previews;
     - `prd`: production, kept fully separate (rule 1).
     Doppler also gives each person a built-in `dev_personal`, a branch of `dev`; it can't be deleted, and it isn't used.
-  - **`hrizzup-tools`: Claude Code's own setup keys,** in one config, `claude`: `CLOUDFLARE_API_TOKEN`, `SUPABASE_ACCESS_TOKEN` and the Cloudflare account and zone IDs, plus any future setup key. They are used only as `doppler run --project hrizzup-tools --config claude -- <command>`. Helpers are never given this project.
+  - **`hrizzup-tools`: Claude Code's own setup keys,** in one config, `claude`: `CLOUDFLARE_API_TOKEN`, `SUPABASE_ACCESS_TOKEN`, `VERCEL_TOKEN` (team `hrizzup` only, expires around 1 February 2027), `VERCEL_AUTOMATION_BYPASS_SECRET` (the previews' protection bypass) and the Cloudflare account and zone IDs, plus any future setup key. They are used only as `doppler run --project hrizzup-tools --config claude -- <command>`, and never synced anywhere. Helpers are never given this project.
+  - **Never a setup key in `hrizzup`:** `stg` and `stg_preview` are synced into Vercel, so a key there reaches every staging and preview build. (`VERCEL_TOKEN` was found in `stg` on 3 November 2026, before the first sync, and moved.)
+- **GitHub Actions' own credentials** (GitHub secrets, each piped in without being shown; recreated, never copied back): read-only Doppler service tokens `github-actions-staging` (`stg`, as `DOPPLER_TOKEN` in the GitHub environment `hrizzup-staging`, which only `main` can use) and `github-actions-preview` (`stg_preview`, as `DOPPLER_TOKEN_PREVIEW`), the Staging workflow's deploy key and deploy hook (`STAGING_DEPLOY_KEY` and `VERCEL_STAGING_DEPLOY_HOOK`, same environment; the hook's address also in `hrizzup-tools`; it can only start a staging build), and a copy of the protection bypass. The Remote Cache signs in through OIDC (Vercel's Turborepo CLI policy "hrizzup checks", limited to `Zugzwang-world/hrizzup`), so no Vercel token is stored in GitHub. Values fetched from Doppler in a workflow are masked in its logs.
 - **Missing keys:** Doppler's "Action Required" list flags a key that exists in one environment but not another. Because `dev` follows `stg`, both their lists stay empty. `prd`'s list shows the app's keys until Part 10 fills it; those warnings are left in place, not dismissed, as Part 10's checklist.
-- **Syncs:** `stg` goes to Vercel staging, `stg_preview` to Vercel previews, and `prd` to Vercel production.
+- **Syncs:** `stg` goes to Vercel staging (the custom environment) and `stg_preview` to Vercel previews, both as Sensitive variables, set up by the founder on 3 November 2026 (2 of the free plan's 5 syncs); `prd` goes to Vercel production in Part 10.
 - **Plan and access:** the free Developer plan during staging, when only the founder and Claude Code use Doppler. That plan has no roles, so any member could open every config. The Team plan (runbook step 10.1) comes in the production twin, or before the first helper joins if that's sooner. With it:
   - helpers get the Collaborator role on `hrizzup`'s Development and Staging, no access to Production, and no access to `hrizzup-tools`;
   - before a helper first gets access, any key they shouldn't see that ever sat in the configs they'll open is replaced: today, the Cloudflare key and the Supabase access token, which were in `dev` until 3 November 2026 and may show in its history;
@@ -265,7 +277,10 @@ Production is a twin of staging: the same services, versions, region and setting
   | Staging | `https://staging.hrizzup.com` | `https://staging.hrizzup.com/**` and `http://localhost:3000/**` (this Mac) |
   | Production | `https://hrizzup.com` | `https://hrizzup.com/**` and `https://www.hrizzup.com/**`; the app's own links join with the app builds |
 
-  Previews have no sign-in (rule 1); their addresses are never allowed.
+  **No `vercel.app` address is ever allowed,** because anyone can create a `vercel.app` site, so even a narrow pattern could match a stranger's. Previews sign in through **staging's relay** instead (`/auth/relay`, `product/web/lib/auth-relay.ts`): a preview asks Supabase to return the visitor to staging with a note naming the preview, signed with `AUTH_RELAY_SECRET` (Doppler `stg`, which previews inherit) and valid for 15 minutes; staging forwards the one-time code only to a correctly signed preview of our project. The code is then exchanged on that preview, which alone holds the matching code verifier (PKCE).
+- **Return paths** (`next`) are always a path on the same site, checked as given and after the browser's own clean-up (`/..//x` would become `//x`, another site); anything else falls back to the sign-in test page.
+- **The sign-in test page** (`/sign-in-test`) exists on staging, previews and this Mac only; production answers 404 for it and for every `/auth/` route until launch.
+- **Test accounts for the automatic checks:** `delivered+screen-check-chromium@resend.dev` and `delivered+screen-check-webkit@resend.dev`, one per browser engine, marked `test_account` in their app data. They exist only in staging's project (which previews share), have no password and no Google identity, so nobody can sign in to them; a check gets a session only by asking staging's server key for a one-time token that no email carries (`product/web/e2e/support/test-accounts.ts`, which refuses any project but staging's). Production is a separate project, so they can't exist there. Resend's `resend.dev` test inboxes accept and drop any email sent to them by mistake.
 - **Google:**
   - **Google Cloud project `hrizzup`** (ID `hrizzup-513610`), owned by the Hrizzup Google account, `hrishikesh@hrizzup.com`, not the Zugzwang World one;
   - **consent screen:** External, in **Testing** (only listed test users can sign in) until it's published before launch. Basic information only (`openid`, `email`, `profile`), so no Google review of sensitive data access is needed. Authorised domains: `hrizzup.com` and the Supabase project's own domain;
@@ -318,7 +333,9 @@ Production is a twin of staging: the same services, versions, region and setting
   - Claude Code opens it, the checks that fit the change run, and it merges as soon as they pass (auto-merge). No human approval;
   - once Vercel is connected, every pull request gets a preview link.
 - **Secret check:** gitleaks runs on every pull request over the whole history (`.github/workflows/secret-check.yml`), at a pinned version with its checksum checked. It was also run once over the whole history on 2 November 2026.
-- **Ruleset "main":** a pull request is required (no reviews), the "Secret check" must pass, force-pushes and deleting `main` are blocked, and nobody bypasses it. More required checks are added as the checks sized to the change are built (PLAN.md step 0.6).
+- **Ruleset "main":** a pull request is required (no reviews); the "Secret check", "Quick checks", "Database check" and "Screen check" must pass (`.github/workflows/checks.yml`); force-pushes and deleting `main` are blocked, and nobody bypasses it. More required checks are added as the checks sized to the change are built (PLAN.md step 0.6).
+- **Ruleset "staging":** only a deploy key may create, move or delete the branch `staging`, and never by force. The one deploy key with write access belongs to the Staging workflow (secret in the environment `hrizzup-staging`, `main` only). GitHub doesn't allow its own Actions app as an exception on a personal account's repository, which is why a deploy key does this job.
+- **Environment `hrizzup-staging`:** only `main` can use it; it holds the Staging workflow's Doppler token, deploy key and deploy hook.
 - **Merging:** squash merges only (the pull request title, with its size label, becomes the commit title), auto-merge on, and branches deleted after merging.
 - **Dependabot:** alerts and security updates on.
 - **Every setting above is confirmed through GitHub's API** and recorded in `docs/setup.md`.
@@ -336,7 +353,10 @@ AWS is not the production plan. Production runs on the same platforms as staging
 
 ## 13. App building blocks (decided 2 November 2026)
 
-- **Codebase:** one repo holds the Expo (React Native) app and the Next.js website, sharing code between them, with one typed API that both use. The package manager and how the code is split up are settled when the codebase is set up (PLAN.md step 1.5).
+- **Codebase (set up 3 November 2026, PLAN.md step 1.5):** one repo holds the Expo (React Native) app and the Next.js website, sharing code between them, with one typed API that both use (built next).
+  - **Layout:** `product/web` (Next.js 16, `@hrizzup/web`), `product/app` (Expo SDK 58, `@hrizzup/app`), `product/packages/*` (code they share: `@hrizzup/core`, `@hrizzup/tsconfig`), `infra/supabase` (the database's migrations and tests, `@hrizzup/database`).
+  - **Tools:** pnpm 11 workspaces (strict and fast; a new version waits 3 days after release before it can be installed, and install scripts run only for packages listed in `pnpm-workspace.yaml`), Turborepo (runs each task only when its inputs change, sharing results through Vercel's Remote Cache with Vercel's builds and GitHub's checks), Biome (formatting and lint in one fast tool), TypeScript 6 (TypeScript 7's faster compiler once Expo's tools support it), Vitest (unit tests), Playwright (screens) and the Supabase CLI (migrations). Shared packages are TypeScript source compiled by each app, with no build step of their own.
+  - **Styling:** Tailwind CSS 4; shadcn/ui arrives with the design system (PLAN.md step 1.4).
 - **Live updates:** Supabase Realtime, for market prices and new posts. Which tables send live updates is set in migrations, so staging and production match.
 - **Search:** the database's own text search (Postgres full-text search) from day one, set up in migrations.
 - **Shared links open the app:** Android App Links and iOS Universal Links. The website serves `/.well-known/assetlinks.json` and `/.well-known/apple-app-site-association` on `hrizzup.com` (and on staging, for the staging app). They need the app's signing fingerprint and Apple team ID from the Google Play and Apple Developer accounts.
