@@ -15,6 +15,7 @@ const ERRORS: Record<string, string> = {
   'no-code': 'Google sent no sign-in code back.',
   exchange: "The sign-in code couldn't be used. Try again.",
   'not-configured': "Sign-in isn't set up in this environment.",
+  relay: "Staging couldn't return you to this preview. Start again from the preview.",
 };
 
 type Props = { searchParams: Promise<{ error?: string | string[] }> };
