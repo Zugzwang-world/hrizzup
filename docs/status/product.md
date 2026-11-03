@@ -59,36 +59,47 @@ Last updated: 3 November 2026. Plan: [PLAN.md](../../PLAN.md). Code: [product/](
   - the settings live in `infra/supabase/auth/` and are applied and checked with `apply.py`, so production gets the same ones through the release pipeline;
   - `dev` follows staging (19 references).
 
+- **Hosting and the first codebase, 3 November 2026 (runbook Part 9; the first slice of PLAN.md step 1.5):**
+  - **one codebase:** pnpm 11 workspaces, Turborepo with Vercel's Remote Cache (GitHub's checks sign in through OIDC, so no Vercel token is stored in GitHub), Biome, TypeScript 6, Vitest, Playwright and the Supabase CLI. `product/web` is the Next.js website, `product/app` an empty Expo SDK 58 shell, and `product/packages` the code they share;
+  - **the first migration locks every table:** row-level security switches on for every new table (including tables made inside `CREATE SCHEMA` and by extensions), switching it off is refused, and the Database check and the Staging workflow fail if any table lacks it. Proven to catch an unprotected table;
+  - **the website:** the holding page, draft privacy and terms pages (with highlighted gaps for the founder), the sign-in test page (not on production) and `/api/health`;
+  - **Vercel:** the project `hrizzup` with every setting kept in `infra/vercel/` (Mumbai, hidden production builds, Skew Protection, deployment protection, the toolbar on previews, the firewall); the custom environment `staging` follows the `staging` branch, which only the Staging workflow moves after each merge's migrations, then builds through a deploy hook and waits until staging serves the commit; domains and their Cloudflare records (DNS only);
+  - **previews are complete working copies:** staging's data and keys through Doppler `stg_preview`, Turnstile's test keys, and Google sign-in through staging's signed relay, so Supabase never allows a `vercel.app` address. A change is checked on its preview, never by deploying it to staging (CLAUDE.md and the blueprint);
+  - **checks on every pull request**, all required on `main`: Secret check, Quick checks, Database check and Screen check (13 widths, sideways, 200% text, Chromium and WebKit, signed out and signed in with two staging-only test accounts, screenshots for the founder);
+  - **checked end to end (runbook 9.6):** the founder signed in with Google on staging and on a preview; Supabase has his Google identity, and signing out ended each session on the server. Both health pages report `bom1` with every service answering (Redis about 2 to 3 ms a command from Mumbai); the screen check passes 58 of 58 on a preview and on staging;
+  - **found and fixed:** `VERCEL_TOKEN` was in the app's staging config, which Vercel syncs into builds; it moved to `hrizzup-tools` before the first sync. An open redirect in the sign-in's return path, and three points from the AI review, were fixed before merging.
+
 ## Next
 
-1. **Finish the repository foundation (step 0.6):** checks sized to the change (small, normal, risky) running on every pull request next to the secret check, each added to the ruleset "main" as a required check once it exists, plus the automatic screen check (CLAUDE.md, "Screens fit every device"), the performance-budget checks (blueprint section 14), preview links and the daily summary routine. Needs staging (0.3). Done when a trivial change passes its checks and gets a preview link.
-2. **Draft the hand-over agreement (step 0.7):** what a story, an update, a creation and a market look like when they pass between projects, including the Grok bots' result format. All three projects agree it. No project writes content before this is done.
-3. **Design (step 1.4):** can start now. References (Mobbin and the founder's own), then the design system (shadcn/ui, Claude Design), then the core screens: board, story page, feed, app frame and market page.
-4. **One codebase for the app and the website (step 1.5):** set up the Expo app and the Next.js website in one codebase that shares code, with one typed API, and get a first empty app running on an Android phone. Settle the package manager and how the code is split up at the same time. Needs 0.6.
-5. **Accounts and login (step 1.6):** Supabase Auth, with Google set up on staging (runbook Part 8). Build the website's sign-in with it, then confirm it end to end on staging (runbook step 9.6). Apple and email codes before the iPhone build; the app's native Google and Apple sign-in with the app builds. Needs 0.6.
-6. **Market engine (step 1.7):** copy Manifold's engine with its tests. On 2 November 2026 GitHub reported Manifold's licence as MIT; confirm it again at the moment of copying and record the notice in THIRD_PARTY_NOTICES.md. Needs 0.6.
-7. **Then** the news app (Phase 2) and the markets website (Phase 3), in the order in PLAN.md section 5.
+1. **Finish the repository foundation (step 0.6):** the checks sized to the change are partly built (Quick checks, Database check, Screen check, all required). Still to add: the performance-budget checks (Lighthouse and download size against each preview, blueprint section 14) and the daily summary routine.
+2. **The founder reviews the draft privacy policy and terms** on `hrizzup.com/privacy` and `/terms` and fills the highlighted gaps (legal entity, address, contact email, Grievance Officer, retention days, courts' city). Putting the final versions live on `hrizzup.com` is a production change, so it goes through the release pipeline once it exists (Part 10), or as one more agreed promotion.
+3. **Draft the hand-over agreement (step 0.7):** what a story, an update, a creation and a market look like when they pass between projects, including the Grok bots' result format. All three projects agree it. No project writes content before this is done.
+4. **Design (step 1.4):** references, then the design system (shadcn/ui, Claude Design), then the core screens.
+5. **The rest of step 1.5:** the one typed API, and the empty app running on an Android phone.
+6. **Accounts and login (step 1.6):** email codes on the website (with the Turnstile widget), then Apple; the app's native sign-in with the app builds.
+7. **Production twin (runbook Part 10).**
+8. **Market engine (step 1.7),** then Phases 2 and 3 in the order in PLAN.md section 5.
 
 ## Open questions
 
+- **Vercel token expires around 1 February 2027.** Replace it before then, in Doppler `hrizzup-tools` (config `claude`); a GitHub issue opens on 15 January 2027 as a reminder.
+- **Google sign-in refused for accounts that aren't test users** (runbook 9.6): needs a second Google account that isn't on the consent screen's test list, which Claude Code doesn't have. The founder can try it once on `staging.hrizzup.com/sign-in-test`.
+- **AI crawlers** (firewall): the AI bots ruleset only logs for now. Decide before launch whether to block them.
+- **Link previews** (WhatsApp, X, Slack) on `hrizzup.com`: Bot Protection challenges `curl`-like clients, so check before launch that shared links still show their preview.
+- **Password sign-in:** Supabase's password hook (planned with the first migrations) may need a plan above Pro; check before building it with email codes (step 1.6).
 - **For the founder: trim the Cloudflare API token** to the five permission rows in runbook step 2.5 (the step-by-step reminder is in runbook Part 2). Checked again on 3 November 2026: it can still also list Workers scripts, Workers routes, Page Rules and Email Routing settings. Claude Code re-checks afterwards.
 
-- Which package manager and monorepo tools, which database migration tool, and how is the shared code split up? (step 1.5; the frameworks are decided: Expo and Next.js)
 - **How the app shows the bot check on its email-code screen** (step 1.6): Turnstile is on in Supabase Auth, so the app needs the widget too (usually inside a small web view). Settled with the app's sign-in, before the iPhone build.
 - **Block password sign-in** (with the first migrations, step 1.5): Supabase can't switch passwords off while email codes are on. Strict password rules are on for now; a small database function (Supabase's password hook) then refuses every password sign-in.
 - **Part 10, sign-in (steps 10.15 and 10.16):** decide on Supabase's Custom Domain add-on (`auth.hrizzup.com`, `auth-staging.hrizzup.com`; $10 a month each, checked 3 November 2026), and with it whether production gets its own Google Cloud project, because both clients share one consent screen. Before publishing: the home page and privacy-policy links on Google's Branding page, and `hrizzup.com` verified in Search Console.
-- **For the founder: Google Cloud billing** (runbook 8.1) wasn't mentioned. Google sign-in doesn't need it; say if it's on.
 - Feed design in depth (step 2.3).
 - What are the exact market questions? (step 3.2, with Sourcing)
 - Paid tier: what's free and what's paid? Decided before the paywall is built (step 2.7).
 - Comment threads: in or out?
-- **Automatic row-level security isn't in effect** in `hrizzup-staging`. The founder approved the fix for step 1.5: a first migration that locks every new table, and a check on every pull request.
 - **Before Part 10: Claude Code's GitHub identity.** Claude Code works through the founder's GitHub account and merges its own pull requests, so it could in principle change the release pipeline. Recommended: a separate GitHub account for Claude Code, with the founder's approval needed for changes to the pipeline's files.
-- **Previews in the upload rule:** added in runbook step 9.6, once Vercel gives previews their addresses.
 - **For the founder: Supabase spend cap on and usage alerts on** (runbook 5.2). These are organisation settings, which Claude Code's token can't see.
 - **Supabase token expires around 1 February 2027.** Replace it before then, in Doppler `hrizzup-tools` (config `claude`); a GitHub issue opens on 15 January 2027 as a reminder.
 - **Test email in Spam (runbook 3.7):** the staging test email from `no-reply@mail.hrizzup.com` reached `hrishikesh@hrizzup.com`, but in Spam. Waiting for its headers from the founder, to see whether SPF, DKIM and DMARC passed and why.
 - **Zugzwang World leftovers:** now kept in the retirement list, `docs/setup/RETIREMENT.md`: the Doppler project `zugzwang-experiment` (kept until retirement; its Upstash keys are already dead), the Resend domain `mail.zugzwangworld.com` and its "Onboarding" key, and five R2 buckets. They are removed when the founder retires Zugzwang World.
 - **For the founder: Upstash two-step login.** Upstash's database page lists "MFA Requirement" among its recommended security steps, unticked. Confirm two-step login is on for your Upstash account (runbook step 0.2).
 - **Helpers' invitations:** sent 2 November 2026 and still waiting to be accepted (checked again the same evening). GitHub cancels them after 7 days; Claude Code can resend them.
-- **Staging following `main` (runbook 9.2):** confirm whether Vercel lets the `staging` environment track `main` while `main` is the production branch; if not, add a small deploy workflow that sends every merge to staging.

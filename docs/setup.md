@@ -852,7 +852,7 @@ It prints chosen facts only, never the token. Run on staging at 09:44 UTC: **all
 | Billing | Not reported. Google sign-in works without it |
 | Consent screen | External, Testing, test users added; authorised domains `hrizzup.com` and `mlccgqxtqmllwbyjfzzm.supabase.co`; the three basic scopes (`openid`, `email`, `profile`). No home page or privacy-policy link yet (they wait for the holding page; step 10.16) |
 | Web client | "Hrizzup staging", Web application, with the origins and redirect address Claude Code gave |
-| Keys | Doppler `stg`: `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`. `stg_preview` inherits them (previews have no sign-in, and their addresses aren't allowed) |
+| Keys | Doppler `stg`: `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`. `stg_preview` inherits them. *(Updated in Part 9, 3 November 2026: previews now have Google sign-in, through staging's signed relay; no preview address is in Supabase's allow list. See "Hosting" below.)* |
 
 **The Google client, checked from the outside** (no Google login, nothing printed):
 - **ID and secret:** Google's token service was sent a deliberately fake code. With the real ID and secret it answered `invalid_grant` (client accepted, only the code is wrong); a control with a wrong secret got `invalid_client`.
@@ -935,6 +935,147 @@ Not a problem: the worry that Claude Code could run the script on production. It
   - Part 10: steps 10.9, 10.12 and 10.14, plus the new 10.15 (the custom-domain decision) and 10.16 (branding links before publishing).
 - **CLAUDE.md:** the layout line, and re-applying the sign-in settings when a copied key changes.
 - **New files:** `infra/supabase/auth/` (`settings.json`, `templates/sign-in-code.html`, `templates/email-change-code.html`, `apply.py`, `README.md`).
+- **Status:** `docs/status/product.md`.
+
+### Hosting: one codebase, the Vercel project, staging, previews and the holding page (runbook Part 9, PLAN.md step 1.5)
+
+**Asked by the founder:** do Part 9 on the Vercel Pro team "Hrizzup" (`hrizzup`), choose the technical pieces the way top teams do today, and say each choice in one line. Done through pull request [#16](https://github.com/Zugzwang-world/hrizzup/pull/16) (merged as `17c17ee`) and the records pull request after it. Vercel was changed with `VERCEL_TOKEN` from Doppler `hrizzup-tools` (config `claude`) through `doppler run`, never printed.
+
+**Choices Claude Code made (one line each):**
+
+| Choice | Why |
+|---|---|
+| **pnpm 11 workspaces** (`pnpm@11.28.9`) | Strict about undeclared packages, fast, the usual choice for TypeScript monorepos. New releases wait 3 days before they can be installed (against hijacked packages); only `supabase` and `esbuild` may run install scripts |
+| **Turborepo 2.11 with Vercel's Remote Cache** | Runs only what a change affects and shares results between this Mac, GitHub's checks and Vercel's builds. GitHub signs in through OIDC, so no Vercel token is stored there |
+| **Biome 2.6** | One fast tool for formatting and lint instead of ESLint plus Prettier; its recommended rules plus the Next.js and React ones |
+| **TypeScript 6.0, Vitest 5, Playwright 1.64** | Current versions of the standard tools for types, unit tests and real-browser screen checks (Chromium and WebKit) |
+| **Supabase CLI migrations** (plain SQL in `infra/supabase/migrations/`, timestamp order) | The same tool runs a local database, the tests (pgTAP) and the pushes to staging and, later, production. No second migration layer that could drift from the database |
+| **Layout** | `product/web` (website), `product/app` (Expo app), `product/packages/core` and `tsconfig` (shared code and settings), `infra/supabase` as the package `@hrizzup/database` |
+| **Next.js 16.4 (App Router), React 19.3, Tailwind 4.3; Expo SDK 58 with expo-router** | Current stable versions of the frameworks already decided (PLAN.md). The app is an empty shell (`com.hrizzup.app`) |
+| **Node 24 everywhere** (`.node-version`) | Vercel's current default and an LTS version; the Mac, the checks and Vercel all use the same one |
+| **Previews sign in through staging's signed relay** instead of a `vercel.app` pattern in Supabase's allow list | Anyone can create a `vercel.app` address, so a wildcard there would let a stranger's site receive sign-in codes. Google sends the browser back to staging, which forwards it only to one of our previews, with a signature that expires in 15 minutes. **This differs from the founder's instruction** (he asked for the narrowest preview pattern), for that reason |
+| **Staging follows a `staging` branch**, moved only by the Staging workflow after each merge's migrations | The same order as a release: database first, then code. Vercel's staging environment can't wait for a migration when it tracks `main` itself |
+| **Database connections from the website** | A small pool per function instance (2 connections, idle 20 seconds, 30-minute lifetime), with Supabase's certificate checked in full (blueprint section 5) |
+| **Firewall rules in the repo** (`infra/vercel/firewall.json`) | Bot Protection challenges suspected bots; AI crawlers are logged only; per-address limits: 5 a minute on routes that send email, 20 a minute on sign-in, 60 a minute on the health page, which skips the bot challenge so checks can reach it |
+| **`/api/health`** | Environment, region, commit and whether the database, Redis, storage and sign-in answer; no addresses, keys or error text |
+
+**The founder's steps,** as reported:
+
+| Step | Setting |
+|---|---|
+| 9.3 | Doppler syncs to Vercel: `stg` → Vercel's `staging` environment, `stg_preview` → Preview, as Sensitive. Production's sync waits for step 10.13 |
+| 9.7 | Remote Caching on; Turborepo CLI OIDC policy **"hrizzup checks"**: provider GitHub Actions, `Zugzwang-world/hrizzup` only, any workflow and branch, audience `https://github.com/Zugzwang-world` |
+| For the record | Google Cloud billing is on (free trial with prepayment; sign-in doesn't need it). Not used now: Password Protection, Preview Deployment Suffix, extra custom environments, Flat Rate CDN and Flags Explorer. Web Analytics Plus switched off; Observability Plus kept. Vercel's spending limit is **$50 a month, pausing if reached**, revisited before launch |
+
+**The Vercel project** `hrizzup` (`prj_HKlwGJVxgagU9pAmqcmAxwupNjuD`), every setting kept in `infra/vercel/project.json` and applied with `apply.py`:
+
+| Setting | Value |
+|---|---|
+| Repository | `Zugzwang-world/hrizzup`, production branch `main`, root folder `product/web` (with the files outside it included), Next.js, Node 24 |
+| Functions | Mumbai (`bom1`) only, Fluid Compute |
+| Production | **Auto-assign Custom Production Domains off:** every merge makes a hidden production build; it goes live only with `vercel promote` (rollback: `vercel rollback`, through the release pipeline from Part 10) |
+| Staging | Custom environment `staging` (`env_1Yebj1JLZTJkWRnNoUanTgpADGwF`), follows the branch `staging`, served on `staging.hrizzup.com` |
+| Skew Protection | On, 12 hours |
+| Deployment protection | Standard Protection (Vercel Authentication): every preview, staging and every hidden production build's private address need a Vercel login; only `hrizzup.com` and `www` are public. Fork protection on |
+| Toolbar and comments | On for previews (and staging), off on production |
+| Speed Insights and Web Analytics | Off until launch (Part 10); `apply.py` fails if either is switched on |
+| GitHub deployments | On, so each preview is reported to GitHub and the Screen check can find it |
+| Other | Directory listing off, Vercel support can't see the source, every commit builds |
+| Firewall | As in the choices above, read back after applying |
+
+- **`apply.py --check`** (read-only, safe at any time): "matches the repo: 15 settings, git Zugzwang-world/hrizzup (production branch main), environments staging, 3 domains, firewall with 4 rules; autoAssignCustomDomains is False".
+
+**Domains and DNS** (Cloudflare zone `hrizzup.com`, every record **DNS only**, comment "Vercel project hrizzup, DNS only (runbook 9.4)"; the zone now has 17 records):
+
+| Record | Points to | Serves |
+|---|---|---|
+| `A hrizzup.com` | `216.150.1.1` and `216.150.16.1` (Vercel) | Production, the holding page |
+| `CNAME www` | `7c52ddc7ea7c6215.vercel-dns-016.com` | Redirects to `hrizzup.com` (308) |
+| `CNAME staging` | `7c52ddc7ea7c6215.vercel-dns-016.com` | Staging |
+
+- Certificates: Let's Encrypt, issued by Vercel, valid to 1 February 2027 and renewed by Vercel.
+
+**Keys and credentials** (names only):
+- **`VERCEL_TOKEN`** (token "Claude Code – hrizzup", team `hrizzup` only, expires 1 February 2027) was found in Doppler `hrizzup/stg`, which syncs into every staging build. It was copied to `hrizzup-tools` (checked identical by fingerprint, in memory), tested, and deleted from `stg` **before the first sync**. Reminder issue on 15 January 2027.
+- **`VERCEL_AUTOMATION_BYPASS_SECRET`** (the protection bypass for automation): Doppler `hrizzup-tools`, with a copy as a GitHub repository secret for the Screen check.
+- **`AUTH_RELAY_SECRET`** (signs the previews' sign-in relay): generated straight into Doppler `stg`, so staging and every preview have it; `dev` references it (20 references).
+- **`VERCEL_STAGING_DEPLOY_HOOK`:** the address of the deploy hook "Staging workflow" (builds the branch `staging`; it can't do anything else). Doppler `hrizzup-tools` and the GitHub environment `hrizzup-staging`.
+- **Doppler service tokens, read-only:** `github-actions-staging` (`stg`, as `DOPPLER_TOKEN` in the environment `hrizzup-staging`) and `github-actions-preview` (`stg_preview`, as the repository secret `DOPPLER_TOKEN_PREVIEW`).
+- **Deploy key** "Staging workflow" (write access, fingerprint `SHA256:nOQcLeu7UxDmfECHFxlz1v6DGBKrqrawzG6Sr48Z+1s`): the private half exists only as `STAGING_DEPLOY_KEY` in the environment `hrizzup-staging`; the local copy was deleted.
+- **Repository variable** `TURBO_TEAM=hrizzup`.
+- **The syncs, checked:** Vercel's staging environment and Preview each hold 21 Sensitive keys from Doppler plus Doppler's own 3 labels, and no `VERCEL_TOKEN`.
+
+**GitHub:**
+- **Ruleset "main"** now requires Secret check, Quick checks, Database check and Screen check.
+- **Ruleset "staging"** lets only a deploy key create or move the branch `staging`, never by force. GitHub doesn't let a personal account's ruleset make an exception for the GitHub Actions app, hence the deploy key.
+- **Environment `hrizzup-staging`** can be used only by `main`.
+- **Workflows:** `checks.yml` (Quick checks, Database check, Screen check against the pull request's preview, with screenshots kept 30 days) and `staging.yml` (the Staging workflow).
+
+**The Staging workflow** (every merge to `main`): applies new migrations to staging's database and checks that every table is locked, moves the branch `staging`, asks Vercel to build it through the deploy hook, then waits until `staging.hrizzup.com/api/health` reports that commit from `bom1` with every service answering.
+- **Found:** Vercel didn't build the first push of the branch `staging`, because it had already built that commit for production (every commit on `main` gets a hidden production build). The deploy hook builds it. Triggered by hand once, it built `dpl_CVQMCn4oHF2cLY26rr6g9xLbzboi` (environment `staging`, Ready); from now on the workflow calls it.
+- **First run:** applied `20261103120000_lock_every_table.sql` to staging (after a dry run), and the lock check passed.
+- **The wait step, tried from this Mac:** it passes at once for the commit staging serves and fails after its time limit for one it doesn't.
+
+**The first migration** (`20261103120000_lock_every_table.sql`): every new table in our schemas gets row-level security the moment it is created (also tables made by `CREATE TABLE AS`, `SELECT INTO`, inside `CREATE SCHEMA` and by extensions); switching it off is refused; `private.unprotected_tables()` lists any table without it.
+- **Database check:** 8 tests on a fresh database, passing locally and on GitHub.
+- **Staging check:** proven to fail on an unprotected table (exit 3, naming the table).
+
+**The holding page on `hrizzup.com` (9.4),** the one production change Claude Code makes:
+- the hidden production build `dpl_CCPXNJ99w2xyZC1w6E33gnCxwvhN` (commit `17c17ee`) was checked on its private address first: environment `production`, `bom1`, every service `not_configured` (production has no keys), the sign-in test page 404, no staging banner, and the private address asking for a Vercel login;
+- then promoted once. `hrizzup.com/api/health` answers publicly: `production`, `bom1`, `17c17ee`. Chrome shows the holding page with the draft privacy policy and terms.
+- **Bot Protection at work:** `curl` on `hrizzup.com`'s pages gets a challenge (HTTP 429, `x-vercel-mitigated: challenge`) while a real browser loads them, and the health page answers.
+
+**The checks (9.6):**
+
+| Check | Result |
+|---|---|
+| `autoAssignCustomDomains` off | Yes (`apply.py --check`, above) |
+| `/api/health` on a preview | `preview`, `bom1`; database, Redis, storage and sign-in all `ok` |
+| `/api/health` on staging | `staging`, `bom1`, commit `17c17ee`; all four `ok`. Without a Vercel login, staging answers 302 (to Vercel's login) |
+| Redis round trip from Vercel's Mumbai functions | Warm: **2.0 to 3.3 ms** median per command on staging, 2.2 to 2.9 ms on previews (first command 3.9 to 5.9 ms). Cold start: 20 to 72 ms for the first command. From this Mac: 7.5 ms |
+| Other services from Mumbai, warm | Database 5 to 8 ms; sign-in 19 to 52 ms; storage (both buckets) 180 to 245 ms |
+| Google sign-in on staging | The founder signed in with his Google account on `staging.hrizzup.com/sign-in-test`; the page showed his name, email and "Google". Supabase has the user with a Google identity (email verified by Google), not a test account |
+| Google sign-in on a preview | The same on `hrizzup-n6rrhosh4-hrizzup.vercel.app/sign-in-test`, through staging's relay; Supabase recorded a second session 46 seconds later |
+| Signing out | Claude Code signed out on both; both stayed signed out after reloading, the other site's session was untouched until its own sign-out, and staging's database then had **no sessions left** for the user (refresh tokens gone too) |
+| A sign-in return address outside our sites | Falls back to staging (Supabase's allow list) or to the sign-in test page (the website's own check, which also stops `/..//evil`-style tricks) |
+| Previews in the storage upload rule | `https://hrizzup-*-hrizzup.vercel.app` added to both staging buckets' CORS rules and applied. A preview's preflight answers 204; a look-alike address is refused (403) |
+| Screen check on the holding page | **58 of 58** on a pull request's preview (on GitHub) and **58 of 58** on staging (from this Mac): home, privacy, terms, not-found and the sign-in test page signed out and signed in, at 13 widths, sideways and 200% text, in Chromium and WebKit |
+
+**Test accounts** for the screen check (staging only, so also previews): `delivered+screen-check-chromium@resend.dev` and `delivered+screen-check-webkit@resend.dev`, marked `test_account` in Supabase. Nobody can sign in to them: the check makes a session with staging's server key, and refuses any Supabase project but staging's.
+
+**Found and fixed on the way:**
+- **An open redirect:** a return path like `/..//evil.example` could have sent someone off our site after signing in. The website now checks the path after it is resolved.
+- **The AI review** (the change is risky: login and database structure) found three points, all fixed before merging:
+  - a dropped idle database connection could have crashed the server;
+  - tables made inside `CREATE SCHEMA` or by an extension escaped the lock;
+  - an unknown error code on the sign-in test page could have read a built-in property.
+- **The Screen check caught a real bug on GitHub:** on a 320-pixel phone with 200% text, the Google button stuck out by 2 pixels. Fixed: its text now wraps.
+- **Smaller ones:**
+  - pnpm 12 couldn't be installed here, so pnpm 11;
+  - a 7-day release wait blocked the current Expo and Biome releases, so the wait is 3 days;
+  - Biome's migration had silently switched its recommended rules off; switched back on;
+  - the local Supabase ports clashed with another project on this Mac, so ours moved to 55xxx;
+  - Vercel doesn't report previews to GitHub by default; switched on;
+  - Vercel's bypass-cookie request answers with redirects that a plain script can't follow, so the checks send only the bypass header.
+
+**Not checked, or for the founder:**
+- **A Google account that isn't a test user** should be refused while the consent screen is in Testing. That needs a second Google account; the founder can try it once on `staging.hrizzup.com/sign-in-test`.
+- **Link previews** (WhatsApp, X, Slack): Bot Protection may challenge them. Check before launch.
+- **AI crawlers** are only logged; decide before launch whether to block them.
+- **The draft privacy policy and terms** have highlighted gaps for the founder (legal entity, address, contact email, Grievance Officer, retention days, courts' city).
+
+**Documents updated:**
+- **CLAUDE.md:** layout, the new "Codebase" paragraph, the preview rule ("a change is checked on its preview, never by deploying it to staging"), the rulesets, `hrizzup-tools` and GitHub's credentials, database changes, and the production rules for the Vercel token and project-wide settings.
+- **Blueprint:** sections 1, 3, 4, 5, 6 (hosting, rewritten), 7, 9 (the relay, the sign-in test page, test accounts), 11 and 13 (codebase).
+- **Runbook:**
+  - Part 9 rewritten as done (9.1 to 9.7);
+  - 6.2 (previews in the upload rule);
+  - 8.1 (billing on);
+  - 10.12 (the Vercel token also applies `infra/vercel/`);
+  - R.3 (`apply.py --check`).
+- **This log:** the Part 8 keys row (previews now have sign-in).
+- **Reminders:** "Replace the Vercel token before 1 February 2027" (due 15 January 2027).
+- **New folders:** `product/`, `infra/vercel/`, `infra/supabase/` (migrations, tests, checks), `.github/workflows/checks.yml` and `staging.yml`, `.github/scripts/`.
 - **Status:** `docs/status/product.md`.
 
 ---

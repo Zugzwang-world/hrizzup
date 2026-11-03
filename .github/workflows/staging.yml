@@ -5,11 +5,17 @@
 #      DATABASE_URL_SESSION (Supabase's pooler in session mode).
 #   2. Check that every table of ours is still locked (row-level security).
 #   3. Move the `staging` branch to this commit (only this workflow can: ruleset
-#      "staging"). Vercel's custom environment "staging" follows that branch, builds the
-#      commit with staging's keys (Doppler `stg`) and serves it on staging.hrizzup.com.
+#      "staging"). Vercel's custom environment "staging" follows that branch.
+#   4. Ask Vercel to build it, through the deploy hook "Staging workflow" (it builds the
+#      newest commit of the `staging` branch with staging's keys, Doppler `stg`). Vercel
+#      doesn't build a branch push of a commit it has already built for production, which
+#      every commit on main is, so the push alone isn't enough (found 3 November 2026).
+#   5. Wait until staging.hrizzup.com serves this commit, from bom1, with every service
+#      answering. The workflow is green only when staging really runs the merge.
 #
 # Staging's keys come from Doppler through a read-only token for `stg`, kept in the GitHub
-# environment "hrizzup-staging", which only `main` can use. Every value is masked in logs.
+# environment "hrizzup-staging", which only `main` can use, with the deploy hook's address
+# (VERCEL_STAGING_DEPLOY_HOOK). Every value is masked in logs.
 
 name: Staging
 
@@ -29,7 +35,7 @@ jobs:
   staging:
     name: Update staging
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     environment: hrizzup-staging
     permissions:
       contents: read
@@ -64,10 +70,18 @@ jobs:
           PGSSLROOTCERT: infra/supabase/supabase-root-2021-ca.crt
         run: psql "$DATABASE_URL_SESSION" -q -v ON_ERROR_STOP=1 -f infra/supabase/checks/every_table_locked.sql
 
-      - name: 3. Send this commit to staging
+      - name: 3. Move the staging branch to this commit
         env:
           COMMIT: ${{ github.sha }}
-        run: |
-          set -euo pipefail
-          git push origin "$COMMIT:refs/heads/staging"
-          echo "Staging now builds $COMMIT; Vercel serves it on https://staging.hrizzup.com"
+        run: git push origin "$COMMIT:refs/heads/staging"
+
+      # Vercel cancels a hook's earlier build of the same version, so a repeat is harmless.
+      - name: 4. Ask Vercel to build staging
+        env:
+          VERCEL_STAGING_DEPLOY_HOOK: ${{ secrets.VERCEL_STAGING_DEPLOY_HOOK }}
+        run: curl -fsS -o /dev/null -X POST "$VERCEL_STAGING_DEPLOY_HOOK"
+
+      - name: 5. Wait until staging serves this commit
+        env:
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: python3 .github/scripts/wait_for_staging.py "${{ github.sha }}"
