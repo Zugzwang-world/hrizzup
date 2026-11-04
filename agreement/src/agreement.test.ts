@@ -212,6 +212,21 @@ describe('the format check', () => {
       'an extra variation selector',
       changed(story, (s) => (s.summary = `Smog ${cp(0x2764, 0xe0100)}`)),
     ],
+    ['a private-use character', changed(story, (s) => (s.title = `Delhi ${cp(0xe000)} smog`))],
+    [
+      'a private-use character beyond the first plane',
+      changed(story, (s) => (s.title = `Delhi ${cp(0xf0000)} smog`)),
+    ],
+    ['an Arabic number sign', changed(story, (s) => (s.title = `Delhi ${cp(0x600)} smog`))],
+    ['a musical format character', changed(story, (s) => (s.title = `Delhi ${cp(0x1d173)} smog`))],
+    [
+      'a hieroglyph format character',
+      changed(story, (s) => (s.title = `Delhi ${cp(0x13430)} smog`)),
+    ],
+    [
+      'half of a broken surrogate pair',
+      changed(story, (s) => (s.title = `Delhi ${cp(0xd800)} smog`)),
+    ],
     ['a joiner between plain letters', changed(story, (s) => (s.summary = `Del${cp(0x200d)}hi`))],
     [
       'two joiners in a row',

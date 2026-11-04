@@ -18,6 +18,7 @@ Last updated: 5 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/brie
   - **Product builds against the agreement, not the other projects' output:** 1.4's core screens, 2.1 to 2.4 and 1.7 need the agreement's first half instead of 1.1 or 1.3; the Android closed test (2.6) needs real news and our own content (1.1, 1.3);
   - GitHub's milestones for Phases 1 to 3 follow.
 - **The hand-over agreement's first half, first draft (step 0.7, status Draft), 5 November 2026:** [agreement/](../../agreement/README.md) holds the plain-language agreement; one definition of each shape (story, update, creation, market and data reading) in JSON Schema; the shared lists (locations, categories, and market subjects with their data slots); example data with the hard cases (long titles, a story with many updates, a missing image, a merged story, a withdrawn update, a correction, a planted instruction); and a check inside Quick checks. TypeScript uses it through `@hrizzup/agreement` (`validate()`); the same files were checked with Python's own validator too. No tables exist for its shapes, and nothing is loaded.
+- **Hidden characters refused by Unicode category** (after the automatic security review, 5 November 2026): the patterns cover every invisible and private-use character in Unicode's main range, and `validate()` refuses the rest by category (format, private use, broken surrogates), with stacked selectors and stray joiners; ordinary emoji still pass.
 
 ## Next
 
