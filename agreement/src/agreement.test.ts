@@ -227,6 +227,14 @@ describe('the format check', () => {
       'half of a broken surrogate pair',
       changed(story, (s) => (s.title = `Delhi ${cp(0xd800)} smog`)),
     ],
+    [
+      'a reserved invisible character not yet assigned',
+      changed(story, (s) => (s.title = `Delhi ${cp(0xe0002)} smog`)),
+    ],
+    [
+      'another reserved invisible character',
+      changed(story, (s) => (s.title = `Delhi ${cp(0xe0fff)} smog`)),
+    ],
     ['a joiner between plain letters', changed(story, (s) => (s.summary = `Del${cp(0x200d)}hi`))],
     [
       'two joiners in a row',
@@ -294,6 +302,7 @@ describe('the format check', () => {
 
   it.each([
     ['an emoji built with a zero-width joiner', `Coding late ${cp(0x1f468, 0x200d, 0x1f4bb)}`],
+    ['a symbol in its text style', `Smile ${cp(0x263a, 0xfe0e)} please`],
     ['an emoji with its variation selector', `We love it ${cp(0x2764, 0xfe0f)}`],
     ['a keycap emoji', `Number ${cp(0x31, 0xfe0f, 0x20e3)} again`],
     ['a flag built with a joiner', `Pride ${cp(0x1f3f3, 0xfe0f, 0x200d, 0x1f308)}`],
