@@ -1,13 +1,13 @@
 # Sourcing
 
-**Its job:** design and run the Grok bots that find news on X, turn their results into stories and updates, and find data sources for the markets.
+**Its job:** design and run the Grok bots that find news on X, turn their results into stories and updates, and find data sources for the markets (step 1.2 is on hold until the founder confirms which project owns it).
 
 **What it produces:** stories, updates and market data sources.
 
 ## What lives here
 
-- **The Grok bots:** their instructions, and the fixed format of their results, as set in the hand-over agreement (PLAN.md step 0.7).
-- **The news pipeline:** it reads the bots' inbox automatically, turns each result into our own update, groups updates into stories that develop over time (each with a timeline), tags every story with a location and a category, and saves everything to the shared content store (step 1.1).
+- **The Grok bots:** their instructions, and the fixed format of their results, as set in the hand-over agreement's second half (PLAN.md step 0.7).
+- **The news pipeline:** it receives the bots' results automatically, by the route chosen in step 0.8, turns each result into our own update, groups updates into stories that develop over time (each with a timeline), tags every story with a location and a category, and saves everything to the shared content store (step 1.1).
 - **Market data sources:** prices (Bitcoin, gold or oil), scores (cricket, football) and an AI model ranking, used to settle the markets (steps 1.2 and 3.2).
 
 ## Rules
