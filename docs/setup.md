@@ -21,7 +21,7 @@
 | Secrets | Doppler, free Developer plan: project `hrizzup` (`dev`, `stg`, `stg_preview`, `prd`) and `hrizzup-tools` (`claude`) | `stg` syncs to Vercel's staging, `stg_preview` to previews. Claude Code uses four service tokens kept in this Mac's keychain, none of which can open `prd`; no personal login is saved on this Mac |
 | Automation | GitHub Actions: Checks, Secret check, Staging, Release (started by hand), Reminders (daily). Environments `hrizzup-staging` and `hrizzup-production` (`main` only) | The release pipeline's environment holds no token yet (P.0) |
 | Codebase | `product/web` (Next.js website), `product/app` (empty Expo app), `product/packages` (shared code), `infra/` (migrations and service settings) | pnpm 11, Turborepo with Vercel's Remote Cache, Biome, TypeScript 6, Vitest, Playwright, Supabase CLI |
-| Plan and rules | `PLAN.md`, `CLAUDE.md`, `docs/setup/` (blueprint, runbook, retirement list), `docs/status/`, `docs/brief/` | The three briefs are the thinking projects' only knowledge from the repo, rewritten every session and checked daily |
+| Plan and rules | `PLAN.md`, `CLAUDE.md`, `docs/setup/` (blueprint, runbook, retirement list), `docs/status/`, `docs/brief/` | The three briefs are the thinking projects' only knowledge from the repo, rewritten at the end of every session. A daily routine to catch a missed one is ready in `infra/claude/` but off (founder's decision) |
 
 **One known difference, by the founder's choice:** staging's Supabase project stays connected to the GitHub repo, with deploys and branching off, so it does nothing (blueprint section 5).
 
@@ -1246,7 +1246,14 @@ Not a problem: the worry that Claude Code could run the script on production. It
 - **Written:** Product (1,399 words), Sourcing (881) and News Desk (601).
 - **Rules** in CLAUDE.md ("End of every session" and the new "Thinking-project briefs"): the layout, what each brief covers (so anyone can tell when one has fallen behind), and that a change to PLAN.md rewrites all three. PLAN.md section 4, step 0.5 and runbook Part 11 now point the projects at their brief instead of PLAN.md and the status files.
 - **Claude projects don't refresh GitHub files by themselves:** the founder clicks **Sync now** in a project to load its newest brief (Claude's help centre, "Using the GitHub integration").
-- **The daily refresh** is a cloud routine, recorded in the next pull request once it exists.
+- **The daily refresh:** off for now (next entry).
+
+### Daily brief refresh: ready, but off (founder's decision)
+
+- **Designed** as a Claude Code cloud routine, "Hrizzup brief refresh": every day at 06:00 India time, on Sonnet 5.5, in Anthropic's Default cloud environment, with no connectors (the founder's choice, so nothing personal is in its reach) and no keys of any kind. It rewrites only the briefs that have fallen behind (CLAUDE.md's scope rule), opens one `[small]` pull request through GitHub's REST API, waits for the four required checks and merges it, and does nothing on days when every brief is current. It uses REST because the GitHub proxy of Claude's cloud refuses GitHub's GraphQL API, which `gh pr create` and auto-merge need (Claude Code documentation, "Cloud environments").
+- **Not created:** Claude's cloud refused it once before and twice after the founder connected GitHub for claude.ai/code and installed the Claude GitHub App ("You don't have access to a repository this routine uses", `repo_access_denied`). The founder chose to skip it for now. The briefs are rewritten at the end of every session (CLAUDE.md).
+- **Ready to switch on:** its settings and instructions are in `infra/claude/README.md`. First, claude.ai/code must list `Zugzwang-world/hrizzup` in its repository picker; then Claude Code creates the routine and records it here.
+- **The Claude GitHub App** that the founder installed for it isn't used while the routine is off. Keep it for when the routine is switched on, or remove it in GitHub (Settings → Applications → Installed GitHub Apps → Claude).
 
 ---
 
