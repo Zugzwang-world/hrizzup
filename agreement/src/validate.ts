@@ -32,17 +32,19 @@ export function validator(): Ajv2020 {
 
 /**
  * Hidden text that no single pattern catches the same way in every language, so it's refused
- * here, in code; code in another language adds the same three checks (agreement/README.md,
- * "Rules for every hand-over point"):
- * - tag characters and the extra variation selectors, invisible characters that can carry
- *   hidden text to an AI;
+ * here, in code; code in another language adds the same three checks with its own Unicode data
+ * (agreement/README.md, "Rules for every hand-over point"):
+ * - any format, private-use or lone surrogate character (Unicode categories Cf, Co and Cs) but
+ *   the zero-width joiner, which takes in the tag characters, and the extra variation selectors
+ *   (U+E0100 to U+E01EF): invisible characters that can carry hidden text to an AI;
  * - variation selectors stacked two or more in a row (an emoji needs one at most);
  * - a zero-width joiner anywhere but inside an emoji: at either end of the text, next to
  *   another joiner, or next to a plain (ASCII) character, a new line included.
+ * Unassigned characters (Cn) aren't refused: which ones are unassigned depends on each
+ * language's Unicode version, so new emoji would be refused on older systems.
  */
 const HIDDEN = [
-  // biome-ignore lint/suspicious/noMisleadingCharacterClass: these are the characters it exists to find
-  /[\u{E0000}-\u{E007F}\u{E0100}-\u{E01EF}]/u,
+  /(?!\u{200D})[\p{Cf}\p{Co}\p{Cs}]|[\u{E0100}-\u{E01EF}]/u,
   /[\u{FE00}-\u{FE0F}]{2}/u,
   /^\u{200D}|\u{200D}$|\u{200D}\u{200D}|[\n -~]\u{200D}|\u{200D}[\n -~]/u,
 ];
