@@ -47,7 +47,7 @@ Default to paid tiers. The exceptions are Cloudflare and Doppler, which stay on 
 | Google Cloud | Two projects, both owned by the **Hrizzup Google account** (`hrishikesh@hrizzup.com`), not the Zugzwang World one: **`hrizzup`** (ID `hrizzup-513610`) for staging's sign-in client, with billing on, and **`hrizzup-production`** for production's (founder's decision, 3 November 2026). Each has its own consent screen, so publishing production's never opens staging to every Google account, and staging's Supabase address never blocks production's branding. Both stay in Testing until the pre-launch checklist | Google sign-in |
 | Apple Developer | Individual account | The iPhone app and Sign in with Apple |
 | Google Play | Personal account | The Android app |
-| SuperGrok | Existing | The Grok bots that find news |
+| Grok | SuperGrok (existing). Which Grok product and plan run the bots is chosen in the Sourcing project (PLAN.md step 0.8) | The Grok bots that find news |
 | AWS | Not the production plan. Later, only if a concrete need appears, as its own project (section 12) | — |
 
 ---
@@ -369,7 +369,7 @@ AWS is not the production plan. Production runs on the same platforms as staging
 - **Live updates:** Supabase Realtime, for market prices and new posts. Which tables send live updates is set in migrations, so staging and production match.
 - **Search:** the database's own text search (Postgres full-text search) from day one, set up in migrations.
 - **Shared links open the app:** Android App Links and iOS Universal Links. The website serves `/.well-known/assetlinks.json` and `/.well-known/apple-app-site-association` on `hrizzup.com` (and on staging, for the staging app). They need the app's signing fingerprint and Apple team ID from the Google Play and Apple Developer accounts.
-- **Automatic tests of core journeys:** Playwright for the website and Maestro for the app. Each becomes a required check in the ruleset "main" once built.
+- **Automatic tests of core journeys:** Playwright for the website and Maestro for the app, set up in PLAN.md step 1.5, before the first journey they check is built (PLAN.md section 3, "Checks come first"). Each becomes a required check in the ruleset "main" once built.
 - **Images:**
   - **Upload:** the app uploads to the private uploads bucket. Our server then strips location data, fixes rotation, caps the size and makes a tiny blurred placeholder, which is saved with the post. It writes one original to the public media bucket, and the raw upload is deleted (lifecycle rule). The work happens on the server because a phone can't be trusted to remove location data; the app also shrinks photos before uploading, to save mobile data.
   - **Delivery:** Cloudflare image transformations with `format=auto`, resized per screen from a short fixed list of widths, and cached at Cloudflare's edge. They are requested on the media addresses (`media-staging.hrizzup.com`, `media.hrizzup.com`), which run through Cloudflare. The app's own names point at Vercel, DNS only, so transformations can't run there.
@@ -467,7 +467,7 @@ Every page and screen has a budget. The starting numbers below are Google's "goo
 | **Layout stability** | Layout shift score of 0.1 or less (nothing jumps while loading) | Nothing jumps while loading (placeholders hold the space) |
 | **Download size** | At most 200 KB of compressed code, and 500 KB in total, on first load, before images below the screen | The data for a screen's first view under 100 KB before images; the app's code size checked for unexplained growth |
 
-- **On every pull request:** the budgets are checked automatically. On the website, a Lighthouse check runs against the pull request's preview link, alongside a download-size check. In the app, there are code-size checks and automatic performance tests. Each becomes a required check in the ruleset "main" once it is built (PLAN.md step 0.6).
+- **On every pull request:** the budgets are checked automatically. On the website, a Lighthouse check runs against the pull request's preview link, alongside a download-size check. In the app, there are code-size checks and automatic performance tests. They are built in PLAN.md step 1.5, before any page or screen is built in code, and cover the pages that exist when they land. Each becomes a required check in the ruleset "main" once it is built.
 - **Once live:** the same measures are taken from real users, at the 75th percentile: Vercel Speed Insights for the website, and the monitoring tool for the app (section 10). A budget broken for real users is treated like a failing check.
 
 ---

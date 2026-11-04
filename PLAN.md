@@ -2,7 +2,7 @@
 
 > This is the single plan for the whole product. Claude Code keeps it current: it turns the order of work below into GitHub milestones, and at the end of every session it updates the three status files and rewrites the thinking-project briefs. Nobody maintains this file by hand. Changes to the plan go through Claude Code, like any other change.
 
-Last agreed: 4 November 2026
+Last agreed: 5 November 2026
 
 ---
 
@@ -27,7 +27,7 @@ Most people now get their news first from creators on social media (posts, memes
 
 ### News: the hook, and most of the effort
 
-- **Sourcing:** fully automated, run by Grok bots: automations on a Grok subscription (not an X or xAI API) that read X on a schedule and send their results by email to a dedicated inbox. Our pipeline reads that inbox automatically, turns each result into our own update, groups updates into stories that develop over time (each with a timeline), and tags every story with a location and a category. Nobody copies anything by hand.
+- **Sourcing:** fully automated, run by Grok bots that read X on a schedule. Which Grok product and plan run them, and the route that brings their results to our pipeline, are decided in the Sourcing project (step 0.8). Our pipeline receives the results automatically, turns each result into our own update, groups updates into stories that develop over time (each with a timeline), and tags every story with a location and a category. Nobody copies anything by hand.
 - **Categories:** a location (global; national, which means India; local, which means Indian cities) combined with a general category (crypto, finance, business, AI, sports and more).
 - **Board:** a Pinterest-style discovery page with three tabs: Latest, Top and For You. For You is built from each user's favourite categories and bookmarks. It sorts and filters; it is not an algorithm.
 - **Feed:** creators' takes on the stories each user picked, plus the creators they follow and their location. The detailed design is still to be worked out.
@@ -96,6 +96,7 @@ Most people now get their news first from creators on social media (posts, memes
   - **Risky** (market maths, play money, login, database structure, the core of the news engine, payments): the full test suite plus AI review.
   - **Production release:** everything, once.
   - Every change is labelled small, normal or risky.
+- **Checks come first** (standing rule, 5 November 2026): every automatic check lands before the first change it checks, and when a check lands it also covers everything already built. In section 5, each check is a need of the steps it would check, so none of them can start without it. Code that starts somewhere the checks don't reach yet (a new folder or a new language) gets its checks first.
 - **Staging** is a sandbox. The AI holds all of its keys. It is fully separate from production, holds no real user data, and every paid service on it has a spending cap. Auto mode stays on.
 - **Production** runs on the same platforms as staging: Vercel plus Supabase, set up exactly like staging (same services, versions, region and settings), with its own data and keys. This "production twin" is created as soon as staging works, with nothing public until launch, so going live is a promotion, not a migration. The founder holds the production keys, and production starts clean.
 - **Releasing** means promoting the exact production build of a commit that passed staging (`vercel promote`), through the release pipeline. Nothing is rebuilt, and going back is one step too.
@@ -117,7 +118,8 @@ Most people now get their news first from creators on social media (posts, memes
 | News Desk | Create our own content and onboard creators | Text, images, video |
 | Product | Build the app, the website and the markets | The app and the website |
 
-- There is one repository, one shared content store (a database plus storage for images and video), and one written hand-over agreement that defines exactly what each project passes to the others.
+- There is one repository, one shared content store (a database plus storage for images and video), and one written hand-over agreement that defines exactly what each project passes to the others. It is signed off in two halves (step 0.7).
+- Finding data sources for the markets (step 1.2) is on hold until the founder confirms which project owns it.
 - Projects never copy code between each other; the shared repository is the only route.
 - Each thinking project keeps only its brief in its knowledge: `docs/brief/sourcing.md`, `docs/brief/news-desk.md` or `docs/brief/product.md` (decided 4 November 2026). A brief stands on its own: where things stand, the decisions in force, open questions, what's next, and which repository files hold the detail. It stays under about 1,500 words and is rewritten, never appended. The project uses the live GitHub connection when it needs that detail.
 - Claude Code updates the relevant status file and rewrites the relevant brief at the end of every session. A daily routine that would catch a brief left behind is ready but off for now (founder's decision, 4 November 2026).
@@ -142,40 +144,41 @@ No time estimates, only order. **Needs** means it must be finished first.
 
 ### Phase 1: Foundations (three projects working in parallel)
 
-Steps 0.4, 0.7 and 0.8 moved here from Phase 0 on 4 November 2026, keeping their numbers.
+Steps 0.4, 0.7 and 0.8 moved here from Phase 0 on 4 November 2026, keeping their numbers. Step 0.7 signs off in two halves, each with its own status, Draft and then Agreed (decided 5 November 2026). Product builds against the agreement's first half (its shapes and example data), not against the other projects' output.
 
 | # | Activity | Who | Needs | Done when |
 |---|---|---|---|---|
 | 0.4 | Register individual developer accounts: Google Play Console and the Apple Developer Program | Founder | — | Both accounts are active |
-| 0.7 | The hand-over agreement: exactly what a story, an update, a creation and a market look like when they pass between projects, including the fixed format the Grok bots use for their results | Product drafts it; all three projects agree | 0.6 | Agreed and saved in the repository. **No project writes content before this is done.** |
-| 0.8 | Get the Grok subscription (SuperGrok) and set up a dedicated inbox on our domain that receives the Grok bots' results | Founder, with AI | 0.2 | A test bot's result lands in the inbox |
-| 1.1 | News pipeline, first version: Grok bots read X on a schedule and send results in the agreed format; our pipeline reads the inbox automatically, writes updates, groups them into stories with timelines, tags location and category, and saves them to the content store | Sourcing | 0.7, 0.8 | Stories appear and update on their own on staging |
-| 1.2 | Data sources for the markets: prices (Bitcoin, gold or oil), scores (cricket, football), an AI model ranking, with their costs | Sourcing | — | Every market subject has a named source |
-| 1.3 | Content formats and the first batch of our own content for the launch categories; a list of creators to invite | News Desk | 0.7 | Enough content to fill the feeds in the launch categories |
-| 1.4 | Design: references, then the design system, then the core screens (board, story page, feed, app frame, market page) | Product, in Claude Design | — | Design system approved and screens handed to Claude Code |
-| 1.5 | Set up the one codebase (Expo app and Next.js website sharing code, with one typed API); get a first empty app running on an Android phone; add the performance-budget check to every pull request (blueprint section 14). The first database migration locks every new table (row-level security on automatically), and a check on every pull request fails if any table is unprotected (approved 3 November 2026) | Product | 0.6 | The website runs on staging, the app opens on a phone, and every pull request checks the performance budget |
-| 1.6 | Accounts and login with Supabase Auth: Google first; Apple and email codes before the iPhone build; the app's native Google and Apple sign-in with the app builds | Product | 0.6 | Sign-in works on the web and on Android |
-| 1.7 | Copy the market engine from Manifold, with its tests (licence confirmed first) | Product | 0.6 | A market can be created, traded and settled on staging |
+| 0.7, first half | The hand-over agreement's first half: exactly what a story, an update, a creation and a market look like when they pass between projects (their shapes, with example data and a check on every pull request that keeps the two in step), and the launch list of locations and categories | Product drafts it; all three projects agree; the founder approves the launch list | 0.6 | Agreed and saved in the repository. **No project creates tables for these shapes or writes content in them before this half is agreed.** |
+| 0.7, second half | The hand-over agreement's second half: the Grok bots' result format. Drafted only once the Sourcing project has chosen the Grok product and how the results reach our pipeline (0.8) | Product drafts it; all three projects agree | 0.8's choice of Grok product and route | Agreed only after a real result from 0.8's test bot passes the agreement's own checks. **No bot result becomes content before this half is agreed.** |
+| 0.8 | Choose the Grok product and plan that run the bots, and the route that brings their results to our pipeline (both decided in the Sourcing project), then set them up | Sourcing decides; the founder sets it up, with AI | 0.2 | A test bot's result arrives by that route |
+| 1.1 | News pipeline, first version: Grok bots read X on a schedule and send results in the agreed format; our pipeline receives them automatically, by the route 0.8 chose, writes updates, groups them into stories with timelines, tags location and category, and saves them to the content store | Sourcing | 0.7 (both halves), 0.8 | Stories appear and update on their own on staging |
+| 1.2 | Data sources for the markets: prices (Bitcoin, gold or oil), scores (cricket, football), an AI model ranking, with their costs. **On hold** until the founder confirms which project owns it | To be confirmed by the founder | — | Every market subject has a named source |
+| 1.3 | Content formats and the first batch of our own content for the launch categories; a list of creators to invite | News Desk | 0.7 (first half) | Enough content to fill the feeds in the launch categories |
+| 1.4 | Design: references, then the design system, then the core screens (board, story page, feed, app frame, market page), drawn from the agreement's shapes and example data | Product, in Claude Design | 0.7 (first half), for the core screens | Design system approved and screens handed to Claude Code |
+| 1.5 | Set up the one codebase (Expo app and Next.js website sharing code, with one typed API) and get a first empty app running on an Android phone. Before any page or screen is built in code, add the checks every pull request runs on them: the performance budget (blueprint section 14) and the core-journey tests (Playwright for the website; Maestro for the app, at phone and tablet sizes). The first database migration locks every new table (row-level security on automatically), and a check on every pull request fails if any table is unprotected (approved 3 November 2026) | Product | 0.6 | The website runs on staging, the app opens on a phone, and every pull request checks the performance budget and the core journeys of every page and screen that exists |
+| 1.6 | Accounts and login with Supabase Auth: Google first; Apple and email codes before the iPhone build; the app's native Google and Apple sign-in with the app builds | Product | 0.6, 1.5 | Sign-in works on the web and on Android |
+| 1.7 | Copy the market engine from Manifold, with its tests (licence confirmed first) | Product | 0.6, 0.7 (first half) | A market can be created, traded and settled on staging |
 
 ### Phase 2: The news app (most of the effort)
 
 | # | Activity | Who | Needs | Done when |
 |---|---|---|---|---|
-| 2.1 | Board: Latest, Top and For You; location and general categories; favourites and bookmarks | Product | 1.1, 1.4 | A reader can browse and shape their board |
-| 2.2 | Story pages with timelines | Product | 1.1, 1.4 | Every story shows how it developed |
-| 2.3 | Feed and ranking, version one: picks, views, categories, follows; likes and dislikes; following creators | Product | 1.3, 2.1 | The feed shows creators' takes on the stories a reader chose |
-| 2.4 | Posting: text for everyone; creator accounts with image and video uploads; reporting posts and blocking users | Product | 1.6 | Users post text, creators post media, and any post can be reported |
-| 2.5 | Notifications for breaking and developing stories | Product | 2.2 | Alerts arrive on an Android phone |
-| 2.6 | Android build of everything above; start the Google Play closed test as soon as the build is usable | Product, Founder | 2.1–2.5 | A closed test is running with 12 or more real testers |
-| 2.7 | Paid tier: decide what's free and what's paid, then build subscriptions (RevenueCat in the app; Razorpay with UPI on the website, passed through our server). It follows the closed test's start, so the Google Play clock isn't held up | Product, Founder | 1.6 | A tester can subscribe in the Android app and on the website, and both show the same paid status |
+| 2.1 | Board: Latest, Top and For You; location and general categories; favourites and bookmarks | Product | 0.7 (first half), 1.4, 1.5 | A reader can browse and shape their board |
+| 2.2 | Story pages with timelines | Product | 0.7 (first half), 1.4, 1.5 | Every story shows how it developed |
+| 2.3 | Feed and ranking, version one: picks, views, categories, follows; likes and dislikes; following creators | Product | 0.7 (first half), 1.5, 2.1 | The feed shows creators' takes on the stories a reader chose |
+| 2.4 | Posting: text for everyone; creator accounts with image and video uploads; reporting posts and blocking users | Product | 0.7 (first half), 1.5, 1.6 | Users post text, creators post media, and any post can be reported |
+| 2.5 | Notifications for breaking and developing stories | Product | 1.5, 2.2 | Alerts arrive on an Android phone |
+| 2.6 | Android build of everything above; start the Google Play closed test as soon as the build is usable. This is where real people first see real news, so it needs the news pipeline and our own content | Product, Founder | 1.1, 1.3, 2.1–2.5 | A closed test is running with 12 or more real testers |
+| 2.7 | Paid tier: decide what's free and what's paid, then build subscriptions (RevenueCat in the app; Razorpay with UPI on the website, passed through our server). It follows the closed test's start, so the Google Play clock isn't held up | Product, Founder | 1.5, 1.6 | A tester can subscribe in the Android app and on the website, and both show the same paid status |
 
 ### Phase 3: The markets website (runs alongside the second half of Phase 2)
 
 | # | Activity | Who | Needs | Done when |
 |---|---|---|---|---|
-| 3.1 | Market pages in Kalshi's layout with our own look; a starting balance on signup | Product | 1.4, 1.7 | A new visitor can sign in and place a bet in a few taps |
-| 3.2 | Markets that run continuously and settle themselves from the data sources; questions refined | Product, Sourcing | 1.2, 1.7 | Markets open, run and settle with no one touching them |
-| 3.3 | News on the website, linked to markets through shared categories | Product | 2.1, 3.1 | A visitor can move between a market and its news |
+| 3.1 | Market pages in Kalshi's layout with our own look; a starting balance on signup | Product | 1.4, 1.5, 1.7 | A new visitor can sign in and place a bet in a few taps |
+| 3.2 | Markets that run continuously and settle themselves from the data sources; questions refined | Product, with step 1.2's owner | 1.2, 1.7 | Markets open, run and settle with no one touching them |
+| 3.3 | News on the website, linked to markets through shared categories | Product | 1.5, 2.1, 3.1 | A visitor can move between a market and its news |
 
 ### Phase 4: Polish and launch preparation
 
@@ -201,15 +204,17 @@ Steps 0.4, 0.7 and 0.8 moved here from Phase 0 on 4 November 2026, keeping their
 - **Google Play, personal account:** before you can apply for production access, the app must run a closed test with at least 12 testers who have been opted in continuously for 14 days. Google then reviews the application. Line up 12 or more real testers who will actually use the app, and start the closed test as soon as a usable Android build exists (step 2.6).
 - **Apple:** an iPhone app that offers Google sign-in must also offer an equally private option, such as Sign in with Apple.
 - **Domain:** needed before login and email will work.
-- **Grok subscription:** set up early, so the Grok bots can be tested before the pipeline is built around them.
+- **Grok:** choose the product and plan, and set them up early (step 0.8), so the Grok bots can be tested before the pipeline is built around them.
 - **Paid services** (video hosting, data feeds): open the accounts early, each with a spending cap.
 
 ---
 
 ## 7. Open: to settle inside the projects
 
-- How the Grok bots are set up, how often they run, and the fixed format of their results (steps 0.7 and 1.1). Each run starts fresh, so matching new items to existing stories happens in our pipeline.
-- Confirm that Grok's subscription terms allow its results to feed a public app (step 0.8)
+- Which Grok product and plan run the bots, and the route that brings their results to our pipeline (step 0.8, decided in the Sourcing project)
+- How the Grok bots are set up, how often they run, and the fixed format of their results (step 0.7's second half, and 1.1). Each run starts fresh, so matching new items to existing stories happens in our pipeline.
+- Confirm that the chosen Grok product's terms allow its results to feed a public app (step 0.8)
+- Which project owns step 1.2, the data sources for the markets (the founder confirms; on hold until then)
 - Background jobs: which tool runs scheduled and queued work (decided in the Sourcing project)
 - How the app shows the bot check (Turnstile) on its email-code screen (step 1.6)
 - Feed design in depth (step 2.3)

@@ -116,7 +116,7 @@ The repo lives in your personal GitHub account, `Zugzwang-world`, on GitHub Pro,
 | 3.6 | Claude Code | Through Resend's API, with the setup key through `doppler run`: create the sending domain `mail.hrizzup.com` in the Tokyo region (`ap-northeast-1`, the closest of Resend's regions to India), with open and click tracking off. Add the records Resend returns to Cloudflare (DNS only) and start verification. Create one sending-only key for staging, limited to `mail.hrizzup.com`, and put it into Doppler `stg` as `RESEND_API_KEY` without showing it; the production key comes in Part 10 (your checklist, step G), created by you. Then delete the setup key from Resend and Doppler. **Done, 3 November 2026:** verified (setup log). |
 | 3.7 | Claude Code | Send a test email from `no-reply@mail.hrizzup.com` to your address with the staging key, and check that it lands in the inbox and passes DMARC. **Sent 3 November 2026:** delivered, but into **Spam**. The header check and a new test are parked in the pre-launch checklist (P.13, founder's decision, 4 November 2026). |
 
-**Note:** the inbox that receives the Grok bots' results is designed in the Sourcing project. It has to be an address our pipeline can read automatically, not your Proton inbox.
+**Note:** the route that brings the Grok bots' results to our pipeline is chosen in the Sourcing project (PLAN.md step 0.8). If it is email, it has to be an inbox our pipeline can read automatically, not your Proton inbox.
 
 **Done when:** Proton is verified and mail works both ways, the Resend domain is verified, and the test email reaches the inbox with DMARC passing.
 
