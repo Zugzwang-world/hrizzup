@@ -4,6 +4,8 @@
   "files": {
     "includes": [
       "product/**",
+      "agreement/**",
+      "!agreement/README.md",
       "infra/supabase/package.json",
       "package.json",
       "turbo.json",

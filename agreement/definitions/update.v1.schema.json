@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hrizzup.com/agreement/definitions/update.v1.schema.json",
+  "title": "Update, format version 1",
+  "description": "One development in a story, in our own words. Our pipeline writes one from each piece of news in the bots' results; a story's updates, in order, are its timeline.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "id",
+    "story_id",
+    "headline",
+    "reported_at",
+    "state",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "format": {
+      "const": "update/1",
+      "description": "Says this record is an update, in format version 1."
+    },
+    "id": {
+      "$ref": "common.schema.json#/$defs/record_id",
+      "description": "The update's ID."
+    },
+    "story_id": {
+      "$ref": "common.schema.json#/$defs/record_id",
+      "description": "The story whose timeline this update belongs to."
+    },
+    "headline": {
+      "$ref": "common.schema.json#/$defs/one_line",
+      "type": "string",
+      "maxLength": 120,
+      "description": "What happened, in one line of our own words."
+    },
+    "body": {
+      "$ref": "common.schema.json#/$defs/text",
+      "type": "string",
+      "maxLength": 1000,
+      "description": "More detail, in our own words. Left out when the headline says it all."
+    },
+    "reported_at": {
+      "$ref": "common.schema.json#/$defs/time",
+      "description": "When this news was first reported, as near as our pipeline can tell (the earliest source's time). The timeline runs in this order."
+    },
+    "sources": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 10,
+      "uniqueItems": true,
+      "items": { "$ref": "common.schema.json#/$defs/web_address" },
+      "description": "The public posts and pages this update is based on, as links. Left out when the bots' result gives none."
+    },
+    "corrects": {
+      "$ref": "common.schema.json#/$defs/record_id",
+      "description": "An earlier update in the same story that this one corrects. Readers see that earlier update marked as corrected."
+    },
+    "state": {
+      "enum": ["live", "withdrawn"],
+      "description": "live: it shows in the timeline. withdrawn: our AI found it wasn't true, and it no longer shows."
+    },
+    "withdrawn_reason": {
+      "$ref": "common.schema.json#/$defs/one_line",
+      "type": "string",
+      "maxLength": 200,
+      "description": "Why the update was withdrawn, in our own words. Only when the state is withdrawn."
+    },
+    "created_at": {
+      "$ref": "common.schema.json#/$defs/time",
+      "description": "When our pipeline wrote the update."
+    },
+    "updated_at": {
+      "$ref": "common.schema.json#/$defs/time",
+      "description": "When the update last changed."
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "state": { "const": "withdrawn" } } },
+      "then": { "required": ["withdrawn_reason"] },
+      "else": { "not": { "required": ["withdrawn_reason"] } }
+    }
+  ]
+}

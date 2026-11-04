@@ -1,6 +1,7 @@
 # Hrizzup: the checks on every pull request (PLAN.md section 3, "Checks sized to the change").
 #
-#   Quick checks    formatting and lint (Biome), type checks and unit tests (Turborepo)
+#   Quick checks    formatting and lint (Biome), type checks and unit tests (Turborepo),
+#                   including the hand-over agreement's check (agreement/src/agreement.test.ts)
 #   Database check  builds a fresh database from infra/supabase/migrations and runs its
 #                   tests, including "every table is locked" (row-level security)
 #   Screen check    once Vercel's preview of the pull request is ready, opens it in

@@ -1,0 +1,84 @@
+[
+  {
+    "format": "market/1",
+    "id": "01a1ab94-8600-7b23-ba8b-9e3174889404",
+    "question": "Will Bitcoin be above $100,000 at 6 pm India time on Friday 6 November?",
+    "subject": "bitcoin",
+    "categories": ["crypto"],
+    "kind": "yes_no",
+    "threshold": "100000",
+    "opens_at": "2026-11-05T12:30:00Z",
+    "closes_at": "2026-11-06T12:30:00Z",
+    "state": "open",
+    "created_at": "2026-11-05T12:00:00Z",
+    "updated_at": "2026-11-05T12:30:00Z"
+  },
+  {
+    "format": "market/1",
+    "id": "01a191d4-ba00-7f16-ad78-fcf178b2501f",
+    "question": "Which AI model will rank first when November ends?",
+    "subject": "ai-models",
+    "categories": ["ai"],
+    "kind": "multiple_choice",
+    "outcomes": [
+      {
+        "code": "orion-3",
+        "label": "Orion 3",
+        "reading_value": "Orion 3"
+      },
+      {
+        "code": "lumen-pro",
+        "label": "Lumen Pro",
+        "reading_value": "Lumen Pro"
+      },
+      {
+        "code": "atlas-2",
+        "label": "Atlas 2",
+        "reading_value": "Atlas-2 (preview)"
+      },
+      {
+        "code": "another-model",
+        "label": "Another model",
+        "otherwise": true
+      }
+    ],
+    "opens_at": "2026-11-01T00:00:00Z",
+    "closes_at": "2026-11-30T18:30:00Z",
+    "state": "open",
+    "created_at": "2026-10-31T12:00:00Z",
+    "updated_at": "2026-11-01T00:00:00Z"
+  },
+  {
+    "format": "market/1",
+    "id": "01a196df-9ec0-7982-9bc6-1854a83112c0",
+    "question": "Who will win the second ODI between India and Australia at the Wankhede?",
+    "subject": "cricket",
+    "categories": ["sports"],
+    "kind": "multiple_choice",
+    "outcomes": [
+      {
+        "code": "india",
+        "label": "India",
+        "reading_value": "home"
+      },
+      {
+        "code": "australia",
+        "label": "Australia",
+        "reading_value": "away"
+      },
+      {
+        "code": "no-result",
+        "label": "No result",
+        "reading_value": "no_result"
+      }
+    ],
+    "match_ref": "ind-aus-odi-2",
+    "opens_at": "2026-11-01T12:00:00Z",
+    "closes_at": "2026-11-04T07:30:00Z",
+    "state": "settled",
+    "result": "india",
+    "settled_at": "2026-11-04T16:30:00Z",
+    "created_at": "2026-11-01T11:30:00Z",
+    "updated_at": "2026-11-04T16:30:00Z"
+  }
+]

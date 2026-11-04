@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hrizzup.com/agreement/definitions/story.v1.schema.json",
+  "title": "Story, format version 1",
+  "description": "A piece of news that develops over time. Our pipeline writes it from the bots' results, keeps its title and summary current, and adds updates to its timeline.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "id",
+    "title",
+    "summary",
+    "locations",
+    "categories",
+    "state",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "format": {
+      "const": "story/1",
+      "description": "Says this record is a story, in format version 1."
+    },
+    "id": {
+      "$ref": "common.schema.json#/$defs/record_id",
+      "description": "The story's ID. Updates, posts and links refer to the story by it."
+    },
+    "title": {
+      "$ref": "common.schema.json#/$defs/one_line",
+      "type": "string",
+      "maxLength": 120,
+      "description": "The story's headline, in our own words. Rewritten as the story develops, so it always says where things stand."
+    },
+    "summary": {
+      "$ref": "common.schema.json#/$defs/text",
+      "type": "string",
+      "maxLength": 300,
+      "description": "What is happening, in one or two sentences of our own words."
+    },
+    "locations": {
+      "$ref": "common.schema.json#/$defs/locations",
+      "description": "Where the story matters, the main one first. The story shows under each of them, and under no other."
+    },
+    "categories": {
+      "$ref": "common.schema.json#/$defs/categories",
+      "description": "What the story is about, the main one first. The story shows under each of them."
+    },
+    "state": {
+      "enum": ["live", "merged", "withdrawn"],
+      "description": "live: readers see it. merged: it turned out to be the same news as another story, which readers see instead. withdrawn: our AI found it wasn't true, and readers no longer see it."
+    },
+    "merged_into": {
+      "$ref": "common.schema.json#/$defs/record_id",
+      "description": "The story this one was merged into; its updates have moved there. Only when the state is merged."
+    },
+    "withdrawn_reason": {
+      "$ref": "common.schema.json#/$defs/one_line",
+      "type": "string",
+      "maxLength": 200,
+      "description": "Why the story was withdrawn, in our own words, shown to anyone who opens an old link. Only when the state is withdrawn."
+    },
+    "created_at": {
+      "$ref": "common.schema.json#/$defs/time",
+      "description": "When our pipeline first wrote the story."
+    },
+    "updated_at": {
+      "$ref": "common.schema.json#/$defs/time",
+      "description": "When anything about the story last changed, including a new update in its timeline."
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "state": { "const": "merged" } } },
+      "then": { "required": ["merged_into"] },
+      "else": { "not": { "required": ["merged_into"] } }
+    },
+    {
+      "if": { "properties": { "state": { "const": "withdrawn" } } },
+      "then": { "required": ["withdrawn_reason"] },
+      "else": { "not": { "required": ["withdrawn_reason"] } }
+    }
+  ]
+}

@@ -12,7 +12,7 @@
 
 ## Rules
 
-- What passes to Product is defined by the hand-over agreement (step 0.7). No content is written before it is agreed.
+- What passes to Product is defined by the hand-over agreement, [agreement/README.md](../agreement/README.md): a creation (text, one image or one video), and the shared lists of locations and categories. No content is written before its first half is agreed (step 0.7).
 - Projects never copy code between each other; this shared repository is the only route.
 - Frameworks and dependencies aren't chosen yet.
 

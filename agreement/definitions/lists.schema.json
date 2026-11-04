@@ -1,0 +1,154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hrizzup.com/agreement/definitions/lists.schema.json",
+  "title": "Shared lists",
+  "description": "Every list of values that more than one project writes or reads, defined once. Each item has a code (what records carry, never changed), a name (what people see) and what it covers. Adding an item is one change here.",
+  "$defs": {
+    "location": {
+      "title": "Location from the shared list",
+      "description": "Where a story matters: the whole world, all of India, or one Indian city.",
+      "anyOf": [
+        { "$ref": "#/$defs/global" },
+        { "$ref": "#/$defs/national" },
+        { "$ref": "#/$defs/local" }
+      ]
+    },
+    "global": {
+      "title": "Global",
+      "description": "News for every reader, wherever they are.",
+      "oneOf": [
+        {
+          "const": "global",
+          "title": "Global",
+          "description": "News that matters around the world, not just in India: world affairs, global markets, international sport. Every reader sees it."
+        }
+      ]
+    },
+    "national": {
+      "title": "National",
+      "description": "News for readers anywhere in India.",
+      "oneOf": [
+        {
+          "const": "india",
+          "title": "India",
+          "description": "News that matters across India: national politics, the economy, national teams, and anything that affects people in every city."
+        }
+      ]
+    },
+    "local": {
+      "title": "Local",
+      "description": "News for readers in one Indian city. More cities come after version one.",
+      "oneOf": [
+        {
+          "const": "mumbai",
+          "title": "Mumbai",
+          "description": "Mumbai and its metropolitan region, including Thane and Navi Mumbai."
+        },
+        {
+          "const": "delhi-ncr",
+          "title": "Delhi NCR",
+          "description": "Delhi and the National Capital Region, including Gurugram, Noida, Ghaziabad and Faridabad."
+        },
+        {
+          "const": "bengaluru",
+          "title": "Bengaluru",
+          "description": "Bengaluru and its surrounding urban district."
+        }
+      ]
+    },
+    "category": {
+      "title": "Category from the shared list",
+      "description": "What a story or a post is about.",
+      "oneOf": [
+        {
+          "const": "crypto",
+          "title": "Crypto",
+          "description": "Bitcoin and other cryptocurrencies: prices, exchanges, regulation and new projects."
+        },
+        {
+          "const": "finance",
+          "title": "Finance",
+          "description": "Money and markets: shares, the rupee, interest rates, banks, taxes and personal finance."
+        },
+        {
+          "const": "business",
+          "title": "Business",
+          "description": "Companies and the economy: results, deals, start-ups, jobs and whole industries."
+        },
+        {
+          "const": "ai",
+          "title": "AI",
+          "description": "Artificial intelligence: new models, the companies building them, how people use them, and the rules around them."
+        },
+        {
+          "const": "sports",
+          "title": "Sports",
+          "description": "Cricket, football and every other sport: matches, players, teams and tournaments."
+        },
+        {
+          "const": "politics",
+          "title": "Politics",
+          "description": "Government and elections: Parliament, state governments, policies and political parties."
+        },
+        {
+          "const": "entertainment",
+          "title": "Entertainment",
+          "description": "Films, streaming, music and celebrities, from Bollywood and regional cinema to global stars."
+        },
+        {
+          "const": "general",
+          "title": "General",
+          "description": "News that fits no other category: weather, transport, civic issues, crime, education and health."
+        }
+      ]
+    },
+    "market_subject": {
+      "title": "Market subject from the shared list",
+      "description": "What a market is about. Each subject has one data slot: what it measures, and how settlement reads it. A slot names no provider; its source is chosen in PLAN.md step 1.2.",
+      "anyOf": [
+        { "$ref": "#/$defs/price_subject" },
+        { "$ref": "#/$defs/ranking_subject" },
+        { "$ref": "#/$defs/match_subject" }
+      ]
+    },
+    "price_subject": {
+      "title": "Price",
+      "description": "Settlement reads the average of the valid readings measured in the 60 seconds before the market closes. If there are none, the market waits for them; if none arrive within 24 hours, it is cancelled and every bet is returned.",
+      "$comment": "Gold or oil joins this list once PLAN.md step 1.2 decides which (on hold until the founder confirms its owner).",
+      "oneOf": [
+        {
+          "const": "bitcoin",
+          "title": "Bitcoin",
+          "description": "The price of one bitcoin in US dollars: a reference price combined from several large exchanges, so no single exchange decides a market."
+        }
+      ]
+    },
+    "ranking_subject": {
+      "title": "Ranking",
+      "description": "Settlement reads the first valid reading measured when the market closes or after: the outcome naming the model ranked first wins. If it ranks more than one model first, the market is cancelled; so it is if no reading arrives within 7 days.",
+      "oneOf": [
+        {
+          "const": "ai-models",
+          "title": "The best AI model",
+          "description": "A public ranking of AI models, from the source chosen in step 1.2: the models in order, with the leader first."
+        }
+      ]
+    },
+    "match_subject": {
+      "title": "Match",
+      "description": "Settlement reads the match's first valid reading that says finished or abandoned: the outcome for its result wins (no_result when abandoned). If the market has no outcome for that result, or no such reading arrives within 3 days of the start, it is cancelled.",
+      "oneOf": [
+        {
+          "const": "cricket",
+          "title": "Cricket",
+          "description": "Professional cricket matches: who plays, the live score, and the result."
+        },
+        {
+          "const": "football",
+          "title": "Football",
+          "description": "Professional football matches: who plays, the live score, and the result."
+        }
+      ]
+    }
+  }
+}

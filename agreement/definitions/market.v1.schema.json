@@ -1,0 +1,182 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hrizzup.com/agreement/definitions/market.v1.schema.json",
+  "title": "Market, format version 1",
+  "description": "A play-money question about the future that settles itself from real data: when it closes, settlement reads its subject's data slot and pays out with no one touching it. The exact questions are settled in PLAN.md step 3.2.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "id",
+    "question",
+    "subject",
+    "categories",
+    "kind",
+    "opens_at",
+    "closes_at",
+    "state",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "format": {
+      "const": "market/1",
+      "description": "Says this record is a market, in format version 1."
+    },
+    "id": {
+      "$ref": "common.schema.json#/$defs/record_id",
+      "description": "The market's ID."
+    },
+    "question": {
+      "$ref": "common.schema.json#/$defs/one_line",
+      "type": "string",
+      "maxLength": 120,
+      "description": "The question people bet on, as shown."
+    },
+    "subject": {
+      "$ref": "lists.schema.json#/$defs/market_subject",
+      "description": "What the market is about. Its data slot settles the market, in the way the shared list describes."
+    },
+    "categories": {
+      "$ref": "common.schema.json#/$defs/categories",
+      "description": "The categories whose news shows alongside the market."
+    },
+    "kind": {
+      "enum": ["yes_no", "multiple_choice"],
+      "description": "yes_no: people buy Yes or No (a price subject). multiple_choice: several outcomes, exactly one of which wins (a ranking or match subject)."
+    },
+    "outcomes": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 20,
+      "items": { "$ref": "#/$defs/outcome" },
+      "contains": { "type": "object", "required": ["otherwise"] },
+      "minContains": 0,
+      "maxContains": 1,
+      "description": "The possible outcomes. Required for multiple_choice, and only there. At most one is the catch-all."
+    },
+    "threshold": {
+      "$ref": "common.schema.json#/$defs/decimal",
+      "description": "For a price subject: Yes wins if the settlement price is above this, in US dollars. Required there, and only there."
+    },
+    "match_ref": {
+      "$ref": "common.schema.json#/$defs/code",
+      "description": "For a match subject: which match, by the code its readings use. Required there, and only there."
+    },
+    "opens_at": {
+      "$ref": "common.schema.json#/$defs/time",
+      "description": "When betting opens."
+    },
+    "closes_at": {
+      "$ref": "common.schema.json#/$defs/time",
+      "description": "When betting stops. Settlement reads the data slot from this time."
+    },
+    "state": {
+      "enum": ["upcoming", "open", "closed", "settled", "void"],
+      "description": "upcoming: not open yet. open: taking bets. closed: betting has stopped and settlement waits for the data. settled: paid out. void: cancelled, with every bet returned."
+    },
+    "result": {
+      "$ref": "common.schema.json#/$defs/code",
+      "description": "What won: yes or no, or the winning outcome's code. Only when the state is settled."
+    },
+    "void_reason": {
+      "$ref": "common.schema.json#/$defs/one_line",
+      "type": "string",
+      "maxLength": 200,
+      "description": "Why the market was cancelled, in our own words. Only when the state is void."
+    },
+    "settled_at": {
+      "$ref": "common.schema.json#/$defs/time",
+      "description": "When it was settled or cancelled. Only when the state is settled or void."
+    },
+    "created_at": {
+      "$ref": "common.schema.json#/$defs/time",
+      "description": "When the market was created."
+    },
+    "updated_at": {
+      "$ref": "common.schema.json#/$defs/time",
+      "description": "When anything about the market last changed."
+    }
+  },
+  "$defs": {
+    "outcome": {
+      "title": "Outcome",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "label"],
+      "properties": {
+        "code": {
+          "$ref": "common.schema.json#/$defs/code",
+          "description": "The outcome's code, which the result names if it wins. Unique within the market."
+        },
+        "label": {
+          "$ref": "common.schema.json#/$defs/one_line",
+          "type": "string",
+          "maxLength": 60,
+          "description": "The outcome, as shown."
+        },
+        "reading_value": {
+          "$ref": "common.schema.json#/$defs/one_line",
+          "type": "string",
+          "maxLength": 80,
+          "description": "What the subject's data says when this outcome wins: a model's name as the ranking gives it, or a match result (home, away, draw or no_result)."
+        },
+        "otherwise": {
+          "const": true,
+          "description": "Marks the catch-all outcome (such as \"Another model\"), which wins when no other outcome's reading_value matches."
+        }
+      },
+      "oneOf": [{ "required": ["reading_value"] }, { "required": ["otherwise"] }]
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "kind": { "const": "multiple_choice" } } },
+      "then": { "required": ["outcomes"] },
+      "else": { "not": { "required": ["outcomes"] } }
+    },
+    {
+      "if": { "properties": { "subject": { "$ref": "lists.schema.json#/$defs/price_subject" } } },
+      "then": {
+        "properties": { "kind": { "const": "yes_no" } },
+        "required": ["threshold"],
+        "not": { "required": ["match_ref"] }
+      }
+    },
+    {
+      "if": { "properties": { "subject": { "$ref": "lists.schema.json#/$defs/ranking_subject" } } },
+      "then": {
+        "properties": { "kind": { "const": "multiple_choice" } },
+        "not": { "anyOf": [{ "required": ["threshold"] }, { "required": ["match_ref"] }] }
+      }
+    },
+    {
+      "if": { "properties": { "subject": { "$ref": "lists.schema.json#/$defs/match_subject" } } },
+      "then": {
+        "properties": { "kind": { "const": "multiple_choice" } },
+        "required": ["match_ref"],
+        "not": { "required": ["threshold"] }
+      }
+    },
+    {
+      "if": { "properties": { "state": { "const": "settled" } } },
+      "then": { "required": ["result", "settled_at"], "not": { "required": ["void_reason"] } }
+    },
+    {
+      "if": { "properties": { "state": { "const": "void" } } },
+      "then": { "required": ["void_reason", "settled_at"], "not": { "required": ["result"] } }
+    },
+    {
+      "if": { "properties": { "state": { "enum": ["upcoming", "open", "closed"] } } },
+      "then": {
+        "not": {
+          "anyOf": [
+            { "required": ["result"] },
+            { "required": ["void_reason"] },
+            { "required": ["settled_at"] }
+          ]
+        }
+      }
+    }
+  ]
+}

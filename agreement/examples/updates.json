@@ -1,0 +1,407 @@
+[
+  {
+    "format": "update/1",
+    "id": "01a199e9-d180-7c0c-9f20-0bf0fc79c403",
+    "story_id": "01a199e9-d180-75ec-8a81-134dd403419a",
+    "headline": "Air quality across Delhi NCR falls to 'severe' as readings pass 450",
+    "body": "Readings in Delhi, Noida and Gurugram crossed 450 before dawn on Monday, the worst so far this season. Doctors advise people with breathing problems to stay indoors.",
+    "reported_at": "2026-11-02T01:30:00Z",
+    "sources": ["https://example.com/sources/delhi-air-quality-monday-morning"],
+    "state": "live",
+    "created_at": "2026-11-02T01:40:00Z",
+    "updated_at": "2026-11-02T01:40:00Z"
+  },
+  {
+    "format": "update/1",
+    "id": "01a19ae2-d780-7a89-96fb-aeeefeab4196",
+    "story_id": "01a199e9-d180-75ec-8a81-134dd403419a",
+    "headline": "Schools across Delhi NCR move classes online until Friday",
+    "reported_at": "2026-11-02T06:05:00Z",
+    "sources": [
+      "https://example.com/sources/delhi-schools-notice",
+      "https://example.org/posts/noida-parents-group"
+    ],
+    "state": "live",
+    "created_at": "2026-11-02T06:12:00Z",
+    "updated_at": "2026-11-02T06:12:00Z"
+  },
+  {
+    "format": "update/1",
+    "id": "01a19ba7-ae20-7fb8-a847-35438eddf011",
+    "story_id": "01a199e9-d180-75ec-8a81-134dd403419a",
+    "headline": "Building work stops and diesel trucks are kept out of Delhi under the emergency rules",
+    "body": "The emergency rules also ask offices to let staff work from home where they can.",
+    "reported_at": "2026-11-02T09:40:00Z",
+    "state": "live",
+    "created_at": "2026-11-02T09:47:00Z",
+    "updated_at": "2026-11-02T09:47:00Z"
+  },
+  {
+    "format": "update/1",
+    "id": "01a19f94-ede0-724c-8617-706149fba27c",
+    "story_id": "01a199e9-d180-75ec-8a81-134dd403419a",
+    "headline": "Correction: only Delhi's primary schools moved online; schools in Noida and Gurugram stay open",
+    "body": "An earlier update said schools across Delhi NCR had moved online. Only Delhi's primary schools have; schools in Noida and Gurugram remain open.",
+    "reported_at": "2026-11-03T03:50:00Z",
+    "corrects": "01a19ae2-d780-7a89-96fb-aeeefeab4196",
+    "state": "live",
+    "created_at": "2026-11-03T04:05:00Z",
+    "updated_at": "2026-11-03T04:05:00Z"
+  },
+  {
+    "format": "update/1",
+    "id": "01a1a57a-a240-742b-978c-caa8b1b898af",
+    "story_id": "01a1a57b-8ca0-7c96-8905-93eb7d0b0d54",
+    "headline": "Australia win the toss and choose to bat at the Wankhede",
+    "reported_at": "2026-11-04T07:30:00Z",
+    "state": "live",
+    "created_at": "2026-11-04T07:34:00Z",
+    "updated_at": "2026-11-04T07:34:00Z"
+  },
+  {
+    "format": "update/1",
+    "id": "01a1a591-85a0-7771-8ad4-a132724eba0a",
+    "story_id": "01a1a57b-8ca0-7c96-8905-93eb7d0b0d54",
+    "headline": "India strike early: Australia's opener is out for 4 in the second over",
+    "reported_at": "2026-11-04T07:55:00Z",
+    "state": "live",
+    "created_at": "2026-11-04T07:59:00Z",
+    "updated_at": "2026-11-04T07:59:00Z"
+  },
+  {
+    "format": "update/1",
+    "id": "01a1a5a8-6900-7f77-ad5b-77cc7e80b6df",
+    "story_id": "01a1a57b-8ca0-7c96-8905-93eb7d0b0d54",
+    "headline": "Australia recover to 52 for 1 after ten overs",
+    "reported_at": "2026-11-04T08:20:00Z",
+    "state": "live",
+    "created_at": "2026-11-04T08:24:00Z",
+    "updated_at": "2026-11-04T08:24:00Z"
+  },
+  {
+    "format": "update/1",
+    "id": "01a1a5c3-e040-777e-aab4-4f8ba905c942",
+    "story_id": "01a1a57b-8ca0-7c96-8905-93eb7d0b0d54",
+    "headline": "A fifty partnership for Australia's second wicket",
+    "reported_at": "2026-11-04T08:50:00Z",
+    "state": "live",
+    "created_at": "2026-11-04T08:54:00Z",
+    "updated_at": "2026-11-04T08:54:00Z"
+  },
+  {
+    "format": "update/1",
+    "id": "01a1a5da-c3a0-7c1c-947b-c0630b685de6",
+    "story_id": "01a1a57b-8ca0-7c96-8905-93eb7d0b0d54",
+    "headline": "India's spinners slow the scoring: Australia 98 for 1 after 20 overs",
+    "reported_at": "2026-11-04T09:15:00Z",
+    "state": "live",
+    "created_at": "2026-11-04T09:19:00Z",
+    "updated_at": "2026-11-04T09:19:00Z"
+  },
+  {
+    "format": "update/1",
+    "id": "01a1a5e8-7f40-796d-983a-1d1bec806c01",
+    "story_id": "01a1a57b-8ca0-7c96-8905-93eb7d0b0d54",
+    "headline": "Australia's No. 3 reaches a half-century from 61 balls",
+    "reported_at": "2026-11-04T09:30:00Z",
+    "state": "live",
+    "created_at": "2026-11-04T09:34:00Z",
+    "updated_at": "2026-11-04T09:34:00Z"
+  },
+  {
+    "format": "update/1",
+    "id": "01a1a5f6-3ae0-77ac-bd75-748604aa2600",
+    "story_id": "01a1a57b-8ca0-7c96-8905-93eb7d0b0d54",
+    "headline": "India end the 104-run stand: Australia 131 for 2",
+    "reported_at": "2026-11-04T09:45:00Z",
+    "state": "live",
+    "created_at": "2026-11-04T09:49:00Z",
+    "updated_at": "2026-11-04T09:49:00Z"
+  },
+  {
+    "format": "update/1",
+    "id": "01a1a608-8a60-733e-9e51-46daa10fee6f",
+    "story_id": "01a1a57b-8ca0-7c96-8905-93eb7d0b0d54",
+    "headline": "Two quick wickets leave Australia on 150 for 4",
+    "reported_at": "2026-11-04T10:05:00Z",
+    "state": "live",
+    "created_at": "2026-11-04T10:09:00Z",
+    "updated_at": "2026-11-04T10:09:00Z"
+  },
+  {
+    "format": "update/1",
+    "id": "01a1a61f-6dc0-7e22-a31c-c350342f25ff",
+    "story_id": "01a1a57b-8ca0-7c96-8905-93eb7d0b0d54",
+    "headline": "Australia pass 200 in the 38th over",
+    "reported_at": "2026-11-04T10:30:00Z",
+    "state": "live",
+    "created_at": "2026-11-04T10:34:00Z",
+    "updated_at": "2026-11-04T10:34:00Z"
+  },
+  {
+    "format": "update/1",
+    "id": "01a1a631-bd40-7bd8-aed3-3d68a98bef08",
+    "story_id": "01a1a57b-8ca0-7c96-8905-93eb7d0b0d54",
+    "headline": "Australia's captain reaches 50 as the visitors push on",
+    "reported_at": "2026-11-04T10:50:00Z",
+    "state": "live",
+    "created_at": "2026-11-04T10:54:00Z",
+    "updated_at": "2026-11-04T10:54:00Z"
+  },
+  {
+    "format": "update/1",
+    "id": "01a1a644-0cc0-750a-8404-b7619603e602",
+    "story_id": "01a1a57b-8ca0-7c96-8905-93eb7d0b0d54",
+    "headline": "India take two wickets in an over: Australia 241 for 6",
+    "reported_at": "2026-11-04T11:10:00Z",
+    "state": "live",
+    "created_at": "2026-11-04T11:14:00Z",
+    "updated_at": "2026-11-04T11:14:00Z"
+  },
+  {
+    "format": "update/1",
+    "id": "01a1a656-5c40-7f6a-8359-7f1513684a22",
+    "story_id": "01a1a57b-8ca0-7c96-8905-93eb7d0b0d54",
+    "headline": "Australia finish on 288 for 7; India need 289 to win",
+    "reported_at": "2026-11-04T11:30:00Z",
+    "sources": ["https://example.com/sources/ind-aus-odi-2-12"],
+    "state": "live",
+    "created_at": "2026-11-04T11:34:00Z",
+    "updated_at": "2026-11-04T11:34:00Z"
+  },
+  {
+    "format": "update/1",
+    "id": "01a1a65a-f020-77d0-a76b-84c4a7d4118d",
+    "story_id": "01a1a57b-8ca0-7c96-8905-93eb7d0b0d54",
+    "headline": "Innings break: the pitch is expected to help batting under the lights",
+    "reported_at": "2026-11-04T11:35:00Z",
+    "state": "live",
+    "created_at": "2026-11-04T11:39:00Z",
+    "updated_at": "2026-11-04T11:39:00Z"
+  },
+  {
+    "format": "update/1",
+    "id": "01a1a67a-fb40-7abb-9a74-fe534bd9c3d0",
+    "story_id": "01a1a57b-8ca0-7c96-8905-93eb7d0b0d54",
+    "headline": "India's chase begins, with 14 off the first two overs",
+    "reported_at": "2026-11-04T12:10:00Z",
+    "state": "live",
+    "created_at": "2026-11-04T12:14:00Z",
+    "updated_at": "2026-11-04T12:14:00Z"
+  },
+  {
+    "format": "update/1",
+    "id": "01a1a691-dea0-7456-88d1-e46db9bf34ec",
+    "story_id": "01a1a57b-8ca0-7c96-8905-93eb7d0b0d54",
+    "headline": "India 61 without loss after ten overs, ahead of Australia at the same stage",
+    "reported_at": "2026-11-04T12:35:00Z",
+    "state": "live",
+    "created_at": "2026-11-04T12:39:00Z",
+    "updated_at": "2026-11-04T12:39:00Z"
+  },
+  {
+    "format": "update/1",
+    "id": "01a1a6a4-2e20-7d29-8b31-bdb95485337a",
+    "story_id": "01a1a57b-8ca0-7c96-8905-93eb7d0b0d54",
+    "headline": "India lose their first wicket with 74 on the board",
+    "reported_at": "2026-11-04T12:55:00Z",
+    "state": "live",
+    "created_at": "2026-11-04T12:59:00Z",
+    "updated_at": "2026-11-04T12:59:00Z"
+  },
+  {
+    "format": "update/1",
+    "id": "01a1a6bb-1180-730b-9b3a-80c94edb7ce8",
+    "story_id": "01a1a57b-8ca0-7c96-8905-93eb7d0b0d54",
+    "headline": "India steady the chase: 120 for 1 after 20 overs",
+    "reported_at": "2026-11-04T13:20:00Z",
+    "state": "live",
+    "created_at": "2026-11-04T13:24:00Z",
+    "updated_at": "2026-11-04T13:24:00Z"
+  },
+  {
+    "format": "update/1",
+    "id": "01a1a6cd-6100-7843-b0bb-04cbf5b53431",
+    "story_id": "01a1a57b-8ca0-7c96-8905-93eb7d0b0d54",
+    "headline": "A rain shower stops play for 15 minutes; no overs are lost",
+    "reported_at": "2026-11-04T13:40:00Z",
+    "state": "live",
+    "created_at": "2026-11-04T13:44:00Z",
+    "updated_at": "2026-11-04T13:44:00Z"
+  },
+  {
+    "format": "update/1",
+    "id": "01a1a6e4-4460-78cb-b5a9-117d859b687c",
+    "story_id": "01a1a57b-8ca0-7c96-8905-93eb7d0b0d54",
+    "headline": "India's captain reaches a 55-ball fifty",
+    "reported_at": "2026-11-04T14:05:00Z",
+    "state": "live",
+    "created_at": "2026-11-04T14:09:00Z",
+    "updated_at": "2026-11-04T14:09:00Z"
+  },
+  {
+    "format": "update/1",
+    "id": "01a1a6f2-0000-7a2e-97ed-a5e2485c9a7f",
+    "story_id": "01a1a57b-8ca0-7c96-8905-93eb7d0b0d54",
+    "headline": "Australia strike twice in an over: India 166 for 3",
+    "reported_at": "2026-11-04T14:20:00Z",
+    "state": "live",
+    "created_at": "2026-11-04T14:24:00Z",
+    "updated_at": "2026-11-04T14:24:00Z"
+  },
+  {
+    "format": "update/1",
+    "id": "01a1a704-4f80-7bdd-8310-09a86d0da264",
+    "story_id": "01a1a57b-8ca0-7c96-8905-93eb7d0b0d54",
+    "headline": "India need 100 from the last 15 overs",
+    "reported_at": "2026-11-04T14:40:00Z",
+    "state": "live",
+    "created_at": "2026-11-04T14:44:00Z",
+    "updated_at": "2026-11-04T14:44:00Z"
+  },
+  {
+    "format": "update/1",
+    "id": "01a1a712-0b20-7ada-bb59-62e4d35c790e",
+    "story_id": "01a1a57b-8ca0-7c96-8905-93eb7d0b0d54",
+    "headline": "India's No. 3 brings up a century from 104 balls",
+    "reported_at": "2026-11-04T14:55:00Z",
+    "state": "live",
+    "created_at": "2026-11-04T14:59:00Z",
+    "updated_at": "2026-11-04T14:59:00Z"
+  },
+  {
+    "format": "update/1",
+    "id": "01a1a724-5aa0-7d0a-854f-ea0bb66e0d7e",
+    "story_id": "01a1a57b-8ca0-7c96-8905-93eb7d0b0d54",
+    "headline": "Australia take two wickets in two overs: India 221 for 5",
+    "reported_at": "2026-11-04T15:15:00Z",
+    "state": "live",
+    "created_at": "2026-11-04T15:19:00Z",
+    "updated_at": "2026-11-04T15:19:00Z"
+  },
+  {
+    "format": "update/1",
+    "id": "01a1a732-1640-7992-8709-53d6c14dc8be",
+    "story_id": "01a1a57b-8ca0-7c96-8905-93eb7d0b0d54",
+    "headline": "India need 48 from 36 balls",
+    "reported_at": "2026-11-04T15:30:00Z",
+    "state": "live",
+    "created_at": "2026-11-04T15:34:00Z",
+    "updated_at": "2026-11-04T15:34:00Z"
+  },
+  {
+    "format": "update/1",
+    "id": "01a1a73f-d1e0-77d8-ac87-fe450b85caa8",
+    "story_id": "01a1a57b-8ca0-7c96-8905-93eb7d0b0d54",
+    "headline": "Australia drop a catch at long-on with India needing 33",
+    "reported_at": "2026-11-04T15:45:00Z",
+    "state": "live",
+    "created_at": "2026-11-04T15:49:00Z",
+    "updated_at": "2026-11-04T15:49:00Z"
+  },
+  {
+    "format": "update/1",
+    "id": "01a1a748-f9a0-76a3-b658-bfc47dd9996c",
+    "story_id": "01a1a57b-8ca0-7c96-8905-93eb7d0b0d54",
+    "headline": "India lose their sixth wicket at 262 in the 46th over",
+    "reported_at": "2026-11-04T15:55:00Z",
+    "state": "live",
+    "created_at": "2026-11-04T15:59:00Z",
+    "updated_at": "2026-11-04T15:59:00Z"
+  },
+  {
+    "format": "update/1",
+    "id": "01a1a752-2160-738d-97c2-701211c826a4",
+    "story_id": "01a1a57b-8ca0-7c96-8905-93eb7d0b0d54",
+    "headline": "India need 15 from 12 balls",
+    "reported_at": "2026-11-04T16:05:00Z",
+    "state": "live",
+    "created_at": "2026-11-04T16:09:00Z",
+    "updated_at": "2026-11-04T16:09:00Z"
+  },
+  {
+    "format": "update/1",
+    "id": "01a1a758-8a00-7abe-9098-07beae98c674",
+    "story_id": "01a1a57b-8ca0-7c96-8905-93eb7d0b0d54",
+    "headline": "A six and a four leave India needing 3 from 9 balls",
+    "reported_at": "2026-11-04T16:12:00Z",
+    "state": "live",
+    "created_at": "2026-11-04T16:16:00Z",
+    "updated_at": "2026-11-04T16:16:00Z"
+  },
+  {
+    "format": "update/1",
+    "id": "01a1a75e-0840-7d2a-a9c0-e6aa95ed5d26",
+    "story_id": "01a1a57b-8ca0-7c96-8905-93eb7d0b0d54",
+    "headline": "India win by four wickets with 11 balls to spare",
+    "body": "Chasing 289, India got home in the 49th over. The No. 3's century anchored the chase after Australia took three wickets for 41 in the middle overs.",
+    "reported_at": "2026-11-04T16:18:00Z",
+    "sources": ["https://example.com/sources/ind-aus-odi-2-29"],
+    "state": "live",
+    "created_at": "2026-11-04T16:22:00Z",
+    "updated_at": "2026-11-04T16:22:00Z"
+  },
+  {
+    "format": "update/1",
+    "id": "01a1a75f-dd00-7557-8c28-9eca79a11de9",
+    "story_id": "01a1a57b-8ca0-7c96-8905-93eb7d0b0d54",
+    "headline": "The series is level at 1-1, with the decider in Chennai on Sunday",
+    "reported_at": "2026-11-04T16:20:00Z",
+    "state": "live",
+    "created_at": "2026-11-04T16:24:00Z",
+    "updated_at": "2026-11-04T16:24:00Z"
+  },
+  {
+    "format": "update/1",
+    "id": "01a1a0e7-aca0-7248-a65d-0208d68cf5a2",
+    "story_id": "01a1a0e7-aca0-71ed-94ec-7086aeb1161e",
+    "headline": "A Bengaluru team's open AI model comes first in a public ranking of coding tools",
+    "reported_at": "2026-11-03T10:05:00Z",
+    "sources": ["https://example.com/sources/coding-ranking-november"],
+    "state": "live",
+    "created_at": "2026-11-03T10:15:00Z",
+    "updated_at": "2026-11-03T10:15:00Z"
+  },
+  {
+    "format": "update/1",
+    "id": "01a1a509-1bc0-70ef-a440-33f208ffeb6e",
+    "story_id": "01a1a0e7-aca0-71ed-94ec-7086aeb1161e",
+    "headline": "The team says it will publish its training recipe and open an office in Pune",
+    "reported_at": "2026-11-04T05:20:00Z",
+    "state": "live",
+    "created_at": "2026-11-04T05:30:00Z",
+    "updated_at": "2026-11-04T05:30:00Z"
+  },
+  {
+    "format": "update/1",
+    "id": "01a19849-40e0-7d04-8049-40aa87390d01",
+    "story_id": "01a19849-40e0-7f5f-8c4f-d23d4351e7aa",
+    "headline": "Bitcoin crosses $100,000 for the first time in a week",
+    "reported_at": "2026-11-01T17:58:00Z",
+    "sources": ["https://example.com/sources/bitcoin-price-sunday"],
+    "state": "live",
+    "created_at": "2026-11-01T18:05:00Z",
+    "updated_at": "2026-11-01T18:05:00Z"
+  },
+  {
+    "format": "update/1",
+    "id": "01a198d3-7f80-76d9-bf7a-e26ad9516eb4",
+    "story_id": "01a19849-40e0-7f5f-8c4f-d23d4351e7aa",
+    "headline": "Posts on X claim a large exchange has stopped withdrawals",
+    "reported_at": "2026-11-01T20:30:00Z",
+    "state": "withdrawn",
+    "withdrawn_reason": "No exchange confirmed this, and the posts that claimed it were deleted.",
+    "created_at": "2026-11-01T20:36:00Z",
+    "updated_at": "2026-11-01T22:10:00Z"
+  },
+  {
+    "format": "update/1",
+    "id": "01a19a0e-7080-7219-b4db-b91df073c0f3",
+    "story_id": "01a19849-40e0-7f5f-8c4f-d23d4351e7aa",
+    "headline": "Bitcoin holds above $100,000 as markets in Asia open",
+    "reported_at": "2026-11-02T02:10:00Z",
+    "state": "live",
+    "created_at": "2026-11-02T02:20:00Z",
+    "updated_at": "2026-11-02T02:20:00Z"
+  }
+]
