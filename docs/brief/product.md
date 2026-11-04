@@ -1,6 +1,6 @@
 # Product: brief
 
-> Rewritten 4 November 2026. This is the only repository file the Product project keeps in its knowledge. Claude Code rewrites it at the end of every session that touches Product's part, and a daily routine catches anything missed. In the project, click **Sync now** to load the newest version. If this brief and PLAN.md disagree, PLAN.md wins.
+> Rewritten 4 November 2026. This is the only repository file the Product project keeps in its knowledge. Claude Code rewrites it at the end of every session that touches Product's part. In the project, click **Sync now** to load the newest version. If this brief and PLAN.md disagree, PLAN.md wins.
 
 **Hrizzup** is a news app built around creators, plus a website with play-money prediction markets. Our AI finds news as it breaks on X and turns it into developing stories that readers see through creators' takes. Android first, then iPhone; the website is phone-first; one shared account. **Product's job:** build the app, the website and the markets. Sourcing (news and market data) and News Desk (our own content and creators) feed it through a written hand-over agreement.
 

@@ -1,6 +1,6 @@
 # Sourcing: brief
 
-> Rewritten 4 November 2026. This is the only repository file the Sourcing project keeps in its knowledge. Claude Code rewrites it at the end of every session that touches Sourcing's part, and a daily routine catches anything missed. In the project, click **Sync now** to load the newest version. If this brief and PLAN.md disagree, PLAN.md wins.
+> Rewritten 4 November 2026. This is the only repository file the Sourcing project keeps in its knowledge. Claude Code rewrites it at the end of every session that touches Sourcing's part. In the project, click **Sync now** to load the newest version. If this brief and PLAN.md disagree, PLAN.md wins.
 
 **Hrizzup** is a news app built around creators, plus a website with play-money prediction markets. Our AI finds news as it breaks on X and turns it into developing stories that readers see through creators' takes. **Sourcing's job:** design and run the Grok bots that find news on X, turn their results into stories and updates, and find the data sources that settle the markets. Product shows what Sourcing produces, in the format the hand-over agreement fixes.
 

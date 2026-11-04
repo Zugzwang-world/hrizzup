@@ -41,7 +41,7 @@ In that session's pull request:
   - `news-desk.md`: `PLAN.md`, `news-desk/` and `docs/status/news-desk.md`.
 
   A new document the projects share (such as the hand-over agreement) joins every brief's scope here, in the pull request that creates it.
-- **Daily refresh:** the cloud routine "Hrizzup brief refresh" (claude.ai/code/routines, every day at 06:00 India time) rewrites any brief that has fallen behind, in one `[small]` pull request that it merges once the checks pass. It changes nothing when every brief is current. It runs in Anthropic's cloud with the founder's GitHub access, holds no keys of any kind, and changes only `docs/brief/`.
+- **No daily refresh for now** (founder's decision, 4 November 2026), so the end-of-session rewrite is what keeps the briefs current. A cloud routine that would rewrite any brief left behind is ready in `infra/claude/README.md`; Claude Code creates it only when the founder asks, once claude.ai/code lists `Zugzwang-world/hrizzup` (Claude's cloud refused it on 4 November 2026: no access to the repository).
 - **The founder** clicks **Sync now** in each Claude project to load the newest brief: Claude projects don't refresh GitHub files by themselves.
 
 ## How changes land (from now on, including staging)

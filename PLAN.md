@@ -120,7 +120,7 @@ Most people now get their news first from creators on social media (posts, memes
 - There is one repository, one shared content store (a database plus storage for images and video), and one written hand-over agreement that defines exactly what each project passes to the others.
 - Projects never copy code between each other; the shared repository is the only route.
 - Each thinking project keeps only its brief in its knowledge: `docs/brief/sourcing.md`, `docs/brief/news-desk.md` or `docs/brief/product.md` (decided 4 November 2026). A brief stands on its own: where things stand, the decisions in force, open questions, what's next, and which repository files hold the detail. It stays under about 1,500 words and is rewritten, never appended. The project uses the live GitHub connection when it needs that detail.
-- Claude Code updates the relevant status file and rewrites the relevant brief at the end of every session. A daily routine rewrites any brief that has fallen behind.
+- Claude Code updates the relevant status file and rewrites the relevant brief at the end of every session. A daily routine that would catch a brief left behind is ready but off for now (founder's decision, 4 November 2026).
 
 ---
 
@@ -138,7 +138,7 @@ No time estimates, only order. **Needs** means it must be finished first.
 | 0.2 | Choose the name and buy the domain (one name for everything) | Founder | — | The domain points at staging |
 | 0.3 | Set up staging on Vercel Pro and Supabase Pro, separate from production, with spending caps on every paid service. As soon as staging works, create its production twin: the same setup with its own data and keys, nothing public until launch | Founder, with AI | 0.2 | Preview links work, and the production twin matches staging |
 | 0.5 | Create the three Claude projects, each with its instructions, its brief from GitHub (`docs/brief/`), and the GitHub connector | Founder | 0.1 | Each project keeps its brief in its knowledge |
-| 0.6 | Repository foundation: CLAUDE.md, this plan, the status files and the briefs, checks sized to the change, preview links, plugins, connectors, the daily brief refresh | Claude Code | 0.1, 0.3 | A trivial change passes its checks and gets a preview link |
+| 0.6 | Repository foundation: CLAUDE.md, this plan, the status files and the briefs, checks sized to the change, preview links, plugins, connectors (the daily brief refresh is ready but off for now, founder's decision) | Claude Code | 0.1, 0.3 | A trivial change passes its checks and gets a preview link |
 
 ### Phase 1: Foundations (three projects working in parallel)
 
