@@ -14,7 +14,7 @@
 
 ## Rules
 
-- How the app and the website share one codebase is decided in step 1.5. Frameworks and dependencies aren't chosen yet.
+- One codebase for both (decided 3 November 2026, PLAN.md step 1.5): pnpm workspaces with Turborepo, the Next.js website in `web/`, the Expo app in `app/`, and the code they share in `packages/`. The tools are listed in CLAUDE.md, "Codebase".
 - Projects never copy code between each other; this shared repository is the only route.
 
-Status: [docs/status/product.md](../docs/status/product.md). Plan: [PLAN.md](../PLAN.md), section 4.
+Status: [docs/status/product.md](../docs/status/product.md). Brief: [docs/brief/product.md](../docs/brief/product.md). Plan: [PLAN.md](../PLAN.md), section 4.

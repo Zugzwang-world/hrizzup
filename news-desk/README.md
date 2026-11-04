@@ -16,4 +16,4 @@
 - Projects never copy code between each other; this shared repository is the only route.
 - Frameworks and dependencies aren't chosen yet.
 
-Status: [docs/status/news-desk.md](../docs/status/news-desk.md). Plan: [PLAN.md](../PLAN.md), section 4.
+Status: [docs/status/news-desk.md](../docs/status/news-desk.md). Brief: [docs/brief/news-desk.md](../docs/brief/news-desk.md). Plan: [PLAN.md](../PLAN.md), section 4.

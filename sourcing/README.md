@@ -16,4 +16,4 @@
 - Projects never copy code between each other; this shared repository is the only route.
 - Frameworks and dependencies aren't chosen yet.
 
-Status: [docs/status/sourcing.md](../docs/status/sourcing.md). Plan: [PLAN.md](../PLAN.md), section 4.
+Status: [docs/status/sourcing.md](../docs/status/sourcing.md). Brief: [docs/brief/sourcing.md](../docs/brief/sourcing.md). Plan: [PLAN.md](../PLAN.md), section 4.

@@ -1,10 +1,11 @@
 # News Desk: status
 
-Last updated: 2 November 2026. Plan: [PLAN.md](../../PLAN.md). Code: [news-desk/](../../news-desk/).
+Last updated: 4 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/brief/news-desk.md](../brief/news-desk.md). Code: [news-desk/](../../news-desk/).
 
 ## Done
 
 - The `news-desk/` folder exists, with a README saying what lives there (2 November 2026). No News Desk work has started yet.
+- The shared setup it builds on is finished (PLAN.md Phase 0, 4 November 2026): the content store on staging (the Supabase database, and Cloudflare R2 storage with image resizing). Creator video (Cloudflare Stream) is switched on when it's built (step 2.4). See the setup close-out at the top of [docs/setup.md](../setup.md).
 
 ## Next
 

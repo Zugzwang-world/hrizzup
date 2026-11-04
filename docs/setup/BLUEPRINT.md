@@ -4,7 +4,7 @@
 > Claude Code commits it to `docs/setup/BLUEPRINT.md`. On the day it sets each value, it also records that value in `docs/setup.md`.
 > Secrets never go in either file.
 
-Status: proposed, 2 November 2026, and updated with the founder's decisions and the setup as built since (latest 3 November 2026, runbook Part 9). No **DECIDE** items remain open.
+Status: proposed, 2 November 2026, and updated with the founder's decisions and the setup as built since (latest 3 November 2026, runbook Part 10). Setup closed on 4 November 2026: the close-out at the top of `docs/setup.md` says what exists, and the runbook's pre-launch checklist holds what's parked, starting with production's own values. No **DECIDE** items remain open.
 
 ---
 
@@ -128,7 +128,7 @@ Production is a twin of staging: the same services, versions, region and setting
   - standard Postgres (17 on staging);
   - Data API off;
   - row-level security on every table (below);
-  - not linked to GitHub (found on 3 November 2026: staging's project *is* connected to the repo in Supabase's Integrations settings, with deploys and branching both off, so it does nothing; the founder decides whether to disconnect it, runbook Part 10);
+  - not linked to GitHub. Staging's project is the one exception, by the founder's choice (4 November 2026): it stays connected to the repo in Supabase's Integrations settings, with deploys and branching both off, so it does nothing. Supabase's API can't change that link; to disconnect it, Project Settings → Integrations → GitHub → **Disable integration**. Production's project is created without it (runbook Part 10, step A2);
   - encrypted connections enforced;
   - Supabase's new API keys only, with the old ("legacy") keys switched off;
   - user sign-in tokens signed with an ES256 key pair, with the old shared signing secret revoked.
