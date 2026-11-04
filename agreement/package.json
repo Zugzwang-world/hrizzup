@@ -1,0 +1,26 @@
+{
+  "name": "@hrizzup/agreement",
+  "private": true,
+  "description": "The hand-over agreement between Sourcing, News Desk and Product: one definition of each shape, the shared lists, example data and the check that keeps them in step.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./definitions/*": "./definitions/*",
+    "./examples/*": "./examples/*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "readme": "node src/readme.ts --write"
+  },
+  "dependencies": {
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1"
+  },
+  "devDependencies": {
+    "@hrizzup/tsconfig": "workspace:*",
+    "@types/node": "^24.10.0",
+    "typescript": "6.0.3",
+    "vitest": "^5.0.0"
+  }
+}

@@ -1,0 +1,176 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hrizzup.com/agreement/definitions/common.schema.json",
+  "title": "Building blocks",
+  "description": "The pieces every shape is built from, each defined once here.",
+  "$defs": {
+    "record_id": {
+      "title": "Record ID (UUID version 7, lower case)",
+      "description": "A record's own ID. Made once by whoever writes the record, and never changed.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "account_id": {
+      "title": "Account ID (UUID, lower case)",
+      "description": "A Hrizzup account, by the ID our sign-in service gives it.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "time": {
+      "title": "Time in UTC, like 2026-11-05T09:30:00Z",
+      "description": "A moment in time, always in UTC, with up to six decimals on the seconds.",
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$"
+    },
+    "one_line": {
+      "title": "One line of plain text",
+      "description": "Plain text on one line: no spaces at either end, and no control, direction or other invisible characters (the zero-width joiner inside some emoji is the one exception).",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300,
+      "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u00ad\\u034f\\u061c\\u115f-\\u1160\\u17b4-\\u17b5\\u180b-\\u180f\\u200b-\\u200c\\u200e-\\u200f\\u2028-\\u2029\\u202a-\\u202e\\u2060-\\u206f\\u3164\\ufe00-\\ufe0d\\ufeff\\uffa0\\ufff0-\\ufffb ](?:[^\\u0000-\\u001f\\u007f-\\u009f\\u00ad\\u034f\\u061c\\u115f-\\u1160\\u17b4-\\u17b5\\u180b-\\u180f\\u200b-\\u200c\\u200e-\\u200f\\u2028-\\u2029\\u202a-\\u202e\\u2060-\\u206f\\u3164\\ufe00-\\ufe0d\\ufeff\\uffa0\\ufff0-\\ufffb]*[^\\u0000-\\u001f\\u007f-\\u009f\\u00ad\\u034f\\u061c\\u115f-\\u1160\\u17b4-\\u17b5\\u180b-\\u180f\\u200b-\\u200c\\u200e-\\u200f\\u2028-\\u2029\\u202a-\\u202e\\u2060-\\u206f\\u3164\\ufe00-\\ufe0d\\ufeff\\uffa0\\ufff0-\\ufffb ])?$"
+    },
+    "text": {
+      "title": "Plain text, new lines allowed",
+      "description": "Plain text that may run over several lines: no spaces or new lines at either end, and no control (other than the new line), direction or other invisible characters (the zero-width joiner inside some emoji is the one exception).",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 5000,
+      "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u00ad\\u034f\\u061c\\u115f-\\u1160\\u17b4-\\u17b5\\u180b-\\u180f\\u200b-\\u200c\\u200e-\\u200f\\u2028-\\u2029\\u202a-\\u202e\\u2060-\\u206f\\u3164\\ufe00-\\ufe0d\\ufeff\\uffa0\\ufff0-\\ufffb ](?:[^\\u0000-\\u0009\\u000b-\\u001f\\u007f-\\u009f\\u00ad\\u034f\\u061c\\u115f-\\u1160\\u17b4-\\u17b5\\u180b-\\u180f\\u200b-\\u200c\\u200e-\\u200f\\u2028-\\u2029\\u202a-\\u202e\\u2060-\\u206f\\u3164\\ufe00-\\ufe0d\\ufeff\\uffa0\\ufff0-\\ufffb]*[^\\u0000-\\u001f\\u007f-\\u009f\\u00ad\\u034f\\u061c\\u115f-\\u1160\\u17b4-\\u17b5\\u180b-\\u180f\\u200b-\\u200c\\u200e-\\u200f\\u2028-\\u2029\\u202a-\\u202e\\u2060-\\u206f\\u3164\\ufe00-\\ufe0d\\ufeff\\uffa0\\ufff0-\\ufffb ])?$"
+    },
+    "web_address": {
+      "title": "Web address starting https://",
+      "description": "A public web address. Shown as a plain link; our software never follows it on its own.",
+      "type": "string",
+      "format": "uri",
+      "maxLength": 2048,
+      "pattern": "^https://[^\\u0000-\\u0020\\u007f-\\u009f]+$"
+    },
+    "code": {
+      "title": "Short code (lower-case letters, digits and hyphens)",
+      "description": "A short code that names something, made of lower-case letters, digits and single hyphens.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40,
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "decimal": {
+      "title": "Decimal number, written as text, like 100000 or 97250.5",
+      "description": "An exact number written as text, so no rounding creeps in: digits, then up to eight decimals after a full stop.",
+      "type": "string",
+      "maxLength": 24,
+      "pattern": "^(?:0|[1-9][0-9]*)(?:\\.[0-9]{1,8})?$"
+    },
+    "pixels": {
+      "title": "Whole number of pixels",
+      "description": "A size in pixels.",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10000
+    },
+    "placeholder": {
+      "title": "ThumbHash, in base64",
+      "description": "A tiny blurred preview (a ThumbHash), made by our server at upload and shown while the real file loads.",
+      "type": "string",
+      "minLength": 16,
+      "maxLength": 100,
+      "pattern": "^[A-Za-z0-9+/]+={0,2}$"
+    },
+    "media_key": {
+      "title": "File name in our media storage",
+      "description": "Where the file sits in our media storage, never a full web address, so the same record works on staging and production.",
+      "type": "string",
+      "maxLength": 300,
+      "pattern": "^(?:[a-z0-9][a-z0-9_-]*/)*[a-z0-9][a-z0-9_.-]*\\.(?:avif|jpeg|jpg|png|webp)$"
+    },
+    "image": {
+      "title": "Image",
+      "description": "One image in our media storage, cleaned by our server at upload (location data removed, rotation fixed, size capped).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "width", "height", "alt", "placeholder"],
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/media_key",
+          "description": "The image's file in our media storage."
+        },
+        "width": {
+          "$ref": "#/$defs/pixels",
+          "description": "Its width, so screens can hold its space before it loads."
+        },
+        "height": {
+          "$ref": "#/$defs/pixels",
+          "description": "Its height, for the same reason."
+        },
+        "alt": {
+          "$ref": "#/$defs/one_line",
+          "type": "string",
+          "maxLength": 300,
+          "description": "What the image shows, in words, for people who can't see it."
+        },
+        "placeholder": {
+          "$ref": "#/$defs/placeholder",
+          "description": "The blurred preview shown while the image loads, or if it never does."
+        }
+      }
+    },
+    "video": {
+      "title": "Video",
+      "description": "One video in our video service (Cloudflare Stream), which plays it at the quality each connection can carry.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stream_id", "width", "height", "duration_seconds"],
+      "properties": {
+        "stream_id": {
+          "title": "Video ID (32 lower-case hexadecimal characters)",
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$",
+          "description": "The video's ID in our video service."
+        },
+        "width": {
+          "$ref": "#/$defs/pixels",
+          "description": "Its width, so screens can hold its space before it plays."
+        },
+        "height": {
+          "$ref": "#/$defs/pixels",
+          "description": "Its height, for the same reason."
+        },
+        "duration_seconds": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 3600,
+          "description": "How long it runs, in seconds."
+        },
+        "alt": {
+          "$ref": "#/$defs/one_line",
+          "type": "string",
+          "maxLength": 300,
+          "description": "What the video shows, in words, for people who can't see it."
+        },
+        "placeholder": {
+          "$ref": "#/$defs/placeholder",
+          "description": "The blurred preview shown before it plays."
+        }
+      }
+    },
+    "locations": {
+      "title": "Locations",
+      "description": "Locations from the shared list, the main one first.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 3,
+      "uniqueItems": true,
+      "items": { "$ref": "lists.schema.json#/$defs/location" }
+    },
+    "categories": {
+      "title": "Categories",
+      "description": "Categories from the shared list, the main one first.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 3,
+      "uniqueItems": true,
+      "items": { "$ref": "lists.schema.json#/$defs/category" }
+    }
+  }
+}

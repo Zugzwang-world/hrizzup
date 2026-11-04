@@ -4,6 +4,7 @@ packages:
   - product/app # the app (Expo), @hrizzup/app
   - product/packages/* # code shared by the website and the app
   - infra/supabase # the database's migrations and tests, @hrizzup/database
+  - agreement # the hand-over agreement: definitions, lists, examples and their check, @hrizzup/agreement
 
 # Supply-chain safety: a package version is installed only once it has been public for
 # 3 days (4,320 minutes). Hijacked releases have so far been caught and pulled within

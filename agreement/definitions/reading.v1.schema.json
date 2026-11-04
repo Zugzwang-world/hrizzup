@@ -1,0 +1,166 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hrizzup.com/agreement/definitions/reading.v1.schema.json",
+  "title": "Data reading, format version 1",
+  "description": "One reading of a market subject's data slot: a price, a ranking, or a match's state. Sourcing's data job writes it from the slot's source; settlement and the market pages read it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "id", "subject", "measured_at", "received_at"],
+  "properties": {
+    "format": {
+      "const": "reading/1",
+      "description": "Says this record is a data reading, in format version 1."
+    },
+    "id": {
+      "$ref": "common.schema.json#/$defs/record_id",
+      "description": "The reading's ID."
+    },
+    "subject": {
+      "$ref": "lists.schema.json#/$defs/market_subject",
+      "description": "Whose data slot this reading fills."
+    },
+    "measured_at": {
+      "$ref": "common.schema.json#/$defs/time",
+      "description": "When the value was true, by the source's clock."
+    },
+    "received_at": {
+      "$ref": "common.schema.json#/$defs/time",
+      "description": "When our data job received it."
+    },
+    "price": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["amount", "currency"],
+      "description": "For a price subject: the price. Required there, and only there.",
+      "properties": {
+        "amount": {
+          "$ref": "common.schema.json#/$defs/decimal",
+          "description": "The price."
+        },
+        "currency": {
+          "const": "USD",
+          "description": "The currency: US dollars."
+        }
+      }
+    },
+    "ranking": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["leaders"],
+      "description": "For a ranking subject: the ranking. Required there, and only there.",
+      "properties": {
+        "leaders": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 50,
+          "items": { "$ref": "#/$defs/ranked" },
+          "description": "The ranked names, in order, the leader first."
+        }
+      }
+    },
+    "match": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref", "competition", "home", "away", "starts_at", "status"],
+      "description": "For a match subject: the match and where it stands. Required there, and only there.",
+      "properties": {
+        "ref": {
+          "$ref": "common.schema.json#/$defs/code",
+          "description": "The match's code, which a market's match_ref names."
+        },
+        "competition": {
+          "$ref": "common.schema.json#/$defs/one_line",
+          "type": "string",
+          "maxLength": 80,
+          "description": "The competition or series, as the source names it."
+        },
+        "home": {
+          "$ref": "common.schema.json#/$defs/one_line",
+          "type": "string",
+          "maxLength": 60,
+          "description": "The home team, as the source names it."
+        },
+        "away": {
+          "$ref": "common.schema.json#/$defs/one_line",
+          "type": "string",
+          "maxLength": 60,
+          "description": "The away team, as the source names it."
+        },
+        "starts_at": {
+          "$ref": "common.schema.json#/$defs/time",
+          "description": "When the match starts."
+        },
+        "status": {
+          "enum": ["scheduled", "live", "finished", "abandoned"],
+          "description": "scheduled: not started. live: being played. finished: over, with a result. abandoned: called off without a result."
+        },
+        "score": {
+          "$ref": "common.schema.json#/$defs/one_line",
+          "type": "string",
+          "maxLength": 120,
+          "description": "The score as one line for people to read. Left out before the match starts."
+        },
+        "result": {
+          "enum": ["home", "away", "draw", "no_result"],
+          "description": "Who won: home, away, draw, or no_result. Only when finished or abandoned (abandoned is always no_result)."
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "status": { "enum": ["finished", "abandoned"] } } },
+          "then": { "required": ["result"] },
+          "else": { "not": { "required": ["result"] } }
+        },
+        {
+          "if": { "properties": { "status": { "const": "abandoned" } } },
+          "then": { "properties": { "result": { "const": "no_result" } } }
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "ranked": {
+      "title": "Ranked name",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rank", "name"],
+      "properties": {
+        "rank": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000,
+          "description": "Its place: 1 is first. Names that tie share a place."
+        },
+        "name": {
+          "$ref": "common.schema.json#/$defs/one_line",
+          "type": "string",
+          "maxLength": 80,
+          "description": "The name, exactly as the source gives it."
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "subject": { "$ref": "lists.schema.json#/$defs/price_subject" } } },
+      "then": {
+        "required": ["price"],
+        "not": { "anyOf": [{ "required": ["ranking"] }, { "required": ["match"] }] }
+      }
+    },
+    {
+      "if": { "properties": { "subject": { "$ref": "lists.schema.json#/$defs/ranking_subject" } } },
+      "then": {
+        "required": ["ranking"],
+        "not": { "anyOf": [{ "required": ["price"] }, { "required": ["match"] }] }
+      }
+    },
+    {
+      "if": { "properties": { "subject": { "$ref": "lists.schema.json#/$defs/match_subject" } } },
+      "then": {
+        "required": ["match"],
+        "not": { "anyOf": [{ "required": ["price"] }, { "required": ["ranking"] }] }
+      }
+    }
+  ]
+}

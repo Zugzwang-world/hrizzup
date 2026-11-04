@@ -1,0 +1,58 @@
+[
+  {
+    "format": "story/1",
+    "id": "01a199e9-d180-75ec-8a81-134dd403419a",
+    "title": "Delhi NCR's air turns 'severe' as pollution readings pass 450 and primary schools move online",
+    "summary": "Thick smog has covered Delhi NCR since Monday morning. Air-quality readings passed 450, the 'severe' level, and the city's emergency pollution rules are in force.",
+    "locations": ["delhi-ncr"],
+    "categories": ["general"],
+    "state": "live",
+    "created_at": "2026-11-02T01:40:00Z",
+    "updated_at": "2026-11-03T04:05:00Z"
+  },
+  {
+    "format": "story/1",
+    "id": "01a19aea-2a80-7d1f-9d0d-b58cdf6ccb84",
+    "title": "Delhi schools shut as smog worsens",
+    "summary": "Delhi's primary schools close their classrooms for the week as the smog thickens.",
+    "locations": ["delhi-ncr"],
+    "categories": ["general"],
+    "state": "merged",
+    "merged_into": "01a199e9-d180-75ec-8a81-134dd403419a",
+    "created_at": "2026-11-02T06:20:00Z",
+    "updated_at": "2026-11-02T07:00:00Z"
+  },
+  {
+    "format": "story/1",
+    "id": "01a1a57b-8ca0-7c96-8905-93eb7d0b0d54",
+    "title": "India beat Australia by four wickets in the second ODI at the Wankhede to level the series",
+    "summary": "Australia made 288 for 7 after choosing to bat. India reached 289 for 6 with 11 balls to spare, levelling the three-match series at 1-1.",
+    "locations": ["india", "mumbai"],
+    "categories": ["sports"],
+    "state": "live",
+    "created_at": "2026-11-04T07:35:00Z",
+    "updated_at": "2026-11-04T16:25:00Z"
+  },
+  {
+    "format": "story/1",
+    "id": "01a1a0e7-aca0-71ed-94ec-7086aeb1161e",
+    "title": "A Bengaluru start-up's open AI model tops a global coding leaderboard, ahead of rival labs with far more money and staff",
+    "summary": "A small Bengaluru team's openly published model came first in a widely followed ranking of AI coding tools, which compares models on real programming tasks.",
+    "locations": ["bengaluru", "india"],
+    "categories": ["ai", "business"],
+    "state": "live",
+    "created_at": "2026-11-03T10:15:00Z",
+    "updated_at": "2026-11-04T05:30:00Z"
+  },
+  {
+    "format": "story/1",
+    "id": "01a19849-40e0-7f5f-8c4f-d23d4351e7aa",
+    "title": "Bitcoin climbs back above $100,000 after a week of sharp swings",
+    "summary": "Bitcoin fell to about $93,000 on Wednesday, then recovered over the weekend. It crossed $100,000 again late on Sunday, India time.",
+    "locations": ["global"],
+    "categories": ["crypto", "finance"],
+    "state": "live",
+    "created_at": "2026-11-01T18:05:00Z",
+    "updated_at": "2026-11-02T02:20:00Z"
+  }
+]

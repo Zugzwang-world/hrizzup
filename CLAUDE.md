@@ -4,7 +4,7 @@ Hrizzup is a news app built around creators, plus a website with play-money pred
 
 **[PLAN.md](PLAN.md) is the single source of truth.** If anything disagrees with it, PLAN.md wins. The setup blueprint, the runbook and the Zugzwang World retirement list live in [docs/setup/](docs/setup/).
 
-**Layout:** `sourcing/` (Grok bots, news pipeline, market data), `news-desk/` (our content, creators), `product/` (`web/` the Next.js website, `app/` the Expo app, `packages/` the code they share), `infra/` (service settings applied from the repo: the database's migrations in `infra/supabase/`, the sign-in settings, the storage rules, the Vercel project and firewall). Projects never copy code between each other; this repository is the only route.
+**Layout:** `sourcing/` (Grok bots, news pipeline, market data), `news-desk/` (our content, creators), `product/` (`web/` the Next.js website, `app/` the Expo app, `packages/` the code they share), `agreement/` (the hand-over agreement between the three: its definitions, shared lists, example data and check), `infra/` (service settings applied from the repo: the database's migrations in `infra/supabase/`, the sign-in settings, the storage rules, the Vercel project and firewall). Projects never copy code between each other; this repository is the only route.
 
 **Codebase (decided 3 November 2026, PLAN.md step 1.5):** pnpm 11 workspaces with Turborepo (Vercel Remote Cache), Biome for formatting and lint, TypeScript 6, Vitest for unit tests, Playwright for screens, and the Supabase CLI for migrations. `pnpm check` runs the quick checks on this Mac. New packages wait 3 days after release before they can be installed (`pnpm-workspace.yaml`).
 
@@ -36,13 +36,22 @@ In that session's pull request:
 - **Layout:** the title (`# Product: brief`), a short note with the date it was rewritten, two or three sentences on what Hrizzup is and the part's job, then five sections in this order: Where things stand; Decisions in force; Open questions; What's next; Read for detail (the repository files that hold the detail, each with what it holds).
 - **Plain English for the founder.** A brief reports what PLAN.md and the repository say and never decides anything; PLAN.md wins if they disagree. Never a secret or a key's value. Anything parked until launch appears only as a pointer to the runbook's pre-launch checklist.
 - **Scope:** a brief falls behind when a commit on `main` after the brief's own last change touched its scope:
-  - `product.md`: everything except `sourcing/`, `news-desk/`, `docs/brief/`, `docs/status/sourcing.md` and `docs/status/news-desk.md`;
-  - `sourcing.md`: `PLAN.md`, `sourcing/` and `docs/status/sourcing.md`;
-  - `news-desk.md`: `PLAN.md`, `news-desk/` and `docs/status/news-desk.md`.
+  - `product.md`: everything except `sourcing/`, `news-desk/`, `docs/brief/`, `docs/status/sourcing.md` and `docs/status/news-desk.md` (so it includes `agreement/`);
+  - `sourcing.md`: `PLAN.md`, `agreement/`, `sourcing/` and `docs/status/sourcing.md`;
+  - `news-desk.md`: `PLAN.md`, `agreement/`, `news-desk/` and `docs/status/news-desk.md`.
 
-  A new document the projects share (such as the hand-over agreement) joins every brief's scope here, in the pull request that creates it.
+  A new document the projects share joins every brief's scope here, in the pull request that creates it, as the hand-over agreement (`agreement/`) did.
 - **No daily refresh for now** (founder's decision, 4 November 2026), so the end-of-session rewrite is what keeps the briefs current. A cloud routine that would rewrite any brief left behind is ready in `infra/claude/README.md`; Claude Code creates it only when the founder asks, once claude.ai/code lists `Zugzwang-world/hrizzup` (Claude's cloud refused it on 4 November 2026: no access to the repository).
 - **The founder** clicks **Sync now** in each Claude project to load the newest brief: Claude projects don't refresh GitHub files by themselves.
+
+## The hand-over agreement
+
+[agreement/README.md](agreement/README.md) fixes what passes between Sourcing, News Desk and Product (PLAN.md step 0.7). It signs off in two halves, each Draft until Agreed.
+
+- **A half becomes Agreed only in a change the founder asks for,** which records each project's agreement and the founder's approval in its status table. Until then, no tables or migrations for its shapes, no content written in them, and nothing loaded into any database.
+- **`agreement/definitions/` holds the only definition of each shape and shared list.** Code uses those files directly (TypeScript through `@hrizzup/agreement`, any other language through its own JSON Schema validator), never a copy.
+- **Changes follow its "Changing the agreement" rules:** adding an optional field or a founder-approved list item is one change; anything else is a new format version agreed by all three projects.
+- **After changing a definition, a list or an example,** run `pnpm --filter @hrizzup/agreement readme`: the README's tables are written from the definitions, and the check (in Quick checks) fails when they differ.
 
 ## How changes land (from now on, including staging)
 

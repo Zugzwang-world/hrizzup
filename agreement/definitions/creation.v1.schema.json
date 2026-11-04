@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hrizzup.com/agreement/definitions/creation.v1.schema.json",
+  "title": "Creation, format version 1",
+  "description": "A post: text, an image or a video, usually a take on one or more stories. Our own (from News Desk), invited creators' and users' posts all have this shape, so the feed treats them alike.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "id", "kind", "author", "created_at", "updated_at"],
+  "properties": {
+    "format": {
+      "const": "creation/1",
+      "description": "Says this record is a creation, in format version 1."
+    },
+    "id": {
+      "$ref": "common.schema.json#/$defs/record_id",
+      "description": "The creation's ID."
+    },
+    "kind": {
+      "enum": ["text", "image", "video"],
+      "description": "text: words only. image: one image, with words if wanted. video: one video, with words if wanted."
+    },
+    "author": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "account_id"],
+      "description": "Who made it. Set by our own software from the account that posted it, never taken from the post itself.",
+      "properties": {
+        "kind": {
+          "enum": ["hrizzup", "creator", "user"],
+          "description": "hrizzup: our own content, made by News Desk and posted from a Hrizzup account. creator: an invited creator, from their creator account. user: anyone else with an account, who posts text only."
+        },
+        "account_id": {
+          "$ref": "common.schema.json#/$defs/account_id",
+          "description": "The account it was posted from."
+        }
+      }
+    },
+    "text": {
+      "$ref": "common.schema.json#/$defs/text",
+      "type": "string",
+      "maxLength": 2000,
+      "description": "The words. Required for text; for an image or a video, an optional caption."
+    },
+    "image": {
+      "$ref": "common.schema.json#/$defs/image",
+      "description": "The image. Required for an image, and only there."
+    },
+    "video": {
+      "$ref": "common.schema.json#/$defs/video",
+      "description": "The video. Required for a video, and only there."
+    },
+    "story_ids": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 3,
+      "uniqueItems": true,
+      "items": { "$ref": "common.schema.json#/$defs/record_id" },
+      "description": "The stories it is a take on. It shows on those stories, and wherever they show."
+    },
+    "categories": {
+      "$ref": "common.schema.json#/$defs/categories",
+      "description": "What it is about: needed when it isn't a take on a story, and adds to its stories' categories when it is."
+    },
+    "locations": {
+      "$ref": "common.schema.json#/$defs/locations",
+      "description": "Where it matters, for local content."
+    },
+    "created_at": {
+      "$ref": "common.schema.json#/$defs/time",
+      "description": "When it was posted."
+    },
+    "updated_at": {
+      "$ref": "common.schema.json#/$defs/time",
+      "description": "When it last changed."
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "kind": { "const": "text" } } },
+      "then": {
+        "required": ["text"],
+        "not": { "anyOf": [{ "required": ["image"] }, { "required": ["video"] }] }
+      }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "image" } } },
+      "then": { "required": ["image"], "not": { "required": ["video"] } }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "video" } } },
+      "then": { "required": ["video"], "not": { "required": ["image"] } }
+    },
+    {
+      "if": {
+        "properties": {
+          "author": { "type": "object", "properties": { "kind": { "const": "user" } } }
+        }
+      },
+      "then": { "properties": { "kind": { "const": "text" } } }
+    },
+    {
+      "if": {
+        "properties": {
+          "author": {
+            "type": "object",
+            "properties": { "kind": { "enum": ["hrizzup", "creator"] } }
+          }
+        }
+      },
+      "then": { "anyOf": [{ "required": ["story_ids"] }, { "required": ["categories"] }] }
+    }
+  ]
+}

@@ -12,7 +12,8 @@
 
 ## Rules
 
-- What passes to News Desk and Product is defined by the hand-over agreement. No content is written before it is agreed.
+- What passes to News Desk and Product is defined by the hand-over agreement, [agreement/README.md](../agreement/README.md): stories, updates and data readings, and (in its second half) the bots' result format. No content is written before its half is agreed.
+- Code reads the agreement's definitions in `agreement/definitions/` directly, whatever language or job runner the pipeline uses: never a copy. Whatever runs it is built from this repository.
 - Projects never copy code between each other; this shared repository is the only route.
 - Frameworks and dependencies aren't chosen yet.
 

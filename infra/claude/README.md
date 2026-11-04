@@ -39,8 +39,8 @@ Limits for this run (they override anything else you read):
    gh api 'repos/Zugzwang-world/hrizzup/pulls?state=open&per_page=100' --jq '.[] | select(.head.ref | startswith("claude/brief-refresh-")) | .html_url'
 3. For each brief, find the last commit that changed it: `git log -1 --format=%H origin/main -- docs/brief/NAME.md`. Then list the commits after it that touched the brief's scope (if CLAUDE.md's scope list differs from these, CLAUDE.md wins):
    - product: git log --oneline LAST..origin/main -- . ':(exclude)sourcing' ':(exclude)news-desk' ':(exclude)docs/brief' ':(exclude)docs/status/sourcing.md' ':(exclude)docs/status/news-desk.md'
-   - sourcing: git log --oneline LAST..origin/main -- PLAN.md sourcing docs/status/sourcing.md
-   - news-desk: git log --oneline LAST..origin/main -- PLAN.md news-desk docs/status/news-desk.md
+   - sourcing: git log --oneline LAST..origin/main -- PLAN.md agreement sourcing docs/status/sourcing.md
+   - news-desk: git log --oneline LAST..origin/main -- PLAN.md agreement news-desk docs/status/news-desk.md
    A brief with no such commits is current: leave it exactly as it is.
 4. If all three are current, stop: say 'All three briefs are current' and give the commit each one last changed in. Create no branch and no pull request.
 5. For each brief that is behind: read those commits (`git show --stat`, then the diffs that matter), PLAN.md, the part's status file in docs/status/, and the files the brief points to. Then rewrite the whole brief from the repository as it is now, following CLAUDE.md exactly: the title; the note, saying 'Rewritten' with today's date written like 5 November 2026; the opening sentences; then the five sections Where things stand, Decisions in force, Open questions, What's next and Read for detail. Keep it under about 1,500 words (check with wc -w), in plain English, with no history or 'update' paragraphs, never a secret or a key's value, and parked items only as a pointer to the runbook's pre-launch checklist. Report what the repository says and never decide anything. Keep what is still true and well put; change what the new commits changed.
