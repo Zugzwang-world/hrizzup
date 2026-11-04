@@ -1,8 +1,8 @@
 # Hrizzup: Plan and order of work
 
-> This is the single plan for the whole product. Claude Code keeps it current: it turns the order of work below into GitHub milestones and updates the three status files at the end of every session. Nobody maintains this file by hand. Changes to the plan go through Claude Code, like any other change.
+> This is the single plan for the whole product. Claude Code keeps it current: it turns the order of work below into GitHub milestones, and at the end of every session it updates the three status files and rewrites the thinking-project briefs. Nobody maintains this file by hand. Changes to the plan go through Claude Code, like any other change.
 
-Last agreed: 3 November 2026
+Last agreed: 4 November 2026
 
 ---
 
@@ -119,8 +119,8 @@ Most people now get their news first from creators on social media (posts, memes
 
 - There is one repository, one shared content store (a database plus storage for images and video), and one written hand-over agreement that defines exactly what each project passes to the others.
 - Projects never copy code between each other; the shared repository is the only route.
-- Each thinking project syncs only this plan and the three status files: `docs/status/sourcing.md`, `docs/status/news-desk.md` and `docs/status/product.md`. It uses the live GitHub connection when it needs detail.
-- Claude Code updates the relevant status file at the end of every session. A daily routine writes a short summary of what shipped, what's in progress and what's stuck.
+- Each thinking project keeps only its brief in its knowledge: `docs/brief/sourcing.md`, `docs/brief/news-desk.md` or `docs/brief/product.md` (decided 4 November 2026). A brief stands on its own: where things stand, the decisions in force, open questions, what's next, and which repository files hold the detail. It stays under about 1,500 words and is rewritten, never appended. The project uses the live GitHub connection when it needs that detail.
+- Claude Code updates the relevant status file and rewrites the relevant brief at the end of every session. A daily routine rewrites any brief that has fallen behind.
 
 ---
 
@@ -128,28 +128,32 @@ Most people now get their news first from creators on social media (posts, memes
 
 No time estimates, only order. **Needs** means it must be finished first.
 
-### Phase 0: Set up
+### Phase 0: Set up (complete)
+
+**Finished on 4 November 2026.** Staging works end to end, and its production twin is built with nothing public. Production's own services and keys (the founder's checklist in runbook Part 10) are parked until launch, in the runbook's pre-launch checklist. Steps 0.4, 0.7 and 0.8 are the projects' own first work rather than setup, so they moved to Phase 1 with their numbers unchanged.
 
 | # | Activity | Who | Needs | Done when |
 |---|---|---|---|---|
 | 0.1 | Create the new repository in the founder's personal GitHub account (`Zugzwang-world`, on GitHub Pro). Helpers get their own logins. | Founder | — | The repository exists |
 | 0.2 | Choose the name and buy the domain (one name for everything) | Founder | — | The domain points at staging |
 | 0.3 | Set up staging on Vercel Pro and Supabase Pro, separate from production, with spending caps on every paid service. As soon as staging works, create its production twin: the same setup with its own data and keys, nothing public until launch | Founder, with AI | 0.2 | Preview links work, and the production twin matches staging |
-| 0.4 | Register individual developer accounts: Google Play Console and the Apple Developer Program | Founder | — | Both accounts are active |
-| 0.5 | Create the three Claude projects, each with its instructions, a GitHub link to this plan and the status files, and the GitHub connector | Founder | 0.1 | Each project can read this plan |
-| 0.6 | Repository foundation: CLAUDE.md, this plan, the status files, checks sized to the change, preview links, plugins, connectors, the daily summary routine | Claude Code | 0.1, 0.3 | A trivial change passes its checks and gets a preview link |
-| 0.7 | The hand-over agreement: exactly what a story, an update, a creation and a market look like when they pass between projects, including the fixed format the Grok bots use for their results | Product drafts it; all three projects agree | 0.6 | Agreed and saved in the repository. **No project writes content before this is done.** |
-| 0.8 | Get the Grok subscription (SuperGrok) and set up a dedicated inbox on our domain that receives the Grok bots' results | Founder, with AI | 0.2 | A test bot's result lands in the inbox |
+| 0.5 | Create the three Claude projects, each with its instructions, its brief from GitHub (`docs/brief/`), and the GitHub connector | Founder | 0.1 | Each project keeps its brief in its knowledge |
+| 0.6 | Repository foundation: CLAUDE.md, this plan, the status files and the briefs, checks sized to the change, preview links, plugins, connectors, the daily brief refresh | Claude Code | 0.1, 0.3 | A trivial change passes its checks and gets a preview link |
 
 ### Phase 1: Foundations (three projects working in parallel)
 
+Steps 0.4, 0.7 and 0.8 moved here from Phase 0 on 4 November 2026, keeping their numbers.
+
 | # | Activity | Who | Needs | Done when |
 |---|---|---|---|---|
+| 0.4 | Register individual developer accounts: Google Play Console and the Apple Developer Program | Founder | — | Both accounts are active |
+| 0.7 | The hand-over agreement: exactly what a story, an update, a creation and a market look like when they pass between projects, including the fixed format the Grok bots use for their results | Product drafts it; all three projects agree | 0.6 | Agreed and saved in the repository. **No project writes content before this is done.** |
+| 0.8 | Get the Grok subscription (SuperGrok) and set up a dedicated inbox on our domain that receives the Grok bots' results | Founder, with AI | 0.2 | A test bot's result lands in the inbox |
 | 1.1 | News pipeline, first version: Grok bots read X on a schedule and send results in the agreed format; our pipeline reads the inbox automatically, writes updates, groups them into stories with timelines, tags location and category, and saves them to the content store | Sourcing | 0.7, 0.8 | Stories appear and update on their own on staging |
 | 1.2 | Data sources for the markets: prices (Bitcoin, gold or oil), scores (cricket, football), an AI model ranking, with their costs | Sourcing | — | Every market subject has a named source |
 | 1.3 | Content formats and the first batch of our own content for the launch categories; a list of creators to invite | News Desk | 0.7 | Enough content to fill the feeds in the launch categories |
 | 1.4 | Design: references, then the design system, then the core screens (board, story page, feed, app frame, market page) | Product, in Claude Design | — | Design system approved and screens handed to Claude Code |
-| 1.5 | Set up the one codebase (Expo app and Next.js website sharing code, with one typed API); get a first empty app running on an Android phone. The first database migration locks every new table (row-level security on automatically), and a check on every pull request fails if any table is unprotected (approved 3 November 2026) | Product | 0.6 | The website runs on staging and the app opens on a phone |
+| 1.5 | Set up the one codebase (Expo app and Next.js website sharing code, with one typed API); get a first empty app running on an Android phone; add the performance-budget check to every pull request (blueprint section 14). The first database migration locks every new table (row-level security on automatically), and a check on every pull request fails if any table is unprotected (approved 3 November 2026) | Product | 0.6 | The website runs on staging, the app opens on a phone, and every pull request checks the performance budget |
 | 1.6 | Accounts and login with Supabase Auth: Google first; Apple and email codes before the iPhone build; the app's native Google and Apple sign-in with the app builds | Product | 0.6 | Sign-in works on the web and on Android |
 | 1.7 | Copy the market engine from Manifold, with its tests (licence confirmed first) | Product | 0.6 | A market can be created, traded and settled on staging |
 

@@ -1,5 +1,48 @@
 # Hrizzup: setup log
 
+## Setup close-out (4 November 2026)
+
+**Setup is closed.** PLAN.md Phase 0 is complete, and runbook Parts 0 to 10 are finished; Part 11 leaves the founder one step (pointing each Claude project at its brief). Staging works end to end, production is a quiet twin with nothing public, and everything still open is parked in one place: the runbook's pre-launch checklist. The log of how each piece was set up follows, day by day.
+
+### What exists, and where
+
+| What | Where | Notes |
+|---|---|---|
+| Code, settings and records | [github.com/Zugzwang-world/hrizzup](https://github.com/Zugzwang-world/hrizzup), private, in the founder's account (GitHub Pro) | Ruleset `main`: four required checks (Secret check, Quick checks, Database check, Screen check), squash merges only, no force-push or deletion. Ruleset `staging`: only the Staging workflow moves `staging`. Milestones for Phases 0 (closed) to 5 |
+| Website, staging | `staging.hrizzup.com`: Vercel project `hrizzup` (Pro team), functions in Mumbai (`bom1`) | Built once per merge, after that merge's migrations (Staging workflow); behind a Vercel login |
+| Website, previews | A Vercel preview link on every pull request | Complete working copies: staging's data and keys (`stg_preview`), Turnstile's test keys, Google sign-in through staging's relay |
+| Website, production | `hrizzup.com` (`www` redirects to it) | The holding page with draft privacy and terms, promoted once (3 November 2026). Every merge makes a hidden production build; only the release pipeline changes what's live |
+| Database and sign-in, staging | Supabase `hrizzup-staging` (`mlccgqxtqmllwbyjfzzm`), Mumbai, Micro, Postgres 17, Pro organisation | Data API off, every table locked by row-level security, encrypted connections only, legacy keys off; Google sign-in and 8-digit email codes; settings in `infra/supabase/` |
+| Redis, staging | Upstash `hrizzup-staging`, AWS Mumbai, Fixed 1GB | Eviction on, auto-upgrade off, encrypted connections only (`infra/upstash/check.py`) |
+| Storage | Cloudflare R2, Asia-Pacific: `hrizzup-staging-uploads` and `hrizzup-staging-media` (`media-staging.hrizzup.com`); production's `hrizzup-uploads` and `hrizzup-media` (`media.hrizzup.com`) | `r2.dev` off; CORS and lifecycle rules in `infra/cloudflare/r2/`; image transformations for our own images only |
+| Domain, DNS, bot protection | Cloudflare zone `hrizzup.com`, Free plan, DNSSEC end to end | Full (strict), TLS 1.2 minimum; Turnstile widget "Hrizzup staging" |
+| Email | Proton on `hrizzup.com` (`hrishikesh@hrizzup.com`; DMARC reports to Cloudflare's DMARC Management); Resend's sending domain `mail.hrizzup.com`, Tokyo region | Sign-in codes come from `no-reply@mail.hrizzup.com` |
+| Google sign-in | Google Cloud project `hrizzup` (`hrizzup-513610`), owned by the Hrizzup Google account; consent screen in Testing; client "Hrizzup staging" | Production's own project comes with P.0 |
+| Secrets | Doppler, free Developer plan: project `hrizzup` (`dev`, `stg`, `stg_preview`, `prd`) and `hrizzup-tools` (`claude`) | `stg` syncs to Vercel's staging, `stg_preview` to previews. Claude Code uses four service tokens kept in this Mac's keychain, none of which can open `prd`; no personal login is saved on this Mac |
+| Automation | GitHub Actions: Checks, Secret check, Staging, Release (started by hand), Reminders (daily). Environments `hrizzup-staging` and `hrizzup-production` (`main` only) | The release pipeline's environment holds no token yet (P.0) |
+| Codebase | `product/web` (Next.js website), `product/app` (empty Expo app), `product/packages` (shared code), `infra/` (migrations and service settings) | pnpm 11, Turborepo with Vercel's Remote Cache, Biome, TypeScript 6, Vitest, Playwright, Supabase CLI |
+| Plan and rules | `PLAN.md`, `CLAUDE.md`, `docs/setup/` (blueprint, runbook, retirement list), `docs/status/`, `docs/brief/` | The three briefs are the thinking projects' only knowledge from the repo, rewritten every session and checked daily |
+
+**One known difference, by the founder's choice:** staging's Supabase project stays connected to the GitHub repo, with deploys and branching off, so it does nothing (blueprint section 5).
+
+### Parked until launch
+
+Everything still open is in the runbook's [pre-launch checklist](setup/RUNBOOK.md#pre-launch-checklist), started about 3 weeks before launch:
+
+- **P.0, first: production's own values** (the founder's checklist in runbook Part 10, steps 0 to K), then the release pipeline's first run (step 10.5);
+- **P.1 to P.11, the lean twin's extras and final decisions:** point-in-time recovery, Cloudflare Pro, Upstash's Fixed plan, Google publishing with the custom sign-in address, analytics, spending limits, trimming Claude Code's Cloudflare key, CAA records, the legal pages' gaps, link previews, and the AI-crawler decision;
+- **P.12** two-step login on Upstash, and **P.13** the sign-in email inbox check (runbook step 3.7);
+- also before launch: production's hourly email limit, a separate GitHub account for Claude Code, and the production hardening check.
+
+### Outside setup
+
+- **Moved into PLAN.md's Phase 1, numbers unchanged:** the developer accounts (step 0.4), the hand-over agreement (0.7), and the Grok subscription with the bots' inbox (0.8). The performance-budget check joined step 1.5.
+- **Later, with the team** (runbook): the helpers' GitHub invitations, Doppler's Team plan, Sentry, PostHog, RevenueCat and Razorpay, Cloudflare Stream.
+- **Automatic reminders** (`.github/reminders.json`): replace Claude Code's Supabase and Vercel tokens, due 15 January 2027.
+- **Zugzwang World leftovers:** in the retirement list, [setup/RETIREMENT.md](setup/RETIREMENT.md).
+
+---
+
 ## 2 November 2026
 
 ### Repository created (runbook 1.2, by the founder)
@@ -1173,6 +1216,37 @@ Not a problem: the worry that Claude Code could run the script on production. It
 **Reminders added** (`.github/reminders.json`): check the pipeline's Supabase token (15 January 2027); replace the pipeline's Vercel and Cloudflare tokens (15 October 2027).
 
 **Documents updated:** runbook (Part 10 rewritten with the founder's checklist; "Releasing to production"; new "Pre-launch checklist"; steps 2.1, 3.6, 4.5, 5.2, 6.2, 7's auto-upgrade note, 8.2, 8.6, 9.3 and Part 9's notes; "Production hardening"), blueprint (sections 2, 3, 4, 5, 6, 7, 9, 14 and 15), CLAUDE.md (production exceptions, `prd_release`, releasing, dashboard values, Redis, database addresses, Supabase project settings), the READMEs in `infra/cloudflare/r2/`, `infra/supabase/auth/`, `infra/upstash/`, and the new ones in `infra/supabase/project/` and `infra/keys/`.
+
+## 4 November 2026
+
+### Setup closed (founder's decisions)
+
+**Decided by the founder:**
+- Production's own values (runbook Part 10, his checklist, steps 0 to K) are parked as the pre-launch checklist's first item, P.0; the release pipeline's key check confirms them at launch. Some may already be in `prd`; Claude Code doesn't read `prd`.
+- Also parked there: trimming Claude Code's Cloudflare key (P.7), two-step login on Upstash (P.12) and the step 3.7 inbox check (P.13).
+- He deleted the LEGACY Supabase token (`cli_hrishikesh@…`).
+- Staging's Supabase link to GitHub stays as it is ("not of much importance"): connected to the repo, with deploys and branching off, so it does nothing. Supabase's Management API can't change it (its published specification, 115 endpoints, has none for the GitHub connection), so it can only be switched off in the dashboard (blueprint section 5 has the clicks).
+- Setup closes now: runbook Parts 1 to 9 complete, Part 10 complete except the parked values, PLAN.md Phase 0 complete, and nothing in progress in the status files.
+
+**Checked by Claude Code:**
+- **None of the founder's own logins is left on this Mac:** `python3 infra/doppler/check_access.py` reports "Personal Doppler login: none saved on this Mac", with every token still working for its own config only and none able to open `prd` or `prd_release`. No Supabase, Vercel or Wrangler login is left either: their login files and keychain entries are absent (checked by name only; nothing was read).
+- **Runbook step 4.4, the names in each config** (names only, read through `infra/doppler/run`, never a value): `dev`, `stg` and `stg_preview` each hold the same 21 names (`AUTH_RELAY_SECRET`, `DATABASE_URL`, `DATABASE_URL_SESSION`, `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `MEDIA_BASE_URL`, `R2_ACCESS_KEY_ID`, `R2_BUCKET_MEDIA`, `R2_BUCKET_UPLOADS`, `R2_ENDPOINT`, `R2_SECRET_ACCESS_KEY`, `REDIS_KEY_PREFIX`, `RESEND_API_KEY`, `SUPABASE_DB_PASSWORD`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`, `SUPABASE_URL`, `TURNSTILE_SECRET_KEY`, `TURNSTILE_SITE_KEY`, `UPSTASH_REDIS_REST_TOKEN`, `UPSTASH_REDIS_REST_URL`): the 20 production names in runbook Part 10, plus `AUTH_RELAY_SECRET`, which only staging and previews use. `hrizzup-tools/claude` holds Claude Code's 7 setup keys (`CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ZONE_ID`, `SUPABASE_ACCESS_TOKEN`, `VERCEL_AUTOMATION_BYPASS_SECRET`, `VERCEL_STAGING_DEPLOY_HOOK`, `VERCEL_TOKEN`) and nothing else; none of them is in `hrizzup`.
+
+**Moved out of setup:**
+- **PLAN.md:** Phase 0 marked complete. Steps 0.4 (developer accounts), 0.7 (hand-over agreement) and 0.8 (Grok subscription and the bots' inbox) are the projects' own first work, so they moved to Phase 1 with their numbers. The performance-budget check (blueprint section 14) joined step 1.5, since it needs real pages to measure; step 0.6's daily summary routine became the daily brief refresh.
+- **Runbook:** every Part marked finished. Part 2's reminder to trim the key, step 3.7, step 9.6's second-account check (now in P.4), Part 0's Upstash two-step login and Part 10's checklist moved into the pre-launch checklist (P.0, P.12 and P.13 added). The helpers' invitations (still not accepted; GitHub cancels them on 9 November 2026) moved to "Later, with the team".
+- **Status files:** rewritten, so each lists only what's done, the product work next, and open product questions.
+- **Reminders:** the two for the release pipeline's own tokens were removed from `.github/reminders.json`, because those tokens don't exist yet; P.0 adds them back once they do.
+- **GitHub milestones** "Phase 0: Set up" (closed) to "Phase 5: Production" (open), as PLAN.md's opening note says; each points to PLAN.md section 5.
+
+### Thinking-project briefs (founder's decision)
+
+**Asked by the founder:** three briefs, `docs/brief/product.md`, `docs/brief/sourcing.md` and `docs/brief/news-desk.md`, each under about 1,500 words and rewritten, never appended, covering where things stand, the decisions in force, open questions, what's next, and which repository files to read for detail. They are the only repository files the Claude projects keep in their knowledge. A CLAUDE.md rule refreshes the relevant brief at the end of every session, plus a daily scheduled refresh.
+
+- **Written:** Product (1,399 words), Sourcing (881) and News Desk (601).
+- **Rules** in CLAUDE.md ("End of every session" and the new "Thinking-project briefs"): the layout, what each brief covers (so anyone can tell when one has fallen behind), and that a change to PLAN.md rewrites all three. PLAN.md section 4, step 0.5 and runbook Part 11 now point the projects at their brief instead of PLAN.md and the status files.
+- **Claude projects don't refresh GitHub files by themselves:** the founder clicks **Sync now** in a project to load its newest brief (Claude's help centre, "Using the GitHub integration").
+- **The daily refresh** is a cloud routine, recorded in the next pull request once it exists.
 
 ---
 

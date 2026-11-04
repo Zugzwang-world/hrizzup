@@ -23,7 +23,26 @@ When the founder says "do runbook step X.Y", follow that step in [docs/setup/RUN
 
 ## End of every session
 
-Update the status file for the part you worked on in `docs/status/` (Done, Next, Open questions), as part of that session's pull request.
+In that session's pull request:
+
+- update the status file for each part you worked on in `docs/status/` (Done, Next, Open questions);
+- rewrite that part's brief in `docs/brief/` ("Thinking-project briefs", below). A change to PLAN.md rewrites all three briefs.
+
+## Thinking-project briefs
+
+`docs/brief/product.md`, `docs/brief/sourcing.md` and `docs/brief/news-desk.md` are the only repository files the three Claude thinking projects keep in their knowledge (founder's decision, 4 November 2026). A thinking project sees nothing else from the repository unless it reads a file through the GitHub connector, so each brief stands on its own.
+
+- **Rewritten, never appended:** write the whole file again from the repository as it is now. No history, no changelog, no "update" paragraphs. Under about 1,500 words.
+- **Layout:** the title (`# Product: brief`), a short note with the date it was rewritten, two or three sentences on what Hrizzup is and the part's job, then five sections in this order: Where things stand; Decisions in force; Open questions; What's next; Read for detail (the repository files that hold the detail, each with what it holds).
+- **Plain English for the founder.** A brief reports what PLAN.md and the repository say and never decides anything; PLAN.md wins if they disagree. Never a secret or a key's value. Anything parked until launch appears only as a pointer to the runbook's pre-launch checklist.
+- **Scope:** a brief falls behind when a commit on `main` after the brief's own last change touched its scope:
+  - `product.md`: everything except `sourcing/`, `news-desk/`, `docs/brief/`, `docs/status/sourcing.md` and `docs/status/news-desk.md`;
+  - `sourcing.md`: `PLAN.md`, `sourcing/` and `docs/status/sourcing.md`;
+  - `news-desk.md`: `PLAN.md`, `news-desk/` and `docs/status/news-desk.md`.
+
+  A new document the projects share (such as the hand-over agreement) joins every brief's scope here, in the pull request that creates it.
+- **Daily refresh:** the cloud routine "Hrizzup brief refresh" (claude.ai/code/routines, every day at 06:00 India time) rewrites any brief that has fallen behind, in one `[small]` pull request that it merges once the checks pass. It changes nothing when every brief is current. It runs in Anthropic's cloud with the founder's GitHub access, holds no keys of any kind, and changes only `docs/brief/`.
+- **The founder** clicks **Sync now** in each Claude project to load the newest brief: Claude projects don't refresh GitHub files by themselves.
 
 ## How changes land (from now on, including staging)
 
