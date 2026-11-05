@@ -48,7 +48,7 @@ In that session's pull request:
 
 [agreement/README.md](agreement/README.md) fixes what passes between Sourcing, News Desk and Product (PLAN.md step 0.7). It signs off in two halves, each Draft until Agreed.
 
-- **Sign-offs go into its status table, with dates, the day they arrive** (each project's agreement, the founder's approvals). **A half becomes Agreed only in a change the founder asks for,** once every project has agreed it. Until then, no tables or migrations for its shapes, no content written in them, and nothing loaded into any database.
+- **Sign-offs go into its status table, with dates, the day they arrive** (each project's agreement, the founder's approvals). **A half becomes Agreed only in a change the founder asks for,** once the projects PLAN.md step 0.7 names for it have agreed it (for the first half, Sourcing and News Desk). Until then, no tables or migrations for its shapes, no content written in them, and nothing loaded into any database.
 - **`agreement/definitions/` holds the only definition of each shape and shared list.** Code uses those files directly (TypeScript through `@hrizzup/agreement`, any other language through its own JSON Schema validator), never a copy.
 - **Changes follow its "Changing the agreement" rules:** adding an optional field or a founder-approved list item is one change; anything else is a new format version agreed by all three projects.
 - **After changing a definition, a list or an example,** run `pnpm --filter @hrizzup/agreement readme`: the README's tables are written from the definitions, and the check (in Quick checks) fails when they differ.

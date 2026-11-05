@@ -12,7 +12,7 @@
 - **Production is a quiet twin:** `hrizzup.com` shows the holding page, and every merge makes a hidden production build. The rest is parked (runbook, pre-launch checklist).
 - **The codebase exists, nearly empty:** the Next.js website (`product/web`: holding page, legal drafts, `/api/health`, a sign-in test page off production), an empty Expo app (`product/app`), shared code (`product/packages`) and the agreement's own package (`agreement/`, `@hrizzup/agreement`).
 - **Google sign-in works on staging and previews;** email codes are set up in Supabase, with no screen yet.
-- **The hand-over agreement's first half is a first draft** (status Draft, 5 November 2026): one definition of each shape (story, update, creation, market and data reading), the shared lists, example data with the hard cases, and a check on every pull request. The founder approved its seven decisions the same day; next, all three projects review and agree it. No tables exist for its shapes.
+- **The hand-over agreement's first half is a draft** (status Draft, 5 November 2026): one definition of each shape (story, update, creation, market and data reading), the shared lists, example data, and a check on every pull request. The founder approved its decisions the same day; it's signed off only after Sourcing and News Desk review and agree it. No tables exist for its shapes.
 - **Not built yet:** any product screen, the typed API, the app on a phone, the performance-budget check, the core-journey tests and the market engine.
 
 ## Decisions in force
@@ -48,7 +48,7 @@
 
 In order (PLAN.md section 5):
 
-1. **Agree the agreement's first half (step 0.7):** all three projects review it and agree it or ask for changes; it becomes Agreed only in a change the founder asks for.
+1. **The agreement's first half (step 0.7):** Sourcing and News Desk review it; Product makes any changes they ask for; it becomes Agreed only in a change the founder asks for.
 2. **Design (step 1.4):** references and the design system (shadcn/ui, Claude Design) now; the core screens (board, story page, feed, app frame, market page) from the agreement's shapes and example data once its first half is agreed.
 3. **The rest of step 1.5, before any screen is built in code:** the performance-budget check and the core-journey tests, covering today's pages and Google sign-in when they land; the typed API; the empty app on an Android phone.
 4. **Accounts and login (step 1.6, needs 1.5):** email codes with the Turnstile widget, then Apple; native sign-in with the app builds.
