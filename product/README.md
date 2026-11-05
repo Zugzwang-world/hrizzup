@@ -1,16 +1,17 @@
 # Product
 
-**Its job:** build the app, the website and the markets.
+**Its job:** build the app, the website and the markets, with the data sources that settle the markets.
 
-**What it produces:** the app and the website.
+**What it produces:** the app, the website and the market data.
 
 ## What lives here
 
-- **The news app:** Android first, then iPhone. The board, story pages, feed, posting and notifications.
+- **The news app:** Android first, then iPhone. The board, story pages, feed, posting and notifications. Product only displays content: the board shows stories, and the feed shows takes from all three routes (found, made and posted), each credited by its route.
 - **The website:** news and play-money markets, designed for phones first.
 - **Accounts and login:** one account shared by the app and the website.
 - **The market engine:** copied from Manifold with its tests (PLAN.md step 1.7). Its licence notice is kept with the code and listed in [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md).
-- **The hand-over agreement:** Product drafts it, and makes any changes its reviewers ask for (step 0.7 names who signs off each half). It lives in [agreement/](../agreement/README.md), outside any one project, and Product's code uses its definitions through `@hrizzup/agreement`.
+- **The market data:** the data sources for each market subject (step 1.2), and the data job that fills each subject's data slot with readings, from which markets settle themselves (step 3.2).
+- **The hand-over agreement:** Product drafts its first half and reviews its second, which Sourcing designs, and makes any changes the first half's reviewers ask for (step 0.7 names who signs off each half). It lives in [agreement/](../agreement/README.md), outside any one project, and Product's code uses its definitions through `@hrizzup/agreement`.
 
 ## Rules
 

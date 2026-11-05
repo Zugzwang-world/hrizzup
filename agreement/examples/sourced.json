@@ -1,0 +1,127 @@
+[
+  {
+    "format": "sourced/1",
+    "id": "01a199e7-fcc0-7d7c-9133-0d4c5ee258fc",
+    "route": "found",
+    "kind": "news",
+    "post": {
+      "url": "https://x.com/example_news/status/9900000000000000101",
+      "handle": "example_news",
+      "name": "Example Newsroom",
+      "posted_at": "2026-11-02T01:30:00Z",
+      "media": "image"
+    },
+    "summary": "A newsroom reports that air-quality readings across Delhi NCR passed 450, the 'severe' level, before dawn on Monday, with a map of the worst-hit areas.",
+    "story_ids": ["01a199e9-d180-75ec-8a81-134dd403419a"],
+    "state": "live",
+    "created_at": "2026-11-02T01:38:00Z",
+    "updated_at": "2026-11-02T01:40:00Z"
+  },
+  {
+    "format": "sourced/1",
+    "id": "01a19a80-e160-7f8f-b502-968e31834978",
+    "route": "found",
+    "kind": "take",
+    "post": {
+      "url": "https://x.com/example_memes/status/9900000000000000102",
+      "handle": "example_memes",
+      "name": "Example Memes",
+      "posted_at": "2026-11-02T04:10:00Z",
+      "media": "image"
+    },
+    "summary": "A meme that sets a clear-day photo of Delhi's skyline beside this week's grey haze, captioned as the city's 'before and after'.",
+    "story_ids": ["01a199e9-d180-75ec-8a81-134dd403419a"],
+    "state": "live",
+    "created_at": "2026-11-02T04:25:00Z",
+    "updated_at": "2026-11-02T04:25:00Z"
+  },
+  {
+    "format": "sourced/1",
+    "id": "01a19b13-5d60-7409-9854-25c202658ce9",
+    "route": "found",
+    "kind": "take",
+    "post": {
+      "url": "https://x.com/example_rumours/status/9900000000000000103",
+      "handle": "example_rumours",
+      "posted_at": "2026-11-02T06:50:00Z",
+      "media": "image"
+    },
+    "summary": "An image of what looked like an official notice closing every school in Delhi NCR for a month.",
+    "story_ids": ["01a199e9-d180-75ec-8a81-134dd403419a"],
+    "state": "withdrawn",
+    "withdrawn_reason": "The notice in the image was doctored; no such order was issued.",
+    "created_at": "2026-11-02T07:05:00Z",
+    "updated_at": "2026-11-02T08:30:00Z"
+  },
+  {
+    "format": "sourced/1",
+    "id": "01a1a777-aac0-70f5-acdf-c01bf7d33398",
+    "route": "found",
+    "kind": "take",
+    "post": {
+      "url": "https://x.com/example_cricket/status/9900000000000000104",
+      "handle": "example_cricket",
+      "name": "Example Cricket Talk",
+      "posted_at": "2026-11-04T16:35:00Z",
+      "media": "video"
+    },
+    "summary": "A 90-second video that breaks down India's last two overs at the Wankhede, ball by ball.",
+    "story_ids": ["01a1a57b-8ca0-7c96-8905-93eb7d0b0d54"],
+    "state": "live",
+    "created_at": "2026-11-04T16:50:00Z",
+    "updated_at": "2026-11-04T16:50:00Z"
+  },
+  {
+    "format": "sourced/1",
+    "id": "01a19a25-53e0-7dbe-baaf-8b69df055478",
+    "route": "found",
+    "kind": "take",
+    "post": {
+      "url": "https://x.com/example_explain/status/9900000000000000105",
+      "handle": "example_explain",
+      "name": "Example Explains",
+      "posted_at": "2026-11-02T02:30:00Z",
+      "media": "text"
+    },
+    "summary": "A thread explaining this week's swings in Bitcoin's price: money leaving and returning to Bitcoin funds, and a stronger US dollar.",
+    "story_ids": ["01a19849-40e0-7f5f-8c4f-d23d4351e7aa"],
+    "state": "live",
+    "created_at": "2026-11-02T02:45:00Z",
+    "updated_at": "2026-11-02T02:45:00Z"
+  },
+  {
+    "format": "sourced/1",
+    "id": "01a1a135-7e80-76b8-80ca-5550eecad2ee",
+    "route": "found",
+    "kind": "take",
+    "post": {
+      "url": "https://x.com/example_gone/status/9900000000000000106",
+      "handle": "example_gone",
+      "name": "Example Reactions",
+      "posted_at": "2026-11-03T11:20:00Z",
+      "media": "video"
+    },
+    "summary": "A video reacting to the Bengaluru team's model coming first in the ranking of AI coding tools.",
+    "story_ids": ["01a1a0e7-aca0-71ed-94ec-7086aeb1161e"],
+    "state": "unavailable",
+    "created_at": "2026-11-03T11:40:00Z",
+    "updated_at": "2026-11-04T09:00:00Z"
+  },
+  {
+    "format": "sourced/1",
+    "id": "01a1a52d-bac0-7886-bd6e-25fb89259c48",
+    "route": "found",
+    "kind": "news",
+    "post": {
+      "url": "https://x.com/example_metro/status/9900000000000000107",
+      "handle": "example_metro",
+      "name": "Example Metro Watch",
+      "posted_at": "2026-11-04T06:00:00Z",
+      "media": "text"
+    },
+    "summary": "A post saying that trial runs on a new Bengaluru metro line start next month.",
+    "state": "live",
+    "created_at": "2026-11-04T06:10:00Z",
+    "updated_at": "2026-11-04T06:10:00Z"
+  }
+]

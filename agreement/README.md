@@ -6,20 +6,20 @@
 
 | Half | What it covers | Status | Sign-off record |
 |---|---|---|---|
-| First half | The shapes of a story, an update, a creation and a market, with the data readings that settle markets; the shared lists, including the launch list of locations and categories; the rules for every hand-over point | **Draft** (first draft, 5 November 2026) | Drafted by Product (Claude Code), 5 November 2026. Founder: the launch list and the other decisions below approved, each as recommended, 5 November 2026. Sourcing: not yet reviewed. News Desk: not yet reviewed. |
-| Second half | The Grok bots' result format | **Not drafted** | Drafted only once the Sourcing project has chosen the Grok product and the route to our pipeline (step 0.8). See the last section. |
+| First half | The shapes of a story, an update, a sourced item, a creation and a market, with the data readings that settle markets; every feed item's route; the shared lists, including the launch list of locations and categories; the rules for every hand-over point | **Draft** (revised 5 November 2026) | Drafted by Product (Claude Code), 5 November 2026. Founder: the launch list and the other decisions below approved, each as recommended, 5 November 2026. **Changed after those seven decisions,** on the founder's decisions later that day: the sourced item shape and every feed item's route (found, made or posted) were added, and data readings are now written by Product. The sign-offs below are for this version. Sourcing: not yet reviewed. News Desk: on hold until the founder sets it up, so the founder approves in its place (the founder's decision, 5 November 2026): not yet approved. News Desk reviews it once it's set up. |
+| Second half | The Grok bots' result format | **Not drafted** | Designed in the Sourcing project and reviewed by Product; News Desk doesn't need to agree it (the founder's decision, 5 November 2026). Drafted only once Sourcing has chosen the Grok product and the route to our pipeline (step 0.8). See the last section. |
 
-- **Each sign-off is recorded here, with its date, as it arrives. A half becomes Agreed only through a later change the founder asks for.** The first half is signed off only after Sourcing and News Desk have each reviewed and agreed it (the founder's decision, 5 November 2026); Product drafted it. Changes to this folder merge themselves once their checks pass, so a merged draft is still only a draft.
+- **Each sign-off is recorded here, with its date, as it arrives. A half becomes Agreed only through a later change the founder asks for.** The first half is signed off once Sourcing has reviewed and agreed it and the founder has approved it in News Desk's place, while News Desk is on hold; Product drafted it. News Desk reviews it once the founder sets it up, and any change it asks for follows "Changing the agreement", below. The second half is signed off once Product has reviewed and agreed Sourcing's design. (All the founder's decisions, 5 November 2026.) Changes to this folder merge themselves once their checks pass, so a merged draft is still only a draft.
 - **Until the first half is Agreed,** no project creates database tables for its shapes or writes content in them, and nothing is loaded into any database. **Until the second half is Agreed,** no bot result becomes content.
-- **Next for the first half:** Sourcing and News Desk each review it, and agree it or ask for changes, which Product makes. A change to one of the founder's decisions ("The founder's decisions", below) goes back to the founder.
+- **Next for the first half:** Sourcing reviews this version, with the sourced item and the routes, and agrees it or asks for changes, which Product makes; the founder then approves it in News Desk's place. A change to one of the founder's decisions ("The founder's decisions", below) goes back to the founder.
 
 ## What this is
 
 Three projects make Hrizzup, and each hands things to the others:
 
-- **Sourcing** turns the Grok bots' results into **stories** and their **updates**, and fills the **data slots** that settle markets with **data readings**.
-- **News Desk** makes our own **creations** (text, images and videos) and brings in creators, whose posts are creations too.
-- **Product** shows all of it in the app and on the website, and runs the **markets**.
+- **Sourcing** runs the Grok bots, which find news and creators' takes on X. Its pipeline keeps everything they find, once it passes the checks, as **sourced items** in the **sourced pool**, and turns the news into **stories** and their **updates**.
+- **News Desk** makes our own **creations** (text, images and videos) from the sourced pool, and brings in creators, whose posts in the app are creations too. It's on hold until the founder sets it up.
+- **Product** shows all of it in the app and on the website, crediting every feed item by its **route**, and runs the **markets**, filling the **data slots** that settle them with **data readings**.
 
 This agreement fixes exactly what each of those looks like when it passes between projects. It lives in this folder, and nowhere else:
 
@@ -30,7 +30,7 @@ This agreement fixes exactly what each of those looks like when it passes betwee
 
 ## The founder's decisions
 
-The founder approved all seven on 5 November 2026, each as recommended. The draft already followed them, so nothing else changed. Revisiting one is a change to this agreement, approved by the founder.
+The founder approved all seven on 5 November 2026, each as recommended, and they stand: the changes made since (the sourced item, the routes, and data readings moving to Product) leave every one of them as it was. Revisiting one is a change to this agreement, approved by the founder.
 
 | # | Question | Decision | Why |
 |---|---|---|---|
@@ -61,18 +61,37 @@ Suggested next, after version one: Hyderabad, Chennai and Pune, each a large tec
 |---|---|---|---|
 | Story | A piece of news that develops over time | Sourcing's pipeline | Product (board, story pages, feed, notifications); News Desk (to make takes) |
 | Update | One development in a story; a story's updates are its timeline | Sourcing's pipeline | Product; News Desk |
-| Creation | A post: text, one image or one video | News Desk (our own); creators and users, through the app | Product (feed, story pages, story cards) |
-| Market | A play-money question that settles itself from real data | Product's market engine | Product (website); Sourcing (which data to read); News Desk (content on market subjects) |
-| Data reading | One reading of a market subject's data slot | The data job of step 1.2's owner (Sourcing, unless the founder decides otherwise) | Product (settlement, and prices and scores on market pages) |
+| Sourced item | One thing the bots found on X (news, or a creator's take on a story), as kept in the sourced pool | Sourcing's pipeline | Product (found takes, in their stories' feeds); News Desk (to build our own content on) |
+| Creation | A post: text, one image or one video | News Desk (our own: made); creators and users, through the app (posted) | Product (feed, story pages, story cards) |
+| Market | A play-money question that settles itself from real data | Product's market engine | Product (the website, and its data job: which matches and slots to read); News Desk (content on market subjects) |
+| Data reading | One reading of a market subject's data slot | Product's data job, from the sources chosen in step 1.2 | Product (settlement, and prices and scores on market pages) |
+
+Data readings are written and read by Product alone since the founder moved the market data to Product (5 November 2026), but they stay here: they're outside data entering at a hand-over point, and their market subjects are a shared list.
+
+## Three routes into the feed
+
+Content reaches the product by three routes (the founder's decision, 5 November 2026). Product only displays it: the board shows stories, and the feed shows takes on each story from all three routes. Every feed item says its route in `route`, from this shared list, so Product can credit it without working it out:
+
+<!-- generated: list route -->
+| Code | Name | How it reaches the product, and how it's credited |
+|---|---|---|
+| `found` | Found | A creator's post that our bots found on X, shown in a story's feed as the original post: embedded from X and credited to its creator, never copied. |
+| `made` | Made | Our own content, made by News Desk from the sourced pool and credited to Hrizzup, together with the creators of any found posts it builds on. |
+| `posted` | Posted | Posted directly in the app by a creator or a user, and credited to the account that posted it. |
+<!-- end generated -->
+
+- **Found posts are never copied.** A sourced item holds a link to the original post on X, who posted it and a summary in our own words; screens embed the original from X and credit its creator. Its pictures are never a story card's picture (D5): they belong to the person who posted them.
+- **News found on X never shows in a feed itself.** Our AI turns it into stories and updates, in our own words, which link to the posts as sources.
+- **These routes are how content reaches readers.** Step 0.8's route is something else: how the bots' results reach our pipeline.
 
 ## Rules for every record
 
 - **Every record says its shape and format version,** in `format` (such as `story/1`). Hand-over points use it to pick the right definition.
-- **Our own words.** Stories and updates are written by our AI in our own words, never copied from the posts they're based on; those posts are linked as sources.
+- **Our own words, and nothing copied.** Stories and updates are written by our AI in our own words, never copied from the posts they're based on; those posts are linked as sources. A found post is never copied either: it's kept as a link, and shown by embedding the original.
 - **Plain text only.** Every text field holds plain text, shown as text: no formatting codes, no web-page code, and no hidden characters (control, direction, tag or other invisible characters), which can hide planted text. The one exception is the zero-width joiner that builds some emoji. New lines appear only where a field allows them.
 - **Times are in UTC,** written like `2026-11-05T09:30:00Z`. Screens show them in India time.
 - **IDs are UUIDs, version 7,** made once by whoever writes the record, so a retried write can't create a duplicate. Accounts keep the IDs our sign-in service gives them.
-- **Files are named by their place in our storage, never by a web address,** so the same record works on staging and production. Images live in our media storage (R2, delivered through Cloudflare); videos in our video service (Cloudflare Stream).
+- **Files are named by their place in our storage, never by a web address,** so the same record works on staging and production. Images live in our media storage (R2, delivered through Cloudflare); videos in our video service (Cloudflare Stream). A found post isn't ours, so it's named by its address on X.
 - **Optional fields are left out when they have nothing to say:** never empty, never null.
 - **Values come from the shared lists,** by their codes.
 - **Limits are outer bounds.** Every reader handles anything within them; a writer may set tighter limits of its own (the app might cap a user's post well below 2,000 characters).
@@ -86,7 +105,7 @@ Any list of values that more than one project writes or reads is defined once, i
 - a **name**, which people see and which can be improved at any time;
 - **what it covers**, which our AI reads when it tags a story, so it must be precise.
 
-Adding an item is one change in that one file ("Changing the agreement", below). Readers must cope with an item they haven't met before, for example by showing it in a plain default style.
+Adding an item is one change in that one file ("Changing the agreement", below). Readers must cope with an item they haven't met before, for example by showing it in a plain default style. The routes are listed under "Three routes into the feed", above.
 
 ### Locations (launch list: D1)
 
@@ -123,7 +142,7 @@ Adding an item is one change in that one file ("Changing the agreement", below).
 
 ### Market subjects and their data slots
 
-Each market subject has one **data slot**: what it measures, and how settlement reads it. A slot names no provider: the owner of step 1.2 chooses each source, and fills the slot with data readings in the shape below. The exact market questions are settled in step 3.2.
+Each market subject has one **data slot**: what it measures, and how settlement reads it. A slot names no provider: Product chooses each source (step 1.2), and its data job fills the slot with data readings in the shape below. The exact market questions are settled in step 3.2.
 
 <!-- generated: list market_subject -->
 | Code | Name | Kind | What its data slot measures |
@@ -139,7 +158,7 @@ Each market subject has one **data slot**: what it measures, and how settlement 
 | Ranking | Settlement reads the first valid reading measured when the market closes or after: the outcome naming the model ranked first wins. If it ranks more than one model first, the market is cancelled; so it is if no reading arrives within 7 days. |
 | Match | Settlement reads the match's first valid reading that says finished or abandoned: the outcome for its result wins (no_result when abandoned). If the market has no outcome for that result, or no such reading arrives within 3 days of the start, it is cancelled. |
 
-Note: Gold or oil joins this list once PLAN.md step 1.2 decides which (on hold until the founder confirms its owner).
+Note: Gold or oil joins this list once PLAN.md step 1.2 decides which.
 <!-- end generated -->
 
 ## Story
@@ -230,10 +249,70 @@ Note: Gold or oil joins this list once PLAN.md step 1.2 decides which (on hold u
 ```
 <!-- end generated -->
 
+## Sourced item
+
+**What it is:** one thing the Grok bots found on X, as our pipeline keeps it in the sourced pool once it has passed the checks. It's either **news** (a post reporting what happened), which our AI turns into stories and updates, or a **take** (a creator's meme, video, explainer or opinion on a story), which shows in that story's feed. **Written by** Sourcing's pipeline. **Read by** Product, which shows takes in their stories' feeds (the found route), and News Desk, which builds our own content on the pool (the made route).
+
+- **A link, never a copy.** It keeps the post's address on X, who posted it, what the post holds, and a summary in our own words: never the post's words, pictures or video. Screens embed the original from X and credit its creator.
+- **One post is kept once,** by the number at the end of its address, however often the bots find it.
+- **When a post is deleted or hidden on X,** the pipeline marks it unavailable and readers stop seeing it; until then, screens leave out any post X can't show. News Desk doesn't build on it any more, and the credit it gave our own content disappears.
+- **Our AI can withdraw a take** that isn't genuine, isn't about its story, or isn't safe to show, giving its reason.
+- **It's separate from the second half.** The bots' result format (the second half) is how results reach our pipeline; a sourced item is what the pipeline keeps after its checks, so this shape stays the same whatever format the bots use.
+
+<!-- generated: fields sourced/1 -->
+| Field | Required | What it means | What it holds |
+|---|---|---|---|
+| `format` | Yes | Says this record is a sourced item, in format version 1. | Always `sourced/1` |
+| `id` | Yes | The sourced item's ID, made by our pipeline when it first keeps the post. Our own content names it when it builds on the post. | Record ID (UUID version 7, lower case) |
+| `route` | Yes | How it reached the product: our bots found it. A take shows in the feed by this route, credited to its creator. | Always `found` |
+| `kind` | Yes | news: a post reporting what happened, which our AI turns into stories and updates in our own words; it never shows in a feed itself. take: a creator's take on a story (a meme, a video, an explainer or an opinion), shown in that story's feed as the original post. | `news` or `take` |
+| `post` | Yes | The original post on X. Only these facts about it are kept, never its words, pictures or video. | The fields below |
+| `post.url` | Yes | The post's address on X, in its standard form, which screens embed and link to. The number at its end is the post's own, so the pool keeps each post once, by that number. | Address of a post on X |
+| `post.handle` | Yes | The handle of the account that posted it, as it was when found. The credit names it. | Handle on X (letters, digits and underscores, without the @) |
+| `post.name` | No | The account's name, as X showed it when found. Left out when X shows none in plain text; the handle alone is enough to credit it. | One line of plain text, up to 80 characters |
+| `post.posted_at` | Yes | When it was posted on X. | Time in UTC, like 2026-11-05T09:30:00Z |
+| `post.media` | Yes | What the post holds: text (words only), image (one or more pictures, memes among them) or video (a video or a moving picture), so screens can hold room for it and News Desk can find what to build on. | `text`, `image` or `video` |
+| `summary` | Yes | What the post says or shows, in one or two sentences of our own words, never copied from it. News Desk reads it to choose what to build on. | Plain text, new lines allowed, up to 300 characters |
+| `story_ids` | Depends | The stories it belongs to. A take shows in their feeds, and always names at least one; news names the stories our AI used it in, once it has. | 1 to 3, each a record ID (UUID version 7, lower case), no repeats |
+| `state` | Yes | live: in use. unavailable: the post is gone from X (deleted, hidden, or its account closed), so readers no longer see it, and News Desk doesn't build on it. withdrawn: our AI took it out (not genuine, not about its story, or not safe to show), and readers no longer see it. | `live`, `unavailable` or `withdrawn` |
+| `withdrawn_reason` | Depends | Why our AI withdrew it, in our own words, kept for the record. Only when the state is withdrawn. | One line of plain text, up to 200 characters |
+| `created_at` | Yes | When our pipeline first kept it. | Time in UTC, like 2026-11-05T09:30:00Z |
+| `updated_at` | Yes | When it last changed. | Time in UTC, like 2026-11-05T09:30:00Z |
+<!-- end generated -->
+
+**Worked example:** a creator's meme on the smog story, shown in its feed.
+
+<!-- generated: example sourced.json 01a19a80-e160-7f8f-b502-968e31834978 -->
+```json
+{
+  "format": "sourced/1",
+  "id": "01a19a80-e160-7f8f-b502-968e31834978",
+  "route": "found",
+  "kind": "take",
+  "post": {
+    "url": "https://x.com/example_memes/status/9900000000000000102",
+    "handle": "example_memes",
+    "name": "Example Memes",
+    "posted_at": "2026-11-02T04:10:00Z",
+    "media": "image"
+  },
+  "summary": "A meme that sets a clear-day photo of Delhi's skyline beside this week's grey haze, captioned as the city's 'before and after'.",
+  "story_ids": [
+    "01a199e9-d180-75ec-8a81-134dd403419a"
+  ],
+  "state": "live",
+  "created_at": "2026-11-02T04:25:00Z",
+  "updated_at": "2026-11-02T04:25:00Z"
+}
+```
+<!-- end generated -->
+
 ## Creation
 
-**What it is:** a post: text, one image or one video, usually a take on one or more stories. Our own content, invited creators' posts and users' posts all have this shape, so the feed and the ranking treat them alike. **Written by** News Desk (our own content, posted from Hrizzup accounts) and by the app for creators and users (the author is always the account that posted it). **Read by** Product (the feed, story pages and the pictures on story cards).
+**What it is:** a post: text, one image or one video, usually a take on one or more stories. Our own content, invited creators' posts and users' posts all have this shape, so the feed and the ranking treat them alike. **Written by** News Desk (our own content, made from the sourced pool and posted from Hrizzup accounts: the made route) and by the app for creators and users (the posted route; the author is always the account that posted it). **Read by** Product (the feed, story pages and the pictures on story cards).
 
+- **Its route follows from its author:** made for our own content, posted for creators' and users' posts. The check refuses any other pairing.
+- **Our own content credits what it builds on:** `based_on` names the sourced items it was made from, and Product credits their creators alongside it, linking to the original posts. It never copies their words, pictures or video. Only made content has it.
 - **Users post text only;** images and video come from us and from invited creators (PLAN.md section 2).
 - **Our own and creators' posts name a story or a category,** so they can be placed; a user's post may name neither (D6).
 - **Images and videos are cleaned by our server at upload** (location data removed, rotation fixed, size capped, a blurred preview made) before a creation can use them.
@@ -243,6 +322,7 @@ Note: Gold or oil joins this list once PLAN.md step 1.2 decides which (on hold u
 |---|---|---|---|
 | `format` | Yes | Says this record is a creation, in format version 1. | Always `creation/1` |
 | `id` | Yes | The creation's ID. | Record ID (UUID version 7, lower case) |
+| `route` | Yes | How it reached the product, which follows from its author: made for our own content, posted for creators' and users' posts. Product credits it by its route. | Route from the shared list |
 | `kind` | Yes | text: words only. image: one image, with words if wanted. video: one video, with words if wanted. | `text`, `image` or `video` |
 | `author` | Yes | Who made it. Set by our own software from the account that posted it, never taken from the post itself. | The fields below |
 | `author.kind` | Yes | hrizzup: our own content, made by News Desk and posted from a Hrizzup account. creator: an invited creator, from their creator account. user: anyone else with an account, who posts text only. | `hrizzup`, `creator` or `user` |
@@ -264,6 +344,7 @@ Note: Gold or oil joins this list once PLAN.md step 1.2 decides which (on hold u
 | `story_ids` | Depends | The stories it is a take on. It shows on those stories, and wherever they show. | 1 to 3, each a record ID (UUID version 7, lower case), no repeats |
 | `categories` | Depends | What it is about: needed when it isn't a take on a story, and adds to its stories' categories when it is. | 1 to 3, each a category from the shared list, no repeats |
 | `locations` | No | Where it matters, for local content. | 1 to 3, each a location from the shared list, no repeats |
+| `based_on` | No | The sourced items (posts our bots found) it builds on. Product credits their creators alongside it, linking to the original posts while they're live. Only for made content. | 1 to 10, each a record ID (UUID version 7, lower case), no repeats |
 | `created_at` | Yes | When it was posted. | Time in UTC, like 2026-11-05T09:30:00Z |
 | `updated_at` | Yes | When it last changed. | Time in UTC, like 2026-11-05T09:30:00Z |
 <!-- end generated -->
@@ -275,6 +356,7 @@ Note: Gold or oil joins this list once PLAN.md step 1.2 decides which (on hold u
 {
   "format": "creation/1",
   "id": "01a19a69-fe00-7ece-a8e7-1dee39c8c5cf",
+  "route": "made",
   "kind": "image",
   "author": {
     "kind": "hrizzup",
@@ -299,7 +381,7 @@ Note: Gold or oil joins this list once PLAN.md step 1.2 decides which (on hold u
 
 ## Market
 
-**What it is:** a play-money question about the future that runs and settles itself from real data (PLAN.md section 2). When it closes, settlement reads its subject's data slot, as the market subjects list describes, and pays out; nobody touches it. A **yes-or-no market** asks about a price ("Will Bitcoin be above $100,000 at 6 pm on Friday?"). A **multiple-choice market** has several outcomes, exactly one of which wins: which AI model ranks first, or who wins a match. Markets run continuously: the engine opens new ones as old ones settle, over many time windows. **Written by** Product's market engine (step 1.7). **Read by** Product (the website), Sourcing (which matches and slots to read) and News Desk (content on the market subjects).
+**What it is:** a play-money question about the future that runs and settles itself from real data (PLAN.md section 2). When it closes, settlement reads its subject's data slot, as the market subjects list describes, and pays out; nobody touches it. A **yes-or-no market** asks about a price ("Will Bitcoin be above $100,000 at 6 pm on Friday?"). A **multiple-choice market** has several outcomes, exactly one of which wins: which AI model ranks first, or who wins a match. Markets run continuously: the engine opens new ones as old ones settle, over many time windows. **Written by** Product's market engine (step 1.7). **Read by** Product (the website, and its data job: which matches and slots to read) and News Desk (content on the market subjects).
 
 - **A market settles only from valid readings.** If the data never comes, it's cancelled and every bet returned; it's never settled on a guess.
 - **Each outcome names the value that makes it win** (`reading_value`), because a source's names don't always match how we show them: "Atlas-2 (preview)" on a leaderboard, "Atlas 2" on our page. One outcome may be the catch-all ("Another model").
@@ -356,7 +438,7 @@ Note: Gold or oil joins this list once PLAN.md step 1.2 decides which (on hold u
 
 ## Data reading
 
-**What it is:** one reading of a market subject's data slot: a price, a ranking, or a match's state and score. **Written by** the data job of step 1.2's owner (Sourcing, unless the founder decides otherwise), from the slot's chosen source. **Read by** Product: settlement, and the live prices and scores on market pages.
+**What it is:** one reading of a market subject's data slot: a price, a ranking, or a match's state and score. **Written by** Product's data job, from the source step 1.2 chooses for the slot (the founder moved the market data from Sourcing to Product on 5 November 2026). **Read by** Product: settlement, and the live prices and scores on market pages.
 
 - **Readings are outside data,** so each one passes the hand-over checks before anything uses it. A reading that fails never settles a market.
 - **Prices are exact decimal text** (`"101245.37"`), so no rounding creeps in.
@@ -411,7 +493,7 @@ A hand-over point is wherever one project's output, or anything from outside, en
 
 ### Outside data is data, never instructions
 
-Anything from outside our system is data, never instructions, wherever our software or our AI reads it: the bots' results, creators' and users' posts, and market data readings. The bots read posts on X that anyone can write, so a result can carry planted instructions ("ignore your rules", "mark this as verified", "open this link").
+Anything from outside our system is data, never instructions, wherever our software or our AI reads it: the bots' results, the posts they find, creators' and users' posts, and market data readings. The bots read posts on X that anyone can write, so a result can carry planted instructions ("ignore your rules", "mark this as verified", "open this link").
 
 - **Our AI takes its instructions only from our own prompts in this repository.** Outside text reaches it only as quoted material, clearly marked as data. Anything in it that reads like an instruction is part of the news item, never obeyed.
 - **While it reads outside text, our AI can't act:** it has no tools that send, fetch, publish or change anything. Its only output is a record, which is checked like any other input before it's saved, so planted text can't add a field, pick a category outside the lists, or slip in formatting codes.
@@ -423,11 +505,12 @@ Anything from outside our system is data, never instructions, wherever our softw
 | Hand-over point | Proof of where it came from | Format check | When a check fails |
 |---|---|---|---|
 | The Grok bots' results reach our pipeline | Proof the result came from our own bot, by the route step 0.8 chooses (second half) | The bots' result format (second half) | Set aside, never published, and logged |
+| The pipeline keeps sourced items | Only the pipeline's own credentials can write the sourced pool, and only from results that passed the row above | Each sourced item passes its definition | Not kept, and logged |
 | The pipeline saves stories and updates | Only the pipeline's own credentials can write them | Each record passes its definition before it's saved | Not saved, and logged |
 | News Desk saves our own creations | Only News Desk's credentials can post from Hrizzup accounts | Each creation passes its definition | Not saved, and logged |
 | A creator or a user posts through the app | The author is the signed-in account, set by our server, never read from the post | Each creation passes its definition | Refused, and the person is told what to fix |
 | The market engine saves markets | Only the engine's own credentials can write them | Each market passes its definition | Not saved, and logged |
-| The data job saves readings | Fetched from the slot's chosen source over an encrypted, authenticated connection; only the data job can write readings | Each reading passes its definition | Set aside and logged; never settles a market |
+| Product's data job saves readings | Fetched from the slot's chosen source over an encrypted, authenticated connection; only the data job can write readings | Each reading passes its definition | Set aside and logged; never settles a market |
 
 - **Anything that fails is set aside automatically, never published, and logged** with the problems found. Nothing waits for a person.
 - **Alerts:** a pile-up of failures, or no valid result arriving when the bots should have run, raises an alert, so a change on Grok's side can't silently stop the news. So does a data slot with no valid reading when one is due. Alerts go to the founder until the team's monitoring exists; the exact thresholds come with the bots' schedule, in the second half.
@@ -441,11 +524,14 @@ Anything from outside our system is data, never instructions, wherever our softw
 |---|---|
 | `stories.json` | Smog in Delhi NCR (a timeline with several updates, one a correction); a cricket match (a story with many updates); a Bengaluru AI start-up (a title at the longest allowed, and no picture anywhere on the story); Bitcoin (one update withdrawn as untrue); and a duplicate story merged into the smog story |
 | `updates.json` | Every update on those stories |
-| `creations.json` | A creator's text take; our own image (a chart); a creator's video; a creator's image whose file is missing from storage; a user's post that tries to give our AI instructions (shown as text, nothing more); our own explainer, which names a category instead of a story |
+| `sourced.json` | What the bots found on X: news about the smog, which its first update cites; news that no story uses yet; creators' takes of every kind (a meme on the smog, a video on the cricket match, an explainer thread on Bitcoin); a take whose post was then deleted on X; a take our AI withdrew (a doctored notice, posted by an account with no name) |
+| `creations.json` | Posted: a creator's text take; a creator's video; a creator's image whose file is missing from storage; a user's post that tries to give our AI instructions (shown as text, nothing more). Made: our own image (a chart); our own explainer, which names a category instead of a story and builds on a creator's explainer found on X |
 | `markets.json` | Bitcoin (yes or no, open); the best AI model (multiple choice with a catch-all, open); the cricket match (multiple choice, settled) |
 | `readings.json` | Bitcoin prices, an AI ranking, and the cricket match before, during and after play |
 
-The check keeps the hard cases in: long titles, a story with many updates, a missing image, a merged story, a withdrawn update and a correction.
+The check keeps the hard cases in: long titles, a story with many updates, a missing image, a merged story, a withdrawn update and a correction; every route, a found take of every kind, a found post that's gone from X, a withdrawn take, and our own content built on a found post.
+
+**Example posts can never point at a real post on X:** their handles start with `example`, and their numbers are larger than any number X gives a post, so a preview that embeds one can never show a stranger's post. The check enforces it.
 
 ## For developers: using the definitions
 
@@ -476,15 +562,17 @@ The check keeps the hard cases in: long titles, a story with many updates, a mis
   - adding an optional field to a shape;
   - adding an item to a shared list, once the founder approves it (as with the launch list);
   - improving a description, or the name people see for a list item.
-- **Anything else needs a new format version, agreed by all three projects:** removing or renaming a field, making an optional field required, changing what a field means or the values it accepts, or changing or removing a list item's code. The new version gets its own definition file (such as `story.v2.schema.json`), and the old one stays until every writer has moved over.
+- **Anything else needs a new format version, agreed by the projects that sign off its half** (PLAN.md step 0.7: for the first half, all three projects, with the founder standing in for News Desk while it's on hold; for the second half, Sourcing and Product): removing or renaming a field, making an optional field required, changing what a field means or the values it accepts, or changing or removing a list item's code. The new version gets its own definition file (such as `story.v2.schema.json`), and the old one stays until every writer has moved over.
+- **While a half is Draft,** its shapes change in place and keep format version 1: nothing has been written in them yet. Versions count from the day it's Agreed.
+- **News Desk reviews the first half once it's set up.** Any change it asks for follows these rules, like any other change.
 - **A half's status changes to Agreed** only in a change the founder asks for.
 
 ## Second half: the Grok bots' result format
 
-**Status: not drafted.** It will be drafted only once the Sourcing project has chosen the Grok product and plan, and the route that brings the bots' results to our pipeline (PLAN.md step 0.8). It will define:
+**Status: not drafted.** The Sourcing project designs it, once it has chosen the Grok product and plan, and the route that brings the bots' results to our pipeline (PLAN.md step 0.8). Product reviews and agrees it; News Desk doesn't need to (the founder's decision, 5 November 2026). It's how the bots deliver their results to our pipeline, kept separate from the sourced item (first half), which is what the pipeline keeps after its checks. It will define:
 
-- the format of a bot's result, with its format version;
+- the format of a bot's result, with its format version, carrying creators' takes as well as news, and for each find what the pipeline needs to keep it as a sourced item;
 - the proof that a result came from our own bot, by the chosen route;
 - when an alert fires: how many failures, and how long without a valid result, given the bots' schedule.
 
-It becomes Agreed only after a real result from step 0.8's test bot passes this agreement's own checks (proof of origin and format), and only through a change the founder asks for. Until then, no bot result becomes content.
+It becomes Agreed only after a real result from step 0.8's test bot, carrying news and creators' takes, passes this agreement's own checks (proof of origin and format), and only through a change the founder asks for. Until then, no bot result becomes content.

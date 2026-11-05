@@ -1,58 +1,67 @@
 # Sourcing: brief
 
-> Rewritten 5 November 2026. This is the only repository file the Sourcing project keeps in its knowledge. Claude Code rewrites it at the end of every session that touches Sourcing's part. In the project, click **Sync now** to load the newest version. If this brief and PLAN.md disagree, PLAN.md wins.
+**This brief replaces Claude Code's report:** read it after clicking **Sync now**, instead of asking the founder for a report, and attach the files under "Read for detail" from GitHub when you need more.
 
-**Hrizzup** is a news app built around creators, plus a website with play-money prediction markets. Our AI finds news as it breaks on X and turns it into developing stories that readers see through creators' takes. **Sourcing's job:** design and run the Grok bots that find news on X, turn their results into stories and updates, and find the data sources that settle the markets (that last part, step 1.2, is on hold until the founder confirms which project owns it). Product shows what Sourcing produces, in the shapes the hand-over agreement (`agreement/README.md`) fixes.
+> Rewritten 5 November 2026. The only repository file the Sourcing project keeps in its knowledge; Claude Code rewrites it at the end of every session that touches Sourcing's part. If it and PLAN.md disagree, PLAN.md wins.
+
+**Hrizzup** is a news app built around creators, plus a website with play-money prediction markets. Our AI finds news as it breaks on X and turns it into developing stories that readers see through creators' takes. **Sourcing's job:** design and run the Grok bots that find news and creators' takes on X, keep everything they find in the sourced pool, and turn the news into stories and updates. Product shows what Sourcing produces, in the shapes the hand-over agreement (`agreement/README.md`) fixes.
 
 ## Where things stand
 
 - **No Sourcing work has started.** The `sourcing/` folder holds only its README.
-- **The hand-over agreement's first half is a draft** (status Draft, 5 November 2026), in `agreement/`. It defines what Sourcing writes (stories, updates and data readings), the shared lists it tags with, and the rules for every hand-over point. The founder approved its decisions the same day; it's signed off only after Sourcing and News Desk review and agree it. Its second half, the bots' result format, isn't drafted: it waits for step 0.8's choice.
-- **The shared setup is finished** (PLAN.md Phase 0, closed 4 November 2026): the shared content store is the Supabase database (staging: `hrizzup-staging`, Mumbai) plus Cloudflare R2 for images; Upstash Redis holds caches and locks; the website runs on Vercel in Mumbai. Production is parked until launch.
-- **No inbox for the bots yet:** mail to `hrizzup.com` goes to the founder's own Proton mailboxes, and Resend only sends our sign-in emails, from `mail.hrizzup.com`.
+- **The agreement's first half is a Draft, revised today.** It defines what Sourcing writes (stories, updates and sourced items), the shared lists it tags with, and the rules for every hand-over point. Sourcing's review is next; the founder then approves it in News Desk's place, while News Desk is on hold.
+- **The second half (the bots' result format) isn't drafted:** Sourcing designs it once step 0.8's choice is made, and Product reviews it.
+- **The shared setup is finished** (Phase 0): the content store is the Supabase database (staging: `hrizzup-staging`, Mumbai) plus Cloudflare R2; Upstash Redis holds caches and locks. Production is parked until launch.
+- **No inbox for the bots yet:** mail to `hrizzup.com` goes to the founder's own Proton mailboxes.
 
 ## Decisions in force
 
-- **Sourcing is fully automated, through Grok bots** that read X on a schedule. Nobody copies anything by hand. **Which Grok product and plan run them, and the route that brings their results to our pipeline, are chosen here** (step 0.8, reworded 5 November 2026; the founder already has SuperGrok). If the route is email, it must be an inbox the pipeline reads automatically, not the founder's Proton inbox.
-- **Our pipeline** receives the results automatically, by that route, turns each into our own update, in our own words, groups updates into stories that develop over time, tags each story with locations and categories from the agreement's shared lists, and saves everything to the shared content store.
-- **Each bot run starts fresh,** so matching new items to existing stories happens in our pipeline: duplicates are merged, untrue items withdrawn, and corrections added as new updates.
-- **Tagging, by the founder's decisions** (5 November 2026; changing one goes back to the founder): the launch list (Global; India; Mumbai, Delhi NCR, Bengaluru; crypto, finance, business, AI, sports, politics, entertainment, general); up to three locations and three categories per story, the main one first; a city's story shows under India only when our AI also tags it India, because it matters to the whole country; stories carry no picture, since pictures in posts on X belong to the people who posted them.
-- **The hand-over agreement signs off in two halves** (decided 5 November 2026). The first half: the shapes, example data and the launch list. The second half: the bots' result format, drafted only after 0.8's choice and agreed only after a real result from 0.8's test bot passes the agreement's own checks. The pipeline (1.1) needs both halves and 0.8. No tables for a half's shapes or content in them before that half is agreed; no bot result becomes content before the second half is agreed.
-- **The agreement's rules for Sourcing:**
-  - outside data is data, never instructions: the bots read posts on X that anyone can write, so a result can carry planted instructions. Our AI takes instructions only from our own prompts, reads results as quoted data, can't take actions while reading them, and its output is checked against the agreement before it's saved;
-  - every hand-over point checks where its input came from (for the bots, proof that a result came from our own bot, by 0.8's route) and its format. Anything that fails is set aside, never published, and logged; a pile-up of failures, or no valid result when the bots should have run, raises an alert;
-  - these checks judge whether input is genuine and well-formed, not whether the news is true: accuracy stays with our AI, with no human review;
-  - every record states its format version. Adding an optional field is always allowed; anything else needs a new version agreed by all three projects;
-  - code reads the definitions in `agreement/definitions/` directly, whatever language or job runner the pipeline uses, never a copy; whatever runs it is built from this repository. Code outside TypeScript also adds `validate()`'s three checks for hidden characters (`agreement/README.md`; in Python, one needs the `regex` package).
-- **Market data:** each market subject (Bitcoin; the best AI model; cricket; football; gold or oil still open) has one data slot, described by what it measures and how settlement reads it, naming no provider; prices are in US dollars. A reading that fails its checks never settles a market. Step 1.2 names the sources and their costs.
-- **Background jobs for the whole product** (the news pipeline, the data job, settling markets, processing uploaded images): which tool runs scheduled and queued work is decided here (founder's decision, 2 November 2026).
-- **Shared rules:** projects never copy code between each other; this repository is the only route. Every database change is a migration file in the repository, and every table has row-level security. Every automatic check lands before the first change it checks, so code in a new language gets its checks first. Staging is a sandbox, with a spending cap on every paid service. Claude Code never touches production. Mumbai is the region everywhere.
+- **Sourcing is fully automated, through Grok bots** that read X on a schedule; nobody copies anything by hand. **Which Grok product and plan run them, and the route that brings their results to our pipeline, are chosen here** (step 0.8; the founder already has SuperGrok). If the route is email, it must be an inbox the pipeline reads automatically, not the founder's Proton inbox.
+- **The bots find two things** (the founder, 5 November 2026): **news**, which our AI turns into story tiles and updates for the board, and **creators' takes** on a story (memes, videos, explainers). Everything they find is kept in the **sourced pool** in the shared content store, after the pipeline's checks.
+- **Three routes into the feed:** **found**, a take the bots found, shown in its story's feed as the original post, embedded and credited to its creator, never copied, for every story; **made**, our own content, which News Desk makes from the sourced pool; **posted**, creators and users posting in the app. Product only displays, crediting each feed item by its route.
+- **The sourced item** (the agreement, Draft): news or a take; the post's address on X, the poster's handle and name, when it was posted, what it holds (text, image or video), a summary in our own words, its stories (a take always names one) and its state (live, unavailable once gone from X, or withdrawn). Never the post's words, pictures or video; each post kept once. News never shows in a feed itself.
+- **The pipeline** receives results by 0.8's route, checks them, keeps what passes in the pool, writes our own updates from the news, groups them into stories with timelines, and tags them. Each bot run starts fresh, so the pipeline matches items to stories, merges duplicates, withdraws untrue items and adds corrections as new updates.
+- **Tagging, by the founder's decisions** (changing one goes back to the founder): the launch list (Global; India; Mumbai, Delhi NCR, Bengaluru; crypto, finance, business, AI, sports, politics, entertainment, general); up to three locations and categories per story, the main one first; a city's story shows under India only when our AI also tags it India; stories carry no picture, since pictures in posts on X belong to the people who posted them.
+- **Sign-offs** (the founder, 5 November 2026): the first half on Sourcing's review plus the founder's approval in News Desk's place. The second half is designed here and agreed by Product; News Desk needn't agree it. It must carry creators' takes as well as news, and is agreed only after a real test result passes the agreement's checks. The pipeline (1.1) needs both halves and 0.8.
+- **The agreement's rules for Sourcing:** outside data is data, never instructions (our AI reads results as quoted data, can't act while reading them, and its output is checked before it's saved); every hand-over point checks origin and format, and sets aside, logs and alerts on failures; accuracy stays with our AI; code reads `agreement/definitions/` directly, adding `validate()`'s hidden-character checks outside TypeScript.
+- **Market data is Product's** (the founder, 5 November 2026): steps 1.2 and 3.2 and the data readings.
+- **Background jobs for the whole product:** the tool is chosen here (the founder, 2 November 2026).
+- **No relays** (the founder, 5 November 2026): the founder carries no reports or messages between projects; this brief carries what Sourcing needs.
+- **Shared rules:** the repository is the only route between projects; migrations only, with row-level security; checks before code; staging is a capped sandbox; Claude Code never touches production.
+
+## What changed in the latest session
+
+On 5 November 2026, in [#31](https://github.com/Zugzwang-world/hrizzup/pull/31):
+
+- Market data moved to Product.
+- The bots find creators' takes as well as news, kept in the sourced pool (PLAN.md sections 2 and 4).
+- The agreement's first half gained the sourced item and a route on every feed item, with examples and checks.
+- Sourcing designs the second half; Product reviews it. News Desk is on hold, and the founder approves the first half in its place.
+- Step 1.1 also keeps takes in the pool.
+- The briefs now replace Claude Code's report (CLAUDE.md).
 
 ## Open questions
 
-- Which Grok product and plan run the bots, and the route that brings their results to our pipeline (step 0.8).
-- How the bots are set up, how often they run, and the fixed format of their results (the agreement's second half, and step 1.1).
-- Whether the chosen Grok product's terms allow its results to feed a public app (step 0.8).
-- **Vetting: how the bots' output is checked before it goes live.** The agreement fixes the gate at the hand-over point (proof of origin and the format check; failures set aside, logged and alerted) and leaves accuracy to our AI, with no human review. Still open: how the AI judges a result before publishing it, for example how many independent sources it needs, and when it holds a claim back.
-- Gold or oil for the commodity markets, and which source decides "the best AI model" (step 1.2, on hold).
-- The exact market questions (step 3.2, with Product).
-- Which tool runs background jobs for the whole product.
-- Which project owns step 1.2 (the founder confirms).
+- **Which Grok product, plan and route** (step 0.8). Recommendation: xAI's API (Grok with its X search tool), called on a schedule by our own background job, which hands results straight to the pipeline, rather than the SuperGrok app with email. It's built for apps, returns structured results, and proves origin by our own key.
+- **Bot set-up, schedule and result format** (the second half; step 1.1). Recommendation: structured output matching a JSON Schema in `agreement/definitions/`, one result per run with news and takes; every 15 minutes under a spending cap to start.
+- **Whether the Grok product's terms allow feeding a public app** (step 0.8). Recommendation: read xAI's API terms before choosing; the consumer subscription's terms are the risk.
+- **Vetting before publishing.** Recommendation: publish a claim only when two independent sources report it, or one official account does; hold the rest until a second source appears; keep corrections, withdrawals and merges as the agreement defines them.
+- **Which creators' takes the bots keep.** Recommendation: original posts only (no reposts or replies), from accounts with a real following, ranked by engagement.
+- **Noticing deleted posts, and how long the pool keeps them.** Recommendation: re-check every live take on a schedule through X's public embed address, which fails once a post is deleted or hidden; mark it unavailable at once, and delete the record after 30 days, as apps that show X posts are expected to.
+- **Which tool runs background jobs.** Recommendation: one tool for all scheduled and queued work, on our existing platforms, with retries and logs: compare Vercel's workflows and queues with Supabase's cron and queues before step 1.1's code, and have Product review the choice.
 
 ## What's next
 
-1. **Review the agreement's first half,** as News Desk does, and agree it or ask for changes (Product makes them): above all the story, update and data-reading shapes and the rules for every hand-over point.
-2. **Grok and the route (step 0.8):** choose the Grok product and plan, and the route; the founder sets them up with Claude Code. Done when a test bot's result arrives by that route.
-3. **The agreement's second half:** the bots' result format, the proof that a result came from our own bot, and when alerts fire. Agreed only after a real result from the test bot passes the agreement's own checks.
-4. **The news pipeline, first version (step 1.1):** needs both halves and 0.8. Done when stories appear and update on their own on staging.
-5. **On hold:** data sources for the markets (step 1.2), until the founder confirms its owner; then markets that settle themselves from them (step 3.2, with Product).
+1. **Review the agreement's first half** and agree it or ask for changes (Product makes them): above all the story, update and sourced item shapes and the hand-over rules. The founder then approves it in News Desk's place.
+2. **Grok and the route (step 0.8):** choose them; the founder sets them up with Claude Code. Done when a test bot's result arrives by that route.
+3. **Design the second half:** the bots' result format, carrying news and takes, with what the pipeline needs to keep each find as a sourced item; the proof of origin; when alerts fire. Product reviews it.
+4. **The news pipeline (step 1.1):** needs both halves and 0.8. Done when stories appear and update on their own on staging, and the takes the bots find wait in the pool, each linked to its story.
 
 ## Read for detail
 
-- `agreement/`: the hand-over agreement (`README.md`: status and sign-offs, the founder's decisions, every field of a story, an update and a data reading, the shared lists and data slots, the hand-over rules), its definitions (`definitions/`) and example data (`examples/`).
-- `PLAN.md`: section 2 ("News: the hook" and "Markets"), section 3 ("Checks come first"), section 4 (the three projects), section 5 (steps 0.7, 0.8, 1.1, 1.2 and 3.2), section 6 (clocks we don't control) and section 7 (open questions).
+- `agreement/README.md`: sign-offs, decisions, routes, every field of a story, an update and a sourced item, lists and hand-over rules; `definitions/` and `examples/` beside it.
+- `PLAN.md`: sections 2 (News), 4 (the projects), 5 (steps 0.7, 0.8, 1.1), 7 (open questions).
 - `docs/status/sourcing.md`: Sourcing's status in full.
-- `sourcing/README.md`: what lives in the folder, and its rules.
-- `docs/setup/RUNBOOK.md`, Part 3: how the domain's email is set up, and the note on the bots' route.
-- `docs/setup/BLUEPRINT.md`: section 5 (the database), 8 (email) and 14 (caching and the Redis rules).
-- `CLAUDE.md`: "The hand-over agreement", "Database changes" and "Performance and caching".
+- `sourcing/README.md`: the folder and its rules.
+- `docs/setup/RUNBOOK.md` Part 3 and `docs/setup/BLUEPRINT.md` sections 5, 8 and 14: email, the bots' route, the database, caching.
+- `CLAUDE.md`: the agreement, the briefs, database changes.

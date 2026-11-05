@@ -184,6 +184,7 @@ function fieldTable(format: string): string {
 const listColumns: Record<string, { group?: string; groupMeaning?: string; meaning: string }> = {
   location: { group: 'Level', groupMeaning: 'Who sees it', meaning: 'What it covers' },
   category: { meaning: 'What it covers' },
+  route: { meaning: "How it reaches the product, and how it's credited" },
   market_subject: {
     group: 'Kind',
     groupMeaning: 'How settlement reads it',

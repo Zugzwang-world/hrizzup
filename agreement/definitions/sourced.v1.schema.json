@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hrizzup.com/agreement/definitions/sourced.v1.schema.json",
+  "title": "Sourced item, format version 1",
+  "description": "One thing the Grok bots found on X (news, or a creator's take on a story), as our pipeline keeps it in the sourced pool once it has passed the checks. It links to the original post and never copies it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "id",
+    "route",
+    "kind",
+    "post",
+    "summary",
+    "state",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "format": {
+      "const": "sourced/1",
+      "description": "Says this record is a sourced item, in format version 1."
+    },
+    "id": {
+      "$ref": "common.schema.json#/$defs/record_id",
+      "description": "The sourced item's ID, made by our pipeline when it first keeps the post. Our own content names it when it builds on the post."
+    },
+    "route": {
+      "$ref": "lists.schema.json#/$defs/route",
+      "const": "found",
+      "description": "How it reached the product: our bots found it. A take shows in the feed by this route, credited to its creator."
+    },
+    "kind": {
+      "enum": ["news", "take"],
+      "description": "news: a post reporting what happened, which our AI turns into stories and updates in our own words; it never shows in a feed itself. take: a creator's take on a story (a meme, a video, an explainer or an opinion), shown in that story's feed as the original post."
+    },
+    "post": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["url", "handle", "posted_at", "media"],
+      "description": "The original post on X. Only these facts about it are kept, never its words, pictures or video.",
+      "properties": {
+        "url": {
+          "title": "Address of a post on X",
+          "type": "string",
+          "pattern": "^https://x\\.com/[A-Za-z0-9_]{1,15}/status/[1-9][0-9]{0,19}$",
+          "description": "The post's address on X, in its standard form, which screens embed and link to. The number at its end is the post's own, so the pool keeps each post once, by that number."
+        },
+        "handle": {
+          "title": "Handle on X (letters, digits and underscores, without the @)",
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_]{1,15}$",
+          "description": "The handle of the account that posted it, as it was when found. The credit names it."
+        },
+        "name": {
+          "$ref": "common.schema.json#/$defs/one_line",
+          "type": "string",
+          "maxLength": 80,
+          "description": "The account's name, as X showed it when found. Left out when X shows none in plain text; the handle alone is enough to credit it."
+        },
+        "posted_at": {
+          "$ref": "common.schema.json#/$defs/time",
+          "description": "When it was posted on X."
+        },
+        "media": {
+          "enum": ["text", "image", "video"],
+          "description": "What the post holds: text (words only), image (one or more pictures, memes among them) or video (a video or a moving picture), so screens can hold room for it and News Desk can find what to build on."
+        }
+      }
+    },
+    "summary": {
+      "$ref": "common.schema.json#/$defs/text",
+      "type": "string",
+      "maxLength": 300,
+      "description": "What the post says or shows, in one or two sentences of our own words, never copied from it. News Desk reads it to choose what to build on."
+    },
+    "story_ids": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 3,
+      "uniqueItems": true,
+      "items": { "$ref": "common.schema.json#/$defs/record_id" },
+      "description": "The stories it belongs to. A take shows in their feeds, and always names at least one; news names the stories our AI used it in, once it has."
+    },
+    "state": {
+      "enum": ["live", "unavailable", "withdrawn"],
+      "description": "live: in use. unavailable: the post is gone from X (deleted, hidden, or its account closed), so readers no longer see it, and News Desk doesn't build on it. withdrawn: our AI took it out (not genuine, not about its story, or not safe to show), and readers no longer see it."
+    },
+    "withdrawn_reason": {
+      "$ref": "common.schema.json#/$defs/one_line",
+      "type": "string",
+      "maxLength": 200,
+      "description": "Why our AI withdrew it, in our own words, kept for the record. Only when the state is withdrawn."
+    },
+    "created_at": {
+      "$ref": "common.schema.json#/$defs/time",
+      "description": "When our pipeline first kept it."
+    },
+    "updated_at": {
+      "$ref": "common.schema.json#/$defs/time",
+      "description": "When it last changed."
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "kind": { "const": "take" } } },
+      "then": { "required": ["story_ids"] }
+    },
+    {
+      "if": { "properties": { "state": { "const": "withdrawn" } } },
+      "then": { "required": ["withdrawn_reason"] },
+      "else": { "not": { "required": ["withdrawn_reason"] } }
+    }
+  ]
+}

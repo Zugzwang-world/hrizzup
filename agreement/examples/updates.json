@@ -6,7 +6,10 @@
     "headline": "Air quality across Delhi NCR falls to 'severe' as readings pass 450",
     "body": "Readings in Delhi, Noida and Gurugram crossed 450 before dawn on Monday, the worst so far this season. Doctors advise people with breathing problems to stay indoors.",
     "reported_at": "2026-11-02T01:30:00Z",
-    "sources": ["https://example.com/sources/delhi-air-quality-monday-morning"],
+    "sources": [
+      "https://example.com/sources/delhi-air-quality-monday-morning",
+      "https://x.com/example_news/status/9900000000000000101"
+    ],
     "state": "live",
     "created_at": "2026-11-02T01:40:00Z",
     "updated_at": "2026-11-02T01:40:00Z"
