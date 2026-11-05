@@ -27,6 +27,7 @@ const of = (format: Format) =>
   examples.filter((e) => e.record.format === format).map((e) => e.record);
 const stories = of('story/1');
 const updates = of('update/1');
+const sourced = of('sourced/1');
 const creations = of('creation/1');
 const markets = of('market/1');
 const readings = of('reading/1');
@@ -108,13 +109,36 @@ describe('the examples', () => {
       expect(corrected?.story_id, 'a correction stays in its story').toBe(u.story_id);
       expect(String(corrected?.reported_at) < String(u.reported_at)).toBe(true);
     }
+    const sourcedIds = new Set(sourced.map((s) => s.id));
+    for (const s of sourced) {
+      for (const id of (s.story_ids as string[] | undefined) ?? [])
+        expect(storyIds.has(id), String(s.id)).toBe(true);
+    }
     for (const c of creations) {
       for (const id of (c.story_ids as string[] | undefined) ?? [])
         expect(storyIds.has(id)).toBe(true);
+      for (const id of (c.based_on as string[] | undefined) ?? [])
+        expect(sourcedIds.has(id), 'our own content builds on a sourced item').toBe(true);
     }
     for (const m of markets.filter((m) => m.match_ref)) {
       expect(readings.some((r) => (r.match as Item | undefined)?.ref === m.match_ref)).toBe(true);
     }
+  });
+
+  it('never point at a real post on X, and keep each post once', () => {
+    // X numbers its posts with signed 64-bit integers, so a larger number can't be a real post:
+    // an example embedded on a preview can never show a stranger's post.
+    const largest = 2n ** 63n - 1n;
+    const numbers = sourced.map((s) => {
+      const post = s.post as Item;
+      const [, handle = '', number = '0'] =
+        /^https:\/\/x\.com\/([A-Za-z0-9_]+)\/status\/([0-9]+)$/.exec(String(post.url)) ?? [];
+      expect(handle, 'the address names the handle').toBe(post.handle);
+      expect(handle.startsWith('example'), `${handle} is an example handle`).toBe(true);
+      expect(BigInt(number) > largest, `${number} can't be a real post`).toBe(true);
+      return number;
+    });
+    expect(new Set(numbers).size, 'each post is kept once').toBe(numbers.length);
   });
 
   it('settle markets only to outcomes they offer', () => {
@@ -147,6 +171,7 @@ describe('the examples', () => {
         `a creation of kind ${kind}`,
       ).toBe(true);
     }
+    // Only our own and creators' posts picture a story; a found post never does (D5).
     const pictured = new Set(
       creations.filter((c) => c.kind !== 'text').flatMap((c) => c.story_ids as string[]),
     );
@@ -172,12 +197,47 @@ describe('the examples', () => {
       updates.some((u) => u.corrects),
       'a correction',
     ).toBe(true);
+    const feed = [...sourced.filter((s) => s.kind === 'take'), ...creations];
+    for (const route of ['found', 'made', 'posted']) {
+      expect(
+        feed.some((f) => f.route === route),
+        `a feed item that was ${route}`,
+      ).toBe(true);
+    }
+    for (const media of ['text', 'image', 'video']) {
+      expect(
+        sourced.some((s) => s.kind === 'take' && (s.post as Item).media === media),
+        `a found take of ${media}`,
+      ).toBe(true);
+    }
+    expect(
+      sourced.some((s) => s.state === 'unavailable'),
+      'a found post that is gone from X',
+    ).toBe(true);
+    expect(
+      sourced.some((s) => s.kind === 'take' && s.state === 'withdrawn'),
+      'a withdrawn take',
+    ).toBe(true);
+    expect(
+      sourced.some((s) => s.kind === 'news' && !s.story_ids),
+      'news that no story uses yet',
+    ).toBe(true);
+    expect(
+      sourced.some((s) => !(s.post as Item).name),
+      'a found post with no name',
+    ).toBe(true);
+    expect(
+      creations.some((c) => c.based_on),
+      'our own content built on a found post',
+    ).toBe(true);
   });
 });
 
 describe('the format check', () => {
   const story = stories[0] as Item;
+  const take = sourced.find((s) => s.kind === 'take' && s.state === 'live') as Item;
   const creation = creations.find((c) => c.kind === 'image') as Item;
+  const creatorPost = creations.find((c) => (c.author as Item).kind === 'creator') as Item;
   const market = markets.find((m) => m.kind === 'yes_no') as Item;
   const reading = readings.find((r) => r.subject === 'bitcoin') as Item;
   const cp = (...points: number[]) => String.fromCodePoint(...points);
@@ -268,6 +328,29 @@ describe('the format check', () => {
     [
       'a post by Hrizzup with no story and no category',
       changed(creation, (c) => delete c.story_ids),
+    ],
+    ['a take that names no story', changed(take, (s) => delete s.story_ids)],
+    ['a sourced item that says it was made', changed(take, (s) => (s.route = 'made'))],
+    [
+      "a copy of the found post's words",
+      changed(take, (s) => ((s.post as Item).text = 'The whole post, copied.')),
+    ],
+    [
+      'a post address that is not on X',
+      changed(
+        take,
+        (s) => ((s.post as Item).url = 'https://example.com/status/9900000000000000102'),
+      ),
+    ],
+    ['a handle written with its @', changed(take, (s) => ((s.post as Item).handle = '@example'))],
+    ['a withdrawn take without its reason', changed(take, (s) => (s.state = 'withdrawn'))],
+    ['a post with no route', changed(creation, (c) => delete c.route)],
+    ['our own post marked as posted', changed(creation, (c) => (c.route = 'posted'))],
+    ["a creator's post marked as made", changed(creatorPost, (c) => (c.route = 'made'))],
+    ['a post that claims it was found', changed(creation, (c) => (c.route = 'found'))],
+    [
+      "a creator's post that claims to build on found posts",
+      changed(creatorPost, (c) => (c.based_on = [take.id])),
     ],
     [
       'a yes-or-no market with outcomes',

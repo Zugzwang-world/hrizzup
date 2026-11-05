@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://hrizzup.com/agreement/definitions/reading.v1.schema.json",
   "title": "Data reading, format version 1",
-  "description": "One reading of a market subject's data slot: a price, a ranking, or a match's state. Sourcing's data job writes it from the slot's source; settlement and the market pages read it.",
+  "description": "One reading of a market subject's data slot: a price, a ranking, or a match's state. Product's data job writes it from the slot's source; settlement and the market pages read it.",
   "type": "object",
   "additionalProperties": false,
   "required": ["format", "id", "subject", "measured_at", "received_at"],

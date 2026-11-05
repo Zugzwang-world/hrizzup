@@ -2,6 +2,7 @@
   {
     "format": "creation/1",
     "id": "01a19a40-cb20-7a3f-b4d9-d4cb3fd6bf68",
+    "route": "posted",
     "kind": "text",
     "author": {
       "kind": "creator",
@@ -15,6 +16,7 @@
   {
     "format": "creation/1",
     "id": "01a19a69-fe00-7ece-a8e7-1dee39c8c5cf",
+    "route": "made",
     "kind": "image",
     "author": {
       "kind": "hrizzup",
@@ -35,6 +37,7 @@
   {
     "format": "creation/1",
     "id": "01a1a76e-8300-7ed4-8912-a8cb31624dc6",
+    "route": "posted",
     "kind": "video",
     "author": {
       "kind": "creator",
@@ -56,6 +59,7 @@
   {
     "format": "creation/1",
     "id": "01a19a57-ae80-7c6c-b526-680c0968b047",
+    "route": "posted",
     "kind": "image",
     "author": {
       "kind": "creator",
@@ -76,6 +80,7 @@
   {
     "format": "creation/1",
     "id": "01a19b4a-4be0-7411-961a-d0f25c0b539f",
+    "route": "posted",
     "kind": "text",
     "author": {
       "kind": "user",
@@ -89,6 +94,7 @@
   {
     "format": "creation/1",
     "id": "01a19fc7-4880-7bfc-a0ba-83ab52ef3a99",
+    "route": "made",
     "kind": "text",
     "author": {
       "kind": "hrizzup",
@@ -96,6 +102,7 @@
     },
     "text": "What moves Bitcoin's price? Three things to watch this week:\n\n1. Money flowing into and out of Bitcoin funds.\n2. The US dollar: when it strengthens, Bitcoin often falls.\n3. How much Bitcoin sits on exchanges, ready to be sold.",
     "categories": ["crypto"],
+    "based_on": ["01a19a25-53e0-7dbe-baaf-8b69df055478"],
     "created_at": "2026-11-03T05:00:00Z",
     "updated_at": "2026-11-03T05:00:00Z"
   }

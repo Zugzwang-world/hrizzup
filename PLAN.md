@@ -27,12 +27,16 @@ Most people now get their news first from creators on social media (posts, memes
 
 ### News: the hook, and most of the effort
 
-- **Sourcing:** fully automated, run by Grok bots that read X on a schedule. Which Grok product and plan run them, and the route that brings their results to our pipeline, are decided in the Sourcing project (step 0.8). Our pipeline receives the results automatically, turns each result into our own update, groups updates into stories that develop over time (each with a timeline), and tags every story with one or more locations and categories. Nobody copies anything by hand.
+- **Sourcing:** fully automated, run by Grok bots that read X on a schedule. They find two things: news, which our AI turns into story tiles and updates for the board, and creators' takes on a story (memes, videos, explainers). Everything they find is kept in a sourced pool in the shared content store. Which Grok product and plan run the bots, and the route that brings their results to our pipeline, are decided in the Sourcing project (step 0.8). Our pipeline receives the results automatically, keeps what passes its checks in the sourced pool, turns the news into our own updates, groups updates into stories that develop over time (each with a timeline), and tags every story with one or more locations and categories. Nobody copies anything by hand.
 - **Categories:** a location (global; national, which means India; local, which means Indian cities) combined with a general category (crypto, finance, business, AI, sports and more). The launch list, approved by the founder on 5 November 2026, is kept once, in the hand-over agreement's shared lists ([agreement/README.md](agreement/README.md)); a city or category added later is one change there, with the founder's approval.
 - **Board:** a Pinterest-style discovery page with three tabs: Latest, Top and For You. For You is built from each user's favourite categories and bookmarks. It sorts and filters; it is not an algorithm.
-- **Feed:** creators' takes on the stories each user picked, plus the creators they follow and their location. The detailed design is still to be worked out.
+- **Feed:** takes on the stories each user picked, from all three routes below, plus the creators they follow and their location. The detailed design is still to be worked out.
 - **Ranking, version one:** based on the stories a user picks, what they view, the categories they choose and who they follow. No money signals.
-- **Content:** our own content (from the News Desk project) plus creators who open creator accounts in the app. Users post text only. Images and video come from us and from invited creators. For the market subjects, we also embed existing creators' content.
+- **Content reaches the product by three routes** (founder's decision, 5 November 2026):
+  - **Found:** a creator's post the bots found is shown in a story's feed as the original post, embedded and credited to its creator, never copied. This applies to every story.
+  - **Made:** News Desk makes our own content from the sourced pool.
+  - **Posted:** creators and users post directly in the app. Users post text only; images and video come from us and from invited creators.
+- **Product only displays:** the board shows stories, and the feed shows takes from all three routes, each credited by its route.
 - **Reactions:** likes and dislikes.
 - **Social in the app:** a simple feed of users' posts. No bets and no play money anywhere in the app; the only payment in the app is the paid-tier subscription.
 - **Launch:** the app launches in India. Global news is for everyone.
@@ -114,14 +118,16 @@ Most people now get their news first from creators on social media (posts, memes
 
 | Project | Its job | What it produces |
 |---|---|---|
-| Sourcing | Design and run the Grok bots that find news on X, turn their results into stories and updates, and find data sources for the markets | Stories, updates, market data sources |
-| News Desk | Create our own content and onboard creators | Text, images, video |
-| Product | Build the app, the website and the markets | The app and the website |
+| Sourcing | Design and run the Grok bots that find news and creators' takes on X; keep everything they find in the sourced pool; turn the news into stories and updates. The takes reach the feed by the found route | Stories, updates, the sourced pool |
+| News Desk | Make our own content from the sourced pool (the made route) and onboard creators, who post in the app (the posted route) | Text, images, video |
+| Product | Build the app, the website and the markets, with the data sources that settle the markets (step 1.2). It only displays content: the board shows stories, and the feed shows takes from all three routes, each credited by its route | The app, the website, the market data |
 
-- There is one repository, one shared content store (a database plus storage for images and video), and one written hand-over agreement ([agreement/README.md](agreement/README.md)) that defines exactly what each project passes to the others. It is signed off in two halves (step 0.7).
-- Finding data sources for the markets (step 1.2) is on hold until the founder confirms which project owns it.
+- There is one repository, one shared content store (a database plus storage for images and video, which also holds the sourced pool), and one written hand-over agreement ([agreement/README.md](agreement/README.md)) that defines exactly what each project passes to the others. It is signed off in two halves (step 0.7).
+- Product owns the data sources for the markets (step 1.2) and, alone, the markets that settle themselves from them (step 3.2) (founder's decision, 5 November 2026).
+- **News Desk is on hold** until the founder sets it up (founder's decision, 5 November 2026). Its steps (1.3 and 4.4) wait for it. So the hold doesn't block Product, the founder approves the agreement's first half in News Desk's place; News Desk reviews it once it's set up, and any change it asks for follows the agreement's change rules.
 - Projects never copy code between each other; the shared repository is the only route.
-- Each thinking project keeps only its brief in its knowledge: `docs/brief/sourcing.md`, `docs/brief/news-desk.md` or `docs/brief/product.md` (decided 4 November 2026). A brief stands on its own: where things stand, the decisions in force, open questions, what's next, and which repository files hold the detail. It stays under about 1,500 words and is rewritten, never appended. The project uses the live GitHub connection when it needs that detail.
+- **No relays** (founder's decision, 5 November 2026): the founder doesn't carry reports or messages between projects. Everything a thinking project needs goes into its brief.
+- Each thinking project keeps only its brief in its knowledge: `docs/brief/sourcing.md`, `docs/brief/news-desk.md` or `docs/brief/product.md` (decided 4 November 2026). A brief stands on its own and replaces Claude Code's report: where things stand, the decisions in force, what changed in the latest session (with its pull request links), open questions (each with Claude Code's recommendation), what's next, and which repository files hold the detail. It stays under about 1,500 words and is rewritten, never appended. The project reads it after Sync now, instead of asking the founder for a report, and attaches repository files from GitHub when it needs detail.
 - Claude Code updates the relevant status file and rewrites the relevant brief at the end of every session. A daily routine that would catch a brief left behind is ready but off for now (founder's decision, 4 November 2026).
 
 ---
@@ -149,12 +155,12 @@ Steps 0.4, 0.7 and 0.8 moved here from Phase 0 on 4 November 2026, keeping their
 | # | Activity | Who | Needs | Done when |
 |---|---|---|---|---|
 | 0.4 | Register individual developer accounts: Google Play Console and the Apple Developer Program | Founder | — | Both accounts are active |
-| 0.7, first half | The hand-over agreement's first half: exactly what a story, an update, a creation and a market look like when they pass between projects (their shapes, with example data and a check on every pull request that keeps the two in step), and the launch list of locations and categories | Product drafts it; Sourcing and News Desk review and agree it (founder's decision, 5 November 2026); the founder approves the launch list | 0.6 | Agreed and saved in the repository (`agreement/`). **No project creates tables for these shapes or writes content in them before this half is agreed.** |
-| 0.7, second half | The hand-over agreement's second half: the Grok bots' result format. Drafted only once the Sourcing project has chosen the Grok product and how the results reach our pipeline (0.8) | Product drafts it; all three projects agree | 0.8's choice of Grok product and route | Agreed only after a real result from 0.8's test bot passes the agreement's own checks. **No bot result becomes content before this half is agreed.** |
+| 0.7, first half | The hand-over agreement's first half: exactly what a story, an update, a sourced item (one thing the bots found, as kept in the sourced pool), a creation and a market look like when they pass between projects, and how every feed item names its route (their shapes, with example data and a check on every pull request that keeps the two in step), and the launch list of locations and categories | Product drafts it; Sourcing reviews and agrees it, and the founder approves it in News Desk's place while News Desk is on hold; News Desk reviews it once it's set up (founder's decisions, 5 November 2026); the founder approves the launch list | 0.6 | Agreed and saved in the repository (`agreement/`). **No project creates tables for these shapes or writes content in them before this half is agreed.** |
+| 0.7, second half | The hand-over agreement's second half: the Grok bots' result format, which is how the bots deliver their results to our pipeline. It carries creators' takes as well as news, and is kept separate from the sourced item, which is what the pipeline keeps after its checks. Designed only once the Sourcing project has chosen the Grok product and how the results reach our pipeline (0.8) | Sourcing designs it; Product reviews and agrees it; News Desk doesn't need to agree it (founder's decision, 5 November 2026) | 0.8's choice of Grok product and route | Agreed only after a real result from 0.8's test bot, carrying news and creators' takes, passes the agreement's own checks. **No bot result becomes content before this half is agreed.** |
 | 0.8 | Choose the Grok product and plan that run the bots, and the route that brings their results to our pipeline (both decided in the Sourcing project), then set them up | Sourcing decides; the founder sets it up, with AI | 0.2 | A test bot's result arrives by that route |
-| 1.1 | News pipeline, first version: Grok bots read X on a schedule and send results in the agreed format; our pipeline receives them automatically, by the route 0.8 chose, writes updates, groups them into stories with timelines, tags location and category, and saves them to the content store | Sourcing | 0.7 (both halves), 0.8 | Stories appear and update on their own on staging |
-| 1.2 | Data sources for the markets: prices (Bitcoin, gold or oil), scores (cricket, football), an AI model ranking, with their costs. **On hold** until the founder confirms which project owns it | To be confirmed by the founder | — | Every market subject has a named source |
-| 1.3 | Content formats and the first batch of our own content for the launch categories; a list of creators to invite | News Desk | 0.7 (first half) | Enough content to fill the feeds in the launch categories |
+| 1.1 | News pipeline, first version: Grok bots read X on a schedule, find news and creators' takes on stories, and send results in the agreed format; our pipeline receives them automatically, by the route 0.8 chose, keeps what passes its checks in the sourced pool, writes updates from the news, groups them into stories with timelines, tags location and category, and saves them to the content store | Sourcing | 0.7 (both halves), 0.8 | Stories appear and update on their own on staging, and the takes the bots find wait in the sourced pool, each linked to its story |
+| 1.2 | Data sources for the markets: prices (Bitcoin, gold or oil), scores (cricket, football), an AI model ranking, with their costs | Product (founder's decision, 5 November 2026) | — | Every market subject has a named source |
+| 1.3 | Content formats, then the first batch of our own content for the launch categories, made from the sourced pool; a list of creators to invite | News Desk (on hold until the founder sets it up) | 0.7 (first half); 1.1, for the first batch | Enough content to fill the feeds in the launch categories |
 | 1.4 | Design: references, then the design system, then the core screens (board, story page, feed, app frame, market page), drawn from the agreement's shapes and example data | Product, in Claude Design | 0.7 (first half), for the core screens | Design system approved and screens handed to Claude Code |
 | 1.5 | Set up the one codebase (Expo app and Next.js website sharing code, with one typed API) and get a first empty app running on an Android phone. Before any page or screen is built in code, add the checks every pull request runs on them: the performance budget (blueprint section 14) and the core-journey tests (Playwright for the website; Maestro for the app, at phone and tablet sizes). The first database migration locks every new table (row-level security on automatically), and a check on every pull request fails if any table is unprotected (approved 3 November 2026) | Product | 0.6 | The website runs on staging, the app opens on a phone, and every pull request checks the performance budget and the core journeys of every page and screen that exists |
 | 1.6 | Accounts and login with Supabase Auth: Google first; Apple and email codes before the iPhone build; the app's native Google and Apple sign-in with the app builds | Product | 0.6, 1.5 | Sign-in works on the web and on Android |
@@ -166,8 +172,8 @@ Steps 0.4, 0.7 and 0.8 moved here from Phase 0 on 4 November 2026, keeping their
 |---|---|---|---|---|
 | 2.1 | Board: Latest, Top and For You; location and general categories; favourites and bookmarks | Product | 0.7 (first half), 1.4, 1.5 | A reader can browse and shape their board |
 | 2.2 | Story pages with timelines | Product | 0.7 (first half), 1.4, 1.5 | Every story shows how it developed |
-| 2.3 | Feed and ranking, version one: picks, views, categories, follows; likes and dislikes; following creators | Product | 0.7 (first half), 1.5, 2.1 | The feed shows creators' takes on the stories a reader chose |
-| 2.4 | Posting: text for everyone; creator accounts with image and video uploads; reporting posts and blocking users | Product | 0.7 (first half), 1.5, 1.6 | Users post text, creators post media, and any post can be reported |
+| 2.3 | Feed and ranking, version one: takes from all three routes, each credited by its route (found posts embedded from X); picks, views, categories, follows; likes and dislikes; following creators | Product | 0.7 (first half), 1.5, 2.1 | The feed shows takes from all three routes on the stories a reader chose, each credited by its route |
+| 2.4 | Posting (the posted route): text for everyone; creator accounts with image and video uploads; reporting posts and blocking users | Product | 0.7 (first half), 1.5, 1.6 | Users post text, creators post media, and any post can be reported |
 | 2.5 | Notifications for breaking and developing stories | Product | 1.5, 2.2 | Alerts arrive on an Android phone |
 | 2.6 | Android build of everything above; start the Google Play closed test as soon as the build is usable. This is where real people first see real news, so it needs the news pipeline and our own content | Product, Founder | 1.1, 1.3, 2.1–2.5 | A closed test is running with 12 or more real testers |
 | 2.7 | Paid tier: decide what's free and what's paid, then build subscriptions (RevenueCat in the app; Razorpay with UPI on the website, passed through our server). It follows the closed test's start, so the Google Play clock isn't held up | Product, Founder | 1.5, 1.6 | A tester can subscribe in the Android app and on the website, and both show the same paid status |
@@ -177,7 +183,7 @@ Steps 0.4, 0.7 and 0.8 moved here from Phase 0 on 4 November 2026, keeping their
 | # | Activity | Who | Needs | Done when |
 |---|---|---|---|---|
 | 3.1 | Market pages in Kalshi's layout with our own look; a starting balance on signup | Product | 1.4, 1.5, 1.7 | A new visitor can sign in and place a bet in a few taps |
-| 3.2 | Markets that run continuously and settle themselves from the data sources; questions refined | Product, with step 1.2's owner | 1.2, 1.7 | Markets open, run and settle with no one touching them |
+| 3.2 | Markets that run continuously and settle themselves from the data sources; questions refined | Product | 1.2, 1.7 | Markets open, run and settle with no one touching them |
 | 3.3 | News on the website, linked to markets through shared categories | Product | 1.5, 2.1, 3.1 | A visitor can move between a market and its news |
 
 ### Phase 4: Polish and launch preparation
@@ -187,7 +193,7 @@ Steps 0.4, 0.7 and 0.8 moved here from Phase 0 on 4 November 2026, keeping their
 | 4.1 | Every screen checked at four sizes; full test suite on risky areas; security review | Product | Phases 2 and 3 | Nothing blocking launch |
 | 4.2 | Privacy policy and terms of use; reporting and blocking confirmed (both required by the app stores) | Founder, Product | 2.4 | Both published and linked inside the app |
 | 4.3 | iPhone build with Sign in with Apple; testing through TestFlight; App Store review | Product, Founder | 1.6, Phase 2 | iPhone app approved |
-| 4.4 | Creators onboarded through creator accounts; our own content loaded | News Desk, Founder | 2.4 | Feeds are full in every launch category |
+| 4.4 | Creators onboarded through creator accounts; our own content loaded | News Desk (on hold until the founder sets it up), Founder | 1.3, 2.4 | Feeds are full in every launch category |
 | 4.5 | Google Play: finish the closed test, then apply for production access | Founder | 2.6 | Production access granted |
 
 ### Phase 5: Production
@@ -212,12 +218,12 @@ Steps 0.4, 0.7 and 0.8 moved here from Phase 0 on 4 November 2026, keeping their
 ## 7. Open: to settle inside the projects
 
 - Which Grok product and plan run the bots, and the route that brings their results to our pipeline (step 0.8, decided in the Sourcing project)
-- How the Grok bots are set up, how often they run, and the fixed format of their results (step 0.7's second half, and 1.1). Each run starts fresh, so matching new items to existing stories happens in our pipeline.
+- How the Grok bots are set up, how often they run, and the fixed format of their results (step 0.7's second half, designed in the Sourcing project and reviewed by Product, and 1.1). Each run starts fresh, so matching new items to existing stories happens in our pipeline.
 - Confirm that the chosen Grok product's terms allow its results to feed a public app (step 0.8)
-- Which project owns step 1.2, the data sources for the markets (the founder confirms; on hold until then)
+- The data sources for the markets, with their costs, and gold or oil (step 1.2, decided in the Product project)
 - Background jobs: which tool runs scheduled and queued work (decided in the Sourcing project)
 - How the app shows the bot check (Turnstile) on its email-code screen (step 1.6)
-- Feed design in depth (step 2.3)
+- Feed design in depth, including how found posts are embedded from X and how each route is credited (step 2.3)
 - Exact market questions (step 3.2)
 - Paid tier: what's free and what's paid (decided before the paywall is built, step 2.7)
 - Comment threads

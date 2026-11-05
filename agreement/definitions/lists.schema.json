@@ -102,6 +102,27 @@
         }
       ]
     },
+    "route": {
+      "title": "Route from the shared list",
+      "description": "How a feed item reached the product, which decides how Product credits it.",
+      "oneOf": [
+        {
+          "const": "found",
+          "title": "Found",
+          "description": "A creator's post that our bots found on X, shown in a story's feed as the original post: embedded from X and credited to its creator, never copied."
+        },
+        {
+          "const": "made",
+          "title": "Made",
+          "description": "Our own content, made by News Desk from the sourced pool and credited to Hrizzup, together with the creators of any found posts it builds on."
+        },
+        {
+          "const": "posted",
+          "title": "Posted",
+          "description": "Posted directly in the app by a creator or a user, and credited to the account that posted it."
+        }
+      ]
+    },
     "market_subject": {
       "title": "Market subject from the shared list",
       "description": "What a market is about. Each subject has one data slot: what it measures, and how settlement reads it. A slot names no provider; its source is chosen in PLAN.md step 1.2.",
@@ -114,7 +135,7 @@
     "price_subject": {
       "title": "Price",
       "description": "Settlement reads the average of the valid readings measured in the 60 seconds before the market closes. If there are none, the market waits for them; if none arrive within 24 hours, it is cancelled and every bet is returned.",
-      "$comment": "Gold or oil joins this list once PLAN.md step 1.2 decides which (on hold until the founder confirms its owner).",
+      "$comment": "Gold or oil joins this list once PLAN.md step 1.2 decides which.",
       "oneOf": [
         {
           "const": "bitcoin",

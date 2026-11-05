@@ -2,10 +2,10 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://hrizzup.com/agreement/definitions/creation.v1.schema.json",
   "title": "Creation, format version 1",
-  "description": "A post: text, an image or a video, usually a take on one or more stories. Our own (from News Desk), invited creators' and users' posts all have this shape, so the feed treats them alike.",
+  "description": "A post: text, an image or a video, usually a take on one or more stories. Our own (made by News Desk), invited creators' and users' posts (posted in the app) all have this shape, so the feed treats them alike.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["format", "id", "kind", "author", "created_at", "updated_at"],
+  "required": ["format", "id", "route", "kind", "author", "created_at", "updated_at"],
   "properties": {
     "format": {
       "const": "creation/1",
@@ -14,6 +14,10 @@
     "id": {
       "$ref": "common.schema.json#/$defs/record_id",
       "description": "The creation's ID."
+    },
+    "route": {
+      "$ref": "lists.schema.json#/$defs/route",
+      "description": "How it reached the product, which follows from its author: made for our own content, posted for creators' and users' posts. Product credits it by its route."
     },
     "kind": {
       "enum": ["text", "image", "video"],
@@ -65,6 +69,14 @@
       "$ref": "common.schema.json#/$defs/locations",
       "description": "Where it matters, for local content."
     },
+    "based_on": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 10,
+      "uniqueItems": true,
+      "items": { "$ref": "common.schema.json#/$defs/record_id" },
+      "description": "The sourced items (posts our bots found) it builds on. Product credits their creators alongside it, linking to the original posts while they're live. Only for made content."
+    },
     "created_at": {
       "$ref": "common.schema.json#/$defs/time",
       "description": "When it was posted."
@@ -108,6 +120,28 @@
         }
       },
       "then": { "anyOf": [{ "required": ["story_ids"] }, { "required": ["categories"] }] }
+    },
+    {
+      "if": {
+        "properties": {
+          "author": { "type": "object", "properties": { "kind": { "const": "hrizzup" } } }
+        }
+      },
+      "then": { "properties": { "route": { "const": "made" } } }
+    },
+    {
+      "if": {
+        "properties": {
+          "author": {
+            "type": "object",
+            "properties": { "kind": { "enum": ["creator", "user"] } }
+          }
+        }
+      },
+      "then": {
+        "properties": { "route": { "const": "posted" } },
+        "not": { "required": ["based_on"] }
+      }
     }
   ]
 }
