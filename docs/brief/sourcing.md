@@ -7,7 +7,7 @@
 ## Where things stand
 
 - **No Sourcing work has started.** The `sourcing/` folder holds only its README.
-- **The hand-over agreement's first half is a first draft** (status Draft, 5 November 2026), in `agreement/`. It defines what Sourcing writes (stories, updates and data readings), the shared lists it tags with, and the rules for every hand-over point. The founder approved its seven decisions the same day; next, all three projects review and agree it. Its second half, the bots' result format, isn't drafted: it waits for step 0.8's choice.
+- **The hand-over agreement's first half is a draft** (status Draft, 5 November 2026), in `agreement/`. It defines what Sourcing writes (stories, updates and data readings), the shared lists it tags with, and the rules for every hand-over point. The founder approved its decisions the same day; it's signed off only after Sourcing and News Desk review and agree it. Its second half, the bots' result format, isn't drafted: it waits for step 0.8's choice.
 - **The shared setup is finished** (PLAN.md Phase 0, closed 4 November 2026): the shared content store is the Supabase database (staging: `hrizzup-staging`, Mumbai) plus Cloudflare R2 for images; Upstash Redis holds caches and locks; the website runs on Vercel in Mumbai. Production is parked until launch.
 - **No inbox for the bots yet:** mail to `hrizzup.com` goes to the founder's own Proton mailboxes, and Resend only sends our sign-in emails, from `mail.hrizzup.com`.
 
@@ -24,7 +24,7 @@
   - these checks judge whether input is genuine and well-formed, not whether the news is true: accuracy stays with our AI, with no human review;
   - every record states its format version. Adding an optional field is always allowed; anything else needs a new version agreed by all three projects;
   - code reads the definitions in `agreement/definitions/` directly, whatever language or job runner the pipeline uses, never a copy; whatever runs it is built from this repository. Code outside TypeScript also adds `validate()`'s three checks for hidden characters (`agreement/README.md`; in Python, one needs the `regex` package).
-- **Market data:** each market subject (Bitcoin; the best AI model; cricket; football; gold or oil still open) has one data slot, described by what it measures and how settlement reads it, naming no provider; prices are in US dollars. A reading that fails its checks never settles a market. Step 1.2, which names the sources and their costs, is on hold until the founder confirms its owner.
+- **Market data:** each market subject (Bitcoin; the best AI model; cricket; football; gold or oil still open) has one data slot, described by what it measures and how settlement reads it, naming no provider; prices are in US dollars. A reading that fails its checks never settles a market. Step 1.2 names the sources and their costs.
 - **Background jobs for the whole product** (the news pipeline, the data job, settling markets, processing uploaded images): which tool runs scheduled and queued work is decided here (founder's decision, 2 November 2026).
 - **Shared rules:** projects never copy code between each other; this repository is the only route. Every database change is a migration file in the repository, and every table has row-level security. Every automatic check lands before the first change it checks, so code in a new language gets its checks first. Staging is a sandbox, with a spending cap on every paid service. Claude Code never touches production. Mumbai is the region everywhere.
 
@@ -41,7 +41,7 @@
 
 ## What's next
 
-1. **Review and agree the agreement's first half** with Product and News Desk: above all the story, update and data-reading shapes and the rules for every hand-over point.
+1. **Review the agreement's first half,** as News Desk does, and agree it or ask for changes (Product makes them): above all the story, update and data-reading shapes and the rules for every hand-over point.
 2. **Grok and the route (step 0.8):** choose the Grok product and plan, and the route; the founder sets them up with Claude Code. Done when a test bot's result arrives by that route.
 3. **The agreement's second half:** the bots' result format, the proof that a result came from our own bot, and when alerts fire. Agreed only after a real result from the test bot passes the agreement's own checks.
 4. **The news pipeline, first version (step 1.1):** needs both halves and 0.8. Done when stories appear and update on their own on staging.

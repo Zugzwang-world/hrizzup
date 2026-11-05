@@ -6,12 +6,12 @@
 
 | Half | What it covers | Status | Sign-off record |
 |---|---|---|---|
-| First half | The shapes of a story, an update, a creation and a market, with the data readings that settle markets; the shared lists, including the launch list of locations and categories; the rules for every hand-over point | **Draft** (first draft, 5 November 2026) | Drafted by Product (Claude Code), 5 November 2026. Founder: the launch list and the other decisions below approved, each as recommended, 5 November 2026. Sourcing: not yet agreed. News Desk: not yet agreed. Product: not yet agreed. |
+| First half | The shapes of a story, an update, a creation and a market, with the data readings that settle markets; the shared lists, including the launch list of locations and categories; the rules for every hand-over point | **Draft** (first draft, 5 November 2026) | Drafted by Product (Claude Code), 5 November 2026. Founder: the launch list and the other decisions below approved, each as recommended, 5 November 2026. Sourcing: not yet reviewed. News Desk: not yet reviewed. |
 | Second half | The Grok bots' result format | **Not drafted** | Drafted only once the Sourcing project has chosen the Grok product and the route to our pipeline (step 0.8). See the last section. |
 
-- **Each sign-off is recorded here, with its date, as it arrives. A half becomes Agreed only through a later change the founder asks for,** once every project has agreed it. Changes to this folder merge themselves once their checks pass, so a merged draft is still only a draft.
+- **Each sign-off is recorded here, with its date, as it arrives. A half becomes Agreed only through a later change the founder asks for.** The first half is signed off only after Sourcing and News Desk have each reviewed and agreed it (the founder's decision, 5 November 2026); Product drafted it. Changes to this folder merge themselves once their checks pass, so a merged draft is still only a draft.
 - **Until the first half is Agreed,** no project creates database tables for its shapes or writes content in them, and nothing is loaded into any database. **Until the second half is Agreed,** no bot result becomes content.
-- **Next for the first half:** Sourcing, News Desk and Product each review it, and agree it or ask for changes. A change to one of the founder's decisions ("The founder's decisions", below) goes back to the founder.
+- **Next for the first half:** Sourcing and News Desk each review it, and agree it or ask for changes, which Product makes. A change to one of the founder's decisions ("The founder's decisions", below) goes back to the founder.
 
 ## What this is
 

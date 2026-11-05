@@ -7,7 +7,7 @@
 ## Where things stand
 
 - **No News Desk work has started.** The `news-desk/` folder holds only its README.
-- **The hand-over agreement's first half is a first draft** (status Draft, 5 November 2026), in `agreement/`: the creation shape (what News Desk hands to Product), the shared lists of locations and categories, and example posts. The founder approved its seven decisions the same day, the launch list among them; next, all three projects review and agree it.
+- **The hand-over agreement's first half is a first draft** (status Draft, 5 November 2026), in `agreement/`: the creation shape (what News Desk hands to Product), the shared lists of locations and categories, and example posts. The founder approved its seven decisions the same day, the launch list among them; it's signed off only after Sourcing and News Desk review and agree it.
 - **The shared setup is finished** (PLAN.md Phase 0, closed 4 November 2026): the shared content store exists on staging, as the Supabase database plus Cloudflare R2 storage for images, which Cloudflare resizes and delivers. Creator video will use Cloudflare Stream, switched on when creator video is built (step 2.4). Staging is a sandbox with no real users. Production is parked until launch.
 
 ## Decisions in force
@@ -31,7 +31,7 @@
 
 ## What's next
 
-1. **Review and agree the agreement's first half** with Product and Sourcing: above all the creation shape. A change to one of the founder's decisions goes back to the founder.
+1. **Review the agreement's first half,** as Sourcing does, and agree it or ask for changes (Product makes them): above all the creation shape. A change to one of the founder's decisions goes back to the founder.
 2. **Content formats, the first content and the creator list (step 1.3):** needs the agreement's first half. Done when there is enough content to fill the feeds in the launch categories.
 3. **Later, onboarding (step 4.4, with the founder):** creators join through creator accounts, and our own content is loaded. Needs creator accounts (step 2.4).
 
