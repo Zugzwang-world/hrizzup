@@ -6,12 +6,12 @@
 
 | Half | What it covers | Status | Sign-off record |
 |---|---|---|---|
-| First half | The shapes of a story, an update, a creation and a market, with the data readings that settle markets; the shared lists, including the launch list of locations and categories; the rules for every hand-over point | **Draft** (first draft, 5 November 2026) | Drafted by Product (Claude Code), 5 November 2026. Sourcing: not yet agreed. News Desk: not yet agreed. Product: not yet agreed. Founder: the launch list and the decisions below not yet approved. |
+| First half | The shapes of a story, an update, a creation and a market, with the data readings that settle markets; the shared lists, including the launch list of locations and categories; the rules for every hand-over point | **Draft** (first draft, 5 November 2026) | Drafted by Product (Claude Code), 5 November 2026. Founder: the launch list and the other decisions below approved, each as recommended, 5 November 2026. Sourcing: not yet agreed. News Desk: not yet agreed. Product: not yet agreed. |
 | Second half | The Grok bots' result format | **Not drafted** | Drafted only once the Sourcing project has chosen the Grok product and the route to our pipeline (step 0.8). See the last section. |
 
-- **A half becomes Agreed only through a later change the founder asks for.** That change records here each project's agreement and the founder's approval, with dates. Changes to this folder merge themselves once their checks pass, so a merged draft is still only a draft.
+- **Each sign-off is recorded here, with its date, as it arrives. A half becomes Agreed only through a later change the founder asks for,** once every project has agreed it. Changes to this folder merge themselves once their checks pass, so a merged draft is still only a draft.
 - **Until the first half is Agreed,** no project creates database tables for its shapes or writes content in them, and nothing is loaded into any database. **Until the second half is Agreed,** no bot result becomes content.
-- **Seven decisions wait for the founder:** "Decisions for the founder", below.
+- **Next for the first half:** Sourcing, News Desk and Product each review it, and agree it or ask for changes. A change to one of the founder's decisions ("The founder's decisions", below) goes back to the founder.
 
 ## What this is
 
@@ -28,11 +28,11 @@ This agreement fixes exactly what each of those looks like when it passes betwee
 - **`examples/`:** example data for every shape, ready for previews, tests and staging to load later;
 - **a check on every pull request** (inside Quick checks): every example passes its definition, every definition has examples, the definitions work the same in every language, and this page says exactly what the definitions say. The field tables, the lists and the worked examples below are written from the definitions and the examples, so they can't drift apart.
 
-## Decisions for the founder
+## The founder's decisions
 
-The draft needs these from you. Each has a recommendation, and the draft already follows it: approving changes nothing, and any other answer is one change.
+The founder approved all seven on 5 November 2026, each as recommended. The draft already followed them, so nothing else changed. Revisiting one is a change to this agreement, approved by the founder.
 
-| # | Decision | Recommendation | Why |
+| # | Question | Decision | Why |
 |---|---|---|---|
 | D1 | Which Indian cities are in the launch list? | **Mumbai, Delhi NCR and Bengaluru** (reasons below) | Each has enough English-language local news on X, and enough readers, to keep a local feed full. More cities come after version one. |
 | D2 | Which categories join crypto, finance, business, AI and sports? | **Politics, Entertainment and General** (reasons below) | Eight categories cover what readers look for without thinning any feed. |
@@ -42,7 +42,7 @@ The draft needs these from you. Each has a recommendation, and the draft already
 | D6 | Must a user's post carry a category? | **No.** Posts by Hrizzup and creators must name a story or a category; a user's post may name neither | The fewest steps to post. A user's post still shows on the stories it's about, and in the social feed. |
 | D7 | Market prices in US dollars or rupees? | **US dollars,** the world's reference price for Bitcoin, gold and oil; the website can show rupees alongside | The markets are global (PLAN.md section 2), and settlement must read one exact price. |
 
-**The proposed launch list** (D1 and D2), one reason each:
+**The launch list** (D1 and D2), one reason each:
 
 | Item | Kind | Why it's in |
 |---|---|---|
@@ -53,7 +53,7 @@ The draft needs these from you. Each has a recommendation, and the draft already
 | Entertainment | Category | Films, streaming and celebrities draw the most creators and memes in India, the heart of a creator-led app. |
 | General | Category | The home for news that fits nowhere else (weather, transport, civic issues, crime, education, health), so every story has a category and the city feeds stay full. |
 
-Next in line for cities, after version one: Hyderabad, Chennai and Pune, each a large tech hub with plenty of local news.
+Suggested next, after version one: Hyderabad, Chennai and Pune, each a large tech hub with plenty of local news. Each joins the list only when the founder approves it.
 
 ## The shapes at a glance
 
@@ -88,7 +88,7 @@ Any list of values that more than one project writes or reads is defined once, i
 
 Adding an item is one change in that one file ("Changing the agreement", below). Readers must cope with an item they haven't met before, for example by showing it in a plain default style.
 
-### Locations (launch list proposed: D1)
+### Locations (launch list: D1)
 
 <!-- generated: list location -->
 | Code | Name | Level | What it covers |
@@ -106,7 +106,7 @@ Adding an item is one change in that one file ("Changing the agreement", below).
 | Local | News for readers in one Indian city. More cities come after version one. |
 <!-- end generated -->
 
-### Categories (launch list proposed: D2)
+### Categories (launch list: D2)
 
 <!-- generated: list category -->
 | Code | Name | What it covers |
