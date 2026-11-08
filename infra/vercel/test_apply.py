@@ -74,6 +74,11 @@ class TheRepoRules(unittest.TestCase):
         actions = [r["action"]["mitigate"]["action"] for r in WANT["rules"]]
         self.assertEqual(actions, ["rate_limit", "rate_limit", "rate_limit", "bypass", "rate_limit", "bypass"])
 
+    def test_every_description_fits_vercels_limit(self):
+        # Vercel refuses a rule whose description is longer than 256 characters (HTTP 400).
+        for r in WANT["rules"]:
+            self.assertLessEqual(len(r.get("description", "")), 256, r["name"])
+
     def test_the_staging_bypass_covers_reads_only(self):
         conditions = staging_rule(WANT)["conditionGroup"][0]["conditions"]
         self.assertIn({"type": "method", "op": "eq", "value": "GET"}, conditions)
