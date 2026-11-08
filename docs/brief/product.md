@@ -2,7 +2,7 @@
 
 **This brief replaces Claude Code's report:** read it after clicking **Sync now**, instead of asking the founder for a report, and attach the files under "Read for detail" from GitHub when you need more.
 
-> Rewritten 8 November 2026. The only repository file the Product project keeps in its knowledge; Claude Code rewrites it at the end of every session that touches Product's part. If it and PLAN.md disagree, PLAN.md wins.
+> Rewritten 9 November 2026. The only repository file the Product project keeps in its knowledge; Claude Code rewrites it at the end of every session that touches Product's part. If it and PLAN.md disagree, PLAN.md wins.
 
 **Hrizzup** is a news app built around creators, plus a website with play-money prediction markets. Our AI finds news as it breaks on X and turns it into developing stories that readers see through creators' takes. **Product's job:** build the website and the app in parallel, the website one stage ahead (Android first, then iPhone from the same code), plus the markets. It only displays content, which reaches it through the hand-over agreement (`agreement/README.md`), whose first half Product drafts.
 
@@ -17,7 +17,7 @@
 
 One line per relay; each relay keeps only its own line current.
 
-1. **Relay 1, the round's records:** merged [#36](https://github.com/Zugzwang-world/hrizzup/pull/36). Next: nothing, relay 1 is done. For the founder: replace the Expo token.
+1. **Relay 1, the round's records:** merged [#36](https://github.com/Zugzwang-world/hrizzup/pull/36) and its follow-up [#53](https://github.com/Zugzwang-world/hrizzup/pull/53), the Doppler names check. Next: its jobs' half, [#54](https://github.com/Zugzwang-world/hrizzup/pull/54), once the Expo token is replaced. For the founder: replace the Expo token.
 2. **Relay 2, steps 1.5a to 1.5d:** merged [#49](https://github.com/Zugzwang-world/hrizzup/pull/49), 1.5d's first half: staging's public addresses reviewed (nothing needed closing), search engines asked to stay out by header too, staging's protection exception kept in `infra/vercel/`; the app linked to its Expo project (`@hrizzups-team/hrizzup`) with a preview and a development build, and its cold start timed on the CI emulator against main's (the emulator is no phone: 3.1 s for the empty app, so the 2-second budget needs a real phone). Before it: [#41](https://github.com/Zugzwang-world/hrizzup/pull/41) (1.5a), [#47](https://github.com/Zugzwang-world/hrizzup/pull/47) (1.5b) and 1.5c's typed API. Next: staging opens; the app answers from it; the install link.
 3. **Relay 3, step 1.7a, Manifold's maths:** merged [#44](https://github.com/Zugzwang-world/hrizzup/pull/44), our money tests: no play money created or lost, over every trade and settlement and 41 random markets; 1.7a is done (201 tests pass, after [#38](https://github.com/Zugzwang-world/hrizzup/pull/38) and [#43](https://github.com/Zugzwang-world/hrizzup/pull/43)). Next: nothing, relay 3 is done. Three questions below.
 4. **Relay 4, step 1.4's first pass:** first milestone [#39](https://github.com/Zugzwang-world/hrizzup/pull/39): the readable-text check and the design values package (three candidate directions, nothing on screen yet). Next: the three directions as working boards on preview links, for the founder to choose.
@@ -39,11 +39,11 @@ One line per relay; each relay keeps only its own line current.
 
 ## What changed in the latest session
 
-On 8 November 2026, in [#40](https://github.com/Zugzwang-world/hrizzup/pull/40) (Round 2, relay 6, records only), the founder's decisions on the markets and on how Product works:
+On 9 November 2026, in [#53](https://github.com/Zugzwang-world/hrizzup/pull/53) (relay 1's follow-up), a guard so no tool token sits in the app's Doppler configs again, as `VERCEL_TOKEN` (3 November) and `EXPO_TOKEN` (8 November) did:
 
-- **PLAN.md:** the market model and its build order (sections 2 and 5; 1.2 parked, needing 3.1; needs kept), the two tracks and 1.4's three core screens (sections 3 to 5), open questions (section 7).
-- **`TRACKER.md`:** the markets track, with 1.2 parked.
-- **Also:** the research marks its market data as reference; the blueprint names the engine's calls; the milestones follow.
+- **The list:** `infra/doppler/app-keys.txt` names the app's 21 keys, names only; only those may be in `stg`, `stg_preview` and `dev`. A new key's name is listed in a pull request that merges before the key goes in (CLAUDE.md, runbook Part 4).
+- **The check:** `infra/doppler/dev_follows_staging.py check` fails on any other name and on any name `hrizzup-tools` holds; today it finds only `EXPO_TOKEN`. Its tests, with made-up names, run in Quick checks.
+- **Held:** the same check in the Staging workflow and the Screen check ([#54](https://github.com/Zugzwang-world/hrizzup/pull/54)) merges after runbook step 4.6; until then it would stop every one of their runs.
 
 ## Open questions
 
@@ -53,7 +53,7 @@ On 8 November 2026, in [#40](https://github.com/Zugzwang-world/hrizzup/pull/40) 
 - **Which track builds each feature's screens** (stages 4a, 4b). Recommendation: the round's relays, from the design chat's approved design; the design chat reviews them on previews.
 - **Sign-in for the board's favourites** (2.1): add 1.6a to 2.1's needs, 1.6b to its app join.
 - **Vercel's bot challenge and the app** (1.5d): test first; if challenged, a staging-only firewall rule lets the API skip it.
-- **oRPC 2.0 late:** start on 1.x. **Tool tokens:** the Doppler check fails on a `hrizzup-tools` name in `stg`. **Dependabot's three alerts:** one small change raising them; find out why it opened none.
+- **oRPC 2.0 late:** start on 1.x. **Dependabot's three alerts:** one small change raising them; find out why it opened none.
 - **Market fee** (1.7a): zero behind one setting, `TAKER_FEE_RATE`. Recommendation: zero at launch; a later fee must settle how a cancel refunds it.
 - **A cancel takes back sale profits** (1.7b): a negative payout, which can leave a trader below zero. Recommendation: as Manifold, the balance shows what's owed; cancel only markets that can't be settled fairly.
 - **The trade call must refuse** (1.7d) what the maths lets through: limits outside 1% to 99%, an expiry of 0, amounts not positive or above the balance.
@@ -61,7 +61,7 @@ On 8 November 2026, in [#40](https://github.com/Zugzwang-world/hrizzup/pull/40) 
 
 ## For the founder
 
-- **Replace the Expo token** (runbook step 4.6, about 5 minutes).
+- **Replace the Expo token** (runbook step 4.6, about 5 minutes). It also lets [#54](https://github.com/Zugzwang-world/hrizzup/pull/54) merge.
 - **1.4's first pass and the agreement:** the board and a story page need the first half Agreed. Recommendation: draw them on the Draft's examples now; approve them once it's Agreed.
 - **Approve the agreement's first half** in News Desk's place (the review's "In short"). Recommendation: first let Product bring its market shape in line with the market model, so what you approve matches PLAN.md. Then Product may build its tables.
 - **Sourcing's three questions** (the review's F1 to F3, none holding up the approval). Recommended: found takes in English only; takedown requests to you at a `hrizzup.com` address, handled within 24 hours; a lawyer's check before launch.

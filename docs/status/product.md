@@ -1,6 +1,6 @@
 # Product: status
 
-Last updated: 8 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/brief/product.md](../brief/product.md). Code: [product/](../../product/). Hand-over agreement: [agreement/README.md](../../agreement/README.md).
+Last updated: 9 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/brief/product.md](../brief/product.md). Code: [product/](../../product/). Hand-over agreement: [agreement/README.md](../../agreement/README.md).
 
 ## Done
 
@@ -179,6 +179,19 @@ Last updated: 8 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/brie
     - The background-jobs choice also covers the automatic resolvers (3.2a).
     - A news feature's design stage starts once 1.4's three core screens are approved, since the feed and posting no longer have core screens of their own.
 
+- **Only the app's keys in Doppler `hrizzup`, 9 November 2026** ([#53](https://github.com/Zugzwang-world/hrizzup/pull/53), relay 1's follow-up, answering the open question "a guard for tool tokens"): tool tokens had landed in `stg` twice (`VERCEL_TOKEN` on 3 November, `EXPO_TOKEN` on 8 November), and `stg` and `stg_preview` reach every staging and preview build and the jobs that load them whole.
+  - **The list:** `infra/doppler/app-keys.txt` names the app's 21 keys, names only, each with what uses it. Only those names may be in `stg`, `stg_preview` and `dev`, besides Doppler's own three labels.
+  - **The check:** `infra/doppler/dev_follows_staging.py check` fails on any other name there, on any name `hrizzup-tools` holds, on a dev override that isn't an app key, and on a listed name `stg` doesn't hold; `apply` never gives `dev` a reference to a name that isn't listed. `infra/doppler/app_keys.py check <config>` does the same for a GitHub job, reading names only through Doppler's names endpoint. 30 tests with made-up names run in Quick checks.
+  - **Run on 9 November 2026** (names only): one problem, the known `EXPO_TOKEN` in `stg` and `stg_preview`. The list matches today's app keys exactly, and `dev` follows staging (20 references, 1 override).
+  - **The jobs' half waits:** the same check in the Staging workflow and the Screen check, before they load a config, is [#54](https://github.com/Zugzwang-world/hrizzup/pull/54), a draft until runbook step 4.6: while `EXPO_TOKEN` is in `stg`, it would stop every one of their runs.
+  - **A new app key:** its name goes into the list in a pull request that merges before the key goes into `stg` (CLAUDE.md, runbook Part 4).
+  - **Answered without asking** (one line each):
+    - One list, of the app's keys; `hrizzup-tools`' live names are cross-checked instead of keeping a second list.
+    - The names come from Doppler's names-only endpoint, so the check never downloads a value.
+    - All three configs are checked, not only `stg`, and dev's overrides must be app keys too.
+    - A new key's name lands before the key, so other sessions' Staging runs never fail on it.
+    - The jobs' half is its own pull request, held as a draft until step 4.6, rather than merged and failing.
+
 ## Next
 
 1. **Round 2, running now** (`TRACKER.md`, "Before the first feature round"): relay 2, steps 1.5a to 1.5d in order; relay 3, Manifold's maths (1.7a, done); relay 4, the design's first pass (1.4); relay 5, Sourcing's review of the agreement's first half, done ([#37](https://github.com/Zugzwang-world/hrizzup/pull/37), [#42](https://github.com/Zugzwang-world/hrizzup/pull/42)), so the founder now approves it in News Desk's place, and it becomes Agreed in a change the founder asks for.
@@ -188,6 +201,7 @@ Last updated: 8 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/brie
 5. **The design's next pass, in the design chat:** the market page with placeholder questions, the last of 1.4's three core screens. The design chat settles whether the remaining screens are designed up front or feature by feature.
 6. **Review the agreement's second half** once Sourcing designs it (after step 0.8).
 7. **Then the first feature round:** each news feature through its stages in `TRACKER.md`, design in the design chat and engineering in the round's chat, meeting at the contract; alongside, the markets track, built as [docs/research/manifold.md](../research/manifold.md) sets out.
+8. **The Doppler names check in the Staging workflow and the Screen check** ([#54](https://github.com/Zugzwang-world/hrizzup/pull/54)) merges once the founder has replaced the Expo token (runbook step 4.6) and `dev_follows_staging.py check` passes.
 
 ## Open questions
 
@@ -196,7 +210,6 @@ Last updated: 8 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/brie
 - **The app and Vercel's bot challenge** (step 1.5d): the firewall challenges clients that don't behave like browsers, a phone app doesn't, and only `/api/health` is exempt. Recommended: 1.5d tests it first; if the app is challenged, a firewall rule scoped to staging's address lets the typed API's calls skip the challenge, keeping the rate limits. The firewall is project-wide, so production's version goes through the release pipeline before launch.
 - **oRPC 2.0's timing:** if it isn't stable when the first feature's contract stage is ready, recommended: start on 1.x and move in its own change once it is.
 - **What the two surfaces share in code:** the design values are now decided (shared code). Recommended for the rest: the contract, data fetching and validation in `product/packages/`, with each surface's screens built natively.
-- **A guard for tool tokens:** nothing stops a tool token landing in `hrizzup`'s configs again (as `VERCEL_TOKEN` did on 3 November and `EXPO_TOKEN` on 8 November). Recommended: `dev_follows_staging.py check` fails when a name from `hrizzup-tools` appears in `stg`, and the Staging workflow runs it.
 - **Dependabot's three open alerts:** zod (high), glob and minimatch (moderate), open since 3 and 4 November, each with a fix released, and no update pull request has appeared. Recommended: one small change that raises them (within the 3-day wait), and find out why Dependabot's own security updates didn't open one.
 - Feed design in depth (step 2.3), including how found posts are embedded from X on the website and in the app, within the performance budget, and how each route's credit looks.
 - **The agreement's market shape predates the market model** (step 0.7, first half, Draft): every market there settles itself from a market subject's data slot, nothing names its settlement source or rules, and its states are upcoming, open, closed, settled and void, not draft, open, closed, settled and cancelled. Recommended: revise it in place (still Draft, so version 1) before the founder approves the first half: the question, outcomes, rules, open and close times, a named settlement source and the five states; the data reading and the market subjects list leave the first half until step 1.2 brings the topics back. One change in `agreement/`, now that Sourcing's review changes have landed ([#42](https://github.com/Zugzwang-world/hrizzup/pull/42)), best made before the founder approves the first half, so the half he approves matches PLAN.md. The settlement log stays Product's own table, outside the agreement.
@@ -212,7 +225,7 @@ Last updated: 8 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/brie
 - Comment threads: in or out?
 - **How the app shows the bot check on its email-code screen** (step 1.6b): Turnstile is on in Supabase Auth, so the app needs the widget too, usually inside a small web view.
 - **For the founder: 1.4's first pass and the agreement.** The first pass draws the board and a story page, which are core screens, and 1.4 needs the agreement's first half (still Draft) for its core screens. Recommended: let them be drawn now on the Draft's example data and approved once the first half is Agreed.
-- **For the founder: the Expo token.** Replace it in its right place (runbook step 4.6).
+- **For the founder: the Expo token.** Replace it in its right place (runbook step 4.6, about 5 minutes). That also lets [#54](https://github.com/Zugzwang-world/hrizzup/pull/54) merge, so the Staging workflow and the Screen check refuse a config holding a name that isn't one of the app's keys.
 - **For the founder, in the design chat: the remaining screens,** up front or feature by feature. Recommended: feature by feature, each just ahead of its contract stage, the way teams that run design and engineering as two tracks keep design one step ahead; the app frame comes with the board, since every app screen sits inside it.
 - **For the founder: background jobs.** The Sourcing project chooses the tool for the whole product, and Product's data job, settlement and image processing run on it too. Should Product review that choice?
 - **For the founder: the Android closed test (step 2.6) needs News Desk's first content (1.3),** so News Desk's hold could hold up Google Play's 14-day clock. Should the closed test start without our own content?
