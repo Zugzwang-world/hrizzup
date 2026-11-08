@@ -21,6 +21,19 @@
       "inputs": ["migrations/**", "tests/**", "config.toml", "package.json"],
       "outputs": []
     },
+    "transit": {
+      "dependsOn": ["^transit"]
+    },
+    "bundle-size": {
+      "dependsOn": ["transit"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!scripts/**/*.test.ts",
+        "!bundle-limit.json",
+        "!vitest.config.ts"
+      ],
+      "outputs": ["dist/bundle-size.json"]
+    },
     "test:screens": {
       "cache": false,
       "passThroughEnv": [
