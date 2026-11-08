@@ -1,6 +1,6 @@
 # Sourcing: status
 
-Last updated: 5 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/brief/sourcing.md](../brief/sourcing.md). Code: [sourcing/](../../sourcing/). Hand-over agreement: [agreement/README.md](../../agreement/README.md).
+Last updated: 8 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/brief/sourcing.md](../brief/sourcing.md). Code: [sourcing/](../../sourcing/). Hand-over agreement: [agreement/README.md](../../agreement/README.md).
 
 ## Done
 
@@ -34,4 +34,4 @@ Last updated: 5 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/brie
 - **Vetting: how is the bots' output checked before it goes live?** The agreement fixes the gate at the hand-over point (proof of origin and the format check; failures set aside, logged and alerted; our AI reads results as data and writes every update in our own words, and can correct, withdraw or merge) and leaves accuracy to our AI, with no human review. Still open: how the AI judges a result before it's published, for example how many independent sources it needs, and when it holds a claim back.
 - **Which creators' takes do the bots keep?** For example, original posts only (not reposts), and how large or established an account must be.
 - **How does the pipeline notice a found post deleted or hidden on X, and how long does the pool keep it afterwards?**
-- **Background jobs, for the whole product:** which tool runs scheduled and queued work (the news pipeline, Product's data job, settling markets, processing uploaded images)? The founder put this decision with Sourcing on 2 November 2026 (PLAN.md, "Decided later"). Whatever it is, it's built from this repository, so it reads the agreement's definitions directly.
+- **Background jobs, for the whole product:** which tool runs scheduled and queued work (the news pipeline, Product's data job, settling markets, processing uploaded images)? The founder put this decision with Sourcing on 2 November 2026 (PLAN.md, "Decided later"). Whatever it is, it's built from this repository, so it reads the agreement's definitions directly. **It must also cover perps (PLAN.md step 3.4, the founder's decision, 8 November 2026):** a new Bitcoin price and a liquidation check every few seconds. The founder has put that job on Supabase Cron, which can run a job every 1 to 59 seconds, so the choice either is Supabase Cron or works alongside it.

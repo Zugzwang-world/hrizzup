@@ -10,7 +10,7 @@ Research for PLAN.md step 1.7 (the market engine) and step 3.2 (markets that set
 
 - **The market engine is easy to take.** The yes/no maths, limit orders, selling, fees and settlement payouts are plain TypeScript in `common/src/`, with no database or server code in them. Their tests run on their own: 19 test files, 539 tests, all passing in 23 seconds, in a separate folder with seven small libraries installed.
 - **How Manifold keeps trades in order doesn't carry over.** Its trading server is one machine on Google Cloud, and trades wait in a queue held in that machine's memory. On Vercel, many copies of our API run at once, so the database has to do the ordering: one lock per market, inside each trade's transaction.
-- **Perpetuals ("perps") are there, with many tests,** but they are a large, separate system that is still being tuned after real losses to trading bots. PLAN.md doesn't include them.
+- **Perpetuals ("perps") are there, with many tests.** They are a large, separate system that is still being tuned after real losses to trading bots. The founder has since added one Bitcoin perp to the plan (step 3.4).
 - **The sports bot is in the repository,** and it is a useful model for our cricket and football markets. It has no cricket competition switched on.
 - **Everything around the engine is Manifold's own and gets replaced:** Firebase sign-in and file storage, a Google Cloud machine, its own live-update server, a scheduler on its own machine, and Mailgun for email. We already have Supabase Auth, Vercel, Supabase Realtime, R2 and Resend.
 
@@ -50,7 +50,7 @@ Every new price is saved in `oracle_prices`, with sanity limits and a "too old" 
 - **A limit:** an open is refused if its fee would be half its own margin or more.
 - **Where it goes:** into the trader's own side of the pool, not to Manifold.
 
-**For us:** PLAN.md's markets are yes/no questions (Bitcoin in time windows, gold, the best AI model, matches), which the ordinary engine handles. Perps aren't in the plan. Manifold has changed their rules after several real incidents in the last three months, so taking them would bring a lot of tuning work. One idea is worth taking now, for step 1.2: Manifold's Bitcoin price is the median of several exchanges that must agree, which guards against one bad source.
+**For us** (updated 8 November 2026): the founder has added one Bitcoin perp to the plan as step 3.4, in play money. We take Manifold's perps maths (`common/src/perps/`) with its tests, and build our own engine on our trade transactions. Its starting rules are leverage capped at 10 times, filling at the next price, an opening fee and an off switch. A new price and a liquidation check run every few seconds through Supabase Cron. Every rule change goes in a log. Manifold changed its rules after several real incidents in the last three months; we start from the defences it ended up with. Manifold's Bitcoin price, the median of several exchanges that must agree, is the model for step 1.2's live price.
 
 ## 2. The market engine
 
@@ -210,10 +210,10 @@ There is also an AI agent connection at `/v0/mcp` (`backend/api/src/app.ts:174`)
 | Marking bots and API trades (`users.is_bot`, `is_api` on trades) | **Adapt (the idea)** | Two columns and a few filters: simple and proven. We keep bots out of leaderboards, rankings and bonuses the same way |
 | Self-settling sports markets | **Adapt** | The flow fits step 3.2: create markets daily from fixtures, one per game, poll the score, settle on the final score, and leave odd cases for an admin with time limits. The data sources come from step 1.2, cricket first, and our job runner isn't chosen yet |
 | Bitcoin price from several exchanges (`btc-price.ts`) | **Adapt (the idea)** | Taking the median of exchanges that agree protects settlement from one bad source. The exchanges' terms are checked in step 1.2 |
-| Perps | **Leave out** | Not in PLAN.md. A large system whose rules changed after real losses to bots in the last three months. If wanted later, it comes back as its own plan change |
+| Perps (step 3.4, added by the founder on 8 November 2026) | **Take the maths as is; adapt the engine** | The maths in `common/src/perps/` is plain TypeScript and its tests pass on their own. Manifold's engine (`backend/shared/src/perps/engine.ts`) is tied to its own server and tables, so ours is built on our trade transactions, with a new price and a liquidation check every few seconds through Supabase Cron |
 | Sign-in, hosting, live updates, scheduled jobs, storage, email | **Build ourselves** (already decided) | Supabase Auth, Vercel, Supabase Realtime, R2 and Resend. The job runner is the one still open |
 
 ## Open questions this raises
 
-- **The job runner** (already open; the Sourcing project chooses it). Manifold settles sports from scores every 10 seconds, and Vercel Cron can't run more often than once a minute. Recommendation: settling a few minutes after a final whistle is fine for play money, so a once-a-minute job is enough for settling. Live scores on screen need a faster source, such as the score provider's own updates relayed through Supabase Realtime, decided with step 1.2's sources.
+- **The job runner** (already open; the Sourcing project chooses it). Manifold settles sports from scores every 10 seconds, and Vercel Cron can't run more often than once a minute. Perps now need a job every few seconds, and PLAN.md runs it on Supabase Cron, which can run a job every 1 to 59 seconds (step 3.4). Recommendation: each run calls our own code, which fetches the price and checks liquidations, because the maths is TypeScript. Supabase Cron's run history isn't cleared automatically, so a small daily job clears it. Settling the other markets a minute or so after the result is fine for play money.
 - **Bitcoin markets in time windows** (step 3.2). Manifold reads Bitcoin's price every 2 seconds, because its perps trade on the live price. Recommendation: our markets only need the price at each window's closing moment, so the data job reads that one price (the median of agreeing exchanges) when the window closes, with no constant polling.
