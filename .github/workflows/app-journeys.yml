@@ -201,7 +201,7 @@ jobs:
           disable-animations: true
           script: bash product/app/journeys/run.sh product/app/journeys-build/app.apk "$RUNNER_TEMP/journeys"
       - name: Screenshots and results (phone and tablet)
-        if: always() && steps.run.outputs.app == 'true'
+        if: ${{ !cancelled() && steps.run.outputs.app == 'true' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: app-journeys
