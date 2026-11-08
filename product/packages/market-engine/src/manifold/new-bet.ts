@@ -41,6 +41,7 @@ export const computeCpmmBet = (
   unfilledBets: LimitBet[],
   balanceByUserId: { [userId: string]: number },
   limitProbs?: { max: number; min: number },
+  now?: number, // The time of the trade (see computeFills)
 ) => {
   const {
     takers,
@@ -56,6 +57,8 @@ export const computeCpmmBet = (
     unfilledBets,
     balanceByUserId,
     limitProbs,
+    undefined,
+    now,
   );
   const probBefore = getCpmmProbability(cpmmState.pool, cpmmState.p);
   const probAfter = getCpmmProbability(afterCpmmState.pool, afterCpmmState.p);
@@ -88,8 +91,9 @@ export const getBinaryCpmmBetInfo = (
   limitProb: number | undefined,
   unfilledBets: LimitBet[],
   balanceByUserId: { [userId: string]: number },
-  expiresAt?: number,
-  expiresMillisAfter?: number,
+  expiresAt: number | undefined,
+  expiresMillisAfter: number | undefined,
+  now: number, // The time of the trade, in milliseconds since 1970
 ) => {
   const cpmmState = {
     pool: contract.pool,
@@ -119,8 +123,8 @@ export const getBinaryCpmmBetInfo = (
     contract.outcomeType === 'STONK'
       ? { max: MAX_STONK_PROB, min: MIN_STONK_PROB }
       : { max: MAX_CPMM_PROB, min: MIN_CPMM_PROB },
+    now,
   );
-  const now = Date.now();
   const newBet: CandidateBet = removeUndefinedProps({
     orderAmount,
     amount,

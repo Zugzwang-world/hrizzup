@@ -348,7 +348,8 @@ export const getContractBetMetrics = (
 export const getContractBetMetricsPerAnswerWithoutLoans = (
   contract: Contract,
   bets: Bet[],
-  answers?: Answer[],
+  answers: Answer[] | undefined,
+  now: number, // The time the profit is measured to, in milliseconds since 1970
 ) => {
   const betsPerAnswer = groupBy(bets, 'answerId');
   const metricsPerAnswer = Object.values(
@@ -360,15 +361,12 @@ export const getContractBetMetricsPerAnswerWithoutLoans = (
       if (contract.mechanism === 'cpmm-1' || isMultiCpmm(contract)) {
         const answer = answers?.find((a) => a.id === answerId);
         const passedAnswer = !!answer;
-        if (isMultiCpmm(contract) && !passedAnswer) {
-          console.log(
-            `answer with id ${bets[0].answerId} not found, but is required for multi-choice cpmm contract: ${contract.id}`,
-          );
-        } else {
+        // A market with several answers needs the bets' answer; without it, no period profit.
+        if (!isMultiCpmm(contract) || passedAnswer) {
           periodMetrics = Object.fromEntries(
             periods.map((period) => [
               period,
-              calculatePeriodProfit(contract, bets, period, answer),
+              calculatePeriodProfit(contract, bets, period, answer, now),
             ]),
           );
         }
@@ -413,10 +411,11 @@ const calculatePeriodProfit = (
   contract: MarketContract,
   bets: Bet[],
   period: 'day' | 'week' | 'month',
-  answer?: Answer,
+  answer: Answer | undefined,
+  now: number,
 ) => {
   const days = period === 'day' ? 1 : period === 'week' ? 7 : 30;
-  const fromTime = Date.now() - days * DAY_MS;
+  const fromTime = now - days * DAY_MS;
   const [previousBets, recentBets] = partition(bets, (b) => b.createdTime < fromTime);
 
   const { prob, probChanges } = answer ?? (contract as CPMMContract);

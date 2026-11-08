@@ -4,7 +4,8 @@
  * The maths is Manifold's, in `manifold/` (MIT licence, `manifold/LICENSE.md`); the package's
  * README says what was copied and what changed. This file is the package's front door: it
  * names the parts a yes/no market uses, one line per file they come from. Everything here is
- * plain calculation, with no database or network.
+ * plain calculation, with no database, network or clock: every trade takes its time from the
+ * caller, as `now`, in milliseconds since 1970.
  */
 
 // The error a refused trade raises.
@@ -13,15 +14,14 @@ export { APIError } from './manifold/api/utils.ts';
 export type { Bet, fill, LimitBet, maker } from './manifold/bet.ts';
 // A market's probability, and each person's position in it (which settlement reads).
 export { getContractBetMetrics, getProbability } from './manifold/calculate.ts';
-// The pool: probability, shares for a stake, the cost to reach a probability, liquidity, and
-// matching against limit orders.
+// The pool: probability, shares for a stake, the cost to reach a probability, and liquidity.
+// (Matching against limit orders happens inside buying and selling, below, which take the time.)
 export {
   addCpmmLiquidity,
   type CpmmState,
   calculateCpmmAmountToProb,
   calculateCpmmPurchase,
   calculateCpmmShares,
-  computeFills,
   getCpmmProbability,
 } from './manifold/calculate-cpmm.ts';
 // A market (our slim type), and the limits a trade can't push its price past: 1% and 99%.
@@ -35,17 +35,12 @@ export {
 } from './manifold/contract.ts';
 // A person's position in a market.
 export type { ContractMetric } from './manifold/contract-metric.ts';
-// Fees.
-export { type Fees, getTakerFee, noFees } from './manifold/fees.ts';
+// Fees: one setting, TAKER_FEE_RATE, at zero until the rate is decided.
+export { type Fees, getTakerFee, noFees, TAKER_FEE_RATE } from './manifold/fees.ts';
 // Money put into a market's pool, the starting amount included.
 export type { LiquidityProvision } from './manifold/liquidity-provision.ts';
 // Buying, with or without a limit price.
-export {
-  type BetInfo,
-  type CandidateBet,
-  computeCpmmBet,
-  getBinaryCpmmBetInfo,
-} from './manifold/new-bet.ts';
+export { type BetInfo, type CandidateBet, getBinaryCpmmBetInfo } from './manifold/new-bet.ts';
 // Opening a market.
 export { getNewContract } from './manifold/new-contract.ts';
 // Settlement: Yes, No, a set probability (MKT) or cancel.

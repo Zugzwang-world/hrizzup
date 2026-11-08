@@ -174,11 +174,16 @@ export const getIndependentMultiFixedPayouts = (
   }
 };
 
-export function getPayoutInfo(contract: Contract, metric: ContractMetric, answer?: Answer) {
+export function getPayoutInfo(
+  contract: Contract,
+  metric: ContractMetric,
+  answer: Answer | undefined,
+  now: number, // In milliseconds since 1970
+) {
   const yesWinnings = metric.totalShares.YES ?? 0;
   const noWinnings = metric.totalShares.NO ?? 0;
   const position = yesWinnings - noWinnings;
-  const canSell = tradingAllowed(contract, answer);
+  const canSell = tradingAllowed(contract, answer, now);
   const won =
     (position > 1e-7 && (answer ?? contract).resolution === 'YES') ||
     (position < -1e-7 && (answer ?? contract).resolution === 'NO');
