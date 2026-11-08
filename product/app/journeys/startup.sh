@@ -10,10 +10,13 @@
 # median counts.
 #
 # The emulator is not a phone: on GitHub's 2 shared cores with software graphics, the same
-# empty app took 2.5 to 4.3 s across five cold starts (9 November 2026). So the 2-second budget
-# is shown next to the number, but what fails here is a regression: a median more than 25%
-# and more than 300 ms slower than main's, measured on the same emulator. The 2-second budget
-# itself is a phone's, measured on real phones (the Product brief's open questions).
+# empty app took 2.5 to 4.3 s across five cold starts, and its median moved from 3.12 s to
+# 4.21 s between two runs of the same app (9 November 2026). So the 2-second budget is shown
+# next to the number, and what fails here is a clear regression against main's median on the
+# same kind of emulator: more than 60% and more than 1.5 s slower, outside that noise. A
+# paired comparison (main's build and this one, alternately on one emulator) would cancel the
+# noise and allow a tighter margin (the Product brief's open questions). The 2-second budget
+# itself is a phone's, measured on real phones.
 #
 # Writes startup.json and startup.md (a row for the pull request's table) to the folder.
 set -euo pipefail
@@ -56,7 +59,7 @@ if [ -n "$baseline" ] && [ -f "$baseline" ]; then
 fi
 if [ -n "$main_ms" ]; then
   change="$(awk -v a="$median" -v b="$main_ms" 'BEGIN { printf "%+.0f%%", (a - b) * 100 / b }')"
-  regressed="$(awk -v a="$median" -v b="$main_ms" 'BEGIN { print ((a > b * 1.25 && a - b > 300) ? "true" : "false") }')"
+  regressed="$(awk -v a="$median" -v b="$main_ms" 'BEGIN { print ((a > b * 1.6 && a - b > 1500) ? "true" : "false") }')"
   versus="main: $(seconds "$main_ms"), $change"
 else
   regressed=false
