@@ -46,7 +46,7 @@ function Entry({ entry, now, latest }: { entry: TimelineEntry; now: number; late
         {entry.corrects && <Badge variant="notice">Correction</Badge>}
         {entry.correctedBy && <Badge variant="notice">Corrected</Badge>}
       </p>
-      <h3 className="type-headline mt-1 text-foreground">{entry.headline}</h3>
+      <h4 className="type-headline mt-1 text-foreground">{entry.headline}</h4>
       {entry.body && <p className="type-body mt-1.5 text-foreground">{entry.body}</p>}
       {(entry.correctedBy || entry.credits.length > 0 || entry.sources.length > 0) && (
         <p className="type-caption mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground">
@@ -92,7 +92,11 @@ function Days({ entries, now, first }: { entries: TimelineEntry[]; now: number; 
   return byDay(entries).map((group) => (
     <section key={group.day} aria-label={group.day} className="flex flex-col gap-3">
       <h3 className="type-label text-muted-foreground">{group.day}</h3>
-      <ol className="flex flex-col">
+      <ol
+        // biome-ignore lint/a11y/noRedundantRoles: Safari reads a list without bullets as no list unless the role says so
+        role="list"
+        className="flex flex-col"
+      >
         {group.entries.map((entry) => (
           <Entry key={entry.id} entry={entry} now={now} latest={entry.id === first} />
         ))}

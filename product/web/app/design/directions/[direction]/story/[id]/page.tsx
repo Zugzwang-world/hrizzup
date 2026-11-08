@@ -166,7 +166,11 @@ export default async function StoryPage({ params }: Props) {
                 No takes yet. When creators post about this story, their takes show here.
               </p>
             ) : (
-              <ol className="flex flex-col gap-3">
+              <ol
+                // biome-ignore lint/a11y/noRedundantRoles: Safari reads a list without bullets as no list unless the role says so
+                role="list"
+                className="flex flex-col gap-3"
+              >
                 {takes.map((take) => (
                   <li key={take.id}>
                     <TakeCard take={take} now={DESIGN_NOW} />

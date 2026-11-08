@@ -87,7 +87,7 @@ export const sampleAccounts: Record<string, Account> = {
 
 function liveCredit(id: string): XCredit | undefined {
   const item = sourced.find((s) => s.id === id);
-  if (!item || item.state !== 'live' || !item.post) return undefined;
+  if (item?.state !== 'live' || !item.post) return undefined;
   return {
     handle: item.post.handle,
     ...(item.post.name ? { name: item.post.name } : {}),

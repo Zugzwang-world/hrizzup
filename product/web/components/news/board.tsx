@@ -112,7 +112,7 @@ export function Board(props: Props) {
       <style>{choiceCss(categoryOrder, locationOrder)}</style>
 
       <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-4">
-        <p className="type-brand text-foreground">Hrizzup</p>
+        <h1 className="type-brand text-foreground">Hrizzup</h1>
         <details className="group min-w-0 max-w-full">
           <summary className="type-label flex min-h-11 cursor-pointer list-none flex-wrap items-center gap-1.5 rounded-chip bg-secondary px-3.5 text-secondary-foreground [&::-webkit-details-marker]:hidden">
             <Icon name="map-pin" size="small" />
@@ -185,6 +185,8 @@ export function Board(props: Props) {
       </div>
 
       <ol
+        // biome-ignore lint/a11y/noRedundantRoles: Safari reads a list without bullets as no list unless the role says so
+        role="list"
         aria-label="Stories"
         className={cn(
           'grid grid-flow-row-dense grid-cols-[repeat(auto-fill,minmax(min(10rem,100%),1fr))] auto-rows-[minmax(0.25rem,auto)] gap-x-lane',

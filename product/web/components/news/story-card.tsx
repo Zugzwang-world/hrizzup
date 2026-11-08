@@ -92,7 +92,7 @@ export function StoryCard({ story, context }: { story: BoardStory; context: Card
             {locationNames[place]}
           </span>
         </p>
-        <h3 className="type-headline text-balance">{title}</h3>
+        <h2 className="type-headline text-balance">{title}</h2>
         {story.latest && (
           <p className={cn('type-callout', poster ? 'text-cat-ink' : 'text-muted-foreground')}>
             {story.latest}
