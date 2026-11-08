@@ -22,7 +22,7 @@ One line per relay; each relay keeps only its own line current.
 2. **Relay 2, steps 1.5a to 1.5d:** no milestone merged yet. Next: 1.5a, the speed check.
 3. **Relay 3, step 1.7a, Manifold's maths:** merged [#43](https://github.com/Zugzwang-world/hrizzup/pull/43), our changes: the time passed in, no loans, the two error messages fixed, no logging, fees at zero behind one setting (after [#38](https://github.com/Zugzwang-world/hrizzup/pull/38), the maths with its 158 tests). Next: our money tests.
 4. **Relay 4, step 1.4's first pass:** no milestone merged yet. Next: the design values.
-5. **Relay 5, Sourcing's review of the agreement's first half:** merged [#42](https://github.com/Zugzwang-world/hrizzup/pull/42), the changes the review ([#37](https://github.com/Zugzwang-world/hrizzup/pull/37)) asked for: "reviewed by Sourcing, awaiting the founder's approval". Next: nothing, relay 5 is done. For the founder: approve the first half; three questions.
+5. **Relay 5, Sourcing's review of the agreement's first half:** done: the review [#37](https://github.com/Zugzwang-world/hrizzup/pull/37), its changes [#42](https://github.com/Zugzwang-world/hrizzup/pull/42) and [#45](https://github.com/Zugzwang-world/hrizzup/pull/45); the first half awaits the founder's approval. For the founder: approve it; three questions.
 
 ## Decisions in force
 

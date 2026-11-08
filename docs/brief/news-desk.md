@@ -39,7 +39,7 @@ On 8 November 2026, Round 2's relay 5 ran Sourcing's review of the agreement's f
 
 - **A sourced item whose post is gone from X** (deleted, hidden, withheld in India, or taken down at its creator's request) **keeps nothing of the post,** not even our summary, as X's developer rules require. An edited post is one item, at its newest version.
 - **Updates name the posts they report by their sourced items** (`based_on`), as a creation does; `withdrawn` also covers takedowns the law requires.
-- **The creation shape didn't change,** and the founder's seven decisions stand.
+- **The creation shape didn't change,** and the founder's seven decisions stand. The check now reads the same in every language ([#45](https://github.com/Zugzwang-world/hrizzup/pull/45)): code outside TypeScript adds a fourth check, no text ending in a new line.
 
 ## Open questions
 

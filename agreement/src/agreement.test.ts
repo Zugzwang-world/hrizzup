@@ -294,6 +294,14 @@ describe('the format check', () => {
       changed(story, (s) => (s.summary = `Smog.\u{E0049}\u{E0047}\u{E004E}`)),
     ],
     ['a line break in a one-line field', changed(story, (s) => (s.title = 'Breaking\nnews'))],
+    // Python's, Java's and .NET's `$` also match before a final new line, so code there adds
+    // the fourth code check; these show what every language must refuse.
+    ['a new line at the end of a one-line field', changed(story, (s) => (s.title = 'Smog\n'))],
+    [
+      'a new line at the end of a text',
+      changed(story, (s) => (s.summary = `${String(s.summary)}\n`)),
+    ],
+    ['a time that does not exist', changed(story, (s) => (s.created_at = '2026-13-45T25:61:61Z'))],
     ['a soft hyphen', changed(story, (s) => (s.title = `Smog${cp(0xad)}gy Delhi`))],
     ['an Arabic letter mark', changed(story, (s) => (s.title = `Delhi${cp(0x61c)} smog`))],
     ['a Hangul filler', changed(story, (s) => (s.title = `${cp(0x3164)} Delhi smog`))],
