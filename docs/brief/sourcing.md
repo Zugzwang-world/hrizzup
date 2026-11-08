@@ -33,6 +33,7 @@ On 8 November 2026, Round 2's relay 5 ran Sourcing's review and made its changes
 
 - **The review** ([#37](https://github.com/Zugzwang-world/hrizzup/pull/37)): `agreement/reviews/sourcing-first-half.md`, each finding marked blocking, change or note, with what X's rules and xAI's documentation say.
 - **The changes** ([#42](https://github.com/Zugzwang-world/hrizzup/pull/42)), a new Draft revision at format version 1: the two blocking findings (an unavailable item keeps nothing of its post, as X's developer rules require; the credit follows the account's current handle, which X frees for others when it changes); nine changes (sourced updates, edits, reposts and threads, merges, repeats, legal takedowns, media, names, set-aside input); and, from the automatic security review, web addresses whose host can't hide a post on X.
+- **A tenth change, R12** ([#45](https://github.com/Zugzwang-world/hrizzup/pull/45)): Python, Java and .NET read a pattern's `$` differently, so code there adds a fourth check (no text ends in a new line), and Python installs `jsonschema[format-nongpl]`.
 - **Fourteen notes** for step 1.1, the second half and Product, in the review.
 
 ## Open questions

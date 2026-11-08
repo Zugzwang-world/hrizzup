@@ -24,6 +24,7 @@ Last updated: 8 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/brie
   - **Blocking, made:** an unavailable sourced item keeps nothing of its post (its address, account, time, media and our summary go in the write that marks it unavailable), and unavailable covers deletion, protected, suspended or closed accounts, posts withheld in India and a creator's takedown request, as X's developer rules require; the post's address, handle and name are X's current ones, refreshed at every check, since X frees a changed handle for other accounts.
   - **Changes, made:** updates name the posts they report by their sourced items (`based_on`) and other pages in `sources` (never X's own addresses), and every update names one; edited posts, reposts, quotes, replies and threads; merges never chain, and the pipeline moves its own records; an update that repeats another is merged into it; withdrawn also covers legal takedowns, decided by a person; what a post holds; names stripped of hidden characters; set-aside input deleted after 7 days; web addresses' hosts written plainly (from the automatic security review).
   - **Notes** (no change to the shapes), for step 1.1, the second half and Product: every fact about a post comes from X itself (Grok's citations give the number, X's public embed lookup the address, handle and name, the number the time); time zones; tagging within the founder's rules; retries that can't duplicate; daily checks of kept posts; X search at $5 per 1,000 posts fetched, about $1,450 a month at 100 posts every 15 minutes; structured output's limits; proof of origin by our own call.
+  - **R12, found while making the changes, made in [#45](https://github.com/Zugzwang-world/hrizzup/pull/45):** in Python, Java and .NET a pattern's `$` also matches before a final new line, so a fourth code check refuses text ending in one (in `validate()` too); Python code installs `jsonschema[format-nongpl]`, without which it skips the `date-time` and `uri` checks.
   - **Answered without asking** (one line each):
     - The review lives in `agreement/reviews/`, so it's in all three briefs' scope, like the agreement.
     - "A new Draft version" is a new Draft revision: shapes changed in place, at format version 1.
@@ -34,6 +35,8 @@ Last updated: 8 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/brie
     - Cricket updates cite live-blog pages numbered by their place in the timeline, as two already did.
     - Biome formats the review's Markdown, like everything in `agreement/` but the README; excluding it would loosen a check.
     - Another relay's branch tripped every pull request's secret check; relay 3 fixed its own branch, and no check or allowlist was changed.
+    - R12 is fixed in code checks, not patterns: a pattern-level fix needs a look-ahead, which the agreement bans.
+    - `format-nongpl` rather than `format`, which pulls in a GPL-licensed package.
 
 ## Next
 

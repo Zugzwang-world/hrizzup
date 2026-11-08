@@ -2,13 +2,13 @@
 
 > Written 8 November 2026 by Claude Code, reviewing as the Sourcing project: the project whose pipeline must write stories, updates and sourced items in these shapes (Round 2, relay 5). Product drafted the first half. Every finding is marked **blocking**, **change** or **note**, with the change proposed. The changes are made under the agreement's own rules in a second pull request; the founder then approves the first half in News Desk's place, through the Product chat. If anything here disagrees with PLAN.md, PLAN.md wins.
 >
-> **The changes were made the same day,** in [#42](https://github.com/Zugzwang-world/hrizzup/pull/42): every finding below, R1 to R11, is in the definitions, the examples, the check or the README.
+> **The changes were made the same day,** in [#42](https://github.com/Zugzwang-world/hrizzup/pull/42): every finding below, R1 to R11, is in the definitions, the examples, the check or the README. R12, found while making them, followed in [#45](https://github.com/Zugzwang-world/hrizzup/pull/45).
 
 ## In short
 
 - **Sourcing can fill every field the three shapes ask for,** in the format given, with Grok (xAI's API and its X search tool) plus our pipeline, as long as the pipeline takes every fact about a post from X itself, never from the bot's own words.
 - **Two findings block agreement.** As written, the sourced pool would keep a post's details, and our summary of it, after the post is deleted, which X's developer rules forbid (R1). And a found creator's credit would freeze the handle they had when we found them; X frees a changed handle for anyone else to take (R2).
-- **Nine changes** close gaps the pipeline would hit in its first week: updates naming their sources (R3), edited posts (R4), reposts, quotes, replies and threads (R5), merges (R6), repeated updates (R7), takedowns (R8), what a post holds (R9), account names (R10), and how long rejected input is kept (R11).
+- **Nine changes** (and a tenth, R12, found while making them) close gaps the pipeline would hit in its first week: updates naming their sources (R3), edited posts (R4), reposts, quotes, replies and threads (R5), merges (R6), repeated updates (R7), takedowns (R8), what a post holds (R9), account names (R10), and how long rejected input is kept (R11).
 - **None of them touches the founder's decisions** (the launch list, the tagging rules, the routes, prices in US dollars). Three questions go to the founder; none holds up the approval.
 - **Fourteen notes** guide the pipeline (step 1.1), the second half (the bots' result format) and Product, with no change to the shapes.
 
@@ -26,19 +26,20 @@ Read as the writer: for each field, where its value comes from, and what happens
 
 ## Findings
 
-| #   | Finding                                                                     | Mark     | Change proposed                                                                                                                           |
-| --- | --------------------------------------------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| R1  | When a post leaves X, the pool still keeps its details and our summary      | Blocking | An unavailable item keeps only our own fields; the definition refuses the post and the summary there                                      |
-| R2  | A found creator's credit freezes the handle and name we first saw           | Blocking | The address, handle and name are X's current ones, refreshed at every check                                                               |
-| R3  | An update may name no source, and names posts on X only by address          | Change   | Updates name the posts they report by their sourced items (`based_on`); `sources` holds other pages only; every update names at least one |
-| R4  | An edited post can be kept twice, or shown and summarised as an old version | Change   | One item per post, pointing at its newest version                                                                                         |
-| R5  | Nothing says what counts as one post: reposts, quotes, replies, threads     | Change   | Four rules in the sourced item's section                                                                                                  |
-| R6  | A merge can leave records pointing at a merged story, or chains of merges   | Change   | `merged_into` never names a merged story; the pipeline moves its own records                                                              |
-| R7  | An update that repeats another can only be hidden as "not true"             | Change   | Updates gain the state `merged`, as stories have                                                                                          |
-| R8  | "Withdrawn" can't say "taken down because the law requires it"              | Change   | Withdrawn covers legal takedowns, which a person decides                                                                                  |
-| R9  | `post.media` doesn't say what a post holding several things holds           | Change   | Video, then image, then text; the post's own media only                                                                                   |
-| R10 | One hidden character drops a creator's whole name                           | Change   | Remove the characters the agreement refuses; keep the rest                                                                                |
-| R11 | Nothing limits how long rejected outside text is kept                       | Change   | Set-aside input deleted after 7 days; logs never quote it                                                                                 |
+| #   | Finding                                                                                                        | Mark     | Change proposed                                                                                                                           |
+| --- | -------------------------------------------------------------------------------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| R1  | When a post leaves X, the pool still keeps its details and our summary                                         | Blocking | An unavailable item keeps only our own fields; the definition refuses the post and the summary there                                      |
+| R2  | A found creator's credit freezes the handle and name we first saw                                              | Blocking | The address, handle and name are X's current ones, refreshed at every check                                                               |
+| R3  | An update may name no source, and names posts on X only by address                                             | Change   | Updates name the posts they report by their sourced items (`based_on`); `sources` holds other pages only; every update names at least one |
+| R4  | An edited post can be kept twice, or shown and summarised as an old version                                    | Change   | One item per post, pointing at its newest version                                                                                         |
+| R5  | Nothing says what counts as one post: reposts, quotes, replies, threads                                        | Change   | Four rules in the sourced item's section                                                                                                  |
+| R6  | A merge can leave records pointing at a merged story, or chains of merges                                      | Change   | `merged_into` never names a merged story; the pipeline moves its own records                                                              |
+| R7  | An update that repeats another can only be hidden as "not true"                                                | Change   | Updates gain the state `merged`, as stories have                                                                                          |
+| R8  | "Withdrawn" can't say "taken down because the law requires it"                                                 | Change   | Withdrawn covers legal takedowns, which a person decides                                                                                  |
+| R9  | `post.media` doesn't say what a post holding several things holds                                              | Change   | Video, then image, then text; the post's own media only                                                                                   |
+| R10 | One hidden character drops a creator's whole name                                                              | Change   | Remove the characters the agreement refuses; keep the rest                                                                                |
+| R11 | Nothing limits how long rejected outside text is kept                                                          | Change   | Set-aside input deleted after 7 days; logs never quote it                                                                                 |
+| R12 | Python, Java and .NET read a pattern's `$` differently, and Python skips two format checks without its add-ons | Change   | A fourth code check (no text ends in a new line); install Python's format add-ons                                                         |
 
 **The marks.** **Blocking:** Sourcing can't agree the half until it changes, because as written the pipeline would break X's rules or credit the wrong person, and fixing it after the half is Agreed would take a new format version. **Change:** asked for before Agreed; it closes a gap the pipeline will hit, and costs little now. **Note:** no change to the shapes.
 
@@ -133,9 +134,15 @@ They match the brief's recommendation on which takes to keep (original posts, no
 
 **Change.** Set-aside input is deleted after 7 days, long enough to find out what went wrong. Logs name records by their IDs and problems by where they are, never by quoting the outside text.
 
+### R12. The check reads the same in every language (change, found while making the changes)
+
+**What we found.** The agreement promises that its definitions work the same in every language, and Sourcing's pipeline may well run in Python. Two things break that. In Python, Java and .NET, a pattern's `$` also matches just before a final new line, so every pattern there accepts text ending in one, which JavaScript refuses (tested: Python's `re.search`, which Python's JSON Schema validator uses, accepts `"Breaking news\n"` for the one-line pattern). And Python's validator checks `date-time` and `uri` only with its format add-ons, so `2026-13-45T25:61:61Z` passes there. Records the pipeline saves could then be set aside by Product's check.
+
+**Change.** A fourth code check, beside the three for hidden text: no text ends in a new line. `validate()` makes it too, so the four checks are the same everywhere. The README tells Python code to install `jsonschema[format-nongpl]` (the add-ons without a GPL dependency). The only pattern-level fix needs a look-ahead, which the agreement bans because some languages lack it.
+
 ## Sourcing's sign-off
 
-**Sourcing agrees the first half once R1 to R11 are made,** in the second pull request, under the agreement's own rules: while the half is Draft, its shapes change in place and stay at format version 1, with the definitions, the examples, the check and the README changed together. Sourcing doesn't agree the first half as it was drafted. Its status then reads "reviewed by Sourcing, awaiting the founder's approval": the founder approves it in News Desk's place, through the Product chat, and only a change the founder asks for marks it Agreed.
+**Sourcing agrees the first half once R1 to R12 are made,** in the second pull request, under the agreement's own rules: while the half is Draft, its shapes change in place and stay at format version 1, with the definitions, the examples, the check and the README changed together. Sourcing doesn't agree the first half as it was drafted. Its status then reads "reviewed by Sourcing, awaiting the founder's approval": the founder approves it in News Desk's place, through the Product chat, and only a change the founder asks for marks it Agreed.
 
 ## For the founder
 
