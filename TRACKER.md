@@ -12,8 +12,8 @@ Everything PLAN.md lists as a need of the first news feature (the board, step 2.
 
 | Step | What | Needs | Who | Status |
 |---|---|---|---|---|
-| 1.5a | The speed check: performance budgets measured on every pull request | 0.6 | Round 2, relay 2 | in progress |
-| 1.5b | Journey tests on the website and in the app, including the app's first Maestro test | 1.5a | Round 2, relay 2 | not started |
+| 1.5a | The speed check: performance budgets measured on every pull request | 0.6 | Round 2, relay 2 | done, [#41](https://github.com/Zugzwang-world/hrizzup/pull/41) |
+| 1.5b | Journey tests on the website and in the app, including the app's first Maestro test | 1.5a | Round 2, relay 2 | in progress |
 | 1.5c | The typed API (oRPC, contract first), with calls that aren't content (health, who am I); done when the website makes a real call through it | 1.5b | Round 2, relay 2 | not started |
 | 1.5d | The empty app on the founder's Android phone, answering from the typed API on staging, with its own budget; staging becomes public | 1.5c | Round 2, relay 2; the founder installs it | not started |
 | 1.7a | Manifold's maths with its tests, plus our own tests that money in equals money out | 0.6 | Round 2, relay 3 | done ([#38](https://github.com/Zugzwang-world/hrizzup/pull/38), [#43](https://github.com/Zugzwang-world/hrizzup/pull/43), [#44](https://github.com/Zugzwang-world/hrizzup/pull/44)) |

@@ -1,0 +1,5 @@
+{
+  "_about": "The most the app's Android code bundle (Hermes bytecode, exactly as the app ships it) may weigh, in KB of 1,024 bytes. The Speed check measures it on every pull request that touches the app and compares it with main's (blueprint section 14: the app's code size checked for unexplained growth). A pull request that needs more raises the limit here and writes why in `reason`; that is what makes growth explained.",
+  "androidKB": 2700,
+  "reason": "The empty first app (Expo SDK 58 with expo-router) weighed 2,424 KB on 8 November 2026; the limit leaves about 10% room."
+}

@@ -18,7 +18,7 @@
 One line per relay; each relay keeps only its own line current.
 
 1. **Relay 1, the round's records:** merged [#36](https://github.com/Zugzwang-world/hrizzup/pull/36). Next: nothing, relay 1 is done. For the founder: replace the Expo token.
-2. **Relay 2, steps 1.5a to 1.5d:** no milestone merged yet. Next: 1.5a, the speed check.
+2. **Relay 2, steps 1.5a to 1.5d:** merged [#41](https://github.com/Zugzwang-world/hrizzup/pull/41), 1.5a: the Speed check measures every website page on its preview (Lighthouse, mobile, median of 5 runs; sizes as hard limits; text contrast in light and dark) and the app's code size against main's, and posts the numbers on each pull request. Every page loads in under a second; Next.js and React alone use 141 of the 200 KB of code. Next: 1.5b, journey tests.
 3. **Relay 3, step 1.7a, Manifold's maths:** merged [#44](https://github.com/Zugzwang-world/hrizzup/pull/44), our money tests: no play money created or lost, over every trade and settlement and 41 random markets; 1.7a is done (201 tests pass, after [#38](https://github.com/Zugzwang-world/hrizzup/pull/38) and [#43](https://github.com/Zugzwang-world/hrizzup/pull/43)). Next: nothing, relay 3 is done. Three questions below.
 4. **Relay 4, step 1.4's first pass:** first milestone [#39](https://github.com/Zugzwang-world/hrizzup/pull/39): the readable-text check and the design values package (three candidate directions, nothing on screen yet). Next: the three directions as working boards on preview links, for the founder to choose.
 5. **Relay 5, Sourcing's review of the agreement's first half:** done: the review [#37](https://github.com/Zugzwang-world/hrizzup/pull/37), its changes [#42](https://github.com/Zugzwang-world/hrizzup/pull/42) and [#45](https://github.com/Zugzwang-world/hrizzup/pull/45); the first half awaits the founder's approval. For the founder: approve it; three questions.
@@ -47,6 +47,7 @@ On 8 November 2026, in [#40](https://github.com/Zugzwang-world/hrizzup/pull/40) 
 
 ## Open questions
 
+- **Embedding found posts** (2.3): one X embed alone downloads about 330 KB of code and 440 KB in all (measured 8 November 2026), more than a page's whole budget, and the Speed check counts embeds. Recommendation: keep the founder's rule (the original post, embedded, never copied), loading each embed only as it nears the screen, with a placeholder holding its space and the creator's credit (Lighthouse's own advice for heavy embeds); the app does the same in its web view.
 - **The agreement's market shape predates the market model:** its markets settle themselves from a subject's data slot, name no source or rules, and use other states. Recommendation: revise it in place (still version 1) before the founder approves the first half; data readings and market subjects leave it until 1.2.
 - **Admins before the admin page** (1.7c, 1.7d). Recommendation: an admin flag on the account, set only by a reviewed migration and checked on every create and settle.
 - **Which track builds each feature's screens** (stages 4a, 4b). Recommendation: the round's relays, from the design chat's approved design; the design chat reviews them on previews.

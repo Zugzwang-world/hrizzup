@@ -68,6 +68,20 @@ Last updated: 8 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/brie
     - `EXPO_TOKEN` is replaced rather than moved, because Doppler had synced it; until then a session may read it from `stg`.
     - Relays 3 to 5 are numbered in the order their worktrees were made: 1.7a, 1.4's first pass, Sourcing's review.
 
+- **Round 2, relay 2: steps 1.5a to 1.5d** (newest milestone first).
+  - **1.5a, the Speed check, 8 November 2026** ([#41](https://github.com/Zugzwang-world/hrizzup/pull/41)). A new check on every pull request that touches the website or the app, with one table of numbers posted on the pull request:
+    - **the website:** every page in `product/web/e2e/pages.ts` measured on the pull request's preview with Lighthouse 13's mobile preset (a mid-range Android phone on slow 4G), as the median of 5 runs, against its budget (blueprint section 14). Download sizes are hard limits (200 KB of compressed code, 500 KB in total, other sites' scripts and embeds included); timings fail beyond the budget plus a small tolerance (load 0.25 s, busy time 50 ms, layout shift 0.01; `product/web/e2e/speed.ts`); text too faint to read fails, in the light and the dark colour scheme. A self-test in the job proves that a script and an iframe from another address are counted;
+    - **every page has a budget:** the screen check, the speed check and the journeys read the one list in `pages.ts`, and a unit test in Quick checks fails when a page in `app/` has no entry, or an entry names a page that's gone;
+    - **the app:** its Android code bundle, built as a build ships it (Hermes bytecode), against main's: it fails over its limit (`product/app/bundle-limit.json`, 2,700 KB; 2,424 KB today) or on a jump of more than 5% in one pull request that doesn't raise the limit with its reason. Main's size usually comes from the Remote Cache. The app's own timing budget joins in 1.5d;
+    - **measured:** every page loads in about 0.8 s on GitHub's runner and on this Mac, 0 to 123 ms busy, no layout shift, 141 KB of code (Next.js and React alone) and about 175 KB in total. One embedded X post downloads about 330 KB of code and 440 KB in total on its own (an open question for 2.3, in the brief);
+    - **answered without asking** (one line each):
+      - Lighthouse runs through our own small script rather than the Lighthouse CI tool, whose bypass header would reach every other site a page loads (X's embeds included); ours sends the secret once, to our own address, for Vercel's bypass cookie.
+      - "Code" is JavaScript from every site; stylesheets, fonts and images count in the total.
+      - Contrast fails when most of the 5 runs fail it, plus one run in the dark scheme.
+      - The app's growth rule is a limit with its reason plus a 5% jump guard against main; raising the limit is what explains growth.
+      - The Speed check runs beside the Screen check, so neither waits for the other, and joins the ruleset's required checks once it has passed steadily.
+      - The records of each milestone go only where no other relay writes (its own rows, line and block), so parallel merges don't collide.
+
 - **Manifold's market maths, step 1.7a (Round 2, relay 3), milestone 1 of 3** ([#38](https://github.com/Zugzwang-world/hrizzup/pull/38)): a new package, `product/packages/market-engine` (`@hrizzup/market-engine`), holds Manifold's maths for yes/no markets (pool prices, buying, limit orders, selling, Yes and No cancelling out, fees, settlement and positions), copied from Manifold at commit `79997aa` with its tests (11 files, 158 tests, passing in Quick checks), changed only as far as our coding rules need. Our own slim market type replaces Manifold's `contract.ts`, a small error class its `api/utils.ts`; its MIT licence sits beside the code and in `THIRD_PARTY_NOTICES.md`; `calculate-cpmm-arbitrage.ts` is kept unchanged and unused; a compare script shows what differs from Manifold. The package's README lists every file and every change.
   - **Answered without asking** (one line each):
     - Manifold's files keep their paths from its `common/src/`; our two replacements sit where the maths imports them.

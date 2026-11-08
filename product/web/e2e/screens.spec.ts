@@ -2,29 +2,28 @@ import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { type BrowserContextOptions, expect, test } from '@playwright/test';
 import { layoutProblems } from './layout.ts';
+import { pagesIn } from './pages.ts';
 import { views } from './viewports.ts';
 
 /**
- * The screen check (CLAUDE.md, "Screens fit every device"): every page, at every size in
- * viewports.ts, in Chromium and WebKit, must fit with nothing cut off, overlapping or
- * scrolling sideways. Outside production, the sign-in test page is checked signed out and
- * signed in. Screenshots for the founder are saved at 360, 768, 1440 and 1920 pixels.
+ * The screen check (CLAUDE.md, "Screens fit every device"): every page in pages.ts, at every
+ * size in viewports.ts, in Chromium and WebKit, must fit with nothing cut off, overlapping or
+ * scrolling sideways. Outside production, the sign-in test page is also checked signed in.
+ * Screenshots for the founder are saved at 360, 768, 1440 and 1920 pixels.
  */
 
 type Check = { name: string; path: string; signedIn?: boolean; status?: number };
 
 function pagesToCheck(): Check[] {
-  const pages: Check[] = [
-    { name: 'home', path: '/' },
-    { name: 'privacy', path: '/privacy' },
-    { name: 'terms', path: '/terms' },
-    { name: 'not-found', path: '/this-page-does-not-exist', status: 404 },
-  ];
-  if (process.env.SCREEN_CHECK_ENVIRONMENT !== 'production') {
-    pages.push({ name: 'sign-in-test', path: '/sign-in-test' });
-    pages.push({ name: 'sign-in-test-signed-in', path: '/sign-in-test', signedIn: true });
+  const checks: Check[] = pagesIn(process.env.SCREEN_CHECK_ENVIRONMENT).map((page) => ({
+    name: page.name,
+    path: page.path,
+    ...(page.status ? { status: page.status } : {}),
+  }));
+  if (checks.some((check) => check.name === 'sign-in-test')) {
+    checks.push({ name: 'sign-in-test-signed-in', path: '/sign-in-test', signedIn: true });
   }
-  return pages;
+  return checks;
 }
 
 const LARGE_TEXT = `
