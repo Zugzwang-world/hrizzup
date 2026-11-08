@@ -50,17 +50,18 @@ def staging_rule(w, name="Staging's typed API: no bot challenge"):
 
 
 class FakeVercel:
-    """Answers GETs from a list, in order, and records each PUT."""
+    """Answers GETs from a list, in order, records each PUT, and answers PUTs from a list
+    (an empty answer is a success)."""
 
-    def __init__(self, gets):
-        self.gets, self.puts = list(gets), []
+    def __init__(self, gets, put_answers=()):
+        self.gets, self.puts, self.put_answers = list(gets), [], list(put_answers)
 
     def call(self, method, path, body=None, query=None, ok=(200, 201, 204)):
         if method == "GET":
             return 200, self.gets.pop(0)
         if method == "PUT":
             self.puts.append(body)
-            return 200, {}
+            return 200, (self.put_answers.pop(0) if self.put_answers else {})
         raise AssertionError(f"unexpected {method} {path}")
 
 
@@ -95,6 +96,18 @@ class TheChange(unittest.TestCase):
 
     def test_sends_nothing_when_already_applied(self):
         self.assertIsNone(apply.staging_firewall(want(), live_config(with_staging=True), HOSTS))
+
+    def test_empty_fields_in_vercels_report_still_count_as_staging(self):
+        live = live_config(with_staging=True)
+        live["rules"][5]["action"]["mitigate"].update(redirect={}, actionDuration="", bypassSystem=None)
+        live["rules"][4]["action"]["mitigate"]["rateLimit"]["action"] = None
+        self.assertEqual([r["name"] for r in live["rules"] if is_staging(r)],
+                         ["Rate limit: staging's typed API", "Staging's typed API: no bot challenge"])
+
+    def test_empty_fields_in_vercels_report_are_not_a_change(self):
+        live = live_config(with_staging=True)
+        live["rules"][5]["action"]["mitigate"].update(redirect={}, actionDuration="", bypassSystem=None)
+        self.assertIsNone(apply.staging_firewall(want(), live, HOSTS))
 
     def test_an_updated_staging_rule_keeps_its_id(self):
         def raise_limit(w):
@@ -163,6 +176,9 @@ class RefusedBecauseItReachesProduction(unittest.TestCase):
         live["newSetting"] = True
         self.assertIn("newSetting", self.refused(want(), live))
 
+    def test_a_rule_without_a_name(self):
+        self.assertIn("without a name", self.refused(want(lambda w: w["rules"][5].pop("name"))))
+
     def test_two_rules_with_one_name(self):
         def change(w):
             w["rules"][4]["name"] = w["rules"][5]["name"]
@@ -181,6 +197,17 @@ class TheReadBack(unittest.TestCase):
             r["updatedAt"] = "now"
         self.assertEqual(apply.production_parts(after, HOSTS), apply.production_parts(before, HOSTS))
 
+    def test_a_null_neg_and_nested_bookkeeping_do_not_count_as_changes(self):
+        before, after = live_config(), live_config(with_staging=True)
+        for config, when in ((before, "then"), (after, "now")):
+            for r in config["managedRules"].values():
+                r["ruleGroups"] = {"group": {"active": True, "updatedAt": when}}
+        for r in after["rules"]:
+            for group in r["conditionGroup"]:
+                for c in group["conditions"]:
+                    c["neg"] = None
+        self.assertEqual(apply.production_parts(after, HOSTS), apply.production_parts(before, HOSTS))
+
     def test_a_changed_setting_counts(self):
         after = live_config(with_staging=True)
         after["crs"]["sd"]["active"] = True
@@ -197,12 +224,30 @@ class TheReadBack(unittest.TestCase):
     def test_a_production_part_changed_by_vercel_is_put_back(self):
         before, after = live_config(), live_config(with_staging=True)
         after["crs"]["sd"]["active"] = True
-        v = FakeVercel([before, after])
-        with self.assertRaises(SystemExit):
+        v = FakeVercel([before, after, live_config()])
+        with self.assertRaises(SystemExit) as caught:
             apply.firewall(v, {"id": "prj"}, check_only=True, staging_hosts=HOSTS)
+        self.assertIn("put back as it was, and reads back so", str(caught.exception.code))
         self.assertEqual(len(v.puts), 2)
         self.assertEqual(v.puts[1]["crs"], before["crs"])
         self.assertEqual([r["name"] for r in v.puts[1]["rules"]], [r["name"] for r in before["rules"]])
+        self.assertEqual([r["id"] for r in v.puts[1]["rules"]], [r["id"] for r in before["rules"]])
+
+    def test_a_put_back_that_fails_says_so(self):
+        after = live_config(with_staging=True)
+        after["crs"]["sd"]["active"] = True
+        v = FakeVercel([live_config(), after, after], put_answers=[{}, {"_error": "HTTP 500"}])
+        with self.assertRaises(SystemExit) as caught:
+            apply.firewall(v, {"id": "prj"}, check_only=True, staging_hosts=HOSTS)
+        self.assertIn("did NOT work (HTTP 500)", str(caught.exception.code))
+
+    def test_a_put_back_that_reads_back_wrong_says_so(self):
+        after = live_config(with_staging=True)
+        after["crs"]["sd"]["active"] = True
+        v = FakeVercel([live_config(), after, after])
+        with self.assertRaises(SystemExit) as caught:
+            apply.firewall(v, {"id": "prj"}, check_only=True, staging_hosts=HOSTS)
+        self.assertIn("did NOT work (it reads back differently)", str(caught.exception.code))
 
 
 class TheDomains(unittest.TestCase):
