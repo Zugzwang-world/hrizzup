@@ -25,17 +25,17 @@
 - **Markets:** Kalshi's layout, our look; Manifold's engine with its tests; a starting balance; the fewest steps to a first bet. Market data is Product's (1.2, 3.2).
 - **Perps** (3.4): one Bitcoin perp in play money on Manifold's perps maths; at most 10 times leverage, filling at the next price, an opening fee, an off switch; a price and liquidation check every few seconds (Supabase Cron); a rule-change log.
 - **Checks come first:** step 1.5's checks land before any screen is built in code. Every hand-over point runs `validate()`. No tables before a half is agreed.
-- **How changes land:** a pull request each, sized and checked; production only through the release pipeline; screens fit 320 to 2,560 pixels.
+- **How changes land:** a pull request each, sized and checked; production only through the release pipeline.
 
 ## What changed in the latest session
 
 On 8 November 2026, in [#35](https://github.com/Zugzwang-world/hrizzup/pull/35), a research-only readiness check for Round 2 (nothing changed in code, settings or services):
 
-- **Where we stand:** the 8 November decisions (#32 to #34) agree everywhere. Versions are current or a patch behind; Node 26 (LTS since 28 October), TypeScript 7, pnpm 12 and Supabase CLI 3 are later, separate changes. Pull requests use about 10 to 22 GitHub minutes each, of 3,000 a month.
+- **Where we stand:** the 8 November decisions (#32 to #34) agree everywhere. Versions are current or a patch behind; Node 26 (LTS since 28 October), TypeScript 7, pnpm 12 and Supabase CLI 3 are later, separate changes. Pull requests use about 10 to 22 of 3,000 monthly GitHub minutes.
 - **Parallel sessions:** two worktrees can install, build and test side by side. Only one should run the dev servers and the local database: sign-in and uploads accept only `localhost:3000`, and the database containers share one name.
 - **1.5a:** Lighthouse CI on GitHub's runner against each preview, through the bypass header the Screen check already uses; download sizes as hard limits, timings as the median of 5 runs. A check from Mumbai (Calibre, $75 a month) waits for real pages.
 - **1.5b:** Maestro on GitHub Actions with an Android emulator, at phone and tablet sizes; practically free. Expo's own Maestro job (about $60 a month) is the fallback.
-- **1.5c:** the plan names no approach. Recommended: oRPC, contract first, in `product/packages/api`: plain GET addresses the edge can cache, our JSON Schemas as validators, an OpenAPI document for free. tRPC is the alternative.
+- **1.5c:** the plan names no approach. Recommended: oRPC, contract first, in `product/packages/api`: cacheable GET addresses, our JSON Schemas as validators, an OpenAPI document. tRPC is the alternative.
 - **1.5d:** no Expo account exists. Expo's build service makes the app; the founder installs a preview build from a link. Google's developer verification isn't enforced in India until 2027.
 - **1.7a:** 22 Manifold files at commit `79997aa`; their 158 tests pass under our Vitest. Manifold has no direct tests for yes/no buying, selling, redeeming or payouts, so we add conservation tests. Perps: 14 files, 391 tests.
 
@@ -52,11 +52,10 @@ On 8 November 2026, in [#35](https://github.com/Zugzwang-world/hrizzup/pull/35),
 - **Staging behind Vercel's login:** the app can't call staging's API. Recommendation: before the first app join, make `staging.hrizzup.com` public with a protection exception (if free on Pro); previews stay private. Never put the bypass secret in the app.
 - **Posting on the website** (2.4). Recommendation: post on both; the website becomes "news, posts and markets". The founder decides.
 - **What the two surfaces share in code.** Recommendation: the contract, data fetching, validation and design tokens in `product/packages/`; screens built natively on each.
-- **Embedding found posts** (2.3). Recommendation: X's own embed behind a placeholder, loaded just before it scrolls into view; a web view in the app.
-- **Market questions** (3.2). Recommendation: one recurring question per subject.
+- **Embedding found posts** (2.3). Recommendation: X's own embed, loaded just before it scrolls into view; a web view in the app.
 - **Perps' first settings** (3.4). Recommendation: a price every 5 seconds, a 0.1% opening fee, hourly funding, the rule-change log as a table.
 - **Free and paid** (2.7). Recommendation: reading and betting stay free; play money is never sold.
-- **Turnstile in the app** (1.6b). Recommendation: a small web view showing Cloudflare's widget.
+- **Turnstile in the app** (1.6b). Recommendation: a small web view.
 - **Background jobs** (Sourcing chooses). Recommendation: Supabase Cron and Queues; Product reviews the choice.
 - **The closed test (2.6) needs News Desk's content.** Recommendation: start without it. The founder decides.
 
