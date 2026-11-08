@@ -13,7 +13,11 @@
     "test-accounts": "node scripts/test-accounts.ts"
   },
   "dependencies": {
+    "@hrizzup/agreement": "workspace:*",
+    "@hrizzup/api": "workspace:*",
     "@hrizzup/core": "workspace:*",
+    "@orpc/openapi": "1.16.1",
+    "@orpc/server": "1.16.1",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.110.0",
     "@upstash/redis": "^1.40.0",

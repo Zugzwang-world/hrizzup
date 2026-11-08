@@ -1,0 +1,43 @@
+import { OpenAPIHandler } from '@orpc/openapi/fetch';
+import { ResponseHeadersPlugin } from '@orpc/server/plugins';
+import { SHARED_CACHE_HEADERS } from '@/lib/api/caching.ts';
+import { router } from '@/lib/api/router.ts';
+
+/**
+ * The typed API, served at /api/v1 (PLAN.md step 1.5c): every call in the contract
+ * (product/packages/api), by its own address, on Node in Mumbai (bom1, product/web/vercel.json).
+ */
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
+const handler = new OpenAPIHandler(router, { plugins: [new ResponseHeadersPlugin()] });
+
+async function handle(request: Request): Promise<Response> {
+  const { matched, response } = await handler.handle(request, {
+    prefix: '/api/v1',
+    context: { headers: request.headers },
+  });
+  if (!matched) {
+    return Response.json(
+      { code: 'NOT_FOUND', status: 404, message: 'No such call', defined: false },
+      { status: 404, headers: { 'Cache-Control': 'private, no-store' } },
+    );
+  }
+  const headers = new Headers(response.headers);
+  // An error (a refused input, nobody signed in, a failure) is never kept by anyone; nor is any
+  // answer whose call didn't ask to be.
+  if (!response.ok) {
+    for (const name of SHARED_CACHE_HEADERS) headers.delete(name);
+    headers.set('Cache-Control', 'private, no-store');
+  } else if (!headers.has('Cache-Control')) {
+    headers.set('Cache-Control', 'private, no-store');
+  }
+  headers.set('X-Robots-Tag', 'noindex');
+  return new Response(response.body, { status: response.status, headers });
+}
+
+export const GET = handle;
+export const POST = handle;
+export const PUT = handle;
+export const PATCH = handle;
+export const DELETE = handle;

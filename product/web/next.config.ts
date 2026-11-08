@@ -12,7 +12,7 @@ const securityHeaders = [
 
 const config: NextConfig = {
   // The shared packages are TypeScript source, compiled as part of the website.
-  transpilePackages: ['@hrizzup/core'],
+  transpilePackages: ['@hrizzup/core', '@hrizzup/api', '@hrizzup/agreement'],
   poweredByHeader: false,
   reactStrictMode: true,
   typedRoutes: true,

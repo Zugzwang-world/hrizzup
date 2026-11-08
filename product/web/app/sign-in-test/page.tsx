@@ -1,8 +1,10 @@
+import type { Me } from '@hrizzup/api';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { SiteFooter, SiteHeader } from '@/components/site-shell.tsx';
+import { whoAmI } from '@/lib/api/server.ts';
 import { currentEnvironment, signInTestEnabled } from '@/lib/env.ts';
-import { createClient } from '@/lib/supabase/server.ts';
+import { supabaseConfig } from '@/lib/supabase/config.ts';
 
 export const metadata: Metadata = {
   title: 'Sign-in test',
@@ -18,6 +20,13 @@ const ERRORS: Record<string, string> = {
   relay: "Staging couldn't return you to this preview. Start again from the preview.",
 };
 
+const SIGNED_IN_WITH: Record<Me['signedInWith'], string> = {
+  google: 'Google',
+  email: 'An email code',
+  test_account: 'Test account (staging only)',
+  other: 'Another way',
+};
+
 type Props = { searchParams: Promise<{ error?: string | string[] }> };
 
 /**
@@ -30,13 +39,10 @@ export default async function SignInTestPage({ searchParams }: Props) {
   const message =
     typeof error === 'string' && Object.hasOwn(ERRORS, error) ? ERRORS[error] : undefined;
 
-  const supabase = await createClient();
-  // getClaims checks the session's signature locally against the project's public key,
-  // with no extra trip to Supabase.
-  const user = supabase ? ((await supabase.auth.getClaims()).data?.claims ?? null) : null;
-  const name = user?.user_metadata?.full_name as string | undefined;
-  const provider = user?.app_metadata?.provider as string | undefined;
-  const isTestAccount = user?.app_metadata?.test_account === true;
+  const configured = supabaseConfig() !== null;
+  // Who is signed in comes through the typed API's `me`, called in process (lib/api/server.ts);
+  // it checks the session's signature locally against the project's public key.
+  const user = configured ? await whoAmI() : null;
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -54,7 +60,7 @@ export default async function SignInTestPage({ searchParams }: Props) {
           </p>
         )}
 
-        {!supabase ? (
+        {!configured ? (
           <p className="mt-8 rounded-md border border-line px-4 py-3">
             Sign-in isn't set up in this environment yet.
           </p>
@@ -67,10 +73,10 @@ export default async function SignInTestPage({ searchParams }: Props) {
               You're signed in
             </h2>
             <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-[auto_1fr]">
-              {name && (
+              {user.name && (
                 <>
                   <dt className="text-sm text-muted">Name</dt>
-                  <dd className="min-w-0 break-words">{name}</dd>
+                  <dd className="min-w-0 break-words">{user.name}</dd>
                 </>
               )}
               <dt className="text-sm text-muted">Email</dt>
@@ -78,13 +84,7 @@ export default async function SignInTestPage({ searchParams }: Props) {
                 {user.email}
               </dd>
               <dt className="text-sm text-muted">Signed in with</dt>
-              <dd className="min-w-0 break-words">
-                {isTestAccount
-                  ? 'Test account (staging only)'
-                  : provider === 'google'
-                    ? 'Google'
-                    : provider}
-              </dd>
+              <dd className="min-w-0 break-words">{SIGNED_IN_WITH[user.signedInWith]}</dd>
             </dl>
             <form action="/auth/sign-out" method="post" className="mt-6">
               <button

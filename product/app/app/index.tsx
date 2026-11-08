@@ -1,8 +1,12 @@
 import { brand } from '@hrizzup/core';
 import { StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { ApiAnswer } from '../components/api-answer.tsx';
 
-/** The app's only screen for now: an empty shell that shares the website's words. */
+/**
+ * The app's only screen for now: an empty shell that shares the website's words, and shows what
+ * the typed API answers (components/api-answer.tsx).
+ */
 export default function Home() {
   const dark = useColorScheme() === 'dark';
   const ink = dark ? '#f2f0ea' : '#1d1f24';
@@ -21,6 +25,7 @@ export default function Home() {
         <Text testID="home-note" style={[styles.note, { color: dark ? '#b3b6bd' : '#5f636b' }]}>
           {brand.availability}
         </Text>
+        <ApiAnswer color={dark ? '#b3b6bd' : '#5f636b'} />
       </View>
     </SafeAreaView>
   );
