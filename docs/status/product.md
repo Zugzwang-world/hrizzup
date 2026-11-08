@@ -176,6 +176,11 @@ Last updated: 8 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/brie
 5. **The design's next pass, in the design chat:** the market page with placeholder questions, the last of 1.4's three core screens. The design chat settles whether the remaining screens are designed up front or feature by feature.
 6. **Review the agreement's second half** once Sourcing designs it (after step 0.8).
 7. **Then the first feature round:** each news feature through its stages in `TRACKER.md`, design in the design chat and engineering in the round's chat, meeting at the contract; alongside, the markets track, built as [docs/research/manifold.md](../research/manifold.md) sets out.
+8. **Step 1.4's first pass, in review in [#46](https://github.com/Zugzwang-world/hrizzup/pull/46)** (Round 2, relay 4; a draft until the founder approves): on its preview, `/design` shows three directions as working boards at phone size (Neel, Bazaar, Pulse: the same components with each direction's values, filled with the agreement's examples and eight design samples), and Claude Code's pick, Bazaar, carried on to a values page (every value and the core components), the board and a story page for each example story. The board's choices (Latest, Top, For you; place; category) work with no script; the masonry never overlaps or cuts anything off; the existing pages follow the active direction. It merges once the founder chooses and approves; 1.5a's Speed check is on `main` and runs on it. Answered without asking:
+    - Claude Code's pick is Bazaar, made active so the values page, the story page and the existing pages show it; switching changes two settings.
+    - Design pages exist only on previews and this Mac; each route is in `e2e/pages.ts` once, in the active direction, so the Speed and Screen checks cover it.
+    - Eight design samples fill the board, in the agreement's story shape and passing its `validate()`; the accounts' names in the takes are samples too.
+    - The app's placeholder screen moves onto the values once a direction is chosen, when only one set ships (the app's code-size budget).
 
 ## Open questions
 
