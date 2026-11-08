@@ -1278,6 +1278,12 @@ Not a problem: the worry that Claude Code could run the script on production. It
 - **App:** a new workflow, **App journeys** (`.github/workflows/app-journeys.yml`, job "App journeys"): on every pull request (work only when the app is affected), and on main after a merge that changes `product/app/`, `product/packages/`, the lockfile or the workflow. Maestro 2.12.1 (downloaded from its GitHub release, SHA-256 checked); Java 17 (Temurin); Gradle through `gradle/actions/setup-gradle` 6.4.1 (cache written from main only); `reactivecircus/android-emulator-runner` 2.38.0 (API 34, `google_apis`, x86_64, Pixel 7), with its booted snapshot cached; the built app cached under the hash of the app's tracked files. Every action pinned to its commit. Results and screenshots: the job's artifact `app-journeys`.
 - **Required:** not yet; each joins the "main" ruleset once it has passed steadily (recorded here when it does).
 
+### The typed API (PLAN.md step 1.5c, Claude Code)
+
+- **Packages:** `@orpc/contract`, `@orpc/server`, `@orpc/openapi`, `@orpc/client`, `@orpc/openapi-client`, `@orpc/tanstack-query`, all exactly 1.16.1; `zod` 4.6.7; `@tanstack/react-query` 5.106.1 (the app); `json-schema-to-typescript` 16 and `@standard-schema/spec` 1.1 (the agreement); `@babel/plugin-transform-parameters` and `babel-preset-expo` (the app's Babel settings, for oRPC's client on Hermes).
+- **Served at** `/api/v1/*` by `product/web/app/api/v1/[[...rest]]/route.ts` (Node, `bom1` from `vercel.json`). Headers: public reads `Cache-Control: public, max-age=0, must-revalidate`, `Vercel-CDN-Cache-Control: max-age=30, stale-while-revalidate=300`, `Vercel-Cache-Tag: health`; everything else `private, no-store`. Checked on this Mac (200, 400 for a stray input, 401 signed out, 200 with the test account's token, 404 for an unknown call) and on the pull request's preview by the API journeys.
+- **Ruleset "main":** "Speed check" added to its required checks through GitHub's API on 9 November 2026 (now Secret check, Quick checks, Database check, Screen check, Speed check).
+
 ### `EXPO_TOKEN` found in Doppler `stg` (checked by Claude Code)
 
 **Found:** the founder saved Expo's robot token as `EXPO_TOKEN` in `hrizzup/stg`. It's a tool token, so its place is `hrizzup-tools/claude` (runbook Part 4, "Where each kind of key lives", now written out). Checked by name only, through Claude Code's own access; the value was never read, shown or copied:
