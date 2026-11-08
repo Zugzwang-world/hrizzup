@@ -9,8 +9,8 @@
 ## Where things stand
 
 - **On hold** (the founder's decision, 5 November 2026) until the founder sets News Desk up. No News Desk work has started; the `news-desk/` folder holds only its README.
-- **The agreement's first half is a Draft, reviewed by Sourcing and awaiting the founder's approval** (revised 8 November 2026): the creation shape (what News Desk hands to Product), the sourced item (what it builds on), every feed item's route, the shared lists and example posts. The founder approves it in News Desk's place; News Desk reviews it once it's set up.
-- **The shared setup is finished** (Phase 0, 4 November 2026): the shared content store exists on staging, as the Supabase database plus Cloudflare R2 storage for images, which Cloudflare resizes and delivers. Creator video will use Cloudflare Stream, switched on when creator video is built (step 2.4). Staging is a sandbox with no real users; production is parked until launch.
+- **The agreement's first half is a Draft, reviewed by Sourcing and awaiting the founder's approval** (revised 8 November 2026 after Sourcing's review, [#37](https://github.com/Zugzwang-world/hrizzup/pull/37), [#42](https://github.com/Zugzwang-world/hrizzup/pull/42) and [#45](https://github.com/Zugzwang-world/hrizzup/pull/45): the creation shape is unchanged; updates name their posts in `based_on`; `withdrawn` covers legal takedowns too): the creation shape (what News Desk hands to Product), the sourced item (what it builds on), every feed item's route, the shared lists and example posts. The founder approves it in News Desk's place; News Desk reviews it once it's set up.
+- **The shared setup is finished** (Phase 0, 4 November 2026): the content store on staging is the Supabase database plus Cloudflare R2 for images, which Cloudflare resizes and delivers; creator video uses Cloudflare Stream, switched on with step 2.4. Production is parked until launch.
 
 ## Decisions in force
 
@@ -35,16 +35,16 @@
 
 ## What changed in the latest session
 
-On 8 November 2026, Round 2's relay 5 ran Sourcing's review of the agreement's first half ([#37](https://github.com/Zugzwang-world/hrizzup/pull/37), `agreement/reviews/sourcing-first-half.md`) and made the changes it asked for ([#42](https://github.com/Zugzwang-world/hrizzup/pull/42)). For News Desk:
+On 8 November 2026, in [#40](https://github.com/Zugzwang-world/hrizzup/pull/40), the founder's decisions on the markets and on how Product works were recorded (PLAN.md sections 2 to 5 and 7). For News Desk:
 
-- **A sourced item whose post is gone from X** (deleted, hidden, withheld in India, or taken down at its creator's request) **keeps nothing of the post,** not even our summary, as X's developer rules require. An edited post is one item, at its newest version.
-- **Updates name the posts they report by their sourced items** (`based_on`), as a creation does; `withdrawn` also covers takedowns the law requires.
-- **The creation shape didn't change,** and the founder's seven decisions stand. The check now reads the same in every language ([#45](https://github.com/Zugzwang-world/hrizzup/pull/45)): code outside TypeScript adds a fourth check, no text ending in a new line.
+- **The markets' topics wait:** Product builds markets first on test markets; their topics and data sources (step 1.2) come once markets work end to end on staging, and content on market subjects waits for them.
+- **The market shape News Desk reads may change** before the first half is Agreed (Product recommends revising it to the new model).
+- **Product designs in a dedicated design chat,** led by the founder. Nothing else in News Desk's scope changed.
 
 ## Open questions
 
 - **Which creators to invite first** (step 1.3). Recommendation: start from the creators whose takes the bots find most often in each launch category, once the pipeline runs, since they're already active on our stories; invite those with original work and a steady record.
-- **How News Desk chooses what to build on, and what each format looks like made from the pool** (step 1.3). Recommendation: three formats to start: explainers (what's happening and why), roundups of the best found takes on a story, each credited, and charts for the market subjects; each names the posts it builds on.
+- **How News Desk chooses what to build on, and what each format looks like made from the pool** (step 1.3). Recommendation: three formats to start: explainers (what's happening and why), roundups of the best found takes on a story, each credited, and, once step 1.2 chooses the markets' topics, charts for them; each names the posts it builds on.
 - **When News Desk is set up** (the founder). Recommendation: once the news pipeline (1.1) is close to running on staging, so formats and the creator list are ready when the pool starts filling. If the founder keeps the closed test (2.6) waiting for News Desk's first content, set it up earlier.
 
 ## What's next
