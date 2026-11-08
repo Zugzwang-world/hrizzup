@@ -1,0 +1,43 @@
+{
+  "health": {
+    "~orpc": {
+      "errorMap": {},
+      "meta": {
+        "caching": {
+          "kind": "public",
+          "edgeSeconds": 30,
+          "staleSeconds": 300,
+          "tags": [
+            "health"
+          ]
+        }
+      },
+      "route": {
+        "method": "GET",
+        "path": "/health",
+        "summary": "Whether the API and the services behind it answer",
+        "tags": [
+          "public"
+        ]
+      }
+    }
+  },
+  "me": {
+    "~orpc": {
+      "errorMap": {},
+      "meta": {
+        "caching": {
+          "kind": "personal"
+        }
+      },
+      "route": {
+        "method": "GET",
+        "path": "/me",
+        "summary": "Who is signed in",
+        "tags": [
+          "personal"
+        ]
+      }
+    }
+  }
+}

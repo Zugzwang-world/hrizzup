@@ -1,11 +1,17 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.6.3/schema.json",
-  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
   "files": {
     "includes": [
       "product/**",
       "agreement/**",
       "!agreement/README.md",
+      "!agreement/src/types.generated.ts",
+      "!product/packages/api/src/contract.routes.json",
       "!product/packages/market-engine/src/manifold/calculate-cpmm-arbitrage.ts",
       "!product/packages/design/tokens.css",
       "!product/packages/design/src/icons.generated.ts",
@@ -19,21 +25,50 @@
       "!**/expo-env.d.ts"
     ]
   },
-  "formatter": { "enabled": true, "indentStyle": "space", "indentWidth": 2, "lineWidth": 100 },
-  "javascript": {
-    "formatter": { "quoteStyle": "single", "jsxQuoteStyle": "double", "semicolons": "always" }
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100
   },
-  "css": { "parser": { "tailwindDirectives": true } },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "single",
+      "jsxQuoteStyle": "double",
+      "semicolons": "always"
+    }
+  },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
+    }
+  },
   "linter": {
     "enabled": true,
-    "rules": { "preset": "recommended" },
-    "domains": { "next": "recommended", "react": "recommended" }
+    "rules": {
+      "preset": "recommended"
+    },
+    "domains": {
+      "next": "recommended",
+      "react": "recommended"
+    }
   },
-  "assist": { "actions": { "source": { "organizeImports": "on" } } },
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  },
   "overrides": [
     {
       "includes": ["product/packages/market-engine/**"],
-      "linter": { "domains": { "next": "none", "react": "none" } }
+      "linter": {
+        "domains": {
+          "next": "none",
+          "react": "none"
+        }
+      }
     },
     {
       "includes": ["product/packages/market-engine/src/manifold/**"],
@@ -45,7 +80,10 @@
             "useMathMinMax": "off",
             "useOptionalChain": "off"
           },
-          "style": { "noNonNullAssertion": "off", "useTemplate": "off" },
+          "style": {
+            "noNonNullAssertion": "off",
+            "useTemplate": "off"
+          },
           "suspicious": {
             "noExplicitAny": "off",
             "noGlobalIsFinite": "off",

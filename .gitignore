@@ -113,3 +113,6 @@ __pycache__/
 product/app/android/
 product/app/ios/
 product/app/journeys-build/
+
+# ---- Written by `next dev` for coding agents; not part of the project ----
+product/web/AGENTS.md

@@ -1,0 +1,29 @@
+{
+  "name": "@hrizzup/api",
+  "private": true,
+  "description": "The one typed API that the website and the app use (PLAN.md step 1.5c; blueprint section 13): its contract (the app imports only this), example answers and a stand-in implementation. The real implementation lives in the website's server code.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": "./src/client.ts",
+    "./examples": "./src/examples.ts",
+    "./stand-in": "./src/stand-in.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "routes": "node src/routes.ts --write"
+  },
+  "dependencies": {
+    "@hrizzup/agreement": "workspace:*",
+    "@orpc/contract": "1.16.1",
+    "@orpc/server": "1.16.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@hrizzup/tsconfig": "workspace:*",
+    "@types/node": "^24.10.0",
+    "typescript": "6.0.3",
+    "vitest": "^5.0.0"
+  }
+}

@@ -552,7 +552,7 @@ The check keeps the hard cases in: long titles, a story with many updates, a mis
 
 ## For developers: using the definitions
 
-- **TypeScript** (the website, the app's server code, and any project code written in TypeScript): depend on the workspace package `@hrizzup/agreement`. `validate(record)` returns the problems it finds; an empty list means the record matches. `shapes` holds each definition by its format.
+- **TypeScript** (the website, the app's server code, and any project code written in TypeScript): depend on the workspace package `@hrizzup/agreement`. `validate(record)` returns the problems it finds; an empty list means the record matches. `shapes` holds each definition by its format. The types `Story`, `Update`, `Sourced`, `Creation`, `Market` and `Reading` (`src/types.generated.ts`) are written from the definitions, never by hand; `standardSchema(format)` is the same check as a validator the typed API's tools take (`product/packages/api`).
 - **Any other language:** load the files in `agreement/definitions/` with a JSON Schema 2020-12 validator, straight from this repository, at build or run time. In Python:
 
   Install the validator with its format add-ons (`pip install "jsonschema[format-nongpl]"`): without them, Python skips the `date-time` and `uri` checks that the TypeScript check makes, so a time such as `2026-13-45T25:61:61Z` would pass.
@@ -573,7 +573,7 @@ The check keeps the hard cases in: long titles, a story with many updates, a mis
   Then add `validate()`'s four code checks: the three for hidden text, and no text ending in a new line ("Rules for every hand-over point", above).
 - **Never copy a definition** into another file or language. Whatever runs the pipeline and the data job (the background-jobs tool chosen in the Sourcing project) is built from this repository, so it reads these files directly.
 - **The definitions use only portable features.** Their patterns spell characters out, as four-digit `\u` escapes (the form JSON Schema's standard uses), instead of using `\d`, `\w`, `\s`, `\p{…}`, look-arounds or named groups, which differ between languages; the check enforces it. The one difference no pattern can avoid, what `$` means before a final new line, is the fourth code check.
-- **After changing a definition, a list or an example,** run `pnpm --filter @hrizzup/agreement readme` to rewrite this page's generated parts, then `pnpm check`.
+- **After changing a definition, a list or an example,** run `pnpm --filter @hrizzup/agreement readme` to rewrite this page's generated parts and `pnpm --filter @hrizzup/agreement types` to rewrite the TypeScript types, then `pnpm check` (it fails when either is stale).
 
 ## Changing the agreement
 
