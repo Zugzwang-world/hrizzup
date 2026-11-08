@@ -2,13 +2,13 @@
 
 **This brief replaces Claude Code's report:** read it after clicking **Sync now**, instead of asking the founder for a report, and attach the files under "Read for detail" from GitHub when you need more.
 
-> Rewritten 8 November 2026. The only repository file the Sourcing project keeps in its knowledge; Claude Code rewrites it at the end of every session that touches Sourcing's part. If it and PLAN.md disagree, PLAN.md wins.
+> Rewritten 9 November 2026. The only repository file the Sourcing project keeps in its knowledge; Claude Code rewrites it at the end of every session that touches Sourcing's part. If it and PLAN.md disagree, PLAN.md wins.
 
 **Hrizzup** is a news app built around creators, plus a website with play-money prediction markets. Our AI finds news as it breaks on X and turns it into developing stories that readers see through creators' takes. **Sourcing's job:** design and run the Grok bots that find news and creators' takes on X, keep everything they find in the sourced pool, and turn the news into stories and updates. Product shows what Sourcing produces, in the shapes the hand-over agreement (`agreement/README.md`) fixes.
 
 ## Where things stand
 
-- **Sourcing's review of the agreement's first half is done** (8 November 2026; Round 2's relay 5, a Claude Code session working from this brief: the review [#37](https://github.com/Zugzwang-world/hrizzup/pull/37), its changes [#42](https://github.com/Zugzwang-world/hrizzup/pull/42) and [#45](https://github.com/Zugzwang-world/hrizzup/pull/45); fourteen notes in the review). A tenth change (R12): code outside TypeScript adds a fourth check, no text ending in a new line. It found two blocking problems and asked for nine changes, all made the same day. Sourcing agrees the revised first half. It's still a Draft, "reviewed by Sourcing, awaiting the founder's approval": the founder approves it in News Desk's place, through the Product chat.
+- **Sourcing's review of the agreement's first half is done** (8 November 2026; Round 2's relay 5, a Claude Code session working from this brief: the review [#37](https://github.com/Zugzwang-world/hrizzup/pull/37), its changes [#42](https://github.com/Zugzwang-world/hrizzup/pull/42) and [#45](https://github.com/Zugzwang-world/hrizzup/pull/45); fourteen notes in the review). A tenth change (R12): code outside TypeScript adds a fourth check, no text ending in a new line. It found two blocking problems and asked for nine changes, all made the same day. Sourcing agrees the revised first half; the market change of 9 November touches nothing Sourcing writes or reads. It's still a Draft, "reviewed by Sourcing, awaiting the founder's approval": the founder approves it in News Desk's place, through the Product chat.
 - **No other Sourcing work has started.** The `sourcing/` folder holds only its README.
 - **The second half (the bots' result format) isn't drafted:** Sourcing designs it once step 0.8's choice is made, and Product reviews it.
 - **The shared setup is finished** (Phase 0): the content store is the Supabase database (staging: `hrizzup-staging`, Mumbai) plus Cloudflare R2; Upstash Redis holds caches and locks. Production is parked until launch.
@@ -29,11 +29,11 @@
 
 ## What changed in the latest session
 
-On 8 November 2026, in [#40](https://github.com/Zugzwang-world/hrizzup/pull/40), the founder's decisions on the markets and on how Product works were recorded (PLAN.md sections 2 to 5 and 7). For Sourcing:
+On 9 November 2026, in [#52](https://github.com/Zugzwang-world/hrizzup/pull/52), the agreement's first half took the founder's market model of 8 November, at his request (still Draft, version 1). For Sourcing:
 
-- **The background-jobs choice grows:** besides perps' job every few seconds (3.4a, first on a stand-in price), it must later run the resolvers that settle markets at their closing moments (3.2a); otherwise an admin settles them by hand.
-- **Market data stays Product's;** step 1.2 is parked until markets work end to end on staging.
-- **Product works in two tracks** (a design chat and each round's chat); nothing Sourcing writes changes.
+- **Nothing Sourcing writes, reads or checks changed:** stories, updates, sourced items, the locations and categories, and their hand-over rules are as Sourcing agreed them.
+- **Only Product's parts moved:** the market now holds its rules, a named settlement source and how it settles (by hand or automatically); data readings and the market subjects list left the first half until the markets' topics are chosen (step 1.2, parked).
+- **The background-jobs choice still covers** perps' job every few seconds (3.4a) and, later, the resolvers that settle markets (3.2a).
 
 ## Open questions
 

@@ -122,54 +122,6 @@
           "description": "Posted directly in the app by a creator or a user, and credited to the account that posted it."
         }
       ]
-    },
-    "market_subject": {
-      "title": "Market subject from the shared list",
-      "description": "What a market is about. Each subject has one data slot: what it measures, and how settlement reads it. A slot names no provider; its source is chosen in PLAN.md step 1.2.",
-      "anyOf": [
-        { "$ref": "#/$defs/price_subject" },
-        { "$ref": "#/$defs/ranking_subject" },
-        { "$ref": "#/$defs/match_subject" }
-      ]
-    },
-    "price_subject": {
-      "title": "Price",
-      "description": "Settlement reads the average of the valid readings measured in the 60 seconds before the market closes. If there are none, the market waits for them; if none arrive within 24 hours, it is cancelled and every bet is returned.",
-      "$comment": "Gold or oil joins this list once PLAN.md step 1.2 decides which.",
-      "oneOf": [
-        {
-          "const": "bitcoin",
-          "title": "Bitcoin",
-          "description": "The price of one bitcoin in US dollars: a reference price combined from several large exchanges, so no single exchange decides a market."
-        }
-      ]
-    },
-    "ranking_subject": {
-      "title": "Ranking",
-      "description": "Settlement reads the first valid reading measured when the market closes or after: the outcome naming the model ranked first wins. If it ranks more than one model first, the market is cancelled; so it is if no reading arrives within 7 days.",
-      "oneOf": [
-        {
-          "const": "ai-models",
-          "title": "The best AI model",
-          "description": "A public ranking of AI models, from the source chosen in step 1.2: the models in order, with the leader first."
-        }
-      ]
-    },
-    "match_subject": {
-      "title": "Match",
-      "description": "Settlement reads the match's first valid reading that says finished or abandoned: the outcome for its result wins (no_result when abandoned). If the market has no outcome for that result, or no such reading arrives within 3 days of the start, it is cancelled.",
-      "oneOf": [
-        {
-          "const": "cricket",
-          "title": "Cricket",
-          "description": "Professional cricket matches: who plays, the live score, and the result."
-        },
-        {
-          "const": "football",
-          "title": "Football",
-          "description": "Professional football matches: who plays, the live score, and the result."
-        }
-      ]
     }
   }
 }

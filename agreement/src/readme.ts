@@ -185,11 +185,6 @@ const listColumns: Record<string, { group?: string; groupMeaning?: string; meani
   location: { group: 'Level', groupMeaning: 'Who sees it', meaning: 'What it covers' },
   category: { meaning: 'What it covers' },
   route: { meaning: "How it reaches the product, and how it's credited" },
-  market_subject: {
-    group: 'Kind',
-    groupMeaning: 'How settlement reads it',
-    meaning: 'What its data slot measures',
-  },
 };
 
 function listTable(name: string): string {

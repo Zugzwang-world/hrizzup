@@ -6,7 +6,7 @@
 
 | Half | What it covers | Status | Sign-off record |
 |---|---|---|---|
-| First half | The shapes of a story, an update, a sourced item, a creation and a market, with the data readings that settle markets; every feed item's route; the shared lists, including the launch list of locations and categories; the rules for every hand-over point | **Draft:** reviewed by Sourcing, awaiting the founder's approval (revised 8 November 2026) | Drafted by Product (Claude Code), 5 November 2026. Founder: the launch list and the other decisions below approved, each as recommended, 5 November 2026. **Changed after those seven decisions,** on the founder's decisions later that day: the sourced item shape and every feed item's route (found, made or posted) were added, and data readings are now written by Product. **Sourcing: reviewed 8 November 2026** ([its review](reviews/sourcing-first-half.md), [#37](https://github.com/Zugzwang-world/hrizzup/pull/37)), by a Claude Code session working from Sourcing's brief: two blocking findings and nine changes, all made the same day ([#42](https://github.com/Zugzwang-world/hrizzup/pull/42)), and a tenth found while making them ([#45](https://github.com/Zugzwang-world/hrizzup/pull/45)), leaving the founder's seven decisions as they were. **Sourcing agrees this version.** News Desk: on hold until the founder sets it up, so the founder approves in its place (the founder's decision, 5 November 2026): **not yet approved.** News Desk reviews it once it's set up. These sign-offs are for this version. |
+| First half | The shapes of a story, an update, a sourced item, a creation and a market; every feed item's route; the shared lists, including the launch list of locations and categories; the rules for every hand-over point | **Draft:** reviewed by Sourcing, awaiting the founder's approval (revised 9 November 2026) | Drafted by Product (Claude Code), 5 November 2026. Founder: the launch list and the other decisions below approved, each as recommended, 5 November 2026. **Changed after those seven decisions,** on the founder's decisions later that day: the sourced item shape and every feed item's route (found, made or posted) were added, and data readings are now written by Product. **Sourcing: reviewed 8 November 2026** ([its review](reviews/sourcing-first-half.md), [#37](https://github.com/Zugzwang-world/hrizzup/pull/37)), by a Claude Code session working from Sourcing's brief: two blocking findings and nine changes, all made the same day ([#42](https://github.com/Zugzwang-world/hrizzup/pull/42)), and a tenth found while making them ([#45](https://github.com/Zugzwang-world/hrizzup/pull/45)), leaving the founder's seven decisions as they were. **Sourcing agrees that version.** **Changed on 9 November 2026,** at the founder's request ([#52](https://github.com/Zugzwang-world/hrizzup/pull/52)): the market follows his market model of 8 November (PLAN.md section 2), and data readings and the list of market subjects leave this half until the markets' topics are chosen (PLAN.md step 1.2). Nothing Sourcing writes, reads or checks changed, and the founder's seven decisions stand. News Desk: on hold until the founder sets it up, so the founder approves in its place (the founder's decision, 5 November 2026): **not yet approved.** News Desk reviews it once it's set up. These sign-offs are for this version. |
 | Second half | The Grok bots' result format | **Not drafted** | Designed in the Sourcing project and reviewed by Product; News Desk doesn't need to agree it (the founder's decision, 5 November 2026). Drafted only once Sourcing has chosen the Grok product and the route to our pipeline (step 0.8). See the last section. |
 
 - **Each sign-off is recorded here, with its date, as it arrives. A half becomes Agreed only through a later change the founder asks for.** The first half is signed off once Sourcing has reviewed and agreed it and the founder has approved it in News Desk's place, while News Desk is on hold; Product drafted it. The founder carries no messages between projects, so Sourcing's review is run by a Claude Code session in this repository, working from Sourcing's brief (`docs/brief/sourcing.md`; the founder's decision, 8 November 2026). News Desk reviews it once the founder sets it up, and any change it asks for follows "Changing the agreement", below. The second half is signed off once Product has reviewed and agreed Sourcing's design. (All the founder's decisions, 5 November 2026.) Changes to this folder merge themselves once their checks pass, so a merged draft is still only a draft.
@@ -19,7 +19,7 @@ Three projects make Hrizzup, and each hands things to the others:
 
 - **Sourcing** runs the Grok bots, which find news and creators' takes on X. Its pipeline keeps everything they find, once it passes the checks, as **sourced items** in the **sourced pool**, and turns the news into **stories** and their **updates**.
 - **News Desk** makes our own **creations** (text, images and videos) from the sourced pool, and brings in creators, whose posts in the app are creations too. It's on hold until the founder sets it up.
-- **Product** shows all of it in the app and on the website, crediting every feed item by its **route**, and runs the **markets**, filling the **data slots** that settle them with **data readings**.
+- **Product** shows all of it in the app and on the website, crediting every feed item by its **route**, and runs the **markets**: only Hrizzup creates them, and Product settles them, by hand or through its own resolvers.
 
 This agreement fixes exactly what each of those looks like when it passes between projects. It lives in this folder, and nowhere else:
 
@@ -30,7 +30,7 @@ This agreement fixes exactly what each of those looks like when it passes betwee
 
 ## The founder's decisions
 
-The founder approved all seven on 5 November 2026, each as recommended, and they stand: the changes made since (the sourced item, the routes, data readings moving to Product, and the changes Sourcing's review asked for on 8 November) leave every one of them as it was. Revisiting one is a change to this agreement, approved by the founder.
+The founder approved all seven on 5 November 2026, each as recommended, and they stand: the changes made since (the sourced item, the routes, data readings moving to Product, the changes Sourcing's review asked for on 8 November, and the market model on 9 November) leave every one of them as it was. Revisiting one is a change to this agreement, approved by the founder.
 
 | # | Question | Decision | Why |
 |---|---|---|---|
@@ -63,10 +63,9 @@ Suggested next, after version one: Hyderabad, Chennai and Pune, each a large tec
 | Update | One development in a story; a story's updates are its timeline | Sourcing's pipeline | Product; News Desk |
 | Sourced item | One thing the bots found on X (news, or a creator's take on a story), as kept in the sourced pool | Sourcing's pipeline | Product (found takes, in their stories' feeds); News Desk (to build our own content on) |
 | Creation | A post: text, one image or one video | News Desk (our own: made); creators and users, through the app (posted) | Product (feed, story pages, story cards) |
-| Market | A play-money question that settles itself from real data | Product's market engine | Product (the website, and its data job: which matches and slots to read); News Desk (content on market subjects) |
-| Data reading | One reading of a market subject's data slot | Product's data job, from the sources chosen in step 1.2 | Product (settlement, and prices and scores on market pages) |
+| Market | A play-money question that only Hrizzup creates, settled by hand or by a resolver from the source its rules name | Product's market engine | Product (the website); News Desk (content on markets) |
 
-Data readings are written and read by Product alone since the founder moved the market data to Product (5 November 2026), but they stay here: they're outside data entering at a hand-over point, and their market subjects are a shared list.
+Data readings and the list of market subjects left this half on 9 November 2026: they come back with the markets' topics (PLAN.md step 1.2), once markets work end to end on staging.
 
 ## Three routes into the feed
 
@@ -138,27 +137,6 @@ Adding an item is one change in that one file ("Changing the agreement", below).
 | `politics` | Politics | Government and elections: Parliament, state governments, policies and political parties. |
 | `entertainment` | Entertainment | Films, streaming, music and celebrities, from Bollywood and regional cinema to global stars. |
 | `general` | General | News that fits no other category: weather, transport, civic issues, crime, education and health. |
-<!-- end generated -->
-
-### Market subjects and their data slots
-
-Each market subject has one **data slot**: what it measures, and how settlement reads it. A slot names no provider: Product chooses each source (step 1.2), and its data job fills the slot with data readings in the shape below. The exact market questions are settled in step 3.2.
-
-<!-- generated: list market_subject -->
-| Code | Name | Kind | What its data slot measures |
-|---|---|---|---|
-| `bitcoin` | Bitcoin | Price | The price of one bitcoin in US dollars: a reference price combined from several large exchanges, so no single exchange decides a market. |
-| `ai-models` | The best AI model | Ranking | A public ranking of AI models, from the source chosen in step 1.2: the models in order, with the leader first. |
-| `cricket` | Cricket | Match | Professional cricket matches: who plays, the live score, and the result. |
-| `football` | Football | Match | Professional football matches: who plays, the live score, and the result. |
-
-| Kind | How settlement reads it |
-|---|---|
-| Price | Settlement reads the average of the valid readings measured in the 60 seconds before the market closes. If there are none, the market waits for them; if none arrive within 24 hours, it is cancelled and every bet is returned. |
-| Ranking | Settlement reads the first valid reading measured when the market closes or after: the outcome naming the model ranked first wins. If it ranks more than one model first, the market is cancelled; so it is if no reading arrives within 7 days. |
-| Match | Settlement reads the match's first valid reading that says finished or abandoned: the outcome for its result wins (no_result when abandoned). If the market has no outcome for that result, or no such reading arrives within 3 days of the start, it is cancelled. |
-
-Note: Gold or oil joins this list once PLAN.md step 1.2 decides which.
 <!-- end generated -->
 
 ## Story
@@ -396,11 +374,11 @@ Note: Gold or oil joins this list once PLAN.md step 1.2 decides which.
 
 ## Market
 
-**What it is:** a play-money question about the future that runs and settles itself from real data (PLAN.md section 2). When it closes, settlement reads its subject's data slot, as the market subjects list describes, and pays out; nobody touches it. A **yes-or-no market** asks about a price ("Will Bitcoin be above $100,000 at 6 pm on Friday?"). A **multiple-choice market** has several outcomes, exactly one of which wins: which AI model ranks first, or who wins a match. Markets run continuously: the engine opens new ones as old ones settle, over many time windows. **Written by** Product's market engine (step 1.7). **Read by** Product (the website, and its data job: which matches and slots to read) and News Desk (content on the market subjects).
+**What it is:** a play-money question about the future (PLAN.md section 2, the founder's market model of 8 November 2026). A market is data, not code: it holds its question, its outcomes, its rules, its opening and closing times, the source that settles it and its state, so the engine, trading, balances and settlement work the same for any question. A **yes-or-no market** has two outcomes, Yes and No; a **multiple-choice market** lists its outcomes, exactly one of which wins. **Only Hrizzup creates markets;** users never do. **Written by** Product's market engine (steps 1.7c and 1.7d). **Read by** Product (the website) and News Desk (content on markets).
 
-- **A market settles only from valid readings.** If the data never comes, it's cancelled and every bet returned; it's never settled on a guess.
-- **Each outcome names the value that makes it win** (`reading_value`), because a source's names don't always match how we show them: "Atlas-2 (preview)" on a leaderboard, "Atlas 2" on our page. One outcome may be the catch-all ("Another model").
-- **The exact questions stay open** until step 3.2.
+- **It settles in one of two ways:** by hand, by a Hrizzup admin, from the source its rules name, with every settlement logged (who, when, the outcome and the evidence, in Product's own records); or automatically, by a resolver we choose, which reads that source at the closing moment (step 3.2a). There is no outside oracle and no dispute process.
+- **It's never settled on a guess.** If its source gives no answer its rules accept, the market is cancelled and every bet returned.
+- **The topics come later** (step 1.2): until markets work end to end on staging, they're test markets with placeholder questions, like the examples. Recurring questions (series, step 3.2b), and any field a resolver needs, come with them; an optional field joins as one change.
 
 <!-- generated: fields market/1 -->
 | Field | Required | What it means | What it holds |
@@ -408,96 +386,48 @@ Note: Gold or oil joins this list once PLAN.md step 1.2 decides which.
 | `format` | Yes | Says this record is a market, in format version 1. | Always `market/1` |
 | `id` | Yes | The market's ID. | Record ID (UUID version 7, lower case) |
 | `question` | Yes | The question people bet on, as shown. | One line of plain text, up to 120 characters |
-| `subject` | Yes | What the market is about. Its data slot settles the market, in the way the shared list describes. | Market subject from the shared list |
 | `categories` | Yes | The categories whose news shows alongside the market. | 1 to 3, each a category from the shared list, no repeats |
-| `kind` | Yes | yes_no: people buy Yes or No (a price subject). multiple_choice: several outcomes, exactly one of which wins (a ranking or match subject). | `yes_no` or `multiple_choice` |
-| `outcomes` | Depends | The possible outcomes. Required for multiple_choice, and only there. At most one is the catch-all. | 2 to 20, each with the fields below |
+| `kind` | Yes | yes_no: people buy Yes or No. multiple_choice: several outcomes, exactly one of which wins. | `yes_no` or `multiple_choice` |
+| `outcomes` | Depends | The possible outcomes, in the order shown. Required for multiple_choice, and only there: a yes_no market's outcomes are always Yes and No. | 2 to 20, each with the fields below |
 | `outcomes[].code` | Yes | The outcome's code, which the result names if it wins. Unique within the market. | Short code (lower-case letters, digits and hyphens), up to 40 characters |
 | `outcomes[].label` | Yes | The outcome, as shown. | One line of plain text, up to 60 characters |
-| `outcomes[].reading_value` | Depends | What the subject's data says when this outcome wins: a model's name as the ranking gives it, or a match result (home, away, draw or no_result). | One line of plain text, up to 80 characters |
-| `outcomes[].otherwise` | Depends | Marks the catch-all outcome (such as "Another model"), which wins when no other outcome's reading_value matches. | Always `true` |
-| `threshold` | Depends | For a price subject: Yes wins if the settlement price is above this, in US dollars. Required there, and only there. | Decimal number, written as text, like 100000 or 97250.5, up to 24 characters |
-| `match_ref` | Depends | For a match subject: which match, by the code its readings use. Required there, and only there. | Short code (lower-case letters, digits and hyphens), up to 40 characters |
+| `rules` | Yes | How the market settles, in plain words, shown with it: what makes each outcome win, what is read from the source and when, and when the market is cancelled instead. | Plain text, new lines allowed, up to 2,000 characters |
+| `source` | Yes | The named source that settles the market: what the admin or the resolver reads at the closing moment. | The fields below |
+| `source.name` | Yes | The source's name, as shown with the market. | One line of plain text, up to 120 characters |
+| `source.url` | No | Where anyone can check the source, when it has a public page. Shown as a plain link; our software never follows it on its own. | Web address starting https://, up to 2,048 characters |
+| `settlement` | Yes | by_hand: a Hrizzup admin settles it from the source, and every settlement is logged (who, when, the outcome and the evidence). automatic: a resolver we choose reads the source at the closing moment and settles it. | `by_hand` or `automatic` |
 | `opens_at` | Yes | When betting opens. | Time in UTC, like 2026-11-05T09:30:00Z |
-| `closes_at` | Yes | When betting stops. Settlement reads the data slot from this time. | Time in UTC, like 2026-11-05T09:30:00Z |
-| `state` | Yes | upcoming: not open yet. open: taking bets. closed: betting has stopped and settlement waits for the data. settled: paid out. void: cancelled, with every bet returned. | `upcoming`, `open`, `closed`, `settled` or `void` |
+| `closes_at` | Yes | When betting stops: the closing moment, when the source is read. | Time in UTC, like 2026-11-05T09:30:00Z |
+| `state` | Yes | draft: being prepared, not taking bets yet. open: taking bets. closed: betting has stopped and the market waits to be settled. settled: paid out. cancelled: every bet returned. | `draft`, `open`, `closed`, `settled` or `cancelled` |
 | `result` | Depends | What won: yes or no, or the winning outcome's code. Only when the state is settled. | Short code (lower-case letters, digits and hyphens), up to 40 characters |
-| `void_reason` | Depends | Why the market was cancelled, in our own words. Only when the state is void. | One line of plain text, up to 200 characters |
-| `settled_at` | Depends | When it was settled or cancelled. Only when the state is settled or void. | Time in UTC, like 2026-11-05T09:30:00Z |
+| `cancel_reason` | Depends | Why the market was cancelled, in our own words. Only when the state is cancelled. | One line of plain text, up to 200 characters |
+| `settled_at` | Depends | When it was settled or cancelled. Only when the state is settled or cancelled. | Time in UTC, like 2026-11-05T09:30:00Z |
 | `created_at` | Yes | When the market was created. | Time in UTC, like 2026-11-05T09:30:00Z |
 | `updated_at` | Yes | When anything about the market last changed. | Time in UTC, like 2026-11-05T09:30:00Z |
 <!-- end generated -->
 
-**Worked example:** a yes-or-no market on Bitcoin's price.
+**Worked example:** a test market with a placeholder question, yes or no, settled by hand, with its question at the longest allowed.
 
 <!-- generated: example markets.json 01a1ab94-8600-7b23-ba8b-9e3174889404 -->
 ```json
 {
   "format": "market/1",
   "id": "01a1ab94-8600-7b23-ba8b-9e3174889404",
-  "question": "Will Bitcoin be above $100,000 at 6 pm India time on Friday 6 November?",
-  "subject": "bitcoin",
+  "question": "Placeholder: will test event A happen before 6 pm, India time, on Friday 13 November, as Hrizzup's test desk records it?",
   "categories": [
-    "crypto"
+    "general"
   ],
   "kind": "yes_no",
-  "threshold": "100000",
-  "opens_at": "2026-11-05T12:30:00Z",
-  "closes_at": "2026-11-06T12:30:00Z",
+  "rules": "A test market with a placeholder question, for building and checking the market pages on staging.\nYes wins if Hrizzup's test desk records test event A before 6 pm India time on Friday 13 November 2026; otherwise No wins.\nIf the test desk records nothing within a day of closing, the market is cancelled and every bet is returned.",
+  "source": {
+    "name": "Hrizzup's test desk (a placeholder source)"
+  },
+  "settlement": "by_hand",
+  "opens_at": "2026-11-09T06:30:00Z",
+  "closes_at": "2026-11-13T12:30:00Z",
   "state": "open",
-  "created_at": "2026-11-05T12:00:00Z",
-  "updated_at": "2026-11-05T12:30:00Z"
-}
-```
-<!-- end generated -->
-
-## Data reading
-
-**What it is:** one reading of a market subject's data slot: a price, a ranking, or a match's state and score. **Written by** Product's data job, from the source step 1.2 chooses for the slot (the founder moved the market data from Sourcing to Product on 5 November 2026). **Read by** Product: settlement, and the live prices and scores on market pages.
-
-- **Readings are outside data,** so each one passes the hand-over checks before anything uses it. A reading that fails never settles a market.
-- **Prices are exact decimal text** (`"101245.37"`), so no rounding creeps in.
-
-<!-- generated: fields reading/1 -->
-| Field | Required | What it means | What it holds |
-|---|---|---|---|
-| `format` | Yes | Says this record is a data reading, in format version 1. | Always `reading/1` |
-| `id` | Yes | The reading's ID. | Record ID (UUID version 7, lower case) |
-| `subject` | Yes | Whose data slot this reading fills. | Market subject from the shared list |
-| `measured_at` | Yes | When the value was true, by the source's clock. | Time in UTC, like 2026-11-05T09:30:00Z |
-| `received_at` | Yes | When our data job received it. | Time in UTC, like 2026-11-05T09:30:00Z |
-| `price` | Depends | For a price subject: the price. Required there, and only there. | The fields below |
-| `price.amount` | Yes | The price. | Decimal number, written as text, like 100000 or 97250.5, up to 24 characters |
-| `price.currency` | Yes | The currency: US dollars. | Always `USD` |
-| `ranking` | Depends | For a ranking subject: the ranking. Required there, and only there. | The fields below |
-| `ranking.leaders` | Yes | The ranked names, in order, the leader first. | 1 to 50, each with the fields below |
-| `ranking.leaders[].rank` | Yes | Its place: 1 is first. Names that tie share a place. | Whole number, from 1 to 1,000 |
-| `ranking.leaders[].name` | Yes | The name, exactly as the source gives it. | One line of plain text, up to 80 characters |
-| `match` | Depends | For a match subject: the match and where it stands. Required there, and only there. | The fields below |
-| `match.ref` | Yes | The match's code, which a market's match_ref names. | Short code (lower-case letters, digits and hyphens), up to 40 characters |
-| `match.competition` | Yes | The competition or series, as the source names it. | One line of plain text, up to 80 characters |
-| `match.home` | Yes | The home team, as the source names it. | One line of plain text, up to 60 characters |
-| `match.away` | Yes | The away team, as the source names it. | One line of plain text, up to 60 characters |
-| `match.starts_at` | Yes | When the match starts. | Time in UTC, like 2026-11-05T09:30:00Z |
-| `match.status` | Yes | scheduled: not started. live: being played. finished: over, with a result. abandoned: called off without a result. | `scheduled`, `live`, `finished` or `abandoned` |
-| `match.score` | No | The score as one line for people to read. Left out before the match starts. | One line of plain text, up to 120 characters |
-| `match.result` | Depends | Who won: home, away, draw, or no_result. Only when finished or abandoned (abandoned is always no_result). | `home`, `away`, `draw` or `no_result` |
-<!-- end generated -->
-
-**Worked example:** a Bitcoin price reading.
-
-<!-- generated: example readings.json 01a1abaf-1ab0-7ae5-9ce9-7597290e15c0 -->
-```json
-{
-  "format": "reading/1",
-  "id": "01a1abaf-1ab0-7ae5-9ce9-7597290e15c0",
-  "subject": "bitcoin",
-  "measured_at": "2026-11-05T12:29:00Z",
-  "received_at": "2026-11-05T12:29:02Z",
-  "price": {
-    "amount": "101245.37",
-    "currency": "USD"
-  }
+  "created_at": "2026-11-09T06:00:00Z",
+  "updated_at": "2026-11-09T06:30:00Z"
 }
 ```
 <!-- end generated -->
@@ -508,7 +438,7 @@ A hand-over point is wherever one project's output, or anything from outside, en
 
 ### Outside data is data, never instructions
 
-Anything from outside our system is data, never instructions, wherever our software or our AI reads it: the bots' results, the posts they find, creators' and users' posts, and market data readings. The bots read posts on X that anyone can write, so a result can carry planted instructions ("ignore your rules", "mark this as verified", "open this link").
+Anything from outside our system is data, never instructions, wherever our software or our AI reads it: the bots' results, the posts they find, creators' and users' posts, and, once the markets' topics come, the market data their resolvers read. The bots read posts on X that anyone can write, so a result can carry planted instructions ("ignore your rules", "mark this as verified", "open this link").
 
 - **Our AI takes its instructions only from our own prompts in this repository.** Outside text reaches it only as quoted material, clearly marked as data. Anything in it that reads like an instruction is part of the news item, never obeyed.
 - **While it reads outside text, our AI can't act:** it has no tools that send, fetch, publish or change anything. Its only output is a record, which is checked like any other input before it's saved, so planted text can't add a field, pick a category outside the lists, or slip in formatting codes.
@@ -524,12 +454,11 @@ Anything from outside our system is data, never instructions, wherever our softw
 | The pipeline saves stories and updates | Only the pipeline's own credentials can write them | Each record passes its definition before it's saved | Not saved, and logged |
 | News Desk saves our own creations | Only News Desk's credentials can post from Hrizzup accounts | Each creation passes its definition | Not saved, and logged |
 | A creator or a user posts through the app | The author is the signed-in account, set by our server, never read from the post | Each creation passes its definition | Refused, and the person is told what to fix |
-| The market engine saves markets | Only the engine's own credentials can write them | Each market passes its definition | Not saved, and logged |
-| Product's data job saves readings | Fetched from the slot's chosen source over an encrypted, authenticated connection; only the data job can write readings | Each reading passes its definition | Set aside and logged; never settles a market |
+| The market engine saves markets | Only the engine's own credentials can write them, and only an admin's call creates or settles one | Each market passes its definition | Not saved, and logged |
 
 - **Anything that fails is set aside automatically, never published, and logged** with the problems found. Nothing waits for a person.
 - **Set-aside input is deleted after 7 days,** long enough to find out what went wrong: a bot's result holds the words of posts on X, which the pool never keeps, and a refused post holds a person's own words. Logs name records by their IDs and problems by where they are, never by quoting the outside text.
-- **Alerts:** a pile-up of failures, or no valid result arriving when the bots should have run, raises an alert, so a change on Grok's side can't silently stop the news. So does a data slot with no valid reading when one is due. Alerts go to the founder until the team's monitoring exists; the exact thresholds come with the bots' schedule, in the second half.
+- **Alerts:** a pile-up of failures, or no valid result arriving when the bots should have run, raises an alert, so a change on Grok's side can't silently stop the news. Alerts go to the founder until the team's monitoring exists; the exact thresholds come with the bots' schedule, in the second half.
 - **These checks judge whether input is genuine and well-formed, not whether the news is true.** Accuracy stays with our AI, with no human review: it can correct an update, withdraw an update, a story or a take, and merge duplicates.
 - **One step is a person's: a takedown the law requires.** A court order or a valid legal notice is decided by a person (the founder, until the team exists), who withdraws the story, update or take with a reason that says so. A creator who asks us to take down their own post makes its item unavailable instead, which erases what we kept of it. Either is done within 24 hours of the request, or sooner where the law requires.
 
@@ -543,16 +472,15 @@ Anything from outside our system is data, never instructions, wherever our softw
 | `updates.json` | Every update on those stories, each naming what it's based on: the smog story's first update builds on a post our bots found as well as a page; the update that moved in with the merged duplicate repeats one already there, so it's merged into it; the withdrawn Bitcoin update builds on two posts since deleted on X |
 | `sourced.json` | What the bots found on X: news about the smog, which its first update builds on; news that no story uses yet; creators' takes of every kind (a meme on the smog, a video on the cricket match, an explainer thread on Bitcoin); a take whose post was then deleted on X, and the two posts behind the withdrawn Bitcoin claim, all three erased down to our own fields; a take our AI withdrew (a doctored notice, posted by an account with no name) |
 | `creations.json` | Posted: a creator's text take; a creator's video; a creator's image whose file is missing from storage; a user's post that tries to give our AI instructions (shown as text, nothing more). Made: our own image (a chart); our own explainer, which names a category instead of a story and builds on a creator's explainer found on X |
-| `markets.json` | Bitcoin (yes or no, open); the best AI model (multiple choice with a catch-all, open); the cricket match (multiple choice, settled) |
-| `readings.json` | Bitcoin prices, an AI ranking, and the cricket match before, during and after play |
+| `markets.json` | Test markets with placeholder questions, as staging uses until the markets' topics are chosen: yes or no, and multiple choice with a "Something else"; draft, open, closed, settled and cancelled; settled by hand and automatically; a question at the longest allowed |
 
-The check keeps the hard cases in: long titles, a story with many updates, a missing image, a merged story, a withdrawn update, a correction and an update that repeats another; every route, a found take of every kind, news and a take whose posts are gone from X, a withdrawn take, our own content built on a found post, and updates built on posts our bots found. It also checks that no merge is a chain, that nothing our pipeline writes names a merged story, and that a correction or a repeat names a live update in its own story.
+The check keeps the hard cases in: long titles, a story with many updates, a missing image, a merged story, a withdrawn update, a correction and an update that repeats another; every route, a found take of every kind, news and a take whose posts are gone from X, a withdrawn take, our own content built on a found post, and updates built on posts our bots found; markets in every state, of both kinds, settled both ways, with a question at the longest allowed, all of them test markets. It also checks that no merge is a chain, that nothing our pipeline writes names a merged story, and that a correction or a repeat names a live update in its own story.
 
 **Example posts can never point at a real post on X:** their handles start with `example`, and their numbers are larger than any number X gives a post, so a preview that embeds one can never show a stranger's post. The check enforces it.
 
 ## For developers: using the definitions
 
-- **TypeScript** (the website, the app's server code, and any project code written in TypeScript): depend on the workspace package `@hrizzup/agreement`. `validate(record)` returns the problems it finds; an empty list means the record matches. `shapes` holds each definition by its format. The types `Story`, `Update`, `Sourced`, `Creation`, `Market` and `Reading` (`src/types.generated.ts`) are written from the definitions, never by hand; `standardSchema(format)` is the same check as a validator the typed API's tools take (`product/packages/api`).
+- **TypeScript** (the website, the app's server code, and any project code written in TypeScript): depend on the workspace package `@hrizzup/agreement`. `validate(record)` returns the problems it finds; an empty list means the record matches. `shapes` holds each definition by its format. The types `Story`, `Update`, `Sourced`, `Creation` and `Market` (`src/types.generated.ts`) are written from the definitions, never by hand; `standardSchema(format)` is the same check as a validator the typed API's tools take (`product/packages/api`).
 - **Any other language:** load the files in `agreement/definitions/` with a JSON Schema 2020-12 validator, straight from this repository, at build or run time. In Python:
 
   Install the validator with its format add-ons (`pip install "jsonschema[format-nongpl]"`): without them, Python skips the `date-time` and `uri` checks that the TypeScript check makes, so a time such as `2026-13-45T25:61:61Z` would pass.
@@ -571,7 +499,7 @@ The check keeps the hard cases in: long titles, a story with many updates, a mis
   ```
 
   Then add `validate()`'s four code checks: the three for hidden text, and no text ending in a new line ("Rules for every hand-over point", above).
-- **Never copy a definition** into another file or language. Whatever runs the pipeline and the data job (the background-jobs tool chosen in the Sourcing project) is built from this repository, so it reads these files directly.
+- **Never copy a definition** into another file or language. Whatever runs the pipeline and, later, the markets' resolvers (the background-jobs tool chosen in the Sourcing project) is built from this repository, so it reads these files directly.
 - **The definitions use only portable features.** Their patterns spell characters out, as four-digit `\u` escapes (the form JSON Schema's standard uses), instead of using `\d`, `\w`, `\s`, `\p{…}`, look-arounds or named groups, which differ between languages; the check enforces it. The one difference no pattern can avoid, what `$` means before a final new line, is the fourth code check.
 - **After changing a definition, a list or an example,** run `pnpm --filter @hrizzup/agreement readme` to rewrite this page's generated parts and `pnpm --filter @hrizzup/agreement types` to rewrite the TypeScript types, then `pnpm check` (it fails when either is stale).
 

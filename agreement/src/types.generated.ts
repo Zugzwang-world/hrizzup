@@ -352,7 +352,7 @@ export interface Creation {
 }
 
 /**
- * A play-money question about the future that settles itself from real data: when it closes, settlement reads its subject's data slot and pays out with no one touching it. The exact questions are settled in PLAN.md step 3.2.
+ * A play-money question about the future. A market is data, not code: it holds its question, outcomes, rules, opening and closing times, the source that settles it and its state, so the engine, trading, balances and settlement work the same for any question. Only Hrizzup creates markets. Each settles in one of two ways: by hand, by a Hrizzup admin, or automatically, by a resolver that reads the named source at the closing moment. There is no outside oracle and no dispute process (PLAN.md section 2).
  */
 export interface Market {
   /**
@@ -368,10 +368,6 @@ export interface Market {
    */
   question: string;
   /**
-   * What the market is about. Its data slot settles the market, in the way the shared list describes.
-   */
-  subject: 'bitcoin' | 'ai-models' | ('cricket' | 'football');
-  /**
    * The categories whose news shows alongside the market.
    *
    * @minItems 1
@@ -383,11 +379,11 @@ export interface Market {
     'crypto' | 'finance' | 'business' | 'ai' | 'sports' | 'politics' | 'entertainment' | 'general'
   )[];
   /**
-   * yes_no: people buy Yes or No (a price subject). multiple_choice: several outcomes, exactly one of which wins (a ranking or match subject).
+   * yes_no: people buy Yes or No. multiple_choice: several outcomes, exactly one of which wins.
    */
   kind: 'yes_no' | 'multiple_choice';
   /**
-   * The possible outcomes. Required for multiple_choice, and only there. At most one is the catch-all.
+   * The possible outcomes, in the order shown. Required for multiple_choice, and only there: a yes_no market's outcomes are always Yes and No.
    *
    * @minItems 2
    * @maxItems 20
@@ -401,45 +397,50 @@ export interface Market {
      * The outcome, as shown.
      */
     label: string;
-    /**
-     * What the subject's data says when this outcome wins: a model's name as the ranking gives it, or a match result (home, away, draw or no_result).
-     */
-    reading_value?: string;
-    /**
-     * Marks the catch-all outcome (such as "Another model"), which wins when no other outcome's reading_value matches.
-     */
-    otherwise?: true;
   }[];
   /**
-   * For a price subject: Yes wins if the settlement price is above this, in US dollars. Required there, and only there.
+   * How the market settles, in plain words, shown with it: what makes each outcome win, what is read from the source and when, and when the market is cancelled instead.
    */
-  threshold?: string;
+  rules: string;
   /**
-   * For a match subject: which match, by the code its readings use. Required there, and only there.
+   * The named source that settles the market: what the admin or the resolver reads at the closing moment.
    */
-  match_ref?: string;
+  source: {
+    /**
+     * The source's name, as shown with the market.
+     */
+    name: string;
+    /**
+     * Where anyone can check the source, when it has a public page. Shown as a plain link; our software never follows it on its own.
+     */
+    url?: string;
+  };
+  /**
+   * by_hand: a Hrizzup admin settles it from the source, and every settlement is logged (who, when, the outcome and the evidence). automatic: a resolver we choose reads the source at the closing moment and settles it.
+   */
+  settlement: 'by_hand' | 'automatic';
   /**
    * When betting opens.
    */
   opens_at: string;
   /**
-   * When betting stops. Settlement reads the data slot from this time.
+   * When betting stops: the closing moment, when the source is read.
    */
   closes_at: string;
   /**
-   * upcoming: not open yet. open: taking bets. closed: betting has stopped and settlement waits for the data. settled: paid out. void: cancelled, with every bet returned.
+   * draft: being prepared, not taking bets yet. open: taking bets. closed: betting has stopped and the market waits to be settled. settled: paid out. cancelled: every bet returned.
    */
-  state: 'upcoming' | 'open' | 'closed' | 'settled' | 'void';
+  state: 'draft' | 'open' | 'closed' | 'settled' | 'cancelled';
   /**
    * What won: yes or no, or the winning outcome's code. Only when the state is settled.
    */
   result?: string;
   /**
-   * Why the market was cancelled, in our own words. Only when the state is void.
+   * Why the market was cancelled, in our own words. Only when the state is cancelled.
    */
-  void_reason?: string;
+  cancel_reason?: string;
   /**
-   * When it was settled or cancelled. Only when the state is settled or void.
+   * When it was settled or cancelled. Only when the state is settled or cancelled.
    */
   settled_at?: string;
   /**
@@ -452,103 +453,6 @@ export interface Market {
   updated_at: string;
 }
 
-/**
- * One reading of a market subject's data slot: a price, a ranking, or a match's state. Product's data job writes it from the slot's source; settlement and the market pages read it.
- */
-export interface Reading {
-  /**
-   * Says this record is a data reading, in format version 1.
-   */
-  format: 'reading/1';
-  /**
-   * The reading's ID.
-   */
-  id: string;
-  /**
-   * Whose data slot this reading fills.
-   */
-  subject: 'bitcoin' | 'ai-models' | ('cricket' | 'football');
-  /**
-   * When the value was true, by the source's clock.
-   */
-  measured_at: string;
-  /**
-   * When our data job received it.
-   */
-  received_at: string;
-  /**
-   * For a price subject: the price. Required there, and only there.
-   */
-  price?: {
-    /**
-     * The price.
-     */
-    amount: string;
-    /**
-     * The currency: US dollars.
-     */
-    currency: 'USD';
-  };
-  /**
-   * For a ranking subject: the ranking. Required there, and only there.
-   */
-  ranking?: {
-    /**
-     * The ranked names, in order, the leader first.
-     *
-     * @minItems 1
-     * @maxItems 50
-     */
-    leaders: {
-      /**
-       * Its place: 1 is first. Names that tie share a place.
-       */
-      rank: number;
-      /**
-       * The name, exactly as the source gives it.
-       */
-      name: string;
-    }[];
-  };
-  /**
-   * For a match subject: the match and where it stands. Required there, and only there.
-   */
-  match?: {
-    /**
-     * The match's code, which a market's match_ref names.
-     */
-    ref: string;
-    /**
-     * The competition or series, as the source names it.
-     */
-    competition: string;
-    /**
-     * The home team, as the source names it.
-     */
-    home: string;
-    /**
-     * The away team, as the source names it.
-     */
-    away: string;
-    /**
-     * When the match starts.
-     */
-    starts_at: string;
-    /**
-     * scheduled: not started. live: being played. finished: over, with a result. abandoned: called off without a result.
-     */
-    status: 'scheduled' | 'live' | 'finished' | 'abandoned';
-    /**
-     * The score as one line for people to read. Left out before the match starts.
-     */
-    score?: string;
-    /**
-     * Who won: home, away, draw, or no_result. Only when finished or abandoned (abandoned is always no_result).
-     */
-    result?: 'home' | 'away' | 'draw' | 'no_result';
-  };
-}
-
 /** The type of each format the agreement defines. */
 export type Shapes = {
   'story/1': Story;
@@ -556,5 +460,4 @@ export type Shapes = {
   'sourced/1': Sourced;
   'creation/1': Creation;
   'market/1': Market;
-  'reading/1': Reading;
 };
