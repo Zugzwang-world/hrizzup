@@ -1,5 +1,5 @@
 {
-  "_about": "The Vercel firewall for the project hrizzup (all environments), applied and read back by apply.py. Rules run top to bottom. Rate limits count per visitor IP address over 60 seconds and answer 429 when exceeded. Blueprint section 9: every route that signs in or sends email is rate-limited. Our routes that sign in live under /auth/, and any route of ours that sends email must live under /auth/email/ or /api/email/ so these rules cover it. (Email codes requested straight from Supabase Auth are limited by Supabase itself and by Turnstile: infra/supabase/auth/settings.json.) A rule whose every condition group names one of staging's own domains as the host (staging.hrizzup.com) reaches only staging; apply.py --staging-only applies a firewall change only when every rule it adds, changes or removes is such a rule.",
+  "_about": "The Vercel firewall for the project hrizzup (all environments), applied and read back by apply.py. Rules run top to bottom. Rate limits count per visitor IP address over 60 seconds and answer 429 when exceeded. Blueprint section 9: every route that signs in or sends email is rate-limited. Our routes that sign in live under /auth/, and any route of ours that sends email must live under /auth/email/ or /api/email/ so these rules cover it. (Email codes requested straight from Supabase Auth are limited by Supabase itself and by Turnstile: infra/supabase/auth/settings.json.) A rule whose every condition group names one of staging's own domains as the host (staging.hrizzup.com) reaches only staging; apply.py --staging-only applies a firewall change only when every rule it adds, changes or removes is such a rule and its action stays with the request it matches (no persistent action, no bypass of the DDoS mitigations).",
   "firewallEnabled": true,
   "managedRules": {
     "bot_protection": { "active": true, "action": "challenge" },
@@ -97,13 +97,14 @@
     },
     {
       "name": "Staging's typed API: no bot challenge",
-      "description": "The app calls staging's typed API without a browser, so it can't pass the bot challenge (PLAN.md step 1.5d). Public reads hold no private data, personal calls need a sign-in, and the rule above limits the rate. Staging only: production's waits for the release pipeline.",
+      "description": "The app reads staging's typed API without a browser, so it can't pass the bot challenge (PLAN.md step 1.5d). Reads (GET) only: a public read holds no private data, a personal one needs a sign-in, and the rule above limits the rate; a call that writes gets its own decision. Staging only: production's waits for the release pipeline. Keep the bypasses last, since a bypass skips every rule after it.",
       "active": true,
       "conditionGroup": [
         {
           "conditions": [
             { "type": "host", "op": "eq", "value": "staging.hrizzup.com" },
-            { "type": "path", "op": "pre", "value": "/api/v1/" }
+            { "type": "path", "op": "pre", "value": "/api/v1/" },
+            { "type": "method", "op": "eq", "value": "GET" }
           ]
         }
       ],
