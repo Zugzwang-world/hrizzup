@@ -21,7 +21,7 @@ One line per relay; each relay keeps only its own line current.
 1. **Relay 1, the round's records:** merged [#36](https://github.com/Zugzwang-world/hrizzup/pull/36). Next: nothing, relay 1 is done. For the founder: replace the Expo token.
 2. **Relay 2, steps 1.5a to 1.5d:** no milestone merged yet. Next: 1.5a, the speed check.
 3. **Relay 3, step 1.7a, Manifold's maths:** merged [#43](https://github.com/Zugzwang-world/hrizzup/pull/43), our changes: the time passed in, no loans, the two error messages fixed, no logging, fees at zero behind one setting (after [#38](https://github.com/Zugzwang-world/hrizzup/pull/38), the maths with its 158 tests). Next: our money tests.
-4. **Relay 4, step 1.4's first pass:** first milestone in review: the readable-text check and the design values package (three candidate directions, nothing on screen yet). Next: the three directions as working boards on preview links, for the founder to choose.
+4. **Relay 4, step 1.4's first pass:** first milestone [#39](https://github.com/Zugzwang-world/hrizzup/pull/39): the readable-text check and the design values package (three candidate directions, nothing on screen yet). Next: the three directions as working boards on preview links, for the founder to choose.
 5. **Relay 5, Sourcing's review of the agreement's first half:** done: the review [#37](https://github.com/Zugzwang-world/hrizzup/pull/37), its changes [#42](https://github.com/Zugzwang-world/hrizzup/pull/42) and [#45](https://github.com/Zugzwang-world/hrizzup/pull/45); the first half awaits the founder's approval. For the founder: approve it; three questions.
 
 ## Decisions in force
