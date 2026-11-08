@@ -2,6 +2,13 @@
 
 > Every change to the design values and the core screens: what changed, why, and which reference it came from (PLAN.md section 3, "Design", and step 1.4). Newest first. The values themselves live in [`product/packages/design`](../../product/packages/design/README.md); this log says how they got there. Claude Code adds a line in the pull request that makes each change.
 
+## 9 November 2026: refinements while the founder looks
+
+- **Each typeface carries its measured average character width** (`measure`; Eczar 0.45, Anek Latin 0.42, Archivo 0.47, the phone's own about 0.41, in em). It's a fact about the typeface, not a choice: the board uses it to estimate each card's height, now within about a line, so the masonry stays tight in every direction.
+- **More room around big text:** the board's header rows (16 px apart when they wrap) and the holding page's headline (32 px below its label). Tall display typefaces draw above and below their lines, and wider system fonts (Linux, some Android phones) wrap differently, so the space keeps text from ever touching.
+- **Headings in order and lists that stay lists:** the board's wordmark is its page heading and card headlines sit one level under it; story pages go headline, section, day, update. Lists keep their list role, which Safari drops from lists without bullets.
+- **The existing pages use the text styles too:** the holding page's label, headline and wordmark, and the legal, 404 and sign-in test headings.
+
 ## 8 November 2026: Claude Code's pick, Bazaar, carried on: the values page and the story page
 
 **Bazaar is the active direction** while the founder looks (Claude Code's pick, not yet his choice): most stories won't have a creator's picture at first, and Bazaar's category posters make those stories the most eye-catching thing on the board; it also suits a creator-led app better than a classic newspaper look. Switching direction changes only `activeDirection` in `src/values.ts` and which typeface `lib/fonts.ts` preloads.
