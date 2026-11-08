@@ -276,8 +276,9 @@ Production is a twin of staging: the same services, versions, region and setting
 
 - **Order:**
   - **Google first.**
-  - **Apple and email codes before the iPhone build.** Email codes are a code sent by email, with no passwords and no links to click, so they work the same in the browser and in the app.
-  - **The app's native Google and Apple sign-in come with the app builds:** an Android sign-in client in Google Cloud with the app's signing fingerprint (SHA-1, for the test and the release builds), and an iOS client. Their client IDs join the web client in Supabase (`external_google_additional_client_ids`).
+  - **Then email codes on the website (PLAN.md step 1.6a).** Email codes are a code sent by email, with no passwords and no links to click, so they work the same in the browser and in the app.
+  - **The app's sign-in (step 1.6b, app only):** native Google sign-in through an Android sign-in client in Google Cloud with the app's signing fingerprint (SHA-1, for the test and the release builds), and the same email codes. Its client ID joins the web client in Supabase (`external_google_additional_client_ids`).
+  - **Sign in with Apple with the iPhone build (step 4.3),** in the app and on the website, so an account made with Apple works on both; the iOS Google client joins then too (founder's decision, 8 November 2026).
 - **Settings kept in the repo:** `infra/supabase/auth/` holds every Supabase Auth setting and the email template. `apply.py` applies them and reads them back: staging by Claude Code, production only by the release pipeline (runbook Part 10). Only the addresses and the keys differ between the two.
 - **Addresses:** each environment has one site address, and redirects are allowed only to its own addresses. Any other address falls back to the site address.
 

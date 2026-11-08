@@ -2,7 +2,7 @@
 
 > This is the single plan for the whole product. Claude Code keeps it current: it turns the order of work below into GitHub milestones, and at the end of every session it updates the three status files and rewrites the thinking-project briefs. Nobody maintains this file by hand. Changes to the plan go through Claude Code, like any other change.
 
-Last agreed: 5 November 2026
+Last agreed: 8 November 2026
 
 ---
 
@@ -21,9 +21,18 @@ Most people now get their news first from creators on social media (posts, memes
 | What's on it | News and social | News and markets |
 | Money | No bets and no play money | Play money only |
 | Paid tier (version one) | Subscriptions through RevenueCat | Subscriptions through Razorpay (with UPI), passed through our server |
-| Platforms | Android first, then iPhone (both prepared in parallel) | Web, designed to work well on phones |
+| Platforms | Android and iPhone from the same app code; Android released first | Web, designed to work well on phones; built one stage ahead of the app |
 | Login | One shared account across both | One shared account across both |
 | Language | English | English |
+
+### The website and the app, built in parallel (founder's decision, 8 November 2026)
+
+The website and the app are built at the same time, with the website one stage ahead.
+
+- **Every news feature reaches both surfaces** from one back end, one contract (the typed API that both use) and one phone-first design. Its screen stage splits in two, the website screen and the app screen, built at the same time in separate worktrees. The join (the screens wired to the real back end) happens on the website first, then in the app. [TRACKER.md](TRACKER.md) shows each news feature's stages.
+- **App only:** notifications (step 2.5), the app's sign-in (step 1.6b), the store builds and the closed test (steps 2.6, 4.3 and 4.5).
+- **Website only:** the markets track (steps 3.1 to 3.4).
+- **Android and iPhone come from the same app code.** Android is released first; the iPhone adds only Sign in with Apple and Apple's review (step 4.3).
 
 ### News: the hook, and most of the effort
 
@@ -60,7 +69,7 @@ Most people now get their news first from creators on social media (posts, memes
 - **One codebase, two apps:** the app is built with Expo (React Native) and the website with Next.js, in one codebase that shares code between them.
 - **One typed API** that both the app and the website use.
 - **Live updates** (market prices, new posts) through Supabase Realtime.
-- **Sign-in (decided 3 November 2026):** Supabase Auth for the website and the app, so one account works on both. Google first. Apple and email codes (a code sent by email, no passwords) come before the iPhone build. The app's own native Google and Apple sign-in, including its Android sign-in client and the app's signing fingerprint, come with the app builds.
+- **Sign-in (decided 3 November 2026):** Supabase Auth for the website and the app, so one account works on both. Google first. The website's sign-in (step 1.6a): Google, then email codes (a code sent by email, no passwords). The app's sign-in (step 1.6b): its own native Google sign-in, including its Android sign-in client and the app's signing fingerprint, and the same email codes. Sign in with Apple comes with the iPhone (step 4.3), in the app and on the website, so an account made with Apple works on both.
 - **Search from day one,** starting with the database's own text search.
 - **Shared links open the app** if it's installed (Android App Links and iOS Universal Links).
 - **Core journeys are tested automatically:** Playwright for the website, Maestro for the app.
@@ -111,6 +120,7 @@ Most people now get their news first from creators on social media (posts, memes
 - **Production** runs on the same platforms as staging: Vercel plus Supabase, set up exactly like staging (same services, versions, region and settings), with its own data and keys. This "production twin" is created as soon as staging works, with nothing public until launch, so going live is a promotion, not a migration. The founder holds the production keys, and production starts clean.
 - **Releasing** means promoting the exact production build of a commit that passed staging (`vercel promote`), through the release pipeline. Nothing is rebuilt, and going back is one step too.
 - **Production is off-limits to the AI:** Claude Code never reads, holds or uses production keys. Production is changed only by the release pipeline, which gets its own production credentials in the production twin (runbook Part 10).
+- **How a news feature is built** (founder's decision, 8 November 2026): in stages, tracked in [TRACKER.md](TRACKER.md). One phone-first design, then one contract (the typed API), then the back end. Then the screen stage splits in two: the website screen and the app screen, built at the same time in separate worktrees (each its own Claude Code session, branch and pull request), both against the contract and its example data. The join comes next, on the website first, then in the app, so the website stays one stage ahead. A feature is done when it works on both. Claude Code moves each feature's stages in TRACKER.md in the pull request that finishes them.
 - **Phone first.** Every screen is checked at phone, tablet, laptop and large-monitor sizes.
 - **Fast from day one.** Every page and screen is built to load fast and stay fast: caching in layers (device, edge, server, Upstash Redis, database), and a performance budget checked automatically on every pull request and measured on real users once live. Performance is part of "done", never a later fix. The full rules are in the blueprint, "Production quality".
 - **Design** starts from references (Mobbin and the founder's own) and is built with shadcn/ui and Claude Design.
@@ -156,7 +166,7 @@ No time estimates, only order. **Needs** means it must be finished first.
 
 ### Phase 1: Foundations (three projects working in parallel)
 
-Steps 0.4, 0.7 and 0.8 moved here from Phase 0 on 4 November 2026, keeping their numbers. Step 0.7 signs off in two halves, each with its own status, Draft and then Agreed (decided 5 November 2026). Product builds against the agreement's first half (its shapes and example data), not against the other projects' output.
+Steps 0.4, 0.7 and 0.8 moved here from Phase 0 on 4 November 2026, keeping their numbers. Step 0.7 signs off in two halves, each with its own status, Draft and then Agreed (decided 5 November 2026). Product builds against the agreement's first half (its shapes and example data), not against the other projects' output. Step 1.6 split into 1.6a (the website's sign-in) and 1.6b (the app's) on 8 November 2026, and Sign in with Apple moved to the iPhone build (4.3).
 
 | # | Activity | Who | Needs | Done when |
 |---|---|---|---|---|
@@ -167,30 +177,33 @@ Steps 0.4, 0.7 and 0.8 moved here from Phase 0 on 4 November 2026, keeping their
 | 1.1 | News pipeline, first version: Grok bots read X on a schedule, find news and creators' takes on stories, and send results in the agreed format; our pipeline receives them automatically, by the route 0.8 chose, keeps what passes its checks in the sourced pool, writes updates from the news, groups them into stories with timelines, tags location and category, and saves them to the content store | Sourcing | 0.7 (both halves), 0.8 | Stories appear and update on their own on staging, and the takes the bots find wait in the sourced pool, each linked to its story |
 | 1.2 | Data sources for the markets: prices (Bitcoin, including a live price every few seconds for perps; gold or oil), scores (cricket, football), an AI model ranking, with their costs | Product (founder's decision, 5 November 2026) | — | Every market subject has a named source |
 | 1.3 | Content formats, then the first batch of our own content for the launch categories, made from the sourced pool; a list of creators to invite | News Desk (on hold until the founder sets it up) | 0.7 (first half); 1.1, for the first batch | Enough content to fill the feeds in the launch categories |
-| 1.4 | Design: references, then the design system, then the core screens (board, story page, feed, app frame, market page), drawn from the agreement's shapes and example data | Product, in Claude Design | 0.7 (first half), for the core screens | Design system approved and screens handed to Claude Code |
+| 1.4 | Design: references, then the design system, then the core screens (board, story page, feed, app frame, market page), drawn from the agreement's shapes and example data. One phone-first design serves both the website and the app | Product, in Claude Design | 0.7 (first half), for the core screens | Design system approved and screens handed to Claude Code |
 | 1.5 | Set up the one codebase (Expo app and Next.js website sharing code, with one typed API) and get a first empty app running on an Android phone. Before any page or screen is built in code, add the checks every pull request runs on them: the performance budget (blueprint section 14) and the core-journey tests (Playwright for the website; Maestro for the app, at phone and tablet sizes). The first database migration locks every new table (row-level security on automatically), and a check on every pull request fails if any table is unprotected (approved 3 November 2026) | Product | 0.6 | The website runs on staging, the app opens on a phone, and every pull request checks the performance budget and the core journeys of every page and screen that exists |
-| 1.6 | Accounts and login with Supabase Auth: Google first; Apple and email codes before the iPhone build; the app's native Google and Apple sign-in with the app builds | Product | 0.6, 1.5 | Sign-in works on the web and on Android |
+| 1.6a | The website's sign-in with Supabase Auth: Google first (working on staging), then email codes with the bot check (Turnstile) | Product | 0.6, 1.5 | Google and email-code sign-in work on the website |
+| 1.6b | The app's sign-in (app only): native Google sign-in, with its Android sign-in client and the app's signing fingerprint, and email codes with the bot check, on the same accounts as the website | Product | 1.5, 1.6a | Sign-in works in the Android app, and the same account works on the website |
 | 1.7 | Copy the market engine from Manifold, with its tests (licence confirmed first) | Product | 0.6, 0.7 (first half) | A market can be created, traded and settled on staging |
 
-### Phase 2: The news app (most of the effort)
+### Phase 2: News, on the website and in the app (most of the effort)
+
+Steps 2.1 to 2.4 and 2.7 reach both surfaces, each through the stages in [TRACKER.md](TRACKER.md): design, contract, back end, then the website screen and the app screen at the same time, then the join on the website, then in the app (section 3). Steps 2.5 and 2.6 are app only (founder's decision, 8 November 2026).
 
 | # | Activity | Who | Needs | Done when |
 |---|---|---|---|---|
-| 2.1 | Board: Latest, Top and For You; location and general categories; favourites and bookmarks | Product | 0.7 (first half), 1.4, 1.5 | A reader can browse and shape their board |
-| 2.2 | Story pages with timelines | Product | 0.7 (first half), 1.4, 1.5 | Every story shows how it developed |
-| 2.3 | Feed and ranking, version one: takes from all three routes, each credited by its route (found posts embedded from X); picks, views, categories, follows; likes and dislikes; following creators | Product | 0.7 (first half), 1.5, 2.1 | The feed shows takes from all three routes on the stories a reader chose, each credited by its route |
-| 2.4 | Posting (the posted route): text for everyone; creator accounts with image and video uploads; reporting posts and blocking users | Product | 0.7 (first half), 1.5, 1.6 | Users post text, creators post media, and any post can be reported |
-| 2.5 | Notifications for breaking and developing stories | Product | 1.5, 2.2 | Alerts arrive on an Android phone |
-| 2.6 | Android build of everything above; start the Google Play closed test as soon as the build is usable. This is where real people first see real news, so it needs the news pipeline and our own content | Product, Founder | 1.1, 1.3, 2.1–2.5 | A closed test is running with 12 or more real testers |
-| 2.7 | Paid tier: decide what's free and what's paid, then build subscriptions (RevenueCat in the app; Razorpay with UPI on the website, passed through our server). It follows the closed test's start, so the Google Play clock isn't held up | Product, Founder | 1.5, 1.6 | A tester can subscribe in the Android app and on the website, and both show the same paid status |
+| 2.1 | Board: Latest, Top and For You; location and general categories; favourites and bookmarks | Product | 0.7 (first half), 1.4, 1.5 | A reader can browse and shape their board, on the website and in the app |
+| 2.2 | Story pages with timelines | Product | 0.7 (first half), 1.4, 1.5 | Every story shows how it developed, on the website and in the app |
+| 2.3 | Feed and ranking, version one: takes from all three routes, each credited by its route (found posts embedded from X); picks, views, categories, follows; likes and dislikes; following creators | Product | 0.7 (first half), 1.5, 2.1 | The feed shows takes from all three routes on the stories a reader chose, each credited by its route, on the website and in the app |
+| 2.4 | Posting (the posted route): text for everyone; creator accounts with image and video uploads; reporting posts and blocking users | Product | 0.7 (first half), 1.5, 1.6a; 1.6b for the app | Users post text, creators post media, and any post can be reported, on the website and in the app |
+| 2.5 | Notifications for breaking and developing stories (app only) | Product | 1.5, 2.2 | Alerts arrive on an Android phone |
+| 2.6 | The Android store build of everything above (app only: the app's screens are built with each feature); start the Google Play closed test as soon as the build is usable. This is where real people first see real news, so it needs the news pipeline and our own content | Product, Founder | 1.1, 1.3, 2.1–2.5 | A closed test is running with 12 or more real testers |
+| 2.7 | Paid tier: decide what's free and what's paid, then build subscriptions (RevenueCat in the app; Razorpay with UPI on the website, passed through our server). It follows the closed test's start, so the Google Play clock isn't held up | Product, Founder | 1.5, 1.6a, 1.6b | A tester can subscribe in the Android app and on the website, and both show the same paid status |
 
-### Phase 3: The markets website (runs alongside the second half of Phase 2)
+### Phase 3: The markets website (website only; runs alongside the second half of Phase 2)
 
 | # | Activity | Who | Needs | Done when |
 |---|---|---|---|---|
 | 3.1 | Market pages in Kalshi's layout with our own look; a starting balance on signup | Product | 1.4, 1.5, 1.7 | A new visitor can sign in and place a bet in a few taps |
 | 3.2 | Markets that run continuously and settle themselves from the data sources; questions refined | Product | 1.2, 1.7 | Markets open, run and settle with no one touching them |
-| 3.3 | News on the website, linked to markets through shared categories | Product | 1.5, 2.1, 3.1 | A visitor can move between a market and its news |
+| 3.3 | Link markets and the website's news (built in Phase 2) through shared categories | Product | 1.5, 2.1, 3.1 | A visitor can move between a market and its news |
 | 3.4 | Perps: one Bitcoin perp in play money, built on Manifold's perps maths with its tests, with a new price and a liquidation check every few seconds through Supabase Cron, the starting rules (10 times leverage at most, filling at the next price, an opening fee, an off switch) and the rule-change log (founder's decision, 8 November 2026) | Product | 1.2, 1.7, 3.1 | A visitor can open and close a Bitcoin perp; orders fill within seconds; liquidations and funding run with no one touching them; every rule change is in the log |
 
 ### Phase 4: Polish and launch preparation
@@ -199,7 +212,7 @@ Steps 0.4, 0.7 and 0.8 moved here from Phase 0 on 4 November 2026, keeping their
 |---|---|---|---|---|
 | 4.1 | Every screen checked at four sizes; full test suite on risky areas; security review | Product | Phases 2 and 3 | Nothing blocking launch |
 | 4.2 | Privacy policy and terms of use; reporting and blocking confirmed (both required by the app stores) | Founder, Product | 2.4 | Both published and linked inside the app |
-| 4.3 | iPhone build with Sign in with Apple; testing through TestFlight; App Store review | Product, Founder | 1.6, Phase 2 | iPhone app approved |
+| 4.3 | iPhone build from the same app code: it adds only Sign in with Apple (in the app, and on the website so the same account works there) and Apple's review, through TestFlight and the App Store (founder's decision, 8 November 2026) | Product, Founder | 0.4, 1.6b, Phase 2 | iPhone app approved |
 | 4.4 | Creators onboarded through creator accounts; our own content loaded | News Desk (on hold until the founder sets it up), Founder | 1.3, 2.4 | Feeds are full in every launch category |
 | 4.5 | Google Play: finish the closed test, then apply for production access | Founder | 2.6 | Production access granted |
 
@@ -229,7 +242,7 @@ Steps 0.4, 0.7 and 0.8 moved here from Phase 0 on 4 November 2026, keeping their
 - Confirm that the chosen Grok product's terms allow its results to feed a public app (step 0.8)
 - The data sources for the markets, with their costs, and gold or oil (step 1.2, decided in the Product project)
 - Background jobs: which tool runs scheduled and queued work (decided in the Sourcing project); it must cover perps' jobs every few seconds (step 3.4)
-- How the app shows the bot check (Turnstile) on its email-code screen (step 1.6)
+- How the app shows the bot check (Turnstile) on its email-code screen (step 1.6b)
 - Feed design in depth, including how found posts are embedded from X and how each route is credited (step 2.3)
 - Exact market questions (step 3.2)
 - Paid tier: what's free and what's paid (decided before the paywall is built, step 2.7)
