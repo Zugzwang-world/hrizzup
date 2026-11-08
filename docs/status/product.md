@@ -38,6 +38,12 @@ Last updated: 8 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/brie
   - a rule-change log from the first day; a dashboard waits for the admin page; an invited test group waits for the invite system, decided later;
   - step 1.2 now includes a live Bitcoin price every few seconds.
 
+- **The website and the app are built in parallel, the website one stage ahead: the founder's decision of 8 November 2026** (PLAN.md sections 2, 3 and 5; [TRACKER.md](../../TRACKER.md), new):
+  - every news feature (2.1 to 2.4, and the paid tier 2.7) reaches both surfaces from one back end, one contract (the typed API) and one phone-first design. Its stages: design, contract, back end, then the website screen and the app screen at the same time in separate worktrees, then the join on the website, then in the app. TRACKER.md shows each feature's stages; all are not started;
+  - app only: notifications (2.5), the app's sign-in (1.6b), the store builds and the closed test (2.6, 4.3, 4.5). Website only: the markets track (3.1 to 3.4); step 3.3 now only links markets to the news the website already has;
+  - step 1.6 split in two: 1.6a, the website's sign-in (Google, then email codes); 1.6b, the app's (native Google sign-in and email codes, same accounts);
+  - Android and iPhone come from the same app code; Android is released first, and the iPhone (4.3) adds only Sign in with Apple, in the app and on the website, and Apple's review. The blueprint's sign-in order (section 9) follows.
+
 ## Next
 
 1. **Sign off the agreement's first half:** Sourcing reviews this version (with the sourced item and the routes) and agrees it or asks for changes, which Product makes; then the founder approves it in News Desk's place. It becomes Agreed only in a change the founder asks for.
@@ -45,8 +51,8 @@ Last updated: 8 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/brie
 3. **Design (step 1.4):** references and the design system (shadcn/ui, Claude Design) can start now; the core screens (board, story page, feed, app frame, market page) are drawn from the agreement's shapes and example data, the feed's three routes and their credits among them.
 4. **The rest of step 1.5, before any page or screen is built in code:** the performance-budget check (Lighthouse and download size against each preview; the app's code size and performance tests) and the core-journey tests (Playwright for the website; Maestro for the app, at phone and tablet sizes), covering today's pages and Google sign-in when they land; then the one typed API and the empty app running on an Android phone.
 5. **Review the agreement's second half** once Sourcing designs it (after step 0.8).
-6. **Accounts and login (step 1.6, needs 1.5):** email codes on the website (with the Turnstile widget), then Apple; the app's native sign-in with the app builds.
-7. **Market engine (step 1.7, needs the agreement's first half):** copy Manifold's maths with its tests as [docs/research/manifold.md](../research/manifold.md) sets out, with our own tables, trade transactions and ledger; then Phases 2 and 3 in the order in PLAN.md section 5; step 3.2 settles markets from step 1.2's sources through Product's data job, and step 3.4 adds the Bitcoin perp.
+6. **Sign-in:** the website's email codes, with the Turnstile widget (step 1.6a, needs 1.5); then the app's native Google sign-in and email codes (step 1.6b). Sign in with Apple waits for the iPhone build (4.3).
+7. **Market engine (step 1.7, needs the agreement's first half):** copy Manifold's maths with its tests as [docs/research/manifold.md](../research/manifold.md) sets out, with our own tables, trade transactions and ledger; then Phases 2 and 3 in the order in PLAN.md section 5, each news feature through its stages in TRACKER.md; step 3.2 settles markets from step 1.2's sources through Product's data job, and step 3.4 adds the Bitcoin perp.
 
 ## Open questions
 
@@ -58,8 +64,8 @@ Last updated: 8 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/brie
 - How live scores reach the screen faster than once a minute, if the job runner can't poll more often (steps 1.2 and 3.2).
 - Paid tier: what's free and what's paid? Decided before the paywall is built (step 2.7).
 - Comment threads: in or out?
-- **How the app shows the bot check on its email-code screen** (step 1.6): Turnstile is on in Supabase Auth, so the app needs the widget too, usually inside a small web view.
-- **Blocking password sign-in** (step 1.6): Supabase can't switch passwords off while email codes are on. The plan is a small database function (Supabase's password hook) that refuses every password sign-in; check whether it needs a plan above Pro before building it. Strict password rules are on until then.
+- **How the app shows the bot check on its email-code screen** (step 1.6b): Turnstile is on in Supabase Auth, so the app needs the widget too, usually inside a small web view.
+- **Blocking password sign-in** (step 1.6a): Supabase can't switch passwords off while email codes are on. The plan is a small database function (Supabase's password hook) that refuses every password sign-in; check whether it needs a plan above Pro before building it. Strict password rules are on until then.
 - **For the founder: background jobs.** The Sourcing project chooses the tool for the whole product, and Product's data job, settlement and image processing run on it too. Should Product review that choice?
 - **For the founder: the Android closed test (step 2.6) needs News Desk's first content (1.3),** so News Desk's hold could hold up Google Play's 14-day clock. Should the closed test start without our own content?
 
