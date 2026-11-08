@@ -2,6 +2,7 @@
   "expo": {
     "name": "Hrizzup",
     "slug": "hrizzup",
+    "owner": "hrizzups-team",
     "scheme": "hrizzup",
     "version": "0.1.0",
     "orientation": "default",
@@ -9,6 +10,9 @@
     "android": { "package": "com.hrizzup.app" },
     "ios": { "bundleIdentifier": "com.hrizzup.app", "supportsTablet": true },
     "plugins": ["expo-router"],
-    "experiments": { "typedRoutes": true }
+    "experiments": { "typedRoutes": true },
+    "extra": {
+      "eas": { "projectId": "0895fd14-de7a-4ce2-a6a3-b6bf070db8ea" }
+    }
   }
 }

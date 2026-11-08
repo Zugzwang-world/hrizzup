@@ -18,4 +18,16 @@
 - One codebase for both (decided 3 November 2026, PLAN.md step 1.5): pnpm workspaces with Turborepo, the Next.js website in `web/`, the Expo app in `app/`, and the code they share in `packages/`. The tools are listed in CLAUDE.md, "Codebase".
 - Projects never copy code between each other; this shared repository is the only route.
 
+## The app's builds (PLAN.md step 1.5d)
+
+Built in Expo's cloud (EAS Build, free plan) for the project `@hrizzups-team/hrizzup`, with Claude Code's robot token (`EXPO_TOKEN`, never shown; where it lives: runbook Part 4). Never Expo Go. Both builds call staging's typed API (`product/app/eas.json`).
+
+- **Preview build** (an APK with its code inside, which opens on its own; what people install from its link):
+
+  ```sh
+  infra/doppler/run stg -- pnpm --dir product/app dlx eas-cli@27.4.1 build --platform android --profile preview --non-interactive
+  ```
+- **Development build** (Expo's development client, for sessions at the Mac): the same with `--profile development`, then `pnpm --filter @hrizzup/app start --dev-client` with the phone on the Mac's Wi-Fi.
+- Once runbook step 4.6 has moved the token, use `infra/doppler/run tools` instead of `stg`.
+
 Status: [docs/status/product.md](../docs/status/product.md). Brief: [docs/brief/product.md](../docs/brief/product.md). Plan: [PLAN.md](../PLAN.md), section 4.

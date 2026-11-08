@@ -1,0 +1,26 @@
+{
+  "cli": {
+    "version": ">= 27.4.1",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "base": {
+      "node": "24.21.0",
+      "pnpm": "11.28.9",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://staging.hrizzup.com/api/v1"
+      }
+    },
+    "preview": {
+      "extends": "base",
+      "distribution": "internal",
+      "android": { "buildType": "apk" }
+    },
+    "development": {
+      "extends": "base",
+      "developmentClient": true,
+      "distribution": "internal",
+      "android": { "buildType": "apk" }
+    }
+  }
+}
