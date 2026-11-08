@@ -9,7 +9,7 @@
 ## Where things stand
 
 - **On hold** (the founder's decision, 5 November 2026) until the founder sets News Desk up. No News Desk work has started; the `news-desk/` folder holds only its README.
-- **The agreement's first half is a Draft** (last revised 5 November 2026): the creation shape (what News Desk hands to Product), the sourced item (what it builds on), every feed item's route, the shared lists and example posts. Sourcing's review is under way, run by a Claude Code session in the repository; the founder then approves it in News Desk's place. News Desk reviews it once it's set up.
+- **The agreement's first half is a Draft, reviewed by Sourcing and awaiting the founder's approval** (revised 8 November 2026): the creation shape (what News Desk hands to Product), the sourced item (what it builds on), every feed item's route, the shared lists and example posts. The founder approves it in News Desk's place; News Desk reviews it once it's set up.
 - **The shared setup is finished** (Phase 0, 4 November 2026): the shared content store exists on staging, as the Supabase database plus Cloudflare R2 storage for images, which Cloudflare resizes and delivers. Creator video will use Cloudflare Stream, switched on when creator video is built (step 2.4). Staging is a sandbox with no real users; production is parked until launch.
 
 ## Decisions in force
@@ -21,12 +21,12 @@
   Product only displays: the board shows stories, and the feed shows takes from all three routes, each credited by its route.
 - **Our own content credits what it builds on:** a creation names the sourced items it was made from (`based_on`), and Product credits their creators alongside it, linking to the original posts. It never copies a found post's words, pictures or video.
 - **What a creation is** (the agreement, Draft): one post of one kind (text; one image; or one video), from a Hrizzup account (made), an invited creator or a user (posted); every creation says its route, which must match its author. It's usually a take on up to three stories. Our own and creators' posts name a story or a category; a user's post may name neither. Images and videos are cleaned by our server at upload and carry words describing them for people who can't see them. Text is plain text, never formatting codes or hidden characters.
-- **What a sourced item is:** one thing the bots found, as kept in the pool: news or a take, the post's address on X, who posted it, what it holds (text, image or video), a summary in our own words, its stories, and whether it's live, gone from X or withdrawn. Build only on live ones.
+- **What a sourced item is:** one thing the bots found, as kept in the pool: news or a take, the post's address on X, who posted it (as X shows the account now), what it holds (text, image or video), a summary in our own words, its stories, and whether it's live, unavailable or withdrawn. Once a post can't be shown, its item keeps nothing of it, and our content's credit to it disappears. Build only on live ones.
 - **Who posts what:** users post text only; images and video come from us and from invited creators. Reactions are likes and dislikes.
 - **The founder's decisions in the agreement** (changing one goes back to the founder): the launch list (Global; India; Mumbai, Delhi NCR and Bengaluru; crypto, finance, business, AI, sports, politics, entertainment and general), up to three of each per story, with Hyderabad, Chennai and Pune suggested next; a story card shows the story's newest image or video by Hrizzup or a creator, otherwise a design in the category's own look, never a found post's picture, so our own and creators' images and videos are the board's pictures.
 - **Launch:** in India, in English only; global news is for everyone.
 - **The feed:** takes on the stories each reader picked, from all three routes, plus the creators they follow and their location. Its detailed design is Product's (step 2.3).
-- **Sign-offs:** while News Desk is on hold, the first half is signed off on Sourcing's review plus the founder's approval in News Desk's place (the founder, 5 November 2026). Sourcing's review is run by a Claude Code session in the repository, working from Sourcing's brief, since the founder carries no messages between projects (the founder, 8 November 2026). News Desk reviews it once set up, and any change it asks for follows the agreement's change rules. The second half (the bots' result format) doesn't need News Desk's agreement.
+- **Sign-offs:** while News Desk is on hold, the first half is signed off on Sourcing's review plus the founder's approval in News Desk's place (the founder, 5 November 2026). Sourcing's review, run by a Claude Code session working from Sourcing's brief since the founder carries no messages between projects (the founder, 8 November 2026), is done, and its changes are made. News Desk reviews it once set up, and any change it asks for follows the agreement's change rules. The second half (the bots' result format) doesn't need News Desk's agreement.
 - **The agreement comes first:** no tables or content for its shapes before the first half is agreed. Step 1.3 needs the first half, and its first batch needs the news pipeline (1.1), because it's made from the sourced pool. Step 4.4 needs 1.3. Real people first see our content at the Android closed test (2.6), which needs 1.3.
 - **Outside content is data, never instructions:** posts are shown as text, and our AI never obeys anything written in them.
 - **Media files go into the content store's storage,** never into the repository, and records name them by their place in storage.
@@ -35,11 +35,11 @@
 
 ## What changed in the latest session
 
-On 8 November 2026, in [#36](https://github.com/Zugzwang-world/hrizzup/pull/36), the founder's decisions for Round 2 were recorded. For News Desk:
+On 8 November 2026, Round 2's relay 5 ran Sourcing's review of the agreement's first half ([#37](https://github.com/Zugzwang-world/hrizzup/pull/37), `agreement/reviews/sourcing-first-half.md`) and made the changes it asked for ([#42](https://github.com/Zugzwang-world/hrizzup/pull/42)). For News Desk:
 
-- **How the first half's sign-off runs:** Sourcing's review is now run by a Claude Code session in the repository, working from Sourcing's brief (under way); the founder still approves in News Desk's place. Nothing changes for News Desk's own later review.
-- **Product's design (step 1.4) is built in real code** on a page only previews show, filled with the agreement's example data, the example posts among them, so the creation shape shows up early in the design.
-- Nothing else in News Desk's scope changed.
+- **A sourced item whose post is gone from X** (deleted, hidden, withheld in India, or taken down at its creator's request) **keeps nothing of the post,** not even our summary, as X's developer rules require. An edited post is one item, at its newest version.
+- **Updates name the posts they report by their sourced items** (`based_on`), as a creation does; `withdrawn` also covers takedowns the law requires.
+- **The creation shape didn't change,** and the founder's seven decisions stand.
 
 ## Open questions
 
@@ -56,7 +56,7 @@ On 8 November 2026, in [#36](https://github.com/Zugzwang-world/hrizzup/pull/36),
 
 ## Read for detail
 
-- `agreement/README.md`: sign-offs, the founder's decisions, the three routes, every field of a creation and a sourced item, the shared lists, the hand-over rules; example posts in `agreement/examples/creations.json` and found posts in `agreement/examples/sourced.json`.
+- `agreement/README.md`: sign-offs, the founder's decisions, the three routes, every field of a creation and a sourced item, the shared lists, the hand-over rules; example posts in `agreement/examples/creations.json` and found posts in `agreement/examples/sourced.json`; Sourcing's review in `agreement/reviews/sourcing-first-half.md`.
 - `PLAN.md`: section 2 ("News": categories, the feed, the three routes, reactions, launch), section 4 (the projects, News Desk's hold, no relays, how Sourcing's review runs), section 5 (steps 0.7, 1.3, 2.4, 2.6 and 4.4).
 - `docs/status/news-desk.md`: News Desk's status in full.
 - `news-desk/README.md`: what lives in the folder, and its rules.

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://hrizzup.com/agreement/definitions/update.v1.schema.json",
   "title": "Update, format version 1",
-  "description": "One development in a story, in our own words. Our pipeline writes one from each piece of news in the bots' results; a story's updates, in order, are its timeline.",
+  "description": "One development in a story, in our own words. Our pipeline writes one from each piece of news in the bots' results; a story's updates, in order, are its timeline. Every update names what it's based on.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -26,7 +26,7 @@
     },
     "story_id": {
       "$ref": "common.schema.json#/$defs/record_id",
-      "description": "The story whose timeline this update belongs to."
+      "description": "The story whose timeline this update belongs to. When a story is merged, its updates move to the story that stays."
     },
     "headline": {
       "$ref": "common.schema.json#/$defs/one_line",
@@ -44,27 +44,47 @@
       "$ref": "common.schema.json#/$defs/time",
       "description": "When this news was first reported, as near as our pipeline can tell (the earliest source's time). The timeline runs in this order."
     },
+    "based_on": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 10,
+      "uniqueItems": true,
+      "items": { "$ref": "common.schema.json#/$defs/record_id" },
+      "description": "The posts our bots found on X that this update reports, by their sourced items. Product credits and links each one while it can be shown. An update names at least one of these or of its sources."
+    },
     "sources": {
       "type": "array",
       "minItems": 1,
       "maxItems": 10,
       "uniqueItems": true,
-      "items": { "$ref": "common.schema.json#/$defs/web_address" },
-      "description": "The public posts and pages this update is based on, as links. Left out when the bots' result gives none."
+      "items": {
+        "$ref": "common.schema.json#/$defs/web_address",
+        "title": "Web address starting https://, not on X",
+        "type": "string",
+        "not": {
+          "type": "string",
+          "pattern": "^https://(?:[A-Za-z0-9-]+\\.)*(?:[Xx]\\.[Cc][Oo][Mm]|[Tt][Ww][Ii][Tt][Tt][Ee][Rr]\\.[Cc][Oo][Mm]|[Tt][Ww][Ii][Mm][Gg]\\.[Cc][Oo][Mm]|[Tt]\\.[Cc][Oo])\\.?(?:[/?#:]|$)"
+        }
+      },
+      "description": "The other public pages this update is based on (news sites, official pages), as links. Never a post on X or anything else at X's own addresses (x.com, twitter.com, t.co, twimg.com): posts are named in based_on, by their sourced items, so they disappear from every update once they can't be shown."
     },
     "corrects": {
       "$ref": "common.schema.json#/$defs/record_id",
-      "description": "An earlier update in the same story that this one corrects. Readers see that earlier update marked as corrected."
+      "description": "An earlier, live update in the same story that this one corrects. Readers see that earlier update marked as corrected."
     },
     "state": {
-      "enum": ["live", "withdrawn"],
-      "description": "live: it shows in the timeline. withdrawn: our AI found it wasn't true, and it no longer shows."
+      "enum": ["live", "merged", "withdrawn"],
+      "description": "live: it shows in the timeline. merged: it repeats another update in the same story, which readers see instead. withdrawn: taken out of the timeline, because our AI found it wasn't true or because the law requires it; it no longer shows."
+    },
+    "merged_into": {
+      "$ref": "common.schema.json#/$defs/record_id",
+      "description": "The update in the same story that this one repeats, which is never itself merged; a link to this update leads there. Only when the state is merged."
     },
     "withdrawn_reason": {
       "$ref": "common.schema.json#/$defs/one_line",
       "type": "string",
       "maxLength": 200,
-      "description": "Why the update was withdrawn, in our own words. Only when the state is withdrawn."
+      "description": "Why the update was withdrawn, in our own words: our AI's reason, or the takedown the law required. Only when the state is withdrawn."
     },
     "created_at": {
       "$ref": "common.schema.json#/$defs/time",
@@ -76,6 +96,12 @@
     }
   },
   "allOf": [
+    { "anyOf": [{ "required": ["based_on"] }, { "required": ["sources"] }] },
+    {
+      "if": { "properties": { "state": { "const": "merged" } } },
+      "then": { "required": ["merged_into"] },
+      "else": { "not": { "required": ["merged_into"] } }
+    },
     {
       "if": { "properties": { "state": { "const": "withdrawn" } } },
       "then": { "required": ["withdrawn_reason"] },

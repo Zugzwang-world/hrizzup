@@ -1,6 +1,8 @@
 # Sourcing's review of the agreement's first half
 
 > Written 8 November 2026 by Claude Code, reviewing as the Sourcing project: the project whose pipeline must write stories, updates and sourced items in these shapes (Round 2, relay 5). Product drafted the first half. Every finding is marked **blocking**, **change** or **note**, with the change proposed. The changes are made under the agreement's own rules in a second pull request; the founder then approves the first half in News Desk's place, through the Product chat. If anything here disagrees with PLAN.md, PLAN.md wins.
+>
+> **The changes were made the same day,** in [#42](https://github.com/Zugzwang-world/hrizzup/pull/42): every finding below, R1 to R11, is in the definitions, the examples, the check or the README.
 
 ## In short
 

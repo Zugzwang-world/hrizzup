@@ -6,12 +6,12 @@
 
 | Half | What it covers | Status | Sign-off record |
 |---|---|---|---|
-| First half | The shapes of a story, an update, a sourced item, a creation and a market, with the data readings that settle markets; every feed item's route; the shared lists, including the launch list of locations and categories; the rules for every hand-over point | **Draft** (revised 5 November 2026) | Drafted by Product (Claude Code), 5 November 2026. Founder: the launch list and the other decisions below approved, each as recommended, 5 November 2026. **Changed after those seven decisions,** on the founder's decisions later that day: the sourced item shape and every feed item's route (found, made or posted) were added, and data readings are now written by Product. The sign-offs below are for this version. Sourcing: not yet reviewed. News Desk: on hold until the founder sets it up, so the founder approves in its place (the founder's decision, 5 November 2026): not yet approved. News Desk reviews it once it's set up. |
+| First half | The shapes of a story, an update, a sourced item, a creation and a market, with the data readings that settle markets; every feed item's route; the shared lists, including the launch list of locations and categories; the rules for every hand-over point | **Draft:** reviewed by Sourcing, awaiting the founder's approval (revised 8 November 2026) | Drafted by Product (Claude Code), 5 November 2026. Founder: the launch list and the other decisions below approved, each as recommended, 5 November 2026. **Changed after those seven decisions,** on the founder's decisions later that day: the sourced item shape and every feed item's route (found, made or posted) were added, and data readings are now written by Product. **Sourcing: reviewed 8 November 2026** ([its review](reviews/sourcing-first-half.md), [#37](https://github.com/Zugzwang-world/hrizzup/pull/37)), by a Claude Code session working from Sourcing's brief: two blocking findings and nine changes, all made the same day ([#42](https://github.com/Zugzwang-world/hrizzup/pull/42)), leaving the founder's seven decisions as they were. **Sourcing agrees this version.** News Desk: on hold until the founder sets it up, so the founder approves in its place (the founder's decision, 5 November 2026): **not yet approved.** News Desk reviews it once it's set up. These sign-offs are for this version. |
 | Second half | The Grok bots' result format | **Not drafted** | Designed in the Sourcing project and reviewed by Product; News Desk doesn't need to agree it (the founder's decision, 5 November 2026). Drafted only once Sourcing has chosen the Grok product and the route to our pipeline (step 0.8). See the last section. |
 
 - **Each sign-off is recorded here, with its date, as it arrives. A half becomes Agreed only through a later change the founder asks for.** The first half is signed off once Sourcing has reviewed and agreed it and the founder has approved it in News Desk's place, while News Desk is on hold; Product drafted it. The founder carries no messages between projects, so Sourcing's review is run by a Claude Code session in this repository, working from Sourcing's brief (`docs/brief/sourcing.md`; the founder's decision, 8 November 2026). News Desk reviews it once the founder sets it up, and any change it asks for follows "Changing the agreement", below. The second half is signed off once Product has reviewed and agreed Sourcing's design. (All the founder's decisions, 5 November 2026.) Changes to this folder merge themselves once their checks pass, so a merged draft is still only a draft.
 - **Until the first half is Agreed,** no project creates database tables for its shapes or writes content in them, and nothing is loaded into any database. **Until the second half is Agreed,** no bot result becomes content.
-- **Next for the first half:** Sourcing reviews this version, with the sourced item and the routes (a Claude Code session, from Sourcing's brief), and agrees it or asks for changes, which Product makes; the founder then approves it in News Desk's place. A change to one of the founder's decisions ("The founder's decisions", below) goes back to the founder.
+- **Next for the first half:** the founder reads Sourcing's review (`reviews/sourcing-first-half.md`) and approves this version in News Desk's place, through the Product chat; it becomes Agreed only in a change the founder asks for. A change to one of the founder's decisions ("The founder's decisions", below) goes back to the founder.
 
 ## What this is
 
@@ -30,7 +30,7 @@ This agreement fixes exactly what each of those looks like when it passes betwee
 
 ## The founder's decisions
 
-The founder approved all seven on 5 November 2026, each as recommended, and they stand: the changes made since (the sourced item, the routes, and data readings moving to Product) leave every one of them as it was. Revisiting one is a change to this agreement, approved by the founder.
+The founder approved all seven on 5 November 2026, each as recommended, and they stand: the changes made since (the sourced item, the routes, data readings moving to Product, and the changes Sourcing's review asked for on 8 November) leave every one of them as it was. Revisiting one is a change to this agreement, approved by the founder.
 
 | # | Question | Decision | Why |
 |---|---|---|---|
@@ -165,8 +165,9 @@ Note: Gold or oil joins this list once PLAN.md step 1.2 decides which.
 
 **What it is:** a piece of news that develops over time, such as a cricket match, a court case or a city's smog. **Written by** Sourcing's pipeline, from the bots' results: it creates the story when the news first breaks, keeps its title and summary current, adds updates to its timeline, and tags it with locations and categories from the shared lists. **Read by** Product (the board, story pages, the feed and notifications) and News Desk (to choose stories to cover).
 
-- **Each run of the bots starts fresh,** so the pipeline matches new items to existing stories. When two stories turn out to be the same news, it merges one into the other: the duplicate's updates move to the story that stays, and the duplicate says where it went.
-- **When our AI finds a story wasn't true,** it withdraws it. Readers stop seeing it, and an old link shows the reason.
+- **Each run of the bots starts fresh,** so the pipeline matches new items to existing stories. When two stories turn out to be the same news, it merges one into the other: the duplicate's updates and sourced items move to the story that stays (which gains the duplicate's locations and categories where they still fit, three of each at most), and the duplicate says where it went.
+- **A merge is never a chain:** `merged_into` always names a story that isn't merged. When the story that stayed is merged in turn, the pipeline repoints every earlier duplicate. Anything else that names a merged story (a post, a bookmark, a notification) is read as naming the story it went into.
+- **When our AI finds a story wasn't true,** it withdraws it. Readers stop seeing it, and an old link shows the reason. A story is also withdrawn when the law requires it to come down (a court order or a valid legal notice): a person decides that, never our AI ("Rules for every hand-over point", below).
 
 <!-- generated: fields story/1 -->
 | Field | Required | What it means | What it holds |
@@ -177,9 +178,9 @@ Note: Gold or oil joins this list once PLAN.md step 1.2 decides which.
 | `summary` | Yes | What is happening, in one or two sentences of our own words. | Plain text, new lines allowed, up to 300 characters |
 | `locations` | Yes | Where the story matters, the main one first. The story shows under each of them, and under no other. | 1 to 3, each a location from the shared list, no repeats |
 | `categories` | Yes | What the story is about, the main one first. The story shows under each of them. | 1 to 3, each a category from the shared list, no repeats |
-| `state` | Yes | live: readers see it. merged: it turned out to be the same news as another story, which readers see instead. withdrawn: our AI found it wasn't true, and readers no longer see it. | `live`, `merged` or `withdrawn` |
-| `merged_into` | Depends | The story this one was merged into; its updates have moved there. Only when the state is merged. | Record ID (UUID version 7, lower case) |
-| `withdrawn_reason` | Depends | Why the story was withdrawn, in our own words, shown to anyone who opens an old link. Only when the state is withdrawn. | One line of plain text, up to 200 characters |
+| `state` | Yes | live: readers see it. merged: it turned out to be the same news as another story, which readers see instead. withdrawn: taken down, because our AI found it wasn't true or because the law requires it; readers no longer see it. | `live`, `merged` or `withdrawn` |
+| `merged_into` | Depends | The story this one was merged into, which is never itself merged: its updates and sourced items have moved there, and anything else that names this story is read as naming that one. Only when the state is merged. | Record ID (UUID version 7, lower case) |
+| `withdrawn_reason` | Depends | Why the story was withdrawn, in our own words (our AI's reason, or the takedown the law required), shown to anyone who opens an old link. Only when the state is withdrawn. | One line of plain text, up to 200 characters |
 | `created_at` | Yes | When our pipeline first wrote the story. | Time in UTC, like 2026-11-05T09:30:00Z |
 | `updated_at` | Yes | When anything about the story last changed, including a new update in its timeline. | Time in UTC, like 2026-11-05T09:30:00Z |
 <!-- end generated -->
@@ -210,22 +211,26 @@ Note: Gold or oil joins this list once PLAN.md step 1.2 decides which.
 
 **What it is:** one development in a story, in our own words. A story's updates, in the order they were first reported, are its timeline. **Written by** Sourcing's pipeline, one for each piece of news in the bots' results. **Read by** Product (story timelines and notifications) and News Desk.
 
+- **Every update names what it's based on:** the posts our bots found on X, in `based_on`, by their sourced items; and any other public pages, in `sources`. At least one of the two, always: an update the pipeline can't source isn't published. A post on X is never named by its address here, so once it can't be shown it drops out of every update without the update changing.
 - **A correction is a new update** that names the update it corrects; readers see the earlier one marked as corrected. Nothing is quietly edited out of a timeline.
-- **An update found to be untrue is withdrawn:** it stops showing, and the reason is kept.
+- **An update that repeats another is merged into it:** it names the update in the same story that it repeats, stops showing, and a link to it leads to the one that stays. Each run starts fresh and merges join timelines, so the same development is sometimes written twice.
+- **An update found to be untrue is withdrawn:** it stops showing, and the reason is kept. So is one the law requires to come down.
 
 <!-- generated: fields update/1 -->
 | Field | Required | What it means | What it holds |
 |---|---|---|---|
 | `format` | Yes | Says this record is an update, in format version 1. | Always `update/1` |
 | `id` | Yes | The update's ID. | Record ID (UUID version 7, lower case) |
-| `story_id` | Yes | The story whose timeline this update belongs to. | Record ID (UUID version 7, lower case) |
+| `story_id` | Yes | The story whose timeline this update belongs to. When a story is merged, its updates move to the story that stays. | Record ID (UUID version 7, lower case) |
 | `headline` | Yes | What happened, in one line of our own words. | One line of plain text, up to 120 characters |
 | `body` | No | More detail, in our own words. Left out when the headline says it all. | Plain text, new lines allowed, up to 1,000 characters |
 | `reported_at` | Yes | When this news was first reported, as near as our pipeline can tell (the earliest source's time). The timeline runs in this order. | Time in UTC, like 2026-11-05T09:30:00Z |
-| `sources` | No | The public posts and pages this update is based on, as links. Left out when the bots' result gives none. | 1 to 10, each a web address starting https://, up to 2,048 characters, no repeats |
-| `corrects` | No | An earlier update in the same story that this one corrects. Readers see that earlier update marked as corrected. | Record ID (UUID version 7, lower case) |
-| `state` | Yes | live: it shows in the timeline. withdrawn: our AI found it wasn't true, and it no longer shows. | `live` or `withdrawn` |
-| `withdrawn_reason` | Depends | Why the update was withdrawn, in our own words. Only when the state is withdrawn. | One line of plain text, up to 200 characters |
+| `based_on` | Depends | The posts our bots found on X that this update reports, by their sourced items. Product credits and links each one while it can be shown. An update names at least one of these or of its sources. | 1 to 10, each a record ID (UUID version 7, lower case), no repeats |
+| `sources` | Depends | The other public pages this update is based on (news sites, official pages), as links. Never a post on X or anything else at X's own addresses (x.com, twitter.com, t.co, twimg.com): posts are named in based_on, by their sourced items, so they disappear from every update once they can't be shown. | 1 to 10, each a web address starting https://, not on X, up to 2,048 characters, no repeats |
+| `corrects` | No | An earlier, live update in the same story that this one corrects. Readers see that earlier update marked as corrected. | Record ID (UUID version 7, lower case) |
+| `state` | Yes | live: it shows in the timeline. merged: it repeats another update in the same story, which readers see instead. withdrawn: taken out of the timeline, because our AI found it wasn't true or because the law requires it; it no longer shows. | `live`, `merged` or `withdrawn` |
+| `merged_into` | Depends | The update in the same story that this one repeats, which is never itself merged; a link to this update leads there. Only when the state is merged. | Record ID (UUID version 7, lower case) |
+| `withdrawn_reason` | Depends | Why the update was withdrawn, in our own words: our AI's reason, or the takedown the law required. Only when the state is withdrawn. | One line of plain text, up to 200 characters |
 | `created_at` | Yes | When our pipeline wrote the update. | Time in UTC, like 2026-11-05T09:30:00Z |
 | `updated_at` | Yes | When the update last changed. | Time in UTC, like 2026-11-05T09:30:00Z |
 <!-- end generated -->
@@ -241,6 +246,9 @@ Note: Gold or oil joins this list once PLAN.md step 1.2 decides which.
   "headline": "Correction: only Delhi's primary schools moved online; schools in Noida and Gurugram stay open",
   "body": "An earlier update said schools across Delhi NCR had moved online. Only Delhi's primary schools have; schools in Noida and Gurugram remain open.",
   "reported_at": "2026-11-03T03:50:00Z",
+  "sources": [
+    "https://example.com/sources/delhi-schools-clarification"
+  ],
   "corrects": "01a19ae2-d780-7a89-96fb-aeeefeab4196",
   "state": "live",
   "created_at": "2026-11-03T04:05:00Z",
@@ -254,28 +262,35 @@ Note: Gold or oil joins this list once PLAN.md step 1.2 decides which.
 **What it is:** one thing the Grok bots found on X, as our pipeline keeps it in the sourced pool once it has passed the checks. It's either **news** (a post reporting what happened), which our AI turns into stories and updates, or a **take** (a creator's meme, video, explainer or opinion on a story), which shows in that story's feed. **Written by** Sourcing's pipeline. **Read by** Product, which shows takes in their stories' feeds (the found route), and News Desk, which builds our own content on the pool (the made route).
 
 - **A link, never a copy.** It keeps the post's address on X, who posted it, what the post holds, and a summary in our own words: never the post's words, pictures or video. Screens embed the original from X and credit its creator.
-- **One post is kept once,** by the number at the end of its address, however often the bots find it.
-- **When a post is deleted or hidden on X,** the pipeline marks it unavailable and readers stop seeing it; until then, screens leave out any post X can't show. News Desk doesn't build on it any more, and the credit it gave our own content disappears.
-- **Our AI can withdraw a take** that isn't genuine, isn't about its story, or isn't safe to show, giving its reason.
+- **Every fact about the post comes from X itself,** never from the bots' own words: the post's number from the bots' citations, then its address, its account's handle and its name from X's public embed lookup, which also confirms the post exists. The pipeline checks each kept post again on a schedule and refreshes them, because a handle can change and then pass to another account: the credit must name the account as it is now.
+- **One post is kept once,** by its number, however often the bots find it. An edited post is still one post: X gives each edit a new number (and deleting any version deletes them all), so the item names the newest version, which screens embed, and its summary describes that version.
+- **What counts as one post:**
+  - **a repost is never kept:** it shows someone else's post, so the pipeline keeps the original instead, if it qualifies, credited to its own creator;
+  - **a quote post is its quoter's own post,** kept under its own number, as news or a take; the post it quotes is kept only on its own merits;
+  - **a reply to someone else is never a take,** because X shows it under the post it answers, out of our story's context; it can be news (a police account answering a question);
+  - **a thread is one post:** kept as its first post, with a summary of the whole thread.
+- **When a post can no longer be shown,** the pipeline marks the item unavailable and, in the same write, erases everything it kept about the post: its address, its account, when it was posted, what it held, and our summary of it. That covers a post deleted on X, an account made protected, suspended or closed, a post withheld in India (X withholds posts country by country), and a creator asking us to take their post down. X's developer rules require anyone who keeps X content to delete it when it's deleted or hidden on X, and it's what a creator who deletes a post expects. The item keeps only our own fields, so what refers to it still resolves: News Desk stops building on it, and the credit it gave our own content disappears. Unavailable is final; if the post comes back, the pipeline keeps it again as a new item. Until the pipeline catches up, screens leave out any post X can't show.
+- **Our AI can withdraw a take** that isn't genuine, isn't about its story, or isn't safe to show, giving its reason; a person withdraws one the law requires to come down. A withdrawn item keeps its post, so the pipeline doesn't keep the same post again, until the post leaves X and the item becomes unavailable.
+- **Names are kept as X shows them, less any hidden characters:** the pipeline removes the characters the agreement refuses (some flags are built from them) and keeps the rest of the name, leaving it out only when nothing readable remains.
 - **It's separate from the second half.** The bots' result format (the second half) is how results reach our pipeline; a sourced item is what the pipeline keeps after its checks, so this shape stays the same whatever format the bots use.
 
 <!-- generated: fields sourced/1 -->
 | Field | Required | What it means | What it holds |
 |---|---|---|---|
 | `format` | Yes | Says this record is a sourced item, in format version 1. | Always `sourced/1` |
-| `id` | Yes | The sourced item's ID, made by our pipeline when it first keeps the post. Our own content names it when it builds on the post. | Record ID (UUID version 7, lower case) |
+| `id` | Yes | The sourced item's ID, made by our pipeline when it first keeps the post. Our own content and our updates name it when they build on the post. | Record ID (UUID version 7, lower case) |
 | `route` | Yes | How it reached the product: our bots found it. A take shows in the feed by this route, credited to its creator. | Always `found` |
 | `kind` | Yes | news: a post reporting what happened, which our AI turns into stories and updates in our own words; it never shows in a feed itself. take: a creator's take on a story (a meme, a video, an explainer or an opinion), shown in that story's feed as the original post. | `news` or `take` |
-| `post` | Yes | The original post on X. Only these facts about it are kept, never its words, pictures or video. | The fields below |
-| `post.url` | Yes | The post's address on X, in its standard form, which screens embed and link to. The number at its end is the post's own, so the pool keeps each post once, by that number. | Address of a post on X |
-| `post.handle` | Yes | The handle of the account that posted it, as it was when found. The credit names it. | Handle on X (letters, digits and underscores, without the @) |
-| `post.name` | No | The account's name, as X showed it when found. Left out when X shows none in plain text; the handle alone is enough to credit it. | One line of plain text, up to 80 characters |
-| `post.posted_at` | Yes | When it was posted on X. | Time in UTC, like 2026-11-05T09:30:00Z |
-| `post.media` | Yes | What the post holds: text (words only), image (one or more pictures, memes among them) or video (a video or a moving picture), so screens can hold room for it and News Desk can find what to build on. | `text`, `image` or `video` |
-| `summary` | Yes | What the post says or shows, in one or two sentences of our own words, never copied from it. News Desk reads it to choose what to build on. | Plain text, new lines allowed, up to 300 characters |
-| `story_ids` | Depends | The stories it belongs to. A take shows in their feeds, and always names at least one; news names the stories our AI used it in, once it has. | 1 to 3, each a record ID (UUID version 7, lower case), no repeats |
-| `state` | Yes | live: in use. unavailable: the post is gone from X (deleted, hidden, or its account closed), so readers no longer see it, and News Desk doesn't build on it. withdrawn: our AI took it out (not genuine, not about its story, or not safe to show), and readers no longer see it. | `live`, `unavailable` or `withdrawn` |
-| `withdrawn_reason` | Depends | Why our AI withdrew it, in our own words, kept for the record. Only when the state is withdrawn. | One line of plain text, up to 200 characters |
+| `post` | Depends | The original post on X. Only these facts about it are kept, never its words, pictures or video, and only while the post can be shown: an unavailable item has none. | The fields below |
+| `post.url` | Yes | The post's standard address on X, as X's own embed lookup gives it: the account's handle when last checked, then the post's number, never the handle-free form (x.com/i/status/…) that Grok cites. For an edited post, its newest version. Screens embed it and link to it, and the pool keeps each post once, by its number. | Address of a post on X |
+| `post.handle` | Yes | The handle of the account that posted it, as X showed it when our pipeline last checked: refreshed at every check, since a handle can change and then pass to another account. The credit names it. | Handle on X (letters, digits and underscores, without the @) |
+| `post.name` | No | The account's name, as X showed it when last checked, with any characters the agreement refuses taken out. Left out when nothing readable remains; the handle alone is enough to credit it. | One line of plain text, up to 80 characters |
+| `post.posted_at` | Yes | When it was first posted on X: for an edited post, when its first version was. | Time in UTC, like 2026-11-05T09:30:00Z |
+| `post.media` | Yes | What the post itself holds, so screens can hold room for it and News Desk can find what to build on: video if it holds any video or moving picture; otherwise image if it holds any picture (memes among them); otherwise text (words only, perhaps with a link's preview card or a poll). A quoted post's media don't count. | `text`, `image` or `video` |
+| `summary` | Depends | What the post says or shows, in one or two sentences of our own words, never copied from it: for an edited post, its newest version; for a thread, the whole thread. News Desk reads it to choose what to build on. An unavailable item has none. | Plain text, new lines allowed, up to 300 characters |
+| `story_ids` | Depends | The stories it belongs to, never a merged one (a merge moves it to the story that stays). A take shows in their feeds, and always names at least one; news names the stories our AI used it in, once it has. | 1 to 3, each a record ID (UUID version 7, lower case), no repeats |
+| `state` | Yes | live: in use. unavailable: the post can't be shown any more (deleted; its account protected, suspended or closed; withheld in India; or its creator asked us to take it down), so its post and summary are erased and nobody sees it; this is final, and a post that comes back is kept again as a new item. withdrawn: taken out, but still held so the same post isn't kept again: our AI found it wasn't genuine, wasn't about its story or wasn't safe to show, or the law requires it to come down. Readers no longer see it. | `live`, `unavailable` or `withdrawn` |
+| `withdrawn_reason` | Depends | Why it was withdrawn, in our own words, kept for the record: our AI's reason, or the takedown the law required. Only when the state is withdrawn. | One line of plain text, up to 200 characters |
 | `created_at` | Yes | When our pipeline first kept it. | Time in UTC, like 2026-11-05T09:30:00Z |
 | `updated_at` | Yes | When it last changed. | Time in UTC, like 2026-11-05T09:30:00Z |
 <!-- end generated -->
@@ -513,8 +528,10 @@ Anything from outside our system is data, never instructions, wherever our softw
 | Product's data job saves readings | Fetched from the slot's chosen source over an encrypted, authenticated connection; only the data job can write readings | Each reading passes its definition | Set aside and logged; never settles a market |
 
 - **Anything that fails is set aside automatically, never published, and logged** with the problems found. Nothing waits for a person.
+- **Set-aside input is deleted after 7 days,** long enough to find out what went wrong: a bot's result holds the words of posts on X, which the pool never keeps, and a refused post holds a person's own words. Logs name records by their IDs and problems by where they are, never by quoting the outside text.
 - **Alerts:** a pile-up of failures, or no valid result arriving when the bots should have run, raises an alert, so a change on Grok's side can't silently stop the news. So does a data slot with no valid reading when one is due. Alerts go to the founder until the team's monitoring exists; the exact thresholds come with the bots' schedule, in the second half.
-- **These checks judge whether input is genuine and well-formed, not whether the news is true.** Accuracy stays with our AI, with no human review: it can correct an update, withdraw an update or a story, and merge duplicates.
+- **These checks judge whether input is genuine and well-formed, not whether the news is true.** Accuracy stays with our AI, with no human review: it can correct an update, withdraw an update, a story or a take, and merge duplicates.
+- **One step is a person's: a takedown the law requires.** A court order or a valid legal notice is decided by a person (the founder, until the team exists), who withdraws the story, update or take with a reason that says so. A creator who asks us to take down their own post makes its item unavailable instead, which erases what we kept of it. Either is done within 24 hours of the request, or sooner where the law requires.
 
 ## Example data
 
@@ -523,13 +540,13 @@ Anything from outside our system is data, never instructions, wherever our softw
 | File | What's in it |
 |---|---|
 | `stories.json` | Smog in Delhi NCR (a timeline with several updates, one a correction); a cricket match (a story with many updates); a Bengaluru AI start-up (a title at the longest allowed, and no picture anywhere on the story); Bitcoin (one update withdrawn as untrue); and a duplicate story merged into the smog story |
-| `updates.json` | Every update on those stories |
-| `sourced.json` | What the bots found on X: news about the smog, which its first update cites; news that no story uses yet; creators' takes of every kind (a meme on the smog, a video on the cricket match, an explainer thread on Bitcoin); a take whose post was then deleted on X; a take our AI withdrew (a doctored notice, posted by an account with no name) |
+| `updates.json` | Every update on those stories, each naming what it's based on: the smog story's first update builds on a post our bots found as well as a page; the update that moved in with the merged duplicate repeats one already there, so it's merged into it; the withdrawn Bitcoin update builds on two posts since deleted on X |
+| `sourced.json` | What the bots found on X: news about the smog, which its first update builds on; news that no story uses yet; creators' takes of every kind (a meme on the smog, a video on the cricket match, an explainer thread on Bitcoin); a take whose post was then deleted on X, and the two posts behind the withdrawn Bitcoin claim, all three erased down to our own fields; a take our AI withdrew (a doctored notice, posted by an account with no name) |
 | `creations.json` | Posted: a creator's text take; a creator's video; a creator's image whose file is missing from storage; a user's post that tries to give our AI instructions (shown as text, nothing more). Made: our own image (a chart); our own explainer, which names a category instead of a story and builds on a creator's explainer found on X |
 | `markets.json` | Bitcoin (yes or no, open); the best AI model (multiple choice with a catch-all, open); the cricket match (multiple choice, settled) |
 | `readings.json` | Bitcoin prices, an AI ranking, and the cricket match before, during and after play |
 
-The check keeps the hard cases in: long titles, a story with many updates, a missing image, a merged story, a withdrawn update and a correction; every route, a found take of every kind, a found post that's gone from X, a withdrawn take, and our own content built on a found post.
+The check keeps the hard cases in: long titles, a story with many updates, a missing image, a merged story, a withdrawn update, a correction and an update that repeats another; every route, a found take of every kind, news and a take whose posts are gone from X, a withdrawn take, our own content built on a found post, and updates built on posts our bots found. It also checks that no merge is a chain, that nothing our pipeline writes names a merged story, and that a correction or a repeat names a live update in its own story.
 
 **Example posts can never point at a real post on X:** their handles start with `example`, and their numbers are larger than any number X gives a post, so a preview that embeds one can never show a stranger's post. The check enforces it.
 

@@ -97,22 +97,38 @@ describe('the examples', () => {
 
   it('only refer to examples that exist', () => {
     const storyIds = new Set(stories.map((s) => s.id));
+    const storiesById = new Map(stories.map((s) => [s.id, s]));
     const updatesById = new Map(updates.map((u) => [u.id, u]));
+    const sourcedIds = new Set(sourced.map((s) => s.id));
     for (const s of stories.filter((s) => s.merged_into)) {
       expect(storyIds.has(s.merged_into)).toBe(true);
       expect(s.merged_into).not.toBe(s.id);
+      expect(storiesById.get(s.merged_into)?.state, 'a merge is never a chain').not.toBe('merged');
     }
     for (const u of updates) {
       expect(storyIds.has(u.story_id), String(u.id)).toBe(true);
+      expect(
+        storiesById.get(u.story_id)?.state,
+        "a merge moves the duplicate's updates to the story that stays",
+      ).not.toBe('merged');
+      for (const id of (u.based_on as string[] | undefined) ?? [])
+        expect(sourcedIds.has(id), 'an update reports posts our bots found').toBe(true);
+      if (u.merged_into) {
+        const kept = updatesById.get(u.merged_into);
+        expect(kept?.story_id, 'a repeat names an update in its own story').toBe(u.story_id);
+        expect(kept?.state, 'a repeat names an update that is shown').toBe('live');
+      }
       if (!u.corrects) continue;
       const corrected = updatesById.get(u.corrects);
       expect(corrected?.story_id, 'a correction stays in its story').toBe(u.story_id);
+      expect(corrected?.state, 'a correction names an update that is shown').toBe('live');
       expect(String(corrected?.reported_at) < String(u.reported_at)).toBe(true);
     }
-    const sourcedIds = new Set(sourced.map((s) => s.id));
     for (const s of sourced) {
-      for (const id of (s.story_ids as string[] | undefined) ?? [])
+      for (const id of (s.story_ids as string[] | undefined) ?? []) {
         expect(storyIds.has(id), String(s.id)).toBe(true);
+        expect(storiesById.get(id)?.state, 'a merge moves sourced items too').not.toBe('merged');
+      }
     }
     for (const c of creations) {
       for (const id of (c.story_ids as string[] | undefined) ?? [])
@@ -127,17 +143,20 @@ describe('the examples', () => {
 
   it('never point at a real post on X, and keep each post once', () => {
     // X numbers its posts with signed 64-bit integers, so a larger number can't be a real post:
-    // an example embedded on a preview can never show a stranger's post.
+    // an example embedded on a preview can never show a stranger's post. An unavailable item
+    // holds no post at all (its definition refuses one), so there's nothing of it to check.
     const largest = 2n ** 63n - 1n;
-    const numbers = sourced.map((s) => {
-      const post = s.post as Item;
-      const [, handle = '', number = '0'] =
-        /^https:\/\/x\.com\/([A-Za-z0-9_]+)\/status\/([0-9]+)$/.exec(String(post.url)) ?? [];
-      expect(handle, 'the address names the handle').toBe(post.handle);
-      expect(handle.startsWith('example'), `${handle} is an example handle`).toBe(true);
-      expect(BigInt(number) > largest, `${number} can't be a real post`).toBe(true);
-      return number;
-    });
+    const numbers = sourced
+      .filter((s) => s.post)
+      .map((s) => {
+        const post = s.post as Item;
+        const [, handle = '', number = '0'] =
+          /^https:\/\/x\.com\/([A-Za-z0-9_]+)\/status\/([0-9]+)$/.exec(String(post.url)) ?? [];
+        expect(handle, 'the address names the handle').toBe(post.handle);
+        expect(handle.startsWith('example'), `${handle} is an example handle`).toBe(true);
+        expect(BigInt(number) > largest, `${number} can't be a real post`).toBe(true);
+        return number;
+      });
     expect(new Set(numbers).size, 'each post is kept once').toBe(numbers.length);
   });
 
@@ -197,6 +216,18 @@ describe('the examples', () => {
       updates.some((u) => u.corrects),
       'a correction',
     ).toBe(true);
+    expect(
+      updates.some((u) => u.state === 'merged'),
+      'an update that repeats another',
+    ).toBe(true);
+    expect(
+      updates.some((u) => u.based_on && u.sources),
+      'an update based on posts our bots found and on other pages',
+    ).toBe(true);
+    expect(
+      updates.some((u) => u.state === 'withdrawn' && u.based_on),
+      'a withdrawn update whose posts are gone from X',
+    ).toBe(true);
     const feed = [...sourced.filter((s) => s.kind === 'take'), ...creations];
     for (const route of ['found', 'made', 'posted']) {
       expect(
@@ -210,10 +241,12 @@ describe('the examples', () => {
         `a found take of ${media}`,
       ).toBe(true);
     }
-    expect(
-      sourced.some((s) => s.state === 'unavailable'),
-      'a found post that is gone from X',
-    ).toBe(true);
+    for (const kind of ['news', 'take']) {
+      expect(
+        sourced.some((s) => s.kind === kind && s.state === 'unavailable'),
+        `a found post of ${kind} that is gone from X`,
+      ).toBe(true);
+    }
     expect(
       sourced.some((s) => s.kind === 'take' && s.state === 'withdrawn'),
       'a withdrawn take',
@@ -235,6 +268,7 @@ describe('the examples', () => {
 
 describe('the format check', () => {
   const story = stories[0] as Item;
+  const update = updates.find((u) => u.state === 'live' && u.sources && !u.based_on) as Item;
   const take = sourced.find((s) => s.kind === 'take' && s.state === 'live') as Item;
   const creation = creations.find((c) => c.kind === 'image') as Item;
   const creatorPost = creations.find((c) => (c.author as Item).kind === 'creator') as Item;
@@ -344,6 +378,82 @@ describe('the format check', () => {
     ],
     ['a handle written with its @', changed(take, (s) => ((s.post as Item).handle = '@example'))],
     ['a withdrawn take without its reason', changed(take, (s) => (s.state = 'withdrawn'))],
+    [
+      "a post's address in the handle-free form Grok cites",
+      changed(take, (s) => ((s.post as Item).url = 'https://x.com/i/status/9900000000000000102')),
+    ],
+    ['a live item without its post', changed(take, (s) => delete s.post)],
+    ['a live item without our summary', changed(take, (s) => delete s.summary)],
+    [
+      'an item whose post is gone from X that still holds the post',
+      changed(take, (s) => (s.state = 'unavailable')),
+    ],
+    [
+      'an item whose post is gone from X that still holds our summary',
+      changed(take, (s) => {
+        s.state = 'unavailable';
+        delete s.post;
+      }),
+    ],
+    [
+      'an update with no source',
+      changed(update, (u) => {
+        delete u.sources;
+        delete u.based_on;
+      }),
+    ],
+    [
+      'a post on X among the other sources',
+      changed(
+        update,
+        (u) => (u.sources = ['https://x.com/example_news/status/9900000000000000101']),
+      ),
+    ],
+    [
+      "a post on X at Twitter's old address",
+      changed(
+        update,
+        (u) => (u.sources = ['https://mobile.twitter.com/example_news/status/9900000000000000101']),
+      ),
+    ],
+    [
+      "a link through X's own shortener",
+      changed(update, (u) => (u.sources = ['https://t.co/x1y2z3'])),
+    ],
+    [
+      "a picture on X's media server",
+      changed(update, (u) => (u.sources = ['https://pbs.twimg.com/media/example.jpg'])),
+    ],
+    // A web address's host is plain letters, digits, hyphens and dots, so every language reads
+    // the same host from it, and none of these can slip a post on X past the rule above.
+    [
+      'a name hidden before the host',
+      changed(update, (u) => (u.sources = ['https://news@x.com/example_news/status/1'])),
+    ],
+    [
+      'a host ending in a dot',
+      changed(update, (u) => (u.sources = ['https://x.com./example_news/status/1'])),
+    ],
+    [
+      'a host written in percent codes',
+      changed(update, (u) => (u.sources = ['https://x%2Ecom/example_news/status/1'])),
+    ],
+    [
+      'a host in full-width letters',
+      changed(
+        update,
+        (u) => (u.sources = [`https://${cp(0xff58, 0xff0e, 0xff43, 0xff4f, 0xff4d)}/a`]),
+      ),
+    ],
+    [
+      'a backslash, which browsers read as a slash',
+      changed(update, (u) => (u.sources = ['https://x.com\\example_news/status/1'])),
+    ],
+    ['a repeated update that names no update', changed(update, (u) => (u.state = 'merged'))],
+    [
+      'a live update that names one it repeats',
+      changed(update, (u) => (u.merged_into = '01a19ae2-d780-7a89-96fb-aeeefeab4196')),
+    ],
     ['a post with no route', changed(creation, (c) => delete c.route)],
     ['our own post marked as posted', changed(creation, (c) => (c.route = 'posted'))],
     ["a creator's post marked as made", changed(creatorPost, (c) => (c.route = 'made'))],
@@ -393,6 +503,16 @@ describe('the format check', () => {
     ['typographic quotes and dashes', `India${cp(0x2019)}s chase ${cp(0x2014)} 289 for 6`],
   ])('accepts %s', (_, text) => {
     expect(validate(changed(story, (s) => (s.summary = text)))).toEqual([]);
+  });
+
+  it.each([
+    ['a page whose address only mentions X', 'https://example.com/how-x.com-works?via=twitter.com'],
+    ['a site whose name ends like X', 'https://www.example-x.com/news/delhi-smog'],
+    ['a site whose name starts with t', 'https://t.com.example.org/notice'],
+    ['an international name in its xn-- form', 'https://xn--h1alffa9f.xn--p1ai/news?id=7#top'],
+    ['a page on a numbered port', 'https://example.com:8443/sources/notice'],
+  ])('accepts, as a source, %s', (_, address) => {
+    expect(validate(changed(update, (u) => (u.sources = [address])))).toEqual([]);
   });
 });
 

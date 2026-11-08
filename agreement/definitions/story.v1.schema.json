@@ -47,17 +47,17 @@
     },
     "state": {
       "enum": ["live", "merged", "withdrawn"],
-      "description": "live: readers see it. merged: it turned out to be the same news as another story, which readers see instead. withdrawn: our AI found it wasn't true, and readers no longer see it."
+      "description": "live: readers see it. merged: it turned out to be the same news as another story, which readers see instead. withdrawn: taken down, because our AI found it wasn't true or because the law requires it; readers no longer see it."
     },
     "merged_into": {
       "$ref": "common.schema.json#/$defs/record_id",
-      "description": "The story this one was merged into; its updates have moved there. Only when the state is merged."
+      "description": "The story this one was merged into, which is never itself merged: its updates and sourced items have moved there, and anything else that names this story is read as naming that one. Only when the state is merged."
     },
     "withdrawn_reason": {
       "$ref": "common.schema.json#/$defs/one_line",
       "type": "string",
       "maxLength": 200,
-      "description": "Why the story was withdrawn, in our own words, shown to anyone who opens an old link. Only when the state is withdrawn."
+      "description": "Why the story was withdrawn, in our own words (our AI's reason, or the takedown the law required), shown to anyone who opens an old link. Only when the state is withdrawn."
     },
     "created_at": {
       "$ref": "common.schema.json#/$defs/time",
