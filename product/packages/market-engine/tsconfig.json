@@ -1,0 +1,11 @@
+{
+  "extends": "@hrizzup/tsconfig/library.json",
+  "compilerOptions": {
+    // Off in this package only. src/manifold/ is Manifold's maths, kept close to Manifold's
+    // own code so the two stay easy to compare. With this check on, about 300 lines of that
+    // proven maths and its tests would need rewriting just to satisfy "possibly undefined"
+    // warnings, which is the riskier change (docs/research/round-2-readiness.md, C9).
+    "noUncheckedIndexedAccess": false
+  },
+  "include": ["src", "scripts"]
+}
