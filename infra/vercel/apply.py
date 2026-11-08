@@ -12,7 +12,11 @@ domains, the protection exceptions (only staging's domain is public, from PLAN.m
 and the firewall. It fails, listing every difference, if Vercel doesn't match.
 
 `--staging-only` changes nothing that reaches production: only the protection exception of
-staging's own domain. Then it checks everything, like `--check`.
+staging's own domain, and the firewall rules limited to staging's own domain (every one of the
+rule's condition groups needs the request's host to be that domain). Its firewall change starts
+from Vercel's live config, so every other setting and rule goes back exactly as it is, and it
+refuses to run if the repo also changes anything that reaches production. Then it checks
+everything, like `--check`.
 
 Needs VERCEL_TOKEN (Doppler project hrizzup-tools, config claude):
 
@@ -23,6 +27,7 @@ applied by Claude Code, before production has any keys or data (runbook step 9.4
 then on, changes that touch production are applied by the release pipeline. `--check` is
 safe at any time. It prints setting names and values only, never the token.
 """
+import copy
 import json
 import os
 import sys
@@ -251,20 +256,89 @@ def normalise_rule(rule):
     return keep
 
 
-def firewall(v, proj, check_only):
+# The fields of a firewall config that Vercel accepts back, and those of one rule.
+CONFIG_FIELDS = ("firewallEnabled", "managedRules", "crs", "ips", "rulesets", "botIdEnabled", "logHeaders")
+RULE_FIELDS = ("id", "name", "description", "active", "conditionGroup", "action")
+
+
+def staging_only_rule(rule, hosts):
+    """True when the rule can match only requests to staging's own domains: Vercel joins a rule's
+    condition groups with OR, so every group must need the host to equal one of them."""
+    groups = rule.get("conditionGroup") or []
+    return bool(groups) and all(
+        any(c.get("type") == "host" and c.get("op") == "eq" and not c.get("neg") and c.get("value") in hosts
+            for c in group.get("conditions") or [])
+        for group in groups)
+
+
+def same_rules(want_rules, live_rules):
+    """The live rules are the repo's, in the same order (live ones carry extra fields, such as ids)."""
+    if len(want_rules) != len(live_rules):
+        return False
+    for w, h in zip(want_rules, live_rules):
+        want = normalise_rule(copy.deepcopy(w))
+        have = subset(normalise_rule(copy.deepcopy(h)), want)
+        if json.dumps(have, sort_keys=True) != json.dumps(want, sort_keys=True):
+            return False
+    return True
+
+
+def staging_firewall(want, live, hosts):
+    """The firewall config `--staging-only` sends, or None when staging's rules already match.
+
+    It starts from Vercel's live config, so every setting and every rule that can reach
+    production goes back exactly as it is (ids included); only the rules limited to staging's
+    domains come from the repo. If the repo changes anything else, that reaches production, so
+    it fails: such a change waits for the release pipeline.
+    """
+    reaching = subset_differences(want["managedRules"], live.get("managedRules") or {}, "managed rules")
+    if live.get("firewallEnabled") is not True:
+        reaching.append("the firewall is off")
+    want_rules, live_rules = want["rules"], live.get("rules") or []
+    live_others = [r for r in live_rules if not staging_only_rule(r, hosts)]
+    if not same_rules([r for r in want_rules if not staging_only_rule(r, hosts)], live_others):
+        reaching.append("rules that reach production differ from the repo")
+    if reaching:
+        fail("--staging-only applies only firewall rules limited to staging's domains, and this change "
+             "also reaches production, so it waits for the release pipeline: " + "; ".join(reaching))
+    if same_rules(want_rules, live_rules):
+        return None
+    kept = iter(live_others)
+    live_staging = {r.get("name"): r for r in live_rules if staging_only_rule(r, hosts)}
+    rules = []
+    for r in want_rules:
+        if staging_only_rule(r, hosts):
+            rule = {k: copy.deepcopy(r[k]) for k in RULE_FIELDS if k in r}
+            if live_staging.get(r["name"], {}).get("id"):
+                rule["id"] = live_staging[r["name"]]["id"]
+        else:
+            rule = {k: val for k, val in next(kept).items() if k in RULE_FIELDS}
+        rules.append(rule)
+    body = {k: live[k] for k in CONFIG_FIELDS if live.get(k) is not None}
+    body["managedRules"] = {name: {k: val for k, val in rule.items() if k not in ("updatedAt", "userId", "username")}
+                            for name, rule in (live.get("managedRules") or {}).items()}
+    body["rules"] = rules
+    return body
+
+
+def firewall(v, proj, check_only, staging_hosts=None):
     want = load("firewall.json")
     q = {"projectId": proj["id"]}
-    if not check_only:
+    if staging_hosts is not None:
+        live = must(v.call("GET", "/v1/security/firewall/config/active", query=q), "read the firewall")
+        body = staging_firewall(want, live, staging_hosts)
+        if body is not None:
+            must(v.call("PUT", "/v1/security/firewall/config", body, q), "apply staging's firewall rules")
+            names = [r["name"] for r in want["rules"] if staging_only_rule(r, staging_hosts)]
+            print(f"applied the firewall rules limited to staging's domains: {', '.join(names)}")
+    elif not check_only:
         must(v.call("PUT", "/v1/security/firewall/config", want, q), "apply the firewall")
     live = must(v.call("GET", "/v1/security/firewall/config/active", query=q), "read the firewall")
     problems = []
     if live.get("firewallEnabled") is not True:
         problems.append("firewall: not enabled")
     problems += subset_differences(want["managedRules"], live.get("managedRules") or {}, "firewall.managedRules")
-    want_rules = [json.dumps(normalise_rule(r), sort_keys=True) for r in want["rules"]]
-    have_rules = [json.dumps(subset(normalise_rule(r), json.loads(w)), sort_keys=True)
-                  for r, w in zip(live.get("rules") or [], want_rules)]
-    if len(live.get("rules") or []) != len(want["rules"]) or want_rules != have_rules:
+    if not same_rules(want["rules"], live.get("rules") or []):
         names = [r.get("name") for r in live.get("rules") or []]
         problems.append(f"firewall rules differ from the repo (live, in order: {names})")
     return problems
@@ -296,7 +370,10 @@ def main():
     _, p = domains(v, cfg, proj, envs, check_only)
     problems += p
     problems += protection_exceptions(v, cfg, apply=not args or staging_only)
-    problems += firewall(v, proj, check_only)
+    staging = {d for e in cfg["customEnvironments"].values() for d in e.get("domains", [])}
+    if staging & set(cfg["domains"]):
+        fail(f"staging's domains may not be production's: {sorted(staging & set(cfg['domains']))}")
+    problems += firewall(v, proj, check_only, staging_hosts=staging if staging_only else None)
     if problems:
         print(f"Vercel project {cfg['project']} does NOT match the repo:")
         for line in problems:

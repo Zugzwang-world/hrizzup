@@ -1,5 +1,5 @@
 {
-  "_about": "The Vercel firewall for the project hrizzup (all environments), applied and read back by apply.py. Rules run top to bottom. Rate limits count per visitor IP address over 60 seconds and answer 429 when exceeded. Blueprint section 9: every route that signs in or sends email is rate-limited. Our routes that sign in live under /auth/, and any route of ours that sends email must live under /auth/email/ or /api/email/ so these rules cover it. (Email codes requested straight from Supabase Auth are limited by Supabase itself and by Turnstile: infra/supabase/auth/settings.json.)",
+  "_about": "The Vercel firewall for the project hrizzup (all environments), applied and read back by apply.py. Rules run top to bottom. Rate limits count per visitor IP address over 60 seconds and answer 429 when exceeded. Blueprint section 9: every route that signs in or sends email is rate-limited. Our routes that sign in live under /auth/, and any route of ours that sends email must live under /auth/email/ or /api/email/ so these rules cover it. (Email codes requested straight from Supabase Auth are limited by Supabase itself and by Turnstile: infra/supabase/auth/settings.json.) A rule whose every condition group names one of staging's own domains as the host (staging.hrizzup.com) reaches only staging; apply.py --staging-only applies a firewall change only when every rule it adds, changes or removes is such a rule.",
   "firewallEnabled": true,
   "managedRules": {
     "bot_protection": { "active": true, "action": "challenge" },
@@ -68,6 +68,45 @@
       "description": "Uptime monitors and the release pipeline read /api/health without a browser. It holds no data and is rate-limited by the rule above.",
       "active": true,
       "conditionGroup": [{ "conditions": [{ "type": "path", "op": "eq", "value": "/api/health" }] }],
+      "action": { "mitigate": { "action": "bypass" } }
+    },
+    {
+      "name": "Rate limit: staging's typed API",
+      "description": "At most 60 requests a minute per IP to staging's typed API (/api/v1/ on staging.hrizzup.com). Staging only.",
+      "active": true,
+      "conditionGroup": [
+        {
+          "conditions": [
+            { "type": "host", "op": "eq", "value": "staging.hrizzup.com" },
+            { "type": "path", "op": "pre", "value": "/api/v1/" }
+          ]
+        }
+      ],
+      "action": {
+        "mitigate": {
+          "action": "rate_limit",
+          "rateLimit": {
+            "algo": "fixed_window",
+            "window": 60,
+            "limit": 60,
+            "keys": ["ip"],
+            "action": "rate_limit"
+          }
+        }
+      }
+    },
+    {
+      "name": "Staging's typed API: no bot challenge",
+      "description": "The app calls staging's typed API without a browser, so it can't pass the bot challenge (PLAN.md step 1.5d). Public reads hold no private data, personal calls need a sign-in, and the rule above limits the rate. Staging only: production's waits for the release pipeline.",
+      "active": true,
+      "conditionGroup": [
+        {
+          "conditions": [
+            { "type": "host", "op": "eq", "value": "staging.hrizzup.com" },
+            { "type": "path", "op": "pre", "value": "/api/v1/" }
+          ]
+        }
+      ],
       "action": { "mitigate": { "action": "bypass" } }
     }
   ]
