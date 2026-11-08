@@ -1,7 +1,8 @@
 # Hrizzup: the checks on every pull request (PLAN.md section 3, "Checks sized to the change").
 #
 #   Quick checks    formatting and lint (Biome), type checks and unit tests (Turborepo),
-#                   including the hand-over agreement's check (agreement/src/agreement.test.ts)
+#                   including the hand-over agreement's check (agreement/src/agreement.test.ts),
+#                   and the infrastructure tools' own tests (infra/vercel, infra/doppler)
 #   Database check  builds a fresh database from infra/supabase/migrations and runs its
 #                   tests, including "every table is locked" (row-level security)
 #   Screen check    once Vercel's preview of the pull request is ready, opens it in
@@ -58,7 +59,9 @@ jobs:
       - name: Type checks and unit tests
         run: pnpm exec turbo run typecheck test
       - name: Infrastructure tools' tests
-        run: python3 -m unittest discover -s infra/vercel
+        run: |
+          python3 -m unittest discover -s infra/vercel
+          python3 -m unittest discover -s infra/doppler
 
   database:
     name: Database check

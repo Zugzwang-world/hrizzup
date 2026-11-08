@@ -14,7 +14,7 @@
     "test:db": "turbo run test:db",
     "lint": "biome ci .",
     "format": "biome check --write .",
-    "check": "biome ci . && turbo run typecheck test && python3 -m unittest discover -s infra/vercel"
+    "check": "biome ci . && turbo run typecheck test && python3 -m unittest discover -s infra/vercel && python3 -m unittest discover -s infra/doppler"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.3",
