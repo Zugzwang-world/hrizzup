@@ -137,6 +137,7 @@ The repo lives in your personal GitHub account, `Zugzwang-world`, on GitHub Pro,
 | 4.3 | You | Move any key still saved in Proton Pass into Doppler by typing or pasting it into Doppler's dashboard. (The Cloudflare key and the Resend setup key went straight into Doppler. The Resend setup key has since been deleted, and the Cloudflare key now lives in `hrizzup-tools`, step 4.5.) From now on, Proton Pass holds only logins, recovery codes and the database password. |
 | 4.4 | Claude Code | Check that each config contains the expected secret **names** (never the values), and record the result. **Done, 4 November 2026:** `dev`, `stg` and `stg_preview` each hold the same 21 names, and `hrizzup-tools` holds Claude Code's 7 setup keys and nothing else (setup log). The release pipeline checks `prd` and `prd_release` itself. |
 | 4.5 | Claude Code | Keep each kind of key in its own place. **Claude Code's setup keys** (the Cloudflare key, the Supabase access token, and any future ones) live in a separate project, **`hrizzup-tools`**, with one config, `claude`, used only as `infra/doppler/run tools -- <command>`. **The app's project `hrizzup`** holds only the app's keys, so helpers can later be given it without seeing Claude Code's tools. Its `dev` config is for running the app on this Mac: every staging value appears there as a Doppler reference (`${stg.NAME}`), not a copy, so local runs and browser tests work against the staging services. Then confirm that Doppler's Action Required lists for `dev` and `stg` are empty. **Done, 3 November 2026.** |
+| 4.6 | You | **The Expo robot token in its right place** (added 8 November 2026). `EXPO_TOKEN` is a tool token, so it belongs in `hrizzup-tools` ("Where each kind of key lives", below). It went into `stg`, and Doppler had already synced it into Vercel's staging and preview settings, so it's replaced with a fresh token rather than moved: the clicks are below, about 5 minutes. Then tell Claude Code "Expo token moved". |
 
 **How `dev` keeps following staging:**
 - Whenever a key is added to or removed from `stg`, Claude Code runs `python3 infra/doppler/dev_follows_staging.py apply` in the same step. `check` reports without changing anything. Both print names only, never values.
@@ -145,9 +146,30 @@ The repo lives in your personal GitHub account, `Zugzwang-world`, on GitHub Pro,
 - Claude Code runs commands with `dev`'s values as `infra/doppler/run dev -- <command>`, through its own service token (step 10.1).
 - **Action Required:** Doppler flags a key that exists in one environment but not another. The lists for `dev` and `stg` stay empty. `prd`'s list shows only `AUTH_RELAY_SECRET` once Part 10 fills it: staging and previews alone use that one, so the warning stays.
 
+**Where each kind of key lives** (the rule since step 4.5, written out on 8 November 2026 after `EXPO_TOKEN` was found in `stg`):
+
+| Kind of key | Where it lives | Why |
+|---|---|---|
+| **The app's keys:** whatever the website, its server code or the database needs to run | `hrizzup`: `stg` for staging (previews inherit it through `stg_preview`; this Mac follows it through `dev`), `prd` for production | `stg` and `stg_preview` sync into Vercel's staging and previews, and `prd` into production; the Staging workflow and the Screen check read `stg` and `stg_preview` whole |
+| **Tool tokens:** any token a tool uses to act on a service for Claude Code (Cloudflare, Supabase's API, Vercel, Expo, and any future one), and Claude Code's other setup values | `hrizzup-tools`, config `claude`, used only as `infra/doppler/run tools -- <command>` | Never synced anywhere, so no build and no check job ever holds one |
+| **A tool token a GitHub workflow needs** | A copy in GitHub's secrets, piped in without being shown (as the protection bypass is); where the service allows, a token of its own, so each can be revoked alone | A workflow reads only what it's given |
+| **The release pipeline's credentials** | `prd_release` (Part 10), never synced | Production's, held by the founder and the pipeline alone |
+
+A tool token found in `hrizzup` is replaced, not moved, if Doppler has already synced it anywhere (as with a leaked key, blueprint section 11), and then deleted from `hrizzup`.
+
+**Step 4.6, click by click** (about 5 minutes; never paste the token into a chat):
+1. On expo.dev, sign in, choose the account that owns Hrizzup in the account switcher (top left), then open **Settings → Access tokens**.
+2. Under **Robot users**, find the robot you made for Claude Code (role **Developer**) and create a new token for it, named `claude-code-mac`. Copy it with its copy button: Expo shows it once.
+3. In Doppler: **Projects → hrizzup-tools → claude** → **+** (top right of the secrets list) → name `EXPO_TOKEN` → paste → **Save**.
+4. Still in Doppler: **Projects → hrizzup → stg** → the `EXPO_TOKEN` row → delete it → **Save**.
+5. Back on Expo's **Access tokens** page, delete the robot's older token (the one made before today's), so the copy that reached Vercel stops working.
+6. Tell Claude Code "Expo token moved". It then checks, by name only, that `EXPO_TOKEN` is in `hrizzup-tools` and gone from `stg`, `stg_preview` and Vercel's staging and preview settings (removing any copy Doppler's sync left there), and that the token belongs to the robot, not to you. Until then, a session that needs the token may read it from `stg` (`infra/doppler/run stg`).
+
+If you'd rather keep the existing token: in step 3, copy its value from `stg` with Doppler's copy button, and skip steps 1, 2 and 5. It then joins the keys to replace before a helper first gets Doppler access ("Later, with the team").
+
 **Done when:** the project and its four configs exist, Claude Code's setup keys are in `hrizzup-tools`, `dev` follows staging, and every key created so far is in Doppler.
 
-**Part 4 finished on 4 November 2026.**
+**Part 4 finished on 4 November 2026.** Step 4.6 (yours) was added on 8 November 2026.
 
 ---
 
@@ -478,7 +500,7 @@ The repo lives in your personal GitHub account, `Zugzwang-world`, on GitHub Pro,
 # Later, with the team
 
 - **Helpers' GitHub invitations:** `Titan00714`, `Anupamhodl` and `Zoro47007` were invited on 2 November 2026 and haven't accepted yet; GitHub cancels the invitations on 9 November 2026. Claude Code sends new ones when a helper is ready to start.
-- **Doppler's Team plan** ($21 per user a month) before any helper joins Doppler: its roles let you keep production keys to yourself (on the free plan, Doppler can't limit what a member opens). Give each helper the Collaborator role on `hrizzup`'s Development and Staging, no access to Production, and no access to `hrizzup-tools`. Before the first helper joins, replace the Cloudflare key and the Supabase access token with new ones in `hrizzup-tools` (Claude Code gives you the clicks), because both sat in `dev` until 3 November 2026 and old copies may show in its history.
+- **Doppler's Team plan** ($21 per user a month) before any helper joins Doppler: its roles let you keep production keys to yourself (on the free plan, Doppler can't limit what a member opens). Give each helper the Collaborator role on `hrizzup`'s Development and Staging, no access to Production, and no access to `hrizzup-tools`. Before the first helper joins, replace the Cloudflare key and the Supabase access token with new ones in `hrizzup-tools` (Claude Code gives you the clicks), because both sat in `dev` until 3 November 2026 and old copies may show in its history; the same goes for the Expo token if step 4.6 moved it rather than replacing it (it sat in `stg` on 8 November 2026).
 - **Sentry and PostHog:** one project per environment, with keys in Doppler.
 - **Apple Developer and Google Play accounts.** Start Google Play early: a personal account needs a closed test with at least 12 testers for 14 days before the app can go public. Their app IDs and signing fingerprints go into the two files the website serves so that shared links open the app (`/.well-known/assetlinks.json` and `/.well-known/apple-app-site-association`).
 - **RevenueCat and Razorpay:** set up with the app, for the paid tier, which is in version one (PLAN.md step 2.7). Razorpay with UPI on the website.

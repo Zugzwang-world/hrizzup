@@ -1,6 +1,6 @@
 # News Desk: status
 
-Last updated: 5 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/brief/news-desk.md](../brief/news-desk.md). Code: [news-desk/](../../news-desk/). Hand-over agreement: [agreement/README.md](../../agreement/README.md).
+Last updated: 8 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/brief/news-desk.md](../brief/news-desk.md). Code: [news-desk/](../../news-desk/). Hand-over agreement: [agreement/README.md](../../agreement/README.md).
 
 **On hold until the founder sets News Desk up** (the founder's decision, 5 November 2026).
 
@@ -19,6 +19,7 @@ Last updated: 5 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/brie
   - **step needs:** step 1.3's first batch is made from the sourced pool, so it needs the news pipeline (1.1); step 4.4 now needs 1.3;
   - **the second half** (the bots' result format) no longer needs News Desk's agreement;
   - **no relays:** the founder doesn't carry reports or messages between projects; the briefs carry everything (CLAUDE.md).
+- **How the first half's sign-off runs, the founder's decision of 8 November 2026** ([#36](https://github.com/Zugzwang-world/hrizzup/pull/36)): Sourcing's review is run by a Claude Code session in the repository, working from Sourcing's brief (Round 2, relay 5, under way); the founder then approves the first half in News Desk's place, as before. Product's design (step 1.4) is now built in real code and filled with the agreement's example data, the example posts among them.
 
 ## Next
 

@@ -1257,6 +1257,33 @@ Not a problem: the worry that Claude Code could run the script on production. It
 
 ---
 
+## 8 November 2026
+
+### Round 2: its milestone and its records (Claude Code, founder's decisions)
+
+- **GitHub milestone "Round 2"** (number 7, open), created through GitHub's API: five relays in parallel worktrees (1: rules, decisions and tracking; 2: steps 1.5a to 1.5d; 3: step 1.7a; 4: step 1.4's first pass; 5: Sourcing's review of the agreement's first half). Every Round 2 pull request is attached to it. The phase milestones (0 closed, 1 to 5 open) are unchanged.
+- **Where the founder's decisions of 8 November 2026 went:** the rules for unattended sessions (CLAUDE.md, "Unattended sessions"); steps 1.4, 1.5a to 1.5d, 1.7a and 1.7b, the new 1.8, and Sourcing's review run in the repository (PLAN.md sections 3 to 5, CLAUDE.md, `agreement/README.md`); the typed API (blueprint section 13); public staging (blueprint sections 3 and 6); no passwords (blueprint section 9, `infra/supabase/auth/README.md`); Expo and its robot token (blueprint sections 2 and 7); what comes before the first feature round (`TRACKER.md`); the Product brief's "Round 2 progress" and "For the founder" sections (CLAUDE.md, "Thinking-project briefs").
+
+### `EXPO_TOKEN` found in Doppler `stg` (checked by Claude Code)
+
+**Found:** the founder saved Expo's robot token as `EXPO_TOKEN` in `hrizzup/stg`. It's a tool token, so its place is `hrizzup-tools/claude` (runbook Part 4, "Where each kind of key lives", now written out). Checked by name only, through Claude Code's own access; the value was never read, shown or copied:
+
+| Where | Holds it? | How it was checked |
+|---|---|---|
+| Doppler `stg` | Yes | `infra/doppler/run stg`: the name reaches the command's environment, so any session can read it there |
+| Doppler `stg_preview` | Yes, inherited from `stg` | `infra/doppler/run stg_preview` |
+| Doppler `dev` | No | `dev_follows_staging.py check` now reports "`EXPO_TOKEN`: missing from dev". `apply` was deliberately not run, so `dev` doesn't take a reference to a key that's leaving `stg` |
+| Doppler `hrizzup-tools/claude` | No | `infra/doppler/run tools` |
+| Vercel's staging and preview settings | Yes: Doppler's two syncs added it as a Sensitive variable at 22:28 India time | Vercel's API through `infra/doppler/run tools`, names, targets and types only; production's entries were dropped unread |
+| GitHub's secrets | No | Names of the repository's and `hrizzup-staging`'s secrets |
+| GitHub check jobs | Not yet, but next: the Staging workflow (every merge to `main`) and the Screen check (every pull request that changes the website) load all of `stg` and `stg_preview` into their job's environment, masked in logs | `.github/workflows/staging.yml` and `checks.yml` (`inject-env-vars: true`); no workflow had run since 22:28 |
+
+- **Why it matters:** the next push to any branch builds a preview with the token in its server environment, and every staging build has it too, so a token meant only for Claude Code's own commands reaches builds and check jobs.
+- **Decided (Claude Code, following the runbook):** tool tokens live in `hrizzup-tools`, never in `hrizzup`; one that Doppler has already synced anywhere is replaced, not moved. The founder's clicks are runbook step 4.6: a fresh robot token straight into `hrizzup-tools`, then `EXPO_TOKEN` deleted from `stg` and the old token deleted in Expo. Afterwards Claude Code checks the names again (removing any copy Doppler's sync leaves in Vercel's staging or preview settings) and that the token is the robot's.
+- **Doppler's other tokens are unchanged:** `check_access.py` reports every token working for its own config only, none able to open `prd` or `prd_release`, and no personal Doppler login on this Mac.
+
+---
+
 ## Rules for this log
 
 - It records every account, plan, region and setting configured for Hrizzup, on the day it is set. Add each new day above this section, newest day last.
