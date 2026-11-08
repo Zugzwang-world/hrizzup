@@ -2,6 +2,8 @@
 
 Research for PLAN.md step 1.7 (the market engine) and step 3.2 (markets that settle themselves), 8 November 2026. Research only: nothing was copied into this repository.
 
+**Since then** (the founder's market model, 8 November 2026, PLAN.md section 2): markets are built first on test markets, settled by hand; the topics, with automatic resolvers (step 3.2a) and their data sources (step 1.2, parked), come once markets work end to end on staging. Section 5's sports flow and the data-source rows below are reference for that later step.
+
 **What was read:** [github.com/manifoldmarkets/manifold](https://github.com/manifoldmarkets/manifold), commit `79997aafcf0d8d826eb51dad5c7712e63d35de65` (5 November 2026), cloned outside `~/hrizzup`. Every path below is a path in that repository.
 
 **Licence:** MIT (`LICENSE.md`, "Copyright (c) 2022 Manifold Markets, Inc."). We may copy, change and use the code, including commercially, as long as the copyright and licence notice go with it. When step 1.7 copies code, the notice goes beside it and into `THIRD_PARTY_NOTICES.md`, as CLAUDE.md requires.
