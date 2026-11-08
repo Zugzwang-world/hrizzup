@@ -65,9 +65,11 @@ def main():
         "|---|---|",
         *rows,
         "",
-        "Maestro on an Android emulator (API 34, Pixel 7), phone size and then tablet size; the cold "
-        "start is the median of 5, from Android starting the app to its first content, against the "
-        "app's budget (blueprint section 14). Screenshots: the run's `app-journeys` artifact.",
+        "Maestro on an Android emulator (API 34, Pixel 7), phone size and then tablet size. The cold "
+        "start is the median of 7, from Android starting the app to its first content; it fails on a "
+        "regression against main on the same emulator, because the emulator is slower than a phone "
+        "(the 2-second budget is a phone's: `product/app/journeys/startup.sh`). Screenshots: the "
+        "run's `app-journeys` artifact.",
     ])
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary:

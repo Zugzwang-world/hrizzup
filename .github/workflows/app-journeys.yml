@@ -195,9 +195,18 @@ jobs:
             ~/.android/avd/*
             ~/.android/adb*
           key: emulator-${{ env.API_LEVEL }}-${{ env.TARGET }}-x86_64-${{ env.PROFILE }}-v1
-      - name: The app's journeys, at a phone size and a tablet size
+      - name: Main's cold start, to compare with (pull requests)
+        if: steps.run.outputs.app == 'true' && github.event_name == 'pull_request'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/startup-main
+          key: app-startup-main-${{ github.sha }}
+          restore-keys: app-startup-main-
+      - name: The app's journeys, at a phone size and a tablet size, then its cold start
         if: steps.run.outputs.app == 'true'
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        env:
+          STARTUP_BASELINE: ${{ runner.temp }}/startup-main/startup.json
         with:
           api-level: ${{ env.API_LEVEL }}
           target: ${{ env.TARGET }}
@@ -207,6 +216,17 @@ jobs:
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: bash product/app/journeys/run.sh product/app/journeys-build/app.apk "$RUNNER_TEMP/journeys"
+      - name: Keep main's cold start for the next pull requests (main only)
+        if: steps.run.outputs.app == 'true' && github.ref == 'refs/heads/main'
+        run: |
+          mkdir -p "$RUNNER_TEMP/startup-main"
+          cp "$RUNNER_TEMP/journeys/startup.json" "$RUNNER_TEMP/startup-main/startup.json"
+      - name: Save main's cold start
+        if: steps.run.outputs.app == 'true' && github.ref == 'refs/heads/main'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/startup-main
+          key: app-startup-main-${{ github.sha }}
       - name: The results on the pull request
         if: ${{ !cancelled() && steps.run.outputs.app == 'true' }}
         env:
