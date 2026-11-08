@@ -6,6 +6,13 @@ name: The app opens and shows its screen
 ---
 - launchApp:
     clearState: true
+# If one of Android's own apps stopped responding on the slow CI emulator, its dialog would
+# cover the app: wait for it instead of failing on it.
+- runFlow:
+    when:
+      visible: ".*isn't responding"
+    commands:
+      - tapOn: "Wait"
 - extendedWaitUntil:
     visible:
       id: home

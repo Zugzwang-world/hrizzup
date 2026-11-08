@@ -100,7 +100,13 @@ jobs:
       - name: The app's files, as one key
         id: key
         if: steps.run.outputs.app == 'true'
-        run: echo "files=$(git ls-files -s product/app product/packages pnpm-lock.yaml .node-version | sha256sum | cut -c1-40)" >> "$GITHUB_OUTPUT"
+        # Every tracked file the built app is made from; the journeys and the app's scripts
+        # don't change the app, so changing only them reuses the last build.
+        run: |
+          git ls-files -s product/app product/packages pnpm-lock.yaml .node-version \
+            | grep -v -e $'\tproduct/app/journeys/' -e $'\tproduct/app/scripts/' \
+              -e $'\tproduct/app/bundle-limit.json' -e $'\tproduct/app/vitest.config.ts' \
+            | sha256sum | cut -c1-40 | sed 's/^/files=/' >> "$GITHUB_OUTPUT"
       - name: The built app, if these files were built before
         id: built
         if: steps.run.outputs.app == 'true'

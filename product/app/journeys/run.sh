@@ -13,6 +13,12 @@ out="$2"
 flows="$(cd "$(dirname "$0")" && pwd)"
 mkdir -p "$out"
 
+# A just-booted emulator on a small CI machine is slow, and Android's own apps (the launcher)
+# can stop responding for a while; their "isn't responding" dialog would cover the app under
+# test. Android's test setting hides such dialogs, and any already open is closed.
+adb shell settings put global hide_error_dialogs 1
+adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS > /dev/null 2>&1 || true
+
 adb install -r "$apk"
 
 journeys() {
