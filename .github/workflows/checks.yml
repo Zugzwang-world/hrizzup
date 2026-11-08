@@ -57,6 +57,8 @@ jobs:
         run: pnpm exec biome ci .
       - name: Type checks and unit tests
         run: pnpm exec turbo run typecheck test
+      - name: Infrastructure tools' tests
+        run: python3 -m unittest discover -s infra/vercel
 
   database:
     name: Database check
