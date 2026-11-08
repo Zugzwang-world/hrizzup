@@ -1,8 +1,10 @@
+import { existsSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { type BrowserContextOptions, expect, test } from '@playwright/test';
 import { layoutProblems } from './layout.ts';
 import { pagesIn } from './pages.ts';
+import { signedInState, signedOutState } from './support/states.ts';
 import { views } from './viewports.ts';
 
 /**
@@ -41,17 +43,16 @@ for (const view of views) {
     const base = testInfo.project.use;
     const options: BrowserContextOptions = {
       ...(base.baseURL ? { baseURL: base.baseURL } : {}),
-      ...(base.extraHTTPHeaders ? { extraHTTPHeaders: base.extraHTTPHeaders } : {}),
       viewport: { width: view.width, height: view.height },
       deviceScaleFactor: view.touch ? 2 : 1,
       hasTouch: view.touch,
       isMobile: view.touch && view.width < 1024 && browserName !== 'firefox',
     };
-    const signedInState = process.env[`SIGNED_IN_STATE_${browserName.toUpperCase()}`];
+    const signedIn = signedInState(browserName);
     const failures: string[] = [];
 
     const environment = process.env.SCREEN_CHECK_ENVIRONMENT;
-    if (environment !== 'production' && !signedInState) {
+    if (environment !== 'production' && !existsSync(signedIn)) {
       throw new Error(
         `Signed-in pages can't be checked on ${environment}: staging's Supabase keys are missing`,
       );
@@ -60,7 +61,7 @@ for (const view of views) {
     for (const check of pagesToCheck()) {
       const context = await browser.newContext({
         ...options,
-        ...(check.signedIn && signedInState ? { storageState: signedInState } : {}),
+        storageState: check.signedIn ? signedIn : signedOutState(browserName),
       });
       if (view.largeText) await context.addInitScript(LARGE_TEXT);
       const page = await context.newPage();

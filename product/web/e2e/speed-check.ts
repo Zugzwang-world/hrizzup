@@ -17,6 +17,7 @@ import {
   type RunMetrics,
   summarize,
 } from './speed.ts';
+import { BYPASS_COOKIE, bypassCookieValue } from './support/bypass.ts';
 
 /**
  * The speed check (PLAN.md step 1.5, blueprint section 14): every page in `pages.ts`, measured
@@ -31,13 +32,11 @@ import {
  * protected deployment), CHROME_PATH, SPEED_RUNS (default 5) and SPEED_OUT (where the results
  * and each page's Lighthouse report go; default `speed-results`).
  *
- * Protected deployments: the bypass secret goes to our own address once, in a request that
- * asks Vercel for its bypass cookie (`_vercel_jwt`). Lighthouse then runs with only that
- * cookie, which the browser sends to our own address alone, so the secret never reaches the
- * other sites a page loads (such as X's embeds).
+ * Protected deployments: the bypass secret goes to our own address once, for Vercel's bypass
+ * cookie, and Lighthouse runs with only that cookie (support/bypass.ts), so the secret never
+ * reaches the other sites a page loads (such as X's embeds).
  */
 
-const BYPASS_COOKIE = '_vercel_jwt';
 const out = process.env.SPEED_OUT ?? 'speed-results';
 
 function chromePath(): string {
@@ -55,20 +54,6 @@ async function environmentOf(base: string, headers: Record<string, string>): Pro
     throw new Error(`${base}/api/health answered ${response.status}; is the address right?`);
   }
   return ((await response.json()) as { environment: string }).environment;
-}
-
-/** Vercel's bypass cookie for one protected deployment. Its value is never printed. */
-async function bypassCookie(base: string, secret: string): Promise<string> {
-  const response = await fetch(new URL('/', base), {
-    headers: { 'x-vercel-protection-bypass': secret, 'x-vercel-set-bypass-cookie': 'true' },
-    redirect: 'manual',
-  });
-  for (const header of response.headers.getSetCookie()) {
-    const [pair = ''] = header.split(';');
-    const [name, ...value] = pair.split('=');
-    if (name?.trim() === BYPASS_COOKIE) return value.join('=').trim();
-  }
-  throw new Error(`Vercel gave no bypass cookie for ${base} (it answered ${response.status})`);
 }
 
 async function openBrowser(): Promise<{ browser: Browser; tab: Tab }> {
@@ -172,7 +157,7 @@ async function main() {
     if (secret) {
       await browser.setCookie({
         name: BYPASS_COOKIE,
-        value: await bypassCookie(base, secret),
+        value: await bypassCookieValue(base, secret),
         domain: new URL(base).hostname,
         path: '/',
         secure: true,

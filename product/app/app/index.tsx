@@ -7,11 +7,18 @@ export default function Home() {
   const dark = useColorScheme() === 'dark';
   const ink = dark ? '#f2f0ea' : '#1d1f24';
   return (
-    <SafeAreaView style={[styles.screen, { backgroundColor: dark ? '#16181c' : '#fbfaf7' }]}>
+    <SafeAreaView
+      testID="home"
+      style={[styles.screen, { backgroundColor: dark ? '#16181c' : '#fbfaf7' }]}
+    >
       <View style={styles.content}>
-        <Text style={[styles.name, { color: ink }]}>{brand.name}</Text>
-        <Text style={[styles.headline, { color: ink }]}>{brand.headline}</Text>
-        <Text style={[styles.note, { color: dark ? '#b3b6bd' : '#5f636b' }]}>
+        <Text testID="home-name" style={[styles.name, { color: ink }]}>
+          {brand.name}
+        </Text>
+        <Text testID="home-headline" style={[styles.headline, { color: ink }]}>
+          {brand.headline}
+        </Text>
+        <Text testID="home-note" style={[styles.note, { color: dark ? '#b3b6bd' : '#5f636b' }]}>
           {brand.availability}
         </Text>
       </View>

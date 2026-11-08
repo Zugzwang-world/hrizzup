@@ -1,0 +1,20 @@
+# The app's first journey (PLAN.md step 1.5b): it opens and shows its screen. Run by
+# journeys/run.sh on an Android emulator at a phone size and a tablet size (SIZE says which),
+# in the App journeys check (.github/workflows/app-journeys.yml).
+appId: com.hrizzup.app
+name: The app opens and shows its screen
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: home
+    timeout: 30000
+- assertVisible:
+    id: home-name
+    text: Hrizzup
+- assertVisible:
+    id: home-headline
+- assertVisible:
+    id: home-note
+- takeScreenshot: ${SIZE}-home

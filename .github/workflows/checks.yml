@@ -6,7 +6,9 @@
 #                   tests, including "every table is locked" (row-level security)
 #   Screen check    once Vercel's preview of the pull request is ready, opens it in
 #                   Chromium and WebKit at every screen size (CLAUDE.md, "Screens fit
-#                   every device"), signed out and signed in with a staging test account
+#                   every device"), signed out and signed in with a staging test account,
+#                   then runs the website's journeys (product/web/e2e/journeys: every page
+#                   opens; the test account signs in and out)
 #   Speed check     the performance budgets (blueprint section 14): every page of the
 #                   preview with Lighthouse (mobile preset, median of 5 runs) and the app's
 #                   code size against main's; the numbers go on the pull request
@@ -128,7 +130,7 @@ jobs:
         working-directory: product/web
         run: pnpm exec playwright install --with-deps chromium webkit
 
-      - name: Screen check on the preview
+      - name: Screen check and journeys on the preview
         if: steps.affected.outputs.website == 'true'
         working-directory: product/web
         env:

@@ -76,30 +76,42 @@ export type SessionCookie = { name: string; value: string };
 /**
  * A fresh session for a test account, as the cookies the website itself would set, so a
  * browser carrying them is signed in exactly as after a real sign-in. Nothing is emailed.
+ *
+ * Each account has one one-time token at a time: asking for a new one cancels the last. Checks
+ * of several pull requests, and runs on this Mac, share the two accounts, so one may cancel
+ * another's token between asking and using it. Staging then refuses it (403), and this asks
+ * again, a few times, after a short random wait.
  */
 export async function testSessionCookies(keys: Keys, email: string): Promise<SessionCookie[]> {
   await ensureTestAccount(keys, email);
-  const { data, error } = await admin(keys).auth.admin.generateLink({ type: 'magiclink', email });
-  if (error || !data.properties?.hashed_token) {
-    throw new Error(`Couldn't get a one-time sign-in token for ${email} (${error?.status})`);
-  }
-  const jar = new Map<string, string>();
-  const site = createServerClient(keys.url, keys.publishableKey, {
-    cookies: {
-      getAll: () => [...jar].map(([name, value]) => ({ name, value })),
-      setAll: (list) => {
-        for (const c of list) {
-          if (c.value) jar.set(c.name, c.value);
-          else jar.delete(c.name);
-        }
+  const attempts = 5;
+  for (let attempt = 1; ; attempt++) {
+    const { data, error } = await admin(keys).auth.admin.generateLink({ type: 'magiclink', email });
+    if (error || !data.properties?.hashed_token) {
+      throw new Error(`Couldn't get a one-time sign-in token for ${email} (${error?.status})`);
+    }
+    const jar = new Map<string, string>();
+    const site = createServerClient(keys.url, keys.publishableKey, {
+      cookies: {
+        getAll: () => [...jar].map(([name, value]) => ({ name, value })),
+        setAll: (list) => {
+          for (const c of list) {
+            if (c.value) jar.set(c.name, c.value);
+            else jar.delete(c.name);
+          }
+        },
       },
-    },
-  });
-  const { error: verifyError } = await site.auth.verifyOtp({
-    token_hash: data.properties.hashed_token,
-    type: 'magiclink',
-  });
-  if (verifyError) throw new Error(`Staging refused the one-time token (${verifyError.status})`);
-  if (jar.size === 0) throw new Error('No session cookie came back');
-  return [...jar].map(([name, value]) => ({ name, value }));
+    });
+    const { error: verifyError } = await site.auth.verifyOtp({
+      token_hash: data.properties.hashed_token,
+      type: 'magiclink',
+    });
+    if (verifyError?.status === 403 && attempt < attempts) {
+      await new Promise((resolve) => setTimeout(resolve, 500 + Math.random() * 2000));
+      continue;
+    }
+    if (verifyError) throw new Error(`Staging refused the one-time token (${verifyError.status})`);
+    if (jar.size === 0) throw new Error('No session cookie came back');
+    return [...jar].map(([name, value]) => ({ name, value }));
+  }
 }

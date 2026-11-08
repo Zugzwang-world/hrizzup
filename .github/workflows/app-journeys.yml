@@ -1,0 +1,180 @@
+# Hrizzup: the app's journeys (PLAN.md step 1.5b; blueprint section 13). Maestro on an Android
+# emulator in GitHub's runner, at a phone size and a tablet size, on every pull request that
+# touches the app or a package it uses (`.github/scripts/affected.py`); other pull requests
+# pass at once.
+#
+# The app is built as a release build, with its code inside (like the preview build people
+# install), from Expo's generated Android project (`expo prebuild`) with Gradle, for the
+# emulator's processor only. Three caches keep most runs short:
+#   - Gradle's downloads and build cache (gradle/actions/setup-gradle);
+#   - the built app itself, keyed by the app's files, so a re-run skips the build;
+#   - the emulator, booted once and saved as a snapshot (android-emulator-runner's own pattern).
+# GitHub lets every pull request read what main saved, but not what another pull request
+# saved, so the job also runs on main after a merge that changes the app: that keeps the
+# caches warm for the next pull request (and checks main itself).
+#
+# The job name is meant to become a required check in the "main" ruleset once it is steady.
+
+name: App journeys
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    paths:
+      - product/app/**
+      - product/packages/**
+      - pnpm-lock.yaml
+      - .github/workflows/app-journeys.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: app-journeys-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  API_LEVEL: 34
+  TARGET: google_apis
+  PROFILE: pixel_7
+
+jobs:
+  app:
+    name: App journeys
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write # for the Remote Cache's short-lived token
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - name: Connect the Remote Cache
+        uses: vercel/setup-turborepo-remote-cache-action@49d7b1b46ba4c9251e1977986bfe18336feabc8f # v1.1.0
+        continue-on-error: true
+        with:
+          team: ${{ vars.TURBO_TEAM }}
+      - run: pnpm install --frozen-lockfile
+
+      - name: Does this change touch the app?
+        id: affected
+        if: github.event_name == 'pull_request'
+        env:
+          TURBO_SCM_BASE: ${{ github.event.pull_request.base.sha }}
+          TURBO_SCM_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: python3 .github/scripts/affected.py
+      - name: Run the journeys?
+        id: run
+        env:
+          ON_PULL_REQUEST: ${{ github.event_name == 'pull_request' }}
+          APP_TOUCHED: ${{ steps.affected.outputs.app }}
+        run: |
+          if [ "$ON_PULL_REQUEST" != "true" ] || [ "$APP_TOUCHED" = "true" ]; then
+            echo "app=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "app=false" >> "$GITHUB_OUTPUT"
+            echo "The app isn't affected by this change, so there is no journey to run."
+          fi
+
+      # The app, built once per set of files.
+      - name: The app's files, as one key
+        id: key
+        if: steps.run.outputs.app == 'true'
+        run: echo "files=$(git ls-files -s product/app product/packages pnpm-lock.yaml .node-version | sha256sum | cut -c1-40)" >> "$GITHUB_OUTPUT"
+      - name: The built app, if these files were built before
+        id: built
+        if: steps.run.outputs.app == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: product/app/journeys-build/app.apk
+          key: app-release-x86_64-${{ steps.key.outputs.files }}
+      - name: Java 17, for Gradle and Maestro
+        if: steps.run.outputs.app == 'true'
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Gradle, with its cache (saved from main only)
+        if: steps.run.outputs.app == 'true' && steps.built.outputs.cache-hit != 'true'
+        uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+      - name: Build the app (release build, its code inside, for the emulator)
+        if: steps.run.outputs.app == 'true' && steps.built.outputs.cache-hit != 'true'
+        working-directory: product/app
+        run: |
+          set -euo pipefail
+          pnpm exec expo prebuild --platform android --no-install
+          (cd android && ./gradlew assembleRelease -PreactNativeArchitectures=x86_64 --build-cache)
+          mkdir -p journeys-build
+          cp android/app/build/outputs/apk/release/app-release.apk journeys-build/app.apk
+
+      # Maestro and the emulator.
+      - name: Maestro (pinned version, checksum checked)
+        if: steps.run.outputs.app == 'true'
+        env:
+          MAESTRO_VERSION: 2.12.1
+          MAESTRO_SHA256: 54dbb0716425626604973cbb374c585ca30272375d9ce15177a1152765ddd9d7
+        run: |
+          set -euo pipefail
+          curl -sSfL -o "$RUNNER_TEMP/maestro.zip" \
+            "https://github.com/mobile-dev-inc/maestro/releases/download/cli-${MAESTRO_VERSION}/maestro.zip"
+          echo "${MAESTRO_SHA256}  $RUNNER_TEMP/maestro.zip" | sha256sum --check --strict
+          unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
+      - name: Let the emulator use the processor's virtualisation (KVM)
+        if: steps.run.outputs.app == 'true'
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: The emulator's saved snapshot
+        id: emulator
+        if: steps.run.outputs.app == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: emulator-${{ env.API_LEVEL }}-${{ env.TARGET }}-x86_64-${{ env.PROFILE }}-v1
+      - name: Boot the emulator once and save its snapshot (first run only)
+        if: steps.run.outputs.app == 'true' && steps.emulator.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: ${{ env.API_LEVEL }}
+          target: ${{ env.TARGET }}
+          arch: x86_64
+          profile: ${{ env.PROFILE }}
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: false
+          script: echo "The emulator's snapshot is saved."
+      - name: The app's journeys, at a phone size and a tablet size
+        if: steps.run.outputs.app == 'true'
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: ${{ env.API_LEVEL }}
+          target: ${{ env.TARGET }}
+          arch: x86_64
+          profile: ${{ env.PROFILE }}
+          force-avd-creation: false
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: bash product/app/journeys/run.sh product/app/journeys-build/app.apk "$RUNNER_TEMP/journeys"
+      - name: Screenshots and results (phone and tablet)
+        if: always() && steps.run.outputs.app == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: app-journeys
+          path: ${{ runner.temp }}/journeys/
+          if-no-files-found: ignore
+          retention-days: 30

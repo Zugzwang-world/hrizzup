@@ -1,33 +1,36 @@
 import { defineConfig } from '@playwright/test';
+import { signedOutState } from './e2e/support/states.ts';
 
 /**
- * The screen check. It runs against BASE_URL: a pull request's preview (in CI), staging,
- * or this Mac (default, http://localhost:3000). Protected Vercel deployments are opened
- * with the protection bypass for automation (VERCEL_AUTOMATION_BYPASS_SECRET). Traces are
- * off, because they would record that header.
+ * The Screen check: the screen sizes (e2e/screens.spec.ts) and the journeys (e2e/journeys/),
+ * in Chromium and WebKit. It runs against BASE_URL: a pull request's preview (in CI),
+ * staging, or this Mac (default, http://localhost:3000). On a protected Vercel deployment,
+ * global-setup.ts trades the protection bypass for automation (VERCEL_AUTOMATION_BYPASS_SECRET)
+ * for Vercel's bypass cookie, which each browser starts with, so the secret itself never
+ * travels with the browsers' requests (e2e/support/bypass.ts). Traces, screenshots on failure
+ * and video are off, because they would record the cookies.
  */
-const bypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
-
 export default defineConfig({
   testDir: './e2e',
-  testMatch: '*.spec.ts',
+  testMatch: '**/*.spec.ts',
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
   timeout: 120_000,
   reporter: process.env.CI ? [['github'], ['list']] : [['list']],
   globalSetup: './e2e/global-setup.ts',
+  globalTeardown: './e2e/global-teardown.ts',
   use: {
     baseURL: process.env.BASE_URL ?? 'http://localhost:3000',
-    extraHTTPHeaders: bypass
-      ? { 'x-vercel-protection-bypass': bypass, 'x-vercel-set-bypass-cookie': 'true' }
-      : {},
     trace: 'off',
     screenshot: 'off',
     video: 'off',
   },
   projects: [
-    { name: 'chromium', use: { browserName: 'chromium' } },
-    { name: 'webkit', use: { browserName: 'webkit' } },
+    {
+      name: 'chromium',
+      use: { browserName: 'chromium', storageState: signedOutState('chromium') },
+    },
+    { name: 'webkit', use: { browserName: 'webkit', storageState: signedOutState('webkit') } },
   ],
 });
