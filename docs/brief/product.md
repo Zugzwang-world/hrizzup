@@ -20,7 +20,7 @@ One line per relay; each relay keeps only its own line current.
 
 1. **Relay 1, the round's records:** merged [#36](https://github.com/Zugzwang-world/hrizzup/pull/36). Next: nothing, relay 1 is done. For the founder: replace the Expo token.
 2. **Relay 2, steps 1.5a to 1.5d:** no milestone merged yet. Next: 1.5a, the speed check.
-3. **Relay 3, step 1.7a, Manifold's maths:** no milestone merged yet. Next: the maths with its tests.
+3. **Relay 3, step 1.7a, Manifold's maths:** merged [#38](https://github.com/Zugzwang-world/hrizzup/pull/38), Manifold's maths for yes/no markets with its tests (158 pass). Next: our changes (the time passed in, no loans, fees at zero behind one setting), then our money tests.
 4. **Relay 4, step 1.4's first pass:** no milestone merged yet. Next: the design values.
 5. **Relay 5, Sourcing's review of the agreement's first half:** merged [#37](https://github.com/Zugzwang-world/hrizzup/pull/37), the written review (`agreement/reviews/sourcing-first-half.md`): 2 blocking findings and 9 changes, plus 14 notes. Next: the changes, as a new Draft revision. For the founder: three questions, none holding up the approval.
 

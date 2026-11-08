@@ -12,14 +12,40 @@ Hrizzup is proprietary software (see [LICENSE](LICENSE)). This file lists open-s
 
 ## Copied code
 
-None yet.
+### Manifold's market maths (PLAN.md step 1.7a)
+
+- **What:** the maths for yes/no markets (pool prices, buying, limit orders, selling, Yes and No cancelling out, fees, settlement and positions), the files it imports, and Manifold's tests for them, from Manifold's `common/src/`. The list of files, and every change made to them, is in [product/packages/market-engine/README.md](product/packages/market-engine/README.md).
+- **Source:** https://github.com/manifoldmarkets/manifold, commit `79997aafcf0d8d826eb51dad5c7712e63d35de65` (5 November 2026).
+- **Where it lives:** [product/packages/market-engine/src/manifold/](product/packages/market-engine/src/manifold/), with the licence beside it in `LICENSE.md`. Two files there are Hrizzup's own replacements, not Manifold's: `contract.ts` and `api/utils.ts`.
+- **Licence:** MIT, confirmed at that commit (`LICENSE.md`, Manifold's only licence file). The full notice:
+
+> MIT License
+>
+> Copyright (c) 2022 Manifold Markets, Inc.
+>
+> Permission is hereby granted, free of charge, to any person obtaining a copy
+> of this software and associated documentation files (the "Software"), to deal
+> in the Software without restriction, including without limitation the rights
+> to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+> copies of the Software, and to permit persons to whom the Software is
+> furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in all
+> copies or substantial portions of the Software.
+>
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+> IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+> FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+> AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+> LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+> OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+> SOFTWARE.
 
 ---
 
 ## Planned
 
-### Manifold market engine (PLAN.md step 1.7)
+### Manifold's perps maths (PLAN.md step 3.4)
 
-- **Source:** https://github.com/manifoldmarkets/manifold
-- **Licence:** on 2 November 2026 GitHub reported the MIT License (`LICENSE.md`). Confirm it again at the commit actually copied.
-- **When copied:** record the commit, the folders copied and where they live under `product/`, then paste the full MIT notice (its copyright line and permission text) from that commit's `LICENSE.md` into a section under "Copied code".
+- **Source:** https://github.com/manifoldmarkets/manifold, `common/src/perps/` (MIT, the same licence as the market maths above).
+- **When copied:** record the commit and where it lives under `product/`, keep `LICENSE.md` beside it, and add it under "Copied code".

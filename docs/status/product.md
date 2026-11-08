@@ -68,6 +68,16 @@ Last updated: 8 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/brie
     - `EXPO_TOKEN` is replaced rather than moved, because Doppler had synced it; until then a session may read it from `stg`.
     - Relays 3 to 5 are numbered in the order their worktrees were made: 1.7a, 1.4's first pass, Sourcing's review.
 
+- **Manifold's market maths, step 1.7a (Round 2, relay 3), milestone 1 of 3** ([#38](https://github.com/Zugzwang-world/hrizzup/pull/38)): a new package, `product/packages/market-engine` (`@hrizzup/market-engine`), holds Manifold's maths for yes/no markets (pool prices, buying, limit orders, selling, Yes and No cancelling out, fees, settlement and positions), copied from Manifold at commit `79997aa` with its tests (11 files, 158 tests, passing in Quick checks), changed only as far as our coding rules need. Our own slim market type replaces Manifold's `contract.ts`, a small error class its `api/utils.ts`; its MIT licence sits beside the code and in `THIRD_PARTY_NOTICES.md`; `calculate-cpmm-arbitrage.ts` is kept unchanged and unused; a compare script shows what differs from Manifold. The package's README lists every file and every change.
+  - **Answered without asking** (one line each):
+    - Manifold's files keep their paths from its `common/src/`; our two replacements sit where the maths imports them.
+    - `number.ts` and `util/array.ts` come whole for one of Manifold's tests; `new-contract.ts` comes trimmed to opening yes/no and multiple-choice markets (C9's "small market-creation helper").
+    - `bet.ts` loses its chart helper, and its bet ids come from `crypto.randomUUID()` instead of `util/random.ts`.
+    - `lodash-es` 4.18.1 (current) instead of lodash 4.17.21: Manifold's tests pass on it, with the later security fixes; lodash's `Dictionary` type comes from `@types/lodash`.
+    - Biome's override for the copied folder also switches off `isNaN` and `isFinite` checks, whose `Number.` versions behave differently; React's and Next.js's rules are off for the package.
+    - `calculate-cpmm-arbitrage.ts` differs from Manifold's only in its import lines and one redaction (a Firebase Storage token in a commented-out example, which the secret check refused), and Biome skips it.
+    - Manifold's two optional probes and its benchmark stay out: they skip themselves unless switched on.
+
 ## Next
 
 1. **Round 2, running now** (`TRACKER.md`, "Before the first feature round"): relay 2, steps 1.5a to 1.5d in order; relay 3, Manifold's maths (1.7a); relay 4, the design's first pass (1.4); relay 5, Sourcing's review of the agreement's first half, after which the founder approves it in News Desk's place and it becomes Agreed in a change he asks for.

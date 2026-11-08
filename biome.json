@@ -6,6 +6,7 @@
       "product/**",
       "agreement/**",
       "!agreement/README.md",
+      "!product/packages/market-engine/src/manifold/calculate-cpmm-arbitrage.ts",
       "infra/supabase/package.json",
       "package.json",
       "turbo.json",
@@ -26,5 +27,31 @@
     "rules": { "preset": "recommended" },
     "domains": { "next": "recommended", "react": "recommended" }
   },
-  "assist": { "actions": { "source": { "organizeImports": "on" } } }
+  "assist": { "actions": { "source": { "organizeImports": "on" } } },
+  "overrides": [
+    {
+      "includes": ["product/packages/market-engine/**"],
+      "linter": { "domains": { "next": "none", "react": "none" } }
+    },
+    {
+      "includes": ["product/packages/market-engine/src/manifold/**"],
+      "linter": {
+        "rules": {
+          "complexity": {
+            "noUselessSwitchCase": "off",
+            "useLiteralKeys": "off",
+            "useMathMinMax": "off",
+            "useOptionalChain": "off"
+          },
+          "style": { "noNonNullAssertion": "off", "useTemplate": "off" },
+          "suspicious": {
+            "noExplicitAny": "off",
+            "noGlobalIsFinite": "off",
+            "noGlobalIsNan": "off",
+            "useDefaultSwitchClauseLast": "off"
+          }
+        }
+      }
+    }
+  ]
 }

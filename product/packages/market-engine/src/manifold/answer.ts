@@ -1,0 +1,163 @@
+import { sortBy } from 'lodash-es';
+import type { MultiContract, resolution } from './contract.ts';
+
+export type Answer = {
+  id: string;
+  index: number; // Order of the answer in the list
+  contractId: string;
+  userId: string;
+  text: string;
+  createdTime: number;
+  color?: string; // Hex color override in UI
+
+  // Mechanism props
+  poolYes: number; // YES shares
+  poolNo: number; // NO shares
+  p: number; // CPMM parameter; prob = p*poolNo / ((1-p)*poolYes + p*poolNo). 0.5 for cpmm-multi-1.
+  prob: number; // Computed from poolYes, poolNo and p.
+  totalLiquidity: number; // for historical reasons, this the total subsidy amount added in M
+  subsidyPool: number; // current value of subsidy pool in M
+  volume: number; // current volume of the answer in M
+
+  // Is this 'Other', the answer that represents all other answers, including answers added in the future.
+  isOther?: boolean;
+
+  // Per-answer resolution. Set today only for independent (shouldAnswersSumToOne = false)
+  // markets, where each answer resolves on its own. Reserved cpmm-multi-2 behavior: linked
+  // answers MAY also be individually resolved NO in the future (market stays open, probs
+  // sum to 1 over the unresolved answers) — see the CPMMMulti doc comment in contract.ts.
+  // Consumers should not assume linked answers are never individually resolved.
+  resolution?: resolution;
+  resolutionTime?: number;
+  resolutionProbability?: number;
+  resolverId?: string;
+
+  probChanges: {
+    day: number;
+    week: number;
+    month: number;
+  };
+
+  loverUserId?: string;
+  imageUrl?: string;
+  shortText?: string;
+  midpoint?: number;
+};
+
+export const MAX_ANSWER_LENGTH = 240;
+
+export const MAX_ANSWERS = 100;
+export const MAX_INDEPENDENT_ANSWERS = 200;
+
+export const getMaximumAnswers = (shouldAnswersSumToOne: boolean) =>
+  shouldAnswersSumToOne ? MAX_ANSWERS : MAX_INDEPENDENT_ANSWERS;
+
+export const OTHER_TOOLTIP_TEXT =
+  "Bet on all answers that aren't listed yet. A bet on Other automatically includes any answer added in the future.";
+
+export type MultiSort =
+  | 'prob-desc'
+  | 'prob-mid'
+  | 'prob-asc'
+  | 'old'
+  | 'new'
+  | 'liquidity'
+  | 'alphabetical';
+
+export const getDefaultSort = (contract: MultiContract) => {
+  const { sort, answers } = contract;
+  if (sort) return sort;
+  if (contract.addAnswersMode === 'DISABLED') return 'old';
+  else if (!contract.shouldAnswersSumToOne) return 'prob-desc';
+  else if (answers.length > 10) return 'prob-desc';
+  return 'old';
+};
+
+// Read an answer's CPMM p with the storage default applied. Answer.p is typed
+// non-optional and convertAnswer defaults it (row.p ?? 0.5), but answers deserialized
+// from the denormalized contract data blob (data->'answers' — SSR/SEO/embeds, search
+// "lite" answers) bypass convertAnswer, so any answer written before p existed reads
+// p === undefined at runtime and a bare `answer.p` poisons downstream math with NaN.
+// Use this accessor anywhere the answer may have come from the blob.
+export const answerP = (answer: { p?: number }) => answer.p ?? 0.5;
+
+export const sortAnswers = <T extends Answer>(
+  contract: MultiContract,
+  answers: T[],
+  sort?: MultiSort,
+) => {
+  const { resolutions } = contract;
+  sort = sort ?? getDefaultSort(contract);
+
+  const shouldAnswersSumToOne =
+    'shouldAnswersSumToOne' in contract ? contract.shouldAnswersSumToOne : true;
+
+  return sortBy(answers, [
+    shouldAnswersSumToOne
+      ? // Winners first
+        (answer) => (resolutions ? -1 * resolutions[answer.id] : answer)
+      : // Resolved last
+        (answer) => (answer.resolution ? 1 : 0),
+    // then by sort
+    (answer) => {
+      if (sort === 'old') {
+        return answer.resolutionTime ? answer.resolutionTime : answer.index;
+      } else if (sort === 'new') {
+        return answer.resolutionTime ? -answer.resolutionTime : -answer.index;
+      } else if (sort === 'prob-asc') {
+        return answer.prob;
+      } else if (sort === 'prob-desc') {
+        return -1 * answer.prob;
+      } else if (sort === 'prob-mid') {
+        // Closest to 50% first
+        return Math.abs(answer.prob - 0.5);
+      } else if (sort === 'liquidity') {
+        return -1 * answer.volume;
+      } else if (sort === 'alphabetical') {
+        return answer.text.toLowerCase();
+      }
+      return 0;
+    },
+  ]);
+};
+export const ANSWERS_TO_HIDE_GRAPH = 4;
+
+export function getSortedAnswers(
+  contract: MultiContract,
+  sortedAnswers: Answer[],
+  sort: MultiSort,
+  selectedAnswerIds?: string[],
+) {
+  const answers = contract.answers;
+  const allResolved = getAllResolved(contract, answers);
+  return sortedAnswers
+    .filter((answer) => {
+      if (selectedAnswerIds?.includes(answer.id)) {
+        return true;
+      }
+
+      if (allResolved) return true;
+      if (sort === 'prob-asc') {
+        return answer.prob < 0.99;
+      } else if (sort === 'prob-desc') {
+        return answer.prob > 0.01;
+      } else if (sort === 'prob-mid') {
+        return answer.prob > 0.01 && answer.prob < 0.99;
+      } else if (sort === 'liquidity' || sort === 'new' || sort === 'old') {
+        return !answer.resolution;
+      }
+      return true;
+    })
+    .slice(0, MAX_DEFAULT_ANSWERS);
+}
+
+export function getAllResolved(contract: MultiContract, answers: Answer[]) {
+  const shouldAnswersSumToOne = getShouldAnswersSumToOne(contract);
+  return (shouldAnswersSumToOne && !!contract.resolutions) || answers.every((a) => a.resolution);
+}
+
+export function getShouldAnswersSumToOne(contract: MultiContract) {
+  return 'shouldAnswersSumToOne' in contract ? contract.shouldAnswersSumToOne : true;
+}
+
+export const MAX_DEFAULT_ANSWERS = 20;
