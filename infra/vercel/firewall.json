@@ -97,7 +97,7 @@
     },
     {
       "name": "Staging's typed API: no bot challenge",
-      "description": "The app reads staging's typed API without a browser, so it can't pass the bot challenge (PLAN.md step 1.5d). Reads (GET) only: a public read holds no private data, a personal one needs a sign-in, and the rule above limits the rate; a call that writes gets its own decision. Staging only: production's waits for the release pipeline. Keep the bypasses last, since a bypass skips every rule after it.",
+      "description": "The app reads staging's typed API without a browser, so it can't pass the bot challenge (PLAN.md step 1.5d). Reads only, rate-limited by the rule above; writes get their own decision. Staging only. Keep bypasses last.",
       "active": true,
       "conditionGroup": [
         {
