@@ -1,6 +1,6 @@
 # Product: status
 
-Last updated: 8 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/brief/product.md](../brief/product.md). Code: [product/](../../product/). Hand-over agreement: [agreement/README.md](../../agreement/README.md).
+Last updated: 9 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/brief/product.md](../brief/product.md). Code: [product/](../../product/). Hand-over agreement: [agreement/README.md](../../agreement/README.md).
 
 ## Done
 
@@ -69,6 +69,13 @@ Last updated: 8 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/brie
     - Relays 3 to 5 are numbered in the order their worktrees were made: 1.7a, 1.4's first pass, Sourcing's review.
 
 - **Round 2, relay 2: steps 1.5a to 1.5d** (newest milestone first).
+  - **1.5d, 2 of 2: the app answers from public staging, 9 November 2026** ([#50](https://github.com/Zugzwang-world/hrizzup/pull/50)):
+    - **staging is public:** the Deployment Protection Exception for `staging.hrizzup.com` was added at 02:08 on 9 November 2026, India time (20:38 UTC on 8 November), with `infra/vercel/apply.py --staging-only`, and reads back (`--check`); a stranger now reaches staging, while previews and every build's private address still answer with Vercel's login. No firewall change was needed: staging's typed API answers Android's network client with no bot challenge (production's would challenge it, so /api/v1 needs an exemption there before the app uses production; the brief's open questions).
+    - **the app answers:** App journeys also runs `journeys/app-answers.yaml`, at the phone and the tablet size: the app shows "Hrizzup's servers answer: all working, from Mumbai (staging)";
+    - **the founder's builds** (Expo, free plan, internal distribution): the preview build https://expo.dev/accounts/hrizzups-team/projects/hrizzup/builds/eff51a2d-ce2e-47d0-acf1-8c4a32f9dc4d (direct download https://expo.dev/artifacts/eas/_jkiSqG2YisBSi0Xmyt3OrQUObdq271MkTV5Gyl_x44.apk) and the development build https://expo.dev/accounts/hrizzups-team/projects/hrizzup/builds/0be215e0-3d9f-4526-8958-1aea4a9f6773; the founder's install is pending until he confirms;
+    - **answered without asking** (one line each):
+      - The founder gets the preview build's direct download link: on Android it downloads at once, then Android asks to allow the browser to install it.
+      - The development build loads its code from the Mac (`pnpm --filter @hrizzup/app start --dev-client`, same Wi-Fi), so it's for sessions at the Mac only.
   - **1.5d, 1 of 2: staging gets ready to open; the app gets ready for the phone, 9 November 2026** ([#49](https://github.com/Zugzwang-world/hrizzup/pull/49)):
     - **what becomes public, reviewed:** the holding page, the draft legal pages, the sign-in test page (Google lets only its listed test users in, and a signed-in person sees only their own account), the sign-in routes (rate-limited), the preview sign-in relay (forwards a code only to a correctly signed preview), `/api/health` (the same as production's), the typed API (health's states; who am I only to its own account). No email route yet; no real user data. Nothing needed closing;
     - **search engines:** `robots.txt` already refused every crawler outside production; every response outside production now also says `X-Robots-Tag: noindex, nofollow`;
@@ -78,7 +85,7 @@ Last updated: 8 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/brie
       - The Expo owner is the robot's own account, `hrizzups-team`, which the blueprint names as the founder's; no second project.
       - Expo makes the Android signing key itself, on its side, at the first build; no key passes through this Mac.
       - Staging opens after the `noindex` header reaches it, in two pull requests: this one, then the check of the app answering from public staging.
-      - The app's 2-second cold-start budget is a phone's, and the CI emulator is no phone: the empty app took 2.5 to 4.3 s across five cold starts (median 3.12 s) on GitHub's 2 shared cores with software graphics. So the emulator check fails on a regression against main's median on the same emulator (more than 25% and 300 ms slower), shows the 2-second budget beside its number, and the budget itself is measured on real phones (open question in the brief). The budget is unchanged.
+      - The app's 2-second cold-start budget is a phone's, and the CI emulator is no phone: the empty app took 2.5 to 4.3 s across five cold starts (median 3.12 s) on GitHub's 2 shared cores with software graphics. So the emulator check fails on a clear regression against main's median on the same emulator (more than 60% and 1.5 s slower, outside the noise: the same app's median moved from 3.12 s to 4.21 s between two runs), shows the 2-second budget beside its number, and the budget itself is measured on real phones (open question in the brief). The budget is unchanged.
       - The journeys at both sizes run before the cold-start timing, so a timing problem never hides a journey's result.
       - App journeys became a required check in the "main" ruleset on 9 November 2026, after passing on #47, #48 and main; a pull request that doesn't touch the app passes it in about a minute.
   - **1.5c, the typed API, 9 November 2026** ([#48](https://github.com/Zugzwang-world/hrizzup/pull/48)):
@@ -181,7 +188,7 @@ Last updated: 8 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/brie
 
 ## Next
 
-1. **Round 2, running now** (`TRACKER.md`, "Before the first feature round"): relay 2, steps 1.5a to 1.5d in order; relay 3, Manifold's maths (1.7a, done); relay 4, the design's first pass (1.4); relay 5, Sourcing's review of the agreement's first half, done ([#37](https://github.com/Zugzwang-world/hrizzup/pull/37), [#42](https://github.com/Zugzwang-world/hrizzup/pull/42)), so the founder now approves it in News Desk's place, and it becomes Agreed in a change the founder asks for.
+1. **Round 2, running now** (`TRACKER.md`, "Before the first feature round"): relay 2's steps 1.5a to 1.5d are done (the founder's install of the app is pending); relay 3, Manifold's maths (1.7a, done); relay 4, the design's first pass (1.4); relay 5, Sourcing's review of the agreement's first half, done ([#37](https://github.com/Zugzwang-world/hrizzup/pull/37), [#42](https://github.com/Zugzwang-world/hrizzup/pull/42)), so the founder now approves it in News Desk's place, and it becomes Agreed in a change the founder asks for.
 2. **Parallel local development (step 1.8),** before the first feature round: three sessions side by side, each with its own ports and database containers, signing in and uploading locally.
 3. **The markets track** (`TRACKER.md`, "Markets track"), in the founder's build order: 1.7a (relay 3, running), then 1.7b the ledger, 1.7c markets as data settled by hand, 1.7d the engine's calls in the typed API (1.7b and 1.7c need the agreement's first half), and 3.1 the market pages on test markets; the perp alongside on a stand-in price (3.4a). Step 1.2 (topics and data sources) is parked until markets work end to end on staging; the readiness check's market data ([docs/research/round-2-readiness.md](../research/round-2-readiness.md), D2 to D4) is where it starts.
 4. **Sign-in:** the website's email codes with the Turnstile widget, and the access-token hook that refuses passwords (step 1.6a, needs 1.5c); then the app's native Google sign-in and email codes (step 1.6b, needs 1.5d). Sign in with Apple waits for the iPhone build (4.3).
@@ -191,6 +198,9 @@ Last updated: 8 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/brie
 
 ## Open questions
 
+- **The typed API in production** (before the app uses production): `/api/v1` has no rate limit in the firewall, and production's bot challenge would block the app's calls (only `/api/health` is exempt there; staging's isn't challenged). Recommended: exempt `/api/v1/*` from the challenge with a per-address rate limit, like `/api/health`, through the release pipeline, since the firewall covers production.
+- **The app's 2-second cold start on a real phone:** the CI emulator only guards against regressions (it's no phone: about 3 to 4 seconds for the empty app). Recommended: a cold-start measurement on a real mid-range Android phone before launch (Firebase Test Lab's free daily quota, in a Firebase project the founder creates, or the founder's own phone), and real users' numbers through the monitoring tool once live; a paired emulator comparison (main's build and the pull request's, alternately on one emulator) to tighten the per-PR margin.
+- **The Hermes rewrite** (step 1.5c): the app's Babel settings rewrite oRPC's function parameters because Hermes can't compile one form oRPC uses. Recommended: keep it, and drop it when oRPC 2.0 (its own change) or Hermes handles that form.
 - **Posting on the website** (step 2.4): the founder's app-only list leaves posting out, so the plan builds it on both surfaces, yet PLAN.md section 2 still calls the website "news and markets" and the app "news and social". The founder decides.
 - **The board's favourites and bookmarks need a signed-in reader** (step 2.1), but 2.1's needs don't include sign-in (1.6a, 1.6b). Recommended: add 1.6a to 2.1's needs, and 1.6b to its app join; or build favourites and bookmarks last within 2.1.
 - **The app and Vercel's bot challenge** (step 1.5d): the firewall challenges clients that don't behave like browsers, a phone app doesn't, and only `/api/health` is exempt. Recommended: 1.5d tests it first; if the app is challenged, a firewall rule scoped to staging's address lets the typed API's calls skip the challenge, keeping the rate limits. The firewall is project-wide, so production's version goes through the release pipeline before launch.
