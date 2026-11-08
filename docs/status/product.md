@@ -77,6 +77,13 @@ Last updated: 8 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/brie
     - Biome's override for the copied folder also switches off `isNaN` and `isFinite` checks, whose `Number.` versions behave differently; React's and Next.js's rules are off for the package.
     - `calculate-cpmm-arbitrage.ts` differs from Manifold's only in its import lines and one redaction (a Firebase Storage token in a commented-out example, which the secret check refused), and Biome skips it.
     - Manifold's two optional probes and its benchmark stay out: they skip themselves unless switched on.
+- **Manifold's market maths, milestone 2 of 3** ([#43](https://github.com/Zugzwang-world/hrizzup/pull/43)): our changes, each pinned by a test (`src/changes.test.ts`): every yes/no trade takes its time from the caller (`now`) instead of reading the clock; sales and redemptions carry no loan; Manifold's other features stay switched off; no logging in the yes/no maths; the two single-quoted error messages show their numbers; fees stay at zero behind one setting, `TAKER_FEE_RATE`. 169 tests pass (Manifold's 158 and our 11).
+  - **Answered without asking** (one line each):
+    - `now` is required on the yes/no entry points, and optional (falling back to the clock) on the four functions Manifold's multi-answer code also calls, so that code runs as Manifold wrote it.
+    - Manifold's switched-off multi-answer functions and its market-ranking measure (elasticity) still read the clock.
+    - The loan inputs are removed rather than set to 0, so a call copied from Manifold's server code fails to compile instead of taking a loan.
+    - The second error message prints `initialLimitProb`: the `limitProb` it named is declared later, so a plain fix would itself have crashed.
+    - `TAKER_FEE_RATE` is Manifold's `TAKER_FEE_CONSTANT`, renamed and exported.
 
 - **The agreement's first half revised after Sourcing's review, 8 November 2026** (Round 2, relay 5: the review [#37](https://github.com/Zugzwang-world/hrizzup/pull/37), `agreement/reviews/sourcing-first-half.md`; the changes [#42](https://github.com/Zugzwang-world/hrizzup/pull/42)): still Draft, now "reviewed by Sourcing, awaiting the founder's approval". For Product's contract and screens:
   - a sourced item whose post is gone from X (deleted, hidden, withheld in India, or taken down at its creator's request) holds no post and no summary: show nothing for it;
