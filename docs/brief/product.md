@@ -22,7 +22,7 @@ One line per relay; each relay keeps only its own line current.
 2. **Relay 2, steps 1.5a to 1.5d:** no milestone merged yet. Next: 1.5a, the speed check.
 3. **Relay 3, step 1.7a, Manifold's maths:** no milestone merged yet. Next: the maths with its tests.
 4. **Relay 4, step 1.4's first pass:** no milestone merged yet. Next: the design values.
-5. **Relay 5, Sourcing's review of the agreement's first half:** no milestone merged yet. Next: the review.
+5. **Relay 5, Sourcing's review of the agreement's first half:** merged [#37](https://github.com/Zugzwang-world/hrizzup/pull/37), the written review (`agreement/reviews/sourcing-first-half.md`): 2 blocking findings and 9 changes, plus 14 notes. Next: the changes, as a new Draft revision. For the founder: three questions, none holding up the approval.
 
 ## Decisions in force
 
@@ -63,6 +63,7 @@ On 8 November 2026, in [#36](https://github.com/Zugzwang-world/hrizzup/pull/36) 
 - **Replace the Expo token** (runbook step 4.6, about 5 minutes): a fresh robot token straight into Doppler `hrizzup-tools`, then delete `EXPO_TOKEN` from `stg` and the old token in Expo. Until then it reaches every staging and preview build.
 - **1.4's first pass and the agreement:** the board and a story page are core screens, which need the first half Agreed. Recommendation: draw them now on the Draft's example data; approve them once it's Agreed.
 - **Approve the agreement's first half** in News Desk's place, once Sourcing's review lands.
+- **Three questions from Sourcing's review** (F1 to F3 in `agreement/reviews/sourcing-first-half.md`), none holding up the approval: keep only found takes in English (recommended: yes; a meme or video with few words counts); takedown requests from creators and lawyers (recommended: to you at a `hrizzup.com` address until the team's tools exist, acted on within 24 hours); a lawyer's check before launch on publishing news in India (recommended: add it to the pre-launch checklist).
 - **Market data** (1.2): approve the recommended sources: Pyth for Bitcoin (free or $500 a month), GoldAPI.io for gold ($99), Arena's dataset for AI models (free), Sportmonks for cricket (about €75), API-Football (about $19). Nothing to pay in Round 2.
 - **Install the app** on your Android phone when 1.5d shares its link.
 - **Posting on the website** (2.4): recommendation: both surfaces. **The closed test (2.6):** start without News Desk's content. **Free and paid** (2.7): reading and betting free; play money never sold.
