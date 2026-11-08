@@ -11,7 +11,7 @@
 - **Setup is finished** (Phase 0). Staging works end to end at `staging.hrizzup.com` (Mumbai), behind Vercel's login until step 1.5d. Production is a quiet twin showing the holding page; the rest is parked (runbook, pre-launch checklist).
 - **The codebase is nearly empty:** the website (holding page, legal drafts, `/api/health`, a sign-in test page off production), a one-screen Expo app, shared packages and `@hrizzup/agreement`. Google sign-in works on staging.
 - **Round 2 is running:** five unattended relays in their own worktrees, on the GitHub milestone "Round 2". `TRACKER.md` lists what comes before the first feature round.
-- **The agreement's first half is a Draft;** Sourcing's review is under way. No tables exist for its shapes.
+- **The agreement's first half is reviewed by Sourcing and awaits the founder's approval** (in News Desk's place). Its changes are made, and it's still a Draft, so no tables exist for its shapes.
 - **Not built yet:** any screen, Round 2's checks and API, the app on a phone, the market engine, perps, the data job.
 
 ## Round 2 progress
@@ -22,7 +22,7 @@ One line per relay; each relay keeps only its own line current.
 2. **Relay 2, steps 1.5a to 1.5d:** no milestone merged yet. Next: 1.5a, the speed check.
 3. **Relay 3, step 1.7a, Manifold's maths:** merged [#38](https://github.com/Zugzwang-world/hrizzup/pull/38), Manifold's maths for yes/no markets with its tests (158 pass). Next: our changes (the time passed in, no loans, fees at zero behind one setting), then our money tests.
 4. **Relay 4, step 1.4's first pass:** no milestone merged yet. Next: the design values.
-5. **Relay 5, Sourcing's review of the agreement's first half:** merged [#37](https://github.com/Zugzwang-world/hrizzup/pull/37), the written review (`agreement/reviews/sourcing-first-half.md`): 2 blocking findings and 9 changes, plus 14 notes. Next: the changes, as a new Draft revision. For the founder: three questions, none holding up the approval.
+5. **Relay 5, Sourcing's review of the agreement's first half:** merged [#42](https://github.com/Zugzwang-world/hrizzup/pull/42), the changes the review ([#37](https://github.com/Zugzwang-world/hrizzup/pull/37)) asked for: "reviewed by Sourcing, awaiting the founder's approval". Next: nothing, relay 5 is done. For the founder: approve the first half; three questions.
 
 ## Decisions in force
 
@@ -42,12 +42,11 @@ One line per relay; each relay keeps only its own line current.
 
 ## What changed in the latest session
 
-On 8 November 2026, in [#36](https://github.com/Zugzwang-world/hrizzup/pull/36) (Round 2, relay 1, records only), the founder's decisions of that day went in:
+On 8 November 2026, Round 2's relay 5 reviewed the agreement's first half as Sourcing ([#37](https://github.com/Zugzwang-world/hrizzup/pull/37)) and made the changes ([#42](https://github.com/Zugzwang-world/hrizzup/pull/42)), in place. For Product's contract and screens:
 
-- **CLAUDE.md:** "Unattended sessions"; `TRACKER.md` at every session's end; this brief's two new sections.
-- **PLAN.md:** steps 1.4, 1.5a to 1.5d, 1.7a, 1.7b and 1.8, with every step's needs repointed; Sourcing's review run by a Claude Code session from Sourcing's brief; Claude Design removed.
-- **Blueprint:** the typed API, public staging, no passwords, Expo. **`TRACKER.md`:** "Before the first feature round". **GitHub:** the milestone "Round 2".
-- **`EXPO_TOKEN`** was found in Doppler `stg`, already synced into Vercel's staging and previews; as a tool token it belongs in `hrizzup-tools` (runbook, Part 4).
+- **A found post gone from X** keeps no post and no summary: show nothing. Addresses, handles and names are X's current ones.
+- **Updates name their sources:** posts in `based_on` (credit each while live), other pages in `sources`. A repeat is `merged` into the update it repeats.
+- **A merged story** stands for the one it went into; `withdrawn` also covers legal takedowns. The examples changed (relays 2 and 4 use them).
 
 ## Open questions
 
@@ -62,8 +61,8 @@ On 8 November 2026, in [#36](https://github.com/Zugzwang-world/hrizzup/pull/36) 
 
 - **Replace the Expo token** (runbook step 4.6, about 5 minutes): a fresh robot token straight into Doppler `hrizzup-tools`, then delete `EXPO_TOKEN` from `stg` and the old token in Expo. Until then it reaches every staging and preview build.
 - **1.4's first pass and the agreement:** the board and a story page are core screens, which need the first half Agreed. Recommendation: draw them now on the Draft's example data; approve them once it's Agreed.
-- **Approve the agreement's first half** in News Desk's place, once Sourcing's review lands.
-- **Three questions from Sourcing's review** (F1 to F3 in `agreement/reviews/sourcing-first-half.md`), none holding up the approval: keep only found takes in English (recommended: yes; a meme or video with few words counts); takedown requests from creators and lawyers (recommended: to you at a `hrizzup.com` address until the team's tools exist, acted on within 24 hours); a lawyer's check before launch on publishing news in India (recommended: add it to the pre-launch checklist).
+- **Approve the agreement's first half** in News Desk's place: reviewed by Sourcing, its changes made (the review's "In short"). Then Product may build its tables.
+- **Sourcing's three questions** (the review's F1 to F3), none holding up the approval. Recommended: found takes in English only; takedown requests to you at a `hrizzup.com` address, acted on within 24 hours; a lawyer's check before launch, in the pre-launch checklist.
 - **Market data** (1.2): approve the recommended sources: Pyth for Bitcoin (free or $500 a month), GoldAPI.io for gold ($99), Arena's dataset for AI models (free), Sportmonks for cricket (about €75), API-Football (about $19). Nothing to pay in Round 2.
 - **Install the app** on your Android phone when 1.5d shares its link.
 - **Posting on the website** (2.4): recommendation: both surfaces. **The closed test (2.6):** start without News Desk's content. **Free and paid** (2.7): reading and betting free; play money never sold.
@@ -71,7 +70,7 @@ On 8 November 2026, in [#36](https://github.com/Zugzwang-world/hrizzup/pull/36) 
 
 ## What's next
 
-1. **Round 2:** relays 2 to 5 in parallel; then the founder approves the first half.
+1. **Round 2:** relays 2 to 4 in parallel (relay 5 is done); the founder approves the first half.
 2. **Parallel local development (1.8).**
 3. **Sign-in:** 1.6a with the hook, then 1.6b.
 4. **The first feature round** through `TRACKER.md`; alongside, 1.7b and the markets track (3.1 to 3.4).
@@ -82,5 +81,5 @@ On 8 November 2026, in [#36](https://github.com/Zugzwang-world/hrizzup/pull/36) 
 - `docs/setup/BLUEPRINT.md`: Expo (2), public staging (6), keys (7), sign-in (9), the typed API (13), budgets (14).
 - `docs/setup/RUNBOOK.md`: Part 4 (where keys live; step 4.6), the pre-launch checklist.
 - `docs/research/round-2-readiness.md` and `docs/research/manifold.md`: the research behind Round 2 and the market engine.
-- `agreement/README.md`: sign-offs, decisions, routes, fields, lists.
+- `agreement/README.md`: sign-offs, decisions, routes, fields, lists; `agreement/reviews/sourcing-first-half.md`: Sourcing's review, with notes for Product (N12 to N14: embeds, creators, the Latest tab).
 - `docs/status/product.md`: Product's status in full, with this session's own answers.
