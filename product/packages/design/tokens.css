@@ -1,0 +1,1018 @@
+/*
+ * Hrizzup's design values for the website, written by product/packages/design/scripts/write.ts
+ * from the values in product/packages/design/src. Don't edit this file: change a value there,
+ * then run `pnpm --filter @hrizzup/design write`. A test fails when this file is out of date.
+ */
+
+/* The active direction (Neel), on every page. */
+
+:root {
+  --hz-background: #F4F5F9;
+  --hz-foreground: #151938;
+  --hz-card: #FFFFFF;
+  --hz-card-foreground: #151938;
+  --hz-popover: #FFFFFF;
+  --hz-popover-foreground: #151938;
+  --hz-primary: #2C3A93;
+  --hz-primary-foreground: #FFFFFF;
+  --hz-secondary: #E8EBF6;
+  --hz-secondary-foreground: #1E2660;
+  --hz-muted: #ECEEF5;
+  --hz-muted-foreground: #4B5072;
+  --hz-accent: #E3E7FA;
+  --hz-accent-foreground: #1E2660;
+  --hz-destructive: #B3261E;
+  --hz-destructive-foreground: #FFFFFF;
+  --hz-border: #D9DCE8;
+  --hz-input: #C9CDDD;
+  --hz-ring: #2C3A93;
+  --hz-live: #C8102E;
+  --hz-live-foreground: #FFFFFF;
+  --hz-notice: #FFF3D6;
+  --hz-notice-foreground: #7A4E00;
+  --hz-cat-crypto-fill: #D9A21B;
+  --hz-cat-crypto-ink: #1A1300;
+  --hz-cat-crypto-soft: #F8EDD3;
+  --hz-cat-crypto-soft-ink: #6B4700;
+  --hz-cat-finance-fill: #3F7D4E;
+  --hz-cat-finance-ink: #FFFFFF;
+  --hz-cat-finance-soft: #E3EFE5;
+  --hz-cat-finance-soft-ink: #2A5A36;
+  --hz-cat-business-fill: #8A5230;
+  --hz-cat-business-ink: #FFFFFF;
+  --hz-cat-business-soft: #F3E6DD;
+  --hz-cat-business-soft-ink: #6A3A1E;
+  --hz-cat-ai-fill: #3443A3;
+  --hz-cat-ai-ink: #FFFFFF;
+  --hz-cat-ai-soft: #E5E8F8;
+  --hz-cat-ai-soft-ink: #26318A;
+  --hz-cat-sports-fill: #B23A2B;
+  --hz-cat-sports-ink: #FFFFFF;
+  --hz-cat-sports-soft: #F7E3DF;
+  --hz-cat-sports-soft-ink: #8C2A1E;
+  --hz-cat-politics-fill: #3D4A5C;
+  --hz-cat-politics-ink: #FFFFFF;
+  --hz-cat-politics-soft: #E6E9EE;
+  --hz-cat-politics-soft-ink: #303A49;
+  --hz-cat-entertainment-fill: #9B2F6E;
+  --hz-cat-entertainment-ink: #FFFFFF;
+  --hz-cat-entertainment-soft: #F4E2EC;
+  --hz-cat-entertainment-soft-ink: #7A2256;
+  --hz-cat-general-fill: #1F6F78;
+  --hz-cat-general-ink: #FFFFFF;
+  --hz-cat-general-soft: #DFEEEF;
+  --hz-cat-general-soft-ink: #17555C;
+  --hz-cat-other-fill: #5B6178;
+  --hz-cat-other-ink: #FFFFFF;
+  --hz-cat-other-soft: #E8EAF1;
+  --hz-cat-other-soft-ink: #3D4260;
+  --hz-card-shadow: none;
+  --hz-family-display: var(--font-eczar, "Eczar"), "Georgia", serif;
+  --hz-family-text: system-ui, -apple-system, "Segoe UI", "Roboto", "Noto Sans", sans-serif;
+  --hz-type-brand-family: var(--hz-family-display);
+  --hz-type-brand-size: 1.625rem;
+  --hz-type-brand-line: 1.0769;
+  --hz-type-brand-weight: 700;
+  --hz-type-brand-tracking: -0.01em;
+  --hz-type-brand-width: 100%;
+  --hz-type-brand-numbers: normal;
+  --hz-type-display-family: var(--hz-family-display);
+  --hz-type-display-size: 1.875rem;
+  --hz-type-display-line: 1.1333;
+  --hz-type-display-weight: 700;
+  --hz-type-display-tracking: -0.01em;
+  --hz-type-display-width: 100%;
+  --hz-type-display-numbers: normal;
+  --hz-type-title-family: var(--hz-family-display);
+  --hz-type-title-size: 1.3125rem;
+  --hz-type-title-line: 1.2381;
+  --hz-type-title-weight: 700;
+  --hz-type-title-tracking: 0em;
+  --hz-type-title-width: 100%;
+  --hz-type-title-numbers: normal;
+  --hz-type-headline-family: var(--hz-family-display);
+  --hz-type-headline-size: 1.0625rem;
+  --hz-type-headline-line: 1.2353;
+  --hz-type-headline-weight: 600;
+  --hz-type-headline-tracking: 0em;
+  --hz-type-headline-width: 100%;
+  --hz-type-headline-numbers: normal;
+  --hz-type-body-family: var(--hz-family-text);
+  --hz-type-body-size: 1rem;
+  --hz-type-body-line: 1.5;
+  --hz-type-body-weight: 400;
+  --hz-type-body-tracking: 0em;
+  --hz-type-body-width: 100%;
+  --hz-type-body-numbers: normal;
+  --hz-type-callout-family: var(--hz-family-text);
+  --hz-type-callout-size: 0.875rem;
+  --hz-type-callout-line: 1.4286;
+  --hz-type-callout-weight: 400;
+  --hz-type-callout-tracking: 0em;
+  --hz-type-callout-width: 100%;
+  --hz-type-callout-numbers: normal;
+  --hz-type-label-family: var(--hz-family-text);
+  --hz-type-label-size: 0.875rem;
+  --hz-type-label-line: 1.2857;
+  --hz-type-label-weight: 600;
+  --hz-type-label-tracking: 0em;
+  --hz-type-label-width: 100%;
+  --hz-type-label-numbers: normal;
+  --hz-type-caption-family: var(--hz-family-text);
+  --hz-type-caption-size: 0.75rem;
+  --hz-type-caption-line: 1.3333;
+  --hz-type-caption-weight: 500;
+  --hz-type-caption-tracking: 0em;
+  --hz-type-caption-width: 100%;
+  --hz-type-caption-numbers: tabular-nums;
+  --hz-space-gutter: 1rem;
+  --hz-space-lane: 0.625rem;
+  --hz-space-card: 0.75rem;
+  --hz-space-stack: 0.375rem;
+  --hz-space-section: 1.75rem;
+  --hz-radius-card: 6px;
+  --hz-radius-media: 4px;
+  --hz-radius-control: 6px;
+  --hz-radius-chip: 999px;
+  --hz-card-border: 1px;
+  --hz-icon-stroke: 1.5;
+  --hz-icon-small: 0.875rem;
+  --hz-icon-medium: 1.125rem;
+  --hz-icon-large: 1.375rem;
+  --hz-motion-fast: 120ms;
+  --hz-motion-base: 200ms;
+  --hz-motion-easing: cubic-bezier(0.2, 0, 0, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --hz-background: #0E1124;
+    --hz-foreground: #E8EAF6;
+    --hz-card: #161A33;
+    --hz-card-foreground: #E8EAF6;
+    --hz-popover: #1C2140;
+    --hz-popover-foreground: #E8EAF6;
+    --hz-primary: #A9B4FF;
+    --hz-primary-foreground: #10143A;
+    --hz-secondary: #232849;
+    --hz-secondary-foreground: #DCE0F7;
+    --hz-muted: #1D2140;
+    --hz-muted-foreground: #A4A9CC;
+    --hz-accent: #262C55;
+    --hz-accent-foreground: #E8EAF6;
+    --hz-destructive: #FF8A80;
+    --hz-destructive-foreground: #2A0705;
+    --hz-border: #2A2F55;
+    --hz-input: #363C66;
+    --hz-ring: #A9B4FF;
+    --hz-live: #FF6B7A;
+    --hz-live-foreground: #2A0509;
+    --hz-notice: #33270B;
+    --hz-notice-foreground: #F5D58A;
+    --hz-cat-crypto-fill: #E2B04A;
+    --hz-cat-crypto-ink: #1A1300;
+    --hz-cat-crypto-soft: #2E2610;
+    --hz-cat-crypto-soft-ink: #F0CF85;
+    --hz-cat-finance-fill: #7DBA8C;
+    --hz-cat-finance-ink: #0A1A0F;
+    --hz-cat-finance-soft: #16261B;
+    --hz-cat-finance-soft-ink: #A9D6B3;
+    --hz-cat-business-fill: #D49A73;
+    --hz-cat-business-ink: #1C0F07;
+    --hz-cat-business-soft: #2E1E15;
+    --hz-cat-business-soft-ink: #EDBFA2;
+    --hz-cat-ai-fill: #9EA9F2;
+    --hz-cat-ai-ink: #0B1033;
+    --hz-cat-ai-soft: #1C2147;
+    --hz-cat-ai-soft-ink: #BCC4FA;
+    --hz-cat-sports-fill: #F08C7C;
+    --hz-cat-sports-ink: #240A06;
+    --hz-cat-sports-soft: #33191A;
+    --hz-cat-sports-soft-ink: #F8B3A8;
+    --hz-cat-politics-fill: #A9B6C8;
+    --hz-cat-politics-ink: #0F141B;
+    --hz-cat-politics-soft: #1F2530;
+    --hz-cat-politics-soft-ink: #C6D0DD;
+    --hz-cat-entertainment-fill: #E68DBF;
+    --hz-cat-entertainment-ink: #2A0A1D;
+    --hz-cat-entertainment-soft: #331A29;
+    --hz-cat-entertainment-soft-ink: #F2B6D7;
+    --hz-cat-general-fill: #6CC3CC;
+    --hz-cat-general-ink: #061A1C;
+    --hz-cat-general-soft: #12292C;
+    --hz-cat-general-soft-ink: #9ADAE0;
+    --hz-cat-other-fill: #A4A9CC;
+    --hz-cat-other-ink: #10143A;
+    --hz-cat-other-soft: #1F2340;
+    --hz-cat-other-soft-ink: #C7CBE6;
+    --hz-card-shadow: none;
+  }
+}
+
+/* Every direction, for the design pages that compare them. */
+
+[data-direction="neel"] {
+  --hz-background: #F4F5F9;
+  --hz-foreground: #151938;
+  --hz-card: #FFFFFF;
+  --hz-card-foreground: #151938;
+  --hz-popover: #FFFFFF;
+  --hz-popover-foreground: #151938;
+  --hz-primary: #2C3A93;
+  --hz-primary-foreground: #FFFFFF;
+  --hz-secondary: #E8EBF6;
+  --hz-secondary-foreground: #1E2660;
+  --hz-muted: #ECEEF5;
+  --hz-muted-foreground: #4B5072;
+  --hz-accent: #E3E7FA;
+  --hz-accent-foreground: #1E2660;
+  --hz-destructive: #B3261E;
+  --hz-destructive-foreground: #FFFFFF;
+  --hz-border: #D9DCE8;
+  --hz-input: #C9CDDD;
+  --hz-ring: #2C3A93;
+  --hz-live: #C8102E;
+  --hz-live-foreground: #FFFFFF;
+  --hz-notice: #FFF3D6;
+  --hz-notice-foreground: #7A4E00;
+  --hz-cat-crypto-fill: #D9A21B;
+  --hz-cat-crypto-ink: #1A1300;
+  --hz-cat-crypto-soft: #F8EDD3;
+  --hz-cat-crypto-soft-ink: #6B4700;
+  --hz-cat-finance-fill: #3F7D4E;
+  --hz-cat-finance-ink: #FFFFFF;
+  --hz-cat-finance-soft: #E3EFE5;
+  --hz-cat-finance-soft-ink: #2A5A36;
+  --hz-cat-business-fill: #8A5230;
+  --hz-cat-business-ink: #FFFFFF;
+  --hz-cat-business-soft: #F3E6DD;
+  --hz-cat-business-soft-ink: #6A3A1E;
+  --hz-cat-ai-fill: #3443A3;
+  --hz-cat-ai-ink: #FFFFFF;
+  --hz-cat-ai-soft: #E5E8F8;
+  --hz-cat-ai-soft-ink: #26318A;
+  --hz-cat-sports-fill: #B23A2B;
+  --hz-cat-sports-ink: #FFFFFF;
+  --hz-cat-sports-soft: #F7E3DF;
+  --hz-cat-sports-soft-ink: #8C2A1E;
+  --hz-cat-politics-fill: #3D4A5C;
+  --hz-cat-politics-ink: #FFFFFF;
+  --hz-cat-politics-soft: #E6E9EE;
+  --hz-cat-politics-soft-ink: #303A49;
+  --hz-cat-entertainment-fill: #9B2F6E;
+  --hz-cat-entertainment-ink: #FFFFFF;
+  --hz-cat-entertainment-soft: #F4E2EC;
+  --hz-cat-entertainment-soft-ink: #7A2256;
+  --hz-cat-general-fill: #1F6F78;
+  --hz-cat-general-ink: #FFFFFF;
+  --hz-cat-general-soft: #DFEEEF;
+  --hz-cat-general-soft-ink: #17555C;
+  --hz-cat-other-fill: #5B6178;
+  --hz-cat-other-ink: #FFFFFF;
+  --hz-cat-other-soft: #E8EAF1;
+  --hz-cat-other-soft-ink: #3D4260;
+  --hz-card-shadow: none;
+  --hz-family-display: var(--font-eczar, "Eczar"), "Georgia", serif;
+  --hz-family-text: system-ui, -apple-system, "Segoe UI", "Roboto", "Noto Sans", sans-serif;
+  --hz-type-brand-family: var(--hz-family-display);
+  --hz-type-brand-size: 1.625rem;
+  --hz-type-brand-line: 1.0769;
+  --hz-type-brand-weight: 700;
+  --hz-type-brand-tracking: -0.01em;
+  --hz-type-brand-width: 100%;
+  --hz-type-brand-numbers: normal;
+  --hz-type-display-family: var(--hz-family-display);
+  --hz-type-display-size: 1.875rem;
+  --hz-type-display-line: 1.1333;
+  --hz-type-display-weight: 700;
+  --hz-type-display-tracking: -0.01em;
+  --hz-type-display-width: 100%;
+  --hz-type-display-numbers: normal;
+  --hz-type-title-family: var(--hz-family-display);
+  --hz-type-title-size: 1.3125rem;
+  --hz-type-title-line: 1.2381;
+  --hz-type-title-weight: 700;
+  --hz-type-title-tracking: 0em;
+  --hz-type-title-width: 100%;
+  --hz-type-title-numbers: normal;
+  --hz-type-headline-family: var(--hz-family-display);
+  --hz-type-headline-size: 1.0625rem;
+  --hz-type-headline-line: 1.2353;
+  --hz-type-headline-weight: 600;
+  --hz-type-headline-tracking: 0em;
+  --hz-type-headline-width: 100%;
+  --hz-type-headline-numbers: normal;
+  --hz-type-body-family: var(--hz-family-text);
+  --hz-type-body-size: 1rem;
+  --hz-type-body-line: 1.5;
+  --hz-type-body-weight: 400;
+  --hz-type-body-tracking: 0em;
+  --hz-type-body-width: 100%;
+  --hz-type-body-numbers: normal;
+  --hz-type-callout-family: var(--hz-family-text);
+  --hz-type-callout-size: 0.875rem;
+  --hz-type-callout-line: 1.4286;
+  --hz-type-callout-weight: 400;
+  --hz-type-callout-tracking: 0em;
+  --hz-type-callout-width: 100%;
+  --hz-type-callout-numbers: normal;
+  --hz-type-label-family: var(--hz-family-text);
+  --hz-type-label-size: 0.875rem;
+  --hz-type-label-line: 1.2857;
+  --hz-type-label-weight: 600;
+  --hz-type-label-tracking: 0em;
+  --hz-type-label-width: 100%;
+  --hz-type-label-numbers: normal;
+  --hz-type-caption-family: var(--hz-family-text);
+  --hz-type-caption-size: 0.75rem;
+  --hz-type-caption-line: 1.3333;
+  --hz-type-caption-weight: 500;
+  --hz-type-caption-tracking: 0em;
+  --hz-type-caption-width: 100%;
+  --hz-type-caption-numbers: tabular-nums;
+  --hz-space-gutter: 1rem;
+  --hz-space-lane: 0.625rem;
+  --hz-space-card: 0.75rem;
+  --hz-space-stack: 0.375rem;
+  --hz-space-section: 1.75rem;
+  --hz-radius-card: 6px;
+  --hz-radius-media: 4px;
+  --hz-radius-control: 6px;
+  --hz-radius-chip: 999px;
+  --hz-card-border: 1px;
+  --hz-icon-stroke: 1.5;
+  --hz-icon-small: 0.875rem;
+  --hz-icon-medium: 1.125rem;
+  --hz-icon-large: 1.375rem;
+  --hz-motion-fast: 120ms;
+  --hz-motion-base: 200ms;
+  --hz-motion-easing: cubic-bezier(0.2, 0, 0, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-direction="neel"] {
+    --hz-background: #0E1124;
+    --hz-foreground: #E8EAF6;
+    --hz-card: #161A33;
+    --hz-card-foreground: #E8EAF6;
+    --hz-popover: #1C2140;
+    --hz-popover-foreground: #E8EAF6;
+    --hz-primary: #A9B4FF;
+    --hz-primary-foreground: #10143A;
+    --hz-secondary: #232849;
+    --hz-secondary-foreground: #DCE0F7;
+    --hz-muted: #1D2140;
+    --hz-muted-foreground: #A4A9CC;
+    --hz-accent: #262C55;
+    --hz-accent-foreground: #E8EAF6;
+    --hz-destructive: #FF8A80;
+    --hz-destructive-foreground: #2A0705;
+    --hz-border: #2A2F55;
+    --hz-input: #363C66;
+    --hz-ring: #A9B4FF;
+    --hz-live: #FF6B7A;
+    --hz-live-foreground: #2A0509;
+    --hz-notice: #33270B;
+    --hz-notice-foreground: #F5D58A;
+    --hz-cat-crypto-fill: #E2B04A;
+    --hz-cat-crypto-ink: #1A1300;
+    --hz-cat-crypto-soft: #2E2610;
+    --hz-cat-crypto-soft-ink: #F0CF85;
+    --hz-cat-finance-fill: #7DBA8C;
+    --hz-cat-finance-ink: #0A1A0F;
+    --hz-cat-finance-soft: #16261B;
+    --hz-cat-finance-soft-ink: #A9D6B3;
+    --hz-cat-business-fill: #D49A73;
+    --hz-cat-business-ink: #1C0F07;
+    --hz-cat-business-soft: #2E1E15;
+    --hz-cat-business-soft-ink: #EDBFA2;
+    --hz-cat-ai-fill: #9EA9F2;
+    --hz-cat-ai-ink: #0B1033;
+    --hz-cat-ai-soft: #1C2147;
+    --hz-cat-ai-soft-ink: #BCC4FA;
+    --hz-cat-sports-fill: #F08C7C;
+    --hz-cat-sports-ink: #240A06;
+    --hz-cat-sports-soft: #33191A;
+    --hz-cat-sports-soft-ink: #F8B3A8;
+    --hz-cat-politics-fill: #A9B6C8;
+    --hz-cat-politics-ink: #0F141B;
+    --hz-cat-politics-soft: #1F2530;
+    --hz-cat-politics-soft-ink: #C6D0DD;
+    --hz-cat-entertainment-fill: #E68DBF;
+    --hz-cat-entertainment-ink: #2A0A1D;
+    --hz-cat-entertainment-soft: #331A29;
+    --hz-cat-entertainment-soft-ink: #F2B6D7;
+    --hz-cat-general-fill: #6CC3CC;
+    --hz-cat-general-ink: #061A1C;
+    --hz-cat-general-soft: #12292C;
+    --hz-cat-general-soft-ink: #9ADAE0;
+    --hz-cat-other-fill: #A4A9CC;
+    --hz-cat-other-ink: #10143A;
+    --hz-cat-other-soft: #1F2340;
+    --hz-cat-other-soft-ink: #C7CBE6;
+    --hz-card-shadow: none;
+  }
+}
+
+[data-direction="bazaar"] {
+  --hz-background: #FFFFFF;
+  --hz-foreground: #1E1A1D;
+  --hz-card: #F2EEF0;
+  --hz-card-foreground: #1E1A1D;
+  --hz-popover: #FFFFFF;
+  --hz-popover-foreground: #1E1A1D;
+  --hz-primary: #C2185B;
+  --hz-primary-foreground: #FFFFFF;
+  --hz-secondary: #F2EEF0;
+  --hz-secondary-foreground: #1E1A1D;
+  --hz-muted: #F2EEF0;
+  --hz-muted-foreground: #5A5458;
+  --hz-accent: #FCE0EC;
+  --hz-accent-foreground: #1E1A1D;
+  --hz-destructive: #B3261E;
+  --hz-destructive-foreground: #FFFFFF;
+  --hz-border: #E4DEE1;
+  --hz-input: #CFC7CB;
+  --hz-ring: #C2185B;
+  --hz-live: #FFB000;
+  --hz-live-foreground: #1E1A1D;
+  --hz-notice: #FFF1CC;
+  --hz-notice-foreground: #6B4A00;
+  --hz-cat-crypto-fill: #FFB000;
+  --hz-cat-crypto-ink: #1E1A1D;
+  --hz-cat-crypto-soft: #FFF1CC;
+  --hz-cat-crypto-soft-ink: #6B4A00;
+  --hz-cat-finance-fill: #0BA360;
+  --hz-cat-finance-ink: #1E1A1D;
+  --hz-cat-finance-soft: #D9F4E6;
+  --hz-cat-finance-soft-ink: #0B5C36;
+  --hz-cat-business-fill: #007A87;
+  --hz-cat-business-ink: #FFFFFF;
+  --hz-cat-business-soft: #D5EEF1;
+  --hz-cat-business-soft-ink: #00515A;
+  --hz-cat-ai-fill: #2E4BFF;
+  --hz-cat-ai-ink: #FFFFFF;
+  --hz-cat-ai-soft: #E0E5FF;
+  --hz-cat-ai-soft-ink: #1F33B3;
+  --hz-cat-sports-fill: #C93C19;
+  --hz-cat-sports-ink: #FFFFFF;
+  --hz-cat-sports-soft: #FBE1DA;
+  --hz-cat-sports-soft-ink: #8A2810;
+  --hz-cat-politics-fill: #5B2C91;
+  --hz-cat-politics-ink: #FFFFFF;
+  --hz-cat-politics-soft: #ECE2F7;
+  --hz-cat-politics-soft-ink: #45206F;
+  --hz-cat-entertainment-fill: #D6156C;
+  --hz-cat-entertainment-ink: #FFFFFF;
+  --hz-cat-entertainment-soft: #FCE0EC;
+  --hz-cat-entertainment-soft-ink: #9A0F4E;
+  --hz-cat-general-fill: #5E6470;
+  --hz-cat-general-ink: #FFFFFF;
+  --hz-cat-general-soft: #E7E9EC;
+  --hz-cat-general-soft-ink: #41464F;
+  --hz-cat-other-fill: #1E1A1D;
+  --hz-cat-other-ink: #FFFFFF;
+  --hz-cat-other-soft: #F2EEF0;
+  --hz-cat-other-soft-ink: #1E1A1D;
+  --hz-card-shadow: none;
+  --hz-family-display: var(--font-anek-latin, "Anek Latin"), "Arial Narrow", "Roboto Condensed", sans-serif;
+  --hz-family-text: var(--font-anek-latin, "Anek Latin"), system-ui, "Roboto", sans-serif;
+  --hz-type-brand-family: var(--hz-family-display);
+  --hz-type-brand-size: 1.875rem;
+  --hz-type-brand-line: 1;
+  --hz-type-brand-weight: 800;
+  --hz-type-brand-tracking: -0.01em;
+  --hz-type-brand-width: 75%;
+  --hz-type-brand-numbers: normal;
+  --hz-type-display-family: var(--hz-family-display);
+  --hz-type-display-size: 2.25rem;
+  --hz-type-display-line: 1;
+  --hz-type-display-weight: 800;
+  --hz-type-display-tracking: 0em;
+  --hz-type-display-width: 75%;
+  --hz-type-display-numbers: normal;
+  --hz-type-title-family: var(--hz-family-display);
+  --hz-type-title-size: 1.5rem;
+  --hz-type-title-line: 1.0833;
+  --hz-type-title-weight: 800;
+  --hz-type-title-tracking: 0em;
+  --hz-type-title-width: 75%;
+  --hz-type-title-numbers: normal;
+  --hz-type-headline-family: var(--hz-family-display);
+  --hz-type-headline-size: 1.375rem;
+  --hz-type-headline-line: 1.0455;
+  --hz-type-headline-weight: 750;
+  --hz-type-headline-tracking: 0em;
+  --hz-type-headline-width: 75%;
+  --hz-type-headline-numbers: normal;
+  --hz-type-body-family: var(--hz-family-text);
+  --hz-type-body-size: 1rem;
+  --hz-type-body-line: 1.4375;
+  --hz-type-body-weight: 400;
+  --hz-type-body-tracking: 0em;
+  --hz-type-body-width: 100%;
+  --hz-type-body-numbers: normal;
+  --hz-type-callout-family: var(--hz-family-text);
+  --hz-type-callout-size: 0.9375rem;
+  --hz-type-callout-line: 1.3333;
+  --hz-type-callout-weight: 450;
+  --hz-type-callout-tracking: 0em;
+  --hz-type-callout-width: 100%;
+  --hz-type-callout-numbers: normal;
+  --hz-type-label-family: var(--hz-family-text);
+  --hz-type-label-size: 0.9375rem;
+  --hz-type-label-line: 1.2;
+  --hz-type-label-weight: 650;
+  --hz-type-label-tracking: 0em;
+  --hz-type-label-width: 100%;
+  --hz-type-label-numbers: normal;
+  --hz-type-caption-family: var(--hz-family-text);
+  --hz-type-caption-size: 0.8125rem;
+  --hz-type-caption-line: 1.2308;
+  --hz-type-caption-weight: 550;
+  --hz-type-caption-tracking: 0em;
+  --hz-type-caption-width: 100%;
+  --hz-type-caption-numbers: tabular-nums;
+  --hz-space-gutter: 0.875rem;
+  --hz-space-lane: 0.5rem;
+  --hz-space-card: 0.75rem;
+  --hz-space-stack: 0.375rem;
+  --hz-space-section: 1.75rem;
+  --hz-radius-card: 18px;
+  --hz-radius-media: 12px;
+  --hz-radius-control: 999px;
+  --hz-radius-chip: 999px;
+  --hz-card-border: 0px;
+  --hz-icon-stroke: 2.25;
+  --hz-icon-small: 0.9375rem;
+  --hz-icon-medium: 1.1875rem;
+  --hz-icon-large: 1.5rem;
+  --hz-motion-fast: 120ms;
+  --hz-motion-base: 220ms;
+  --hz-motion-easing: cubic-bezier(0.3, 1.3, 0.5, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-direction="bazaar"] {
+    --hz-background: #151114;
+    --hz-foreground: #F6F1F4;
+    --hz-card: #221B1F;
+    --hz-card-foreground: #F6F1F4;
+    --hz-popover: #2A2226;
+    --hz-popover-foreground: #F6F1F4;
+    --hz-primary: #F06AA5;
+    --hz-primary-foreground: #1E1A1D;
+    --hz-secondary: #2E262B;
+    --hz-secondary-foreground: #F6F1F4;
+    --hz-muted: #2E262B;
+    --hz-muted-foreground: #B9AEB4;
+    --hz-accent: #3A3036;
+    --hz-accent-foreground: #F6F1F4;
+    --hz-destructive: #FF8A80;
+    --hz-destructive-foreground: #2A0705;
+    --hz-border: #3A3036;
+    --hz-input: #4A4045;
+    --hz-ring: #F06AA5;
+    --hz-live: #FFB000;
+    --hz-live-foreground: #1E1A1D;
+    --hz-notice: #3A2C0C;
+    --hz-notice-foreground: #FFD98A;
+    --hz-cat-crypto-fill: #FFB000;
+    --hz-cat-crypto-ink: #1E1A1D;
+    --hz-cat-crypto-soft: #3A2E10;
+    --hz-cat-crypto-soft-ink: #FFD475;
+    --hz-cat-finance-fill: #0BA360;
+    --hz-cat-finance-ink: #1E1A1D;
+    --hz-cat-finance-soft: #0F2E20;
+    --hz-cat-finance-soft-ink: #7FE0B0;
+    --hz-cat-business-fill: #007A87;
+    --hz-cat-business-ink: #FFFFFF;
+    --hz-cat-business-soft: #0D2A2E;
+    --hz-cat-business-soft-ink: #86D8E2;
+    --hz-cat-ai-fill: #2E4BFF;
+    --hz-cat-ai-ink: #FFFFFF;
+    --hz-cat-ai-soft: #1A2050;
+    --hz-cat-ai-soft-ink: #B3C0FF;
+    --hz-cat-sports-fill: #C93C19;
+    --hz-cat-sports-ink: #FFFFFF;
+    --hz-cat-sports-soft: #3A1A12;
+    --hz-cat-sports-soft-ink: #FFB29E;
+    --hz-cat-politics-fill: #5B2C91;
+    --hz-cat-politics-ink: #FFFFFF;
+    --hz-cat-politics-soft: #2A1A40;
+    --hz-cat-politics-soft-ink: #D3B8F5;
+    --hz-cat-entertainment-fill: #D6156C;
+    --hz-cat-entertainment-ink: #FFFFFF;
+    --hz-cat-entertainment-soft: #3E1228;
+    --hz-cat-entertainment-soft-ink: #FFA8CC;
+    --hz-cat-general-fill: #5E6470;
+    --hz-cat-general-ink: #FFFFFF;
+    --hz-cat-general-soft: #2A2D33;
+    --hz-cat-general-soft-ink: #CDD1D8;
+    --hz-cat-other-fill: #F6F1F4;
+    --hz-cat-other-ink: #1E1A1D;
+    --hz-cat-other-soft: #2E262B;
+    --hz-cat-other-soft-ink: #F6F1F4;
+    --hz-card-shadow: none;
+  }
+}
+
+[data-direction="pulse"] {
+  --hz-background: #F3F5F7;
+  --hz-foreground: #0F1B2D;
+  --hz-card: #FFFFFF;
+  --hz-card-foreground: #0F1B2D;
+  --hz-popover: #FFFFFF;
+  --hz-popover-foreground: #0F1B2D;
+  --hz-primary: #2457FF;
+  --hz-primary-foreground: #FFFFFF;
+  --hz-secondary: #E8EDF5;
+  --hz-secondary-foreground: #14254A;
+  --hz-muted: #EDF0F4;
+  --hz-muted-foreground: #4A5568;
+  --hz-accent: #E6ECFF;
+  --hz-accent-foreground: #14254A;
+  --hz-destructive: #C4320A;
+  --hz-destructive-foreground: #FFFFFF;
+  --hz-border: #DCE1E7;
+  --hz-input: #C6CDD6;
+  --hz-ring: #2457FF;
+  --hz-live: #D92D20;
+  --hz-live-foreground: #FFFFFF;
+  --hz-notice: #FFF1DB;
+  --hz-notice-foreground: #8A4B00;
+  --hz-cat-crypto-fill: #F7931A;
+  --hz-cat-crypto-ink: #1B1100;
+  --hz-cat-crypto-soft: #FEF0DC;
+  --hz-cat-crypto-soft-ink: #7A4300;
+  --hz-cat-finance-fill: #12B76A;
+  --hz-cat-finance-ink: #04170D;
+  --hz-cat-finance-soft: #DDF6E9;
+  --hz-cat-finance-soft-ink: #05603A;
+  --hz-cat-business-fill: #0E9384;
+  --hz-cat-business-ink: #021714;
+  --hz-cat-business-soft: #D7F2EE;
+  --hz-cat-business-soft-ink: #0A5C53;
+  --hz-cat-ai-fill: #7A5AF8;
+  --hz-cat-ai-ink: #FFFFFF;
+  --hz-cat-ai-soft: #EBE6FF;
+  --hz-cat-ai-soft-ink: #4A2BC2;
+  --hz-cat-sports-fill: #2E90FA;
+  --hz-cat-sports-ink: #04162C;
+  --hz-cat-sports-soft: #DDEBFE;
+  --hz-cat-sports-soft-ink: #1453A8;
+  --hz-cat-politics-fill: #475467;
+  --hz-cat-politics-ink: #FFFFFF;
+  --hz-cat-politics-soft: #E5E9EF;
+  --hz-cat-politics-soft-ink: #344054;
+  --hz-cat-entertainment-fill: #EE46BC;
+  --hz-cat-entertainment-ink: #2A0620;
+  --hz-cat-entertainment-soft: #FCE3F4;
+  --hz-cat-entertainment-soft-ink: #9E1E77;
+  --hz-cat-general-fill: #667085;
+  --hz-cat-general-ink: #FFFFFF;
+  --hz-cat-general-soft: #E8EBF0;
+  --hz-cat-general-soft-ink: #3D4554;
+  --hz-cat-other-fill: #667085;
+  --hz-cat-other-ink: #FFFFFF;
+  --hz-cat-other-soft: #E8EBF0;
+  --hz-cat-other-soft-ink: #3D4554;
+  --hz-card-shadow: 0 1px 3px #0F1B2D1F;
+  --hz-family-display: var(--font-archivo, "Archivo"), "Arial", "Roboto", sans-serif;
+  --hz-family-text: var(--font-archivo, "Archivo"), system-ui, "Roboto", sans-serif;
+  --hz-type-brand-family: var(--hz-family-display);
+  --hz-type-brand-size: 1.5rem;
+  --hz-type-brand-line: 1.0833;
+  --hz-type-brand-weight: 800;
+  --hz-type-brand-tracking: -0.02em;
+  --hz-type-brand-width: 87.5%;
+  --hz-type-brand-numbers: normal;
+  --hz-type-display-family: var(--hz-family-display);
+  --hz-type-display-size: 1.8125rem;
+  --hz-type-display-line: 1.1034;
+  --hz-type-display-weight: 750;
+  --hz-type-display-tracking: -0.015em;
+  --hz-type-display-width: 87.5%;
+  --hz-type-display-numbers: normal;
+  --hz-type-title-family: var(--hz-family-display);
+  --hz-type-title-size: 1.25rem;
+  --hz-type-title-line: 1.2;
+  --hz-type-title-weight: 700;
+  --hz-type-title-tracking: 0em;
+  --hz-type-title-width: 87.5%;
+  --hz-type-title-numbers: normal;
+  --hz-type-headline-family: var(--hz-family-display);
+  --hz-type-headline-size: 1.0625rem;
+  --hz-type-headline-line: 1.2353;
+  --hz-type-headline-weight: 700;
+  --hz-type-headline-tracking: -0.005em;
+  --hz-type-headline-width: 87.5%;
+  --hz-type-headline-numbers: normal;
+  --hz-type-body-family: var(--hz-family-text);
+  --hz-type-body-size: 1rem;
+  --hz-type-body-line: 1.5;
+  --hz-type-body-weight: 400;
+  --hz-type-body-tracking: 0em;
+  --hz-type-body-width: 100%;
+  --hz-type-body-numbers: normal;
+  --hz-type-callout-family: var(--hz-family-text);
+  --hz-type-callout-size: 0.875rem;
+  --hz-type-callout-line: 1.4286;
+  --hz-type-callout-weight: 400;
+  --hz-type-callout-tracking: 0em;
+  --hz-type-callout-width: 100%;
+  --hz-type-callout-numbers: normal;
+  --hz-type-label-family: var(--hz-family-text);
+  --hz-type-label-size: 0.875rem;
+  --hz-type-label-line: 1.2857;
+  --hz-type-label-weight: 600;
+  --hz-type-label-tracking: 0em;
+  --hz-type-label-width: 100%;
+  --hz-type-label-numbers: normal;
+  --hz-type-caption-family: var(--hz-family-text);
+  --hz-type-caption-size: 0.75rem;
+  --hz-type-caption-line: 1.3333;
+  --hz-type-caption-weight: 500;
+  --hz-type-caption-tracking: 0em;
+  --hz-type-caption-width: 100%;
+  --hz-type-caption-numbers: tabular-nums;
+  --hz-space-gutter: 1rem;
+  --hz-space-lane: 0.625rem;
+  --hz-space-card: 0.75rem;
+  --hz-space-stack: 0.375rem;
+  --hz-space-section: 1.75rem;
+  --hz-radius-card: 12px;
+  --hz-radius-media: 8px;
+  --hz-radius-control: 8px;
+  --hz-radius-chip: 8px;
+  --hz-card-border: 0px;
+  --hz-icon-stroke: 1.75;
+  --hz-icon-small: 0.875rem;
+  --hz-icon-medium: 1.125rem;
+  --hz-icon-large: 1.375rem;
+  --hz-motion-fast: 100ms;
+  --hz-motion-base: 180ms;
+  --hz-motion-easing: cubic-bezier(0.2, 0, 0, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-direction="pulse"] {
+    --hz-background: #0B1016;
+    --hz-foreground: #E7EDF4;
+    --hz-card: #131A23;
+    --hz-card-foreground: #E7EDF4;
+    --hz-popover: #18212C;
+    --hz-popover-foreground: #E7EDF4;
+    --hz-primary: #7C9BFF;
+    --hz-primary-foreground: #081127;
+    --hz-secondary: #1D2735;
+    --hz-secondary-foreground: #E7EDF4;
+    --hz-muted: #1A2330;
+    --hz-muted-foreground: #9AA6B5;
+    --hz-accent: #1F2A44;
+    --hz-accent-foreground: #E7EDF4;
+    --hz-destructive: #FF8A80;
+    --hz-destructive-foreground: #2A0705;
+    --hz-border: #253041;
+    --hz-input: #33415A;
+    --hz-ring: #7C9BFF;
+    --hz-live: #FF6B5E;
+    --hz-live-foreground: #1A0503;
+    --hz-notice: #2E2210;
+    --hz-notice-foreground: #F6C77D;
+    --hz-cat-crypto-fill: #F7931A;
+    --hz-cat-crypto-ink: #1B1100;
+    --hz-cat-crypto-soft: #2E2210;
+    --hz-cat-crypto-soft-ink: #F9C27A;
+    --hz-cat-finance-fill: #3DD68C;
+    --hz-cat-finance-ink: #04170D;
+    --hz-cat-finance-soft: #0E2A1C;
+    --hz-cat-finance-soft-ink: #8EE6B8;
+    --hz-cat-business-fill: #2EC4B0;
+    --hz-cat-business-ink: #021714;
+    --hz-cat-business-soft: #0B2925;
+    --hz-cat-business-soft-ink: #86E0D3;
+    --hz-cat-ai-fill: #A08BFF;
+    --hz-cat-ai-ink: #0E0730;
+    --hz-cat-ai-soft: #1E1840;
+    --hz-cat-ai-soft-ink: #C9BDFF;
+    --hz-cat-sports-fill: #5AA9FF;
+    --hz-cat-sports-ink: #04162C;
+    --hz-cat-sports-soft: #0E2038;
+    --hz-cat-sports-soft-ink: #A3CBFF;
+    --hz-cat-politics-fill: #A7B2C2;
+    --hz-cat-politics-ink: #0B1016;
+    --hz-cat-politics-soft: #1D2530;
+    --hz-cat-politics-soft-ink: #CDD5E0;
+    --hz-cat-entertainment-fill: #F27BD0;
+    --hz-cat-entertainment-ink: #2A0620;
+    --hz-cat-entertainment-soft: #341129;
+    --hz-cat-entertainment-soft-ink: #F7B2E2;
+    --hz-cat-general-fill: #A3ACBA;
+    --hz-cat-general-ink: #0B1016;
+    --hz-cat-general-soft: #1D2530;
+    --hz-cat-general-soft-ink: #CBD2DC;
+    --hz-cat-other-fill: #A3ACBA;
+    --hz-cat-other-ink: #0B1016;
+    --hz-cat-other-soft: #1D2530;
+    --hz-cat-other-soft-ink: #CBD2DC;
+    --hz-card-shadow: 0 1px 3px #00000000;
+  }
+}
+
+/* Each category's own look, for anything marked with data-category. */
+
+[data-category] {
+  --cat-fill: var(--hz-cat-other-fill);
+  --cat-ink: var(--hz-cat-other-ink);
+  --cat-soft: var(--hz-cat-other-soft);
+  --cat-soft-ink: var(--hz-cat-other-soft-ink);
+}
+
+[data-category="crypto"] {
+  --cat-fill: var(--hz-cat-crypto-fill);
+  --cat-ink: var(--hz-cat-crypto-ink);
+  --cat-soft: var(--hz-cat-crypto-soft);
+  --cat-soft-ink: var(--hz-cat-crypto-soft-ink);
+}
+
+[data-category="finance"] {
+  --cat-fill: var(--hz-cat-finance-fill);
+  --cat-ink: var(--hz-cat-finance-ink);
+  --cat-soft: var(--hz-cat-finance-soft);
+  --cat-soft-ink: var(--hz-cat-finance-soft-ink);
+}
+
+[data-category="business"] {
+  --cat-fill: var(--hz-cat-business-fill);
+  --cat-ink: var(--hz-cat-business-ink);
+  --cat-soft: var(--hz-cat-business-soft);
+  --cat-soft-ink: var(--hz-cat-business-soft-ink);
+}
+
+[data-category="ai"] {
+  --cat-fill: var(--hz-cat-ai-fill);
+  --cat-ink: var(--hz-cat-ai-ink);
+  --cat-soft: var(--hz-cat-ai-soft);
+  --cat-soft-ink: var(--hz-cat-ai-soft-ink);
+}
+
+[data-category="sports"] {
+  --cat-fill: var(--hz-cat-sports-fill);
+  --cat-ink: var(--hz-cat-sports-ink);
+  --cat-soft: var(--hz-cat-sports-soft);
+  --cat-soft-ink: var(--hz-cat-sports-soft-ink);
+}
+
+[data-category="politics"] {
+  --cat-fill: var(--hz-cat-politics-fill);
+  --cat-ink: var(--hz-cat-politics-ink);
+  --cat-soft: var(--hz-cat-politics-soft);
+  --cat-soft-ink: var(--hz-cat-politics-soft-ink);
+}
+
+[data-category="entertainment"] {
+  --cat-fill: var(--hz-cat-entertainment-fill);
+  --cat-ink: var(--hz-cat-entertainment-ink);
+  --cat-soft: var(--hz-cat-entertainment-soft);
+  --cat-soft-ink: var(--hz-cat-entertainment-soft-ink);
+}
+
+[data-category="general"] {
+  --cat-fill: var(--hz-cat-general-fill);
+  --cat-ink: var(--hz-cat-general-ink);
+  --cat-soft: var(--hz-cat-general-soft);
+  --cat-soft-ink: var(--hz-cat-general-soft-ink);
+}
+
+/* The names Tailwind's utilities and shadcn/ui's components read. */
+
+@theme inline {
+  --color-background: var(--hz-background);
+  --color-foreground: var(--hz-foreground);
+  --color-card: var(--hz-card);
+  --color-card-foreground: var(--hz-card-foreground);
+  --color-popover: var(--hz-popover);
+  --color-popover-foreground: var(--hz-popover-foreground);
+  --color-primary: var(--hz-primary);
+  --color-primary-foreground: var(--hz-primary-foreground);
+  --color-secondary: var(--hz-secondary);
+  --color-secondary-foreground: var(--hz-secondary-foreground);
+  --color-muted: var(--hz-muted);
+  --color-muted-foreground: var(--hz-muted-foreground);
+  --color-accent: var(--hz-accent);
+  --color-accent-foreground: var(--hz-accent-foreground);
+  --color-destructive: var(--hz-destructive);
+  --color-destructive-foreground: var(--hz-destructive-foreground);
+  --color-border: var(--hz-border);
+  --color-input: var(--hz-input);
+  --color-ring: var(--hz-ring);
+  --color-live: var(--hz-live);
+  --color-live-foreground: var(--hz-live-foreground);
+  --color-notice: var(--hz-notice);
+  --color-notice-foreground: var(--hz-notice-foreground);
+  --color-cat-fill: var(--cat-fill);
+  --color-cat-ink: var(--cat-ink);
+  --color-cat-soft: var(--cat-soft);
+  --color-cat-soft-ink: var(--cat-soft-ink);
+  --font-display: var(--hz-family-display);
+  --font-text: var(--hz-family-text);
+  --font-sans: var(--hz-family-text);
+  --spacing-gutter: var(--hz-space-gutter);
+  --spacing-lane: var(--hz-space-lane);
+  --spacing-card: var(--hz-space-card);
+  --spacing-stack: var(--hz-space-stack);
+  --spacing-section: var(--hz-space-section);
+  --radius-card: var(--hz-radius-card);
+  --radius-media: var(--hz-radius-media);
+  --radius-control: var(--hz-radius-control);
+  --radius-chip: var(--hz-radius-chip);
+  --radius-sm: var(--hz-radius-control);
+  --radius-md: var(--hz-radius-control);
+  --radius-lg: var(--hz-radius-card);
+  --radius-xl: var(--hz-radius-card);
+  --shadow-card: var(--hz-card-shadow);
+  --ease-standard: var(--hz-motion-easing);
+}
+
+/* One utility per text style: type-brand, type-display, type-title, … */
+
+@utility type-brand {
+  font-family: var(--hz-type-brand-family);
+  font-size: var(--hz-type-brand-size);
+  line-height: var(--hz-type-brand-line);
+  font-weight: var(--hz-type-brand-weight);
+  letter-spacing: var(--hz-type-brand-tracking);
+  font-stretch: var(--hz-type-brand-width);
+  font-variant-numeric: var(--hz-type-brand-numbers);
+}
+
+@utility type-display {
+  font-family: var(--hz-type-display-family);
+  font-size: var(--hz-type-display-size);
+  line-height: var(--hz-type-display-line);
+  font-weight: var(--hz-type-display-weight);
+  letter-spacing: var(--hz-type-display-tracking);
+  font-stretch: var(--hz-type-display-width);
+  font-variant-numeric: var(--hz-type-display-numbers);
+}
+
+@utility type-title {
+  font-family: var(--hz-type-title-family);
+  font-size: var(--hz-type-title-size);
+  line-height: var(--hz-type-title-line);
+  font-weight: var(--hz-type-title-weight);
+  letter-spacing: var(--hz-type-title-tracking);
+  font-stretch: var(--hz-type-title-width);
+  font-variant-numeric: var(--hz-type-title-numbers);
+}
+
+@utility type-headline {
+  font-family: var(--hz-type-headline-family);
+  font-size: var(--hz-type-headline-size);
+  line-height: var(--hz-type-headline-line);
+  font-weight: var(--hz-type-headline-weight);
+  letter-spacing: var(--hz-type-headline-tracking);
+  font-stretch: var(--hz-type-headline-width);
+  font-variant-numeric: var(--hz-type-headline-numbers);
+}
+
+@utility type-body {
+  font-family: var(--hz-type-body-family);
+  font-size: var(--hz-type-body-size);
+  line-height: var(--hz-type-body-line);
+  font-weight: var(--hz-type-body-weight);
+  letter-spacing: var(--hz-type-body-tracking);
+  font-stretch: var(--hz-type-body-width);
+  font-variant-numeric: var(--hz-type-body-numbers);
+}
+
+@utility type-callout {
+  font-family: var(--hz-type-callout-family);
+  font-size: var(--hz-type-callout-size);
+  line-height: var(--hz-type-callout-line);
+  font-weight: var(--hz-type-callout-weight);
+  letter-spacing: var(--hz-type-callout-tracking);
+  font-stretch: var(--hz-type-callout-width);
+  font-variant-numeric: var(--hz-type-callout-numbers);
+}
+
+@utility type-label {
+  font-family: var(--hz-type-label-family);
+  font-size: var(--hz-type-label-size);
+  line-height: var(--hz-type-label-line);
+  font-weight: var(--hz-type-label-weight);
+  letter-spacing: var(--hz-type-label-tracking);
+  font-stretch: var(--hz-type-label-width);
+  font-variant-numeric: var(--hz-type-label-numbers);
+}
+
+@utility type-caption {
+  font-family: var(--hz-type-caption-family);
+  font-size: var(--hz-type-caption-size);
+  line-height: var(--hz-type-caption-line);
+  font-weight: var(--hz-type-caption-weight);
+  letter-spacing: var(--hz-type-caption-tracking);
+  font-stretch: var(--hz-type-caption-width);
+  font-variant-numeric: var(--hz-type-caption-numbers);
+}

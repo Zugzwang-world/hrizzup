@@ -1,0 +1,143 @@
+import type { DesignValues } from '../types.ts';
+
+/**
+ * Direction 3, Pulse (live heat): precise, numeric and fast, the bridge to the markets. Every
+ * story card carries a pulse strip, a tick for each update in its last day, so the board
+ * shows at a glance what's moving; a story with no picture shows a field of its category's
+ * colour. Set in Archivo, whose width axis gives semi-condensed headlines from one family.
+ */
+export const pulse = {
+  name: 'Pulse',
+  summary:
+    "A live map of what's moving. Each card shows its updates as a pulse strip; set in Archivo, semi-condensed.",
+  references: [
+    'Particle: stories built from many sources',
+    'Bloomberg and market terminals: dense, exact numbers',
+    'Apple Weather: data shown as colour',
+    'Kalshi and Polymarket: live numbers, plainly set',
+  ],
+  color: {
+    background: { light: '#F3F5F7', dark: '#0B1016' },
+    foreground: { light: '#0F1B2D', dark: '#E7EDF4' },
+    card: { light: '#FFFFFF', dark: '#131A23' },
+    cardForeground: { light: '#0F1B2D', dark: '#E7EDF4' },
+    popover: { light: '#FFFFFF', dark: '#18212C' },
+    popoverForeground: { light: '#0F1B2D', dark: '#E7EDF4' },
+    primary: { light: '#2457FF', dark: '#7C9BFF' },
+    primaryForeground: { light: '#FFFFFF', dark: '#081127' },
+    secondary: { light: '#E8EDF5', dark: '#1D2735' },
+    secondaryForeground: { light: '#14254A', dark: '#E7EDF4' },
+    muted: { light: '#EDF0F4', dark: '#1A2330' },
+    mutedForeground: { light: '#4A5568', dark: '#9AA6B5' },
+    accent: { light: '#E6ECFF', dark: '#1F2A44' },
+    accentForeground: { light: '#14254A', dark: '#E7EDF4' },
+    destructive: { light: '#C4320A', dark: '#FF8A80' },
+    destructiveForeground: { light: '#FFFFFF', dark: '#2A0705' },
+    border: { light: '#DCE1E7', dark: '#253041' },
+    input: { light: '#C6CDD6', dark: '#33415A' },
+    ring: { light: '#2457FF', dark: '#7C9BFF' },
+    live: { light: '#D92D20', dark: '#FF6B5E' },
+    liveForeground: { light: '#FFFFFF', dark: '#1A0503' },
+    notice: { light: '#FFF1DB', dark: '#2E2210' },
+    noticeForeground: { light: '#8A4B00', dark: '#F6C77D' },
+  },
+  category: {
+    crypto: {
+      fill: { light: '#F7931A', dark: '#F7931A' },
+      ink: { light: '#1B1100', dark: '#1B1100' },
+      soft: { light: '#FEF0DC', dark: '#2E2210' },
+      softInk: { light: '#7A4300', dark: '#F9C27A' },
+      icon: 'bitcoin',
+    },
+    finance: {
+      fill: { light: '#12B76A', dark: '#3DD68C' },
+      ink: { light: '#04170D', dark: '#04170D' },
+      soft: { light: '#DDF6E9', dark: '#0E2A1C' },
+      softInk: { light: '#05603A', dark: '#8EE6B8' },
+      icon: 'indian-rupee',
+    },
+    business: {
+      fill: { light: '#0E9384', dark: '#2EC4B0' },
+      ink: { light: '#021714', dark: '#021714' },
+      soft: { light: '#D7F2EE', dark: '#0B2925' },
+      softInk: { light: '#0A5C53', dark: '#86E0D3' },
+      icon: 'briefcase-business',
+    },
+    ai: {
+      fill: { light: '#7A5AF8', dark: '#A08BFF' },
+      ink: { light: '#FFFFFF', dark: '#0E0730' },
+      soft: { light: '#EBE6FF', dark: '#1E1840' },
+      softInk: { light: '#4A2BC2', dark: '#C9BDFF' },
+      icon: 'sparkles',
+    },
+    sports: {
+      fill: { light: '#2E90FA', dark: '#5AA9FF' },
+      ink: { light: '#04162C', dark: '#04162C' },
+      soft: { light: '#DDEBFE', dark: '#0E2038' },
+      softInk: { light: '#1453A8', dark: '#A3CBFF' },
+      icon: 'trophy',
+    },
+    politics: {
+      fill: { light: '#475467', dark: '#A7B2C2' },
+      ink: { light: '#FFFFFF', dark: '#0B1016' },
+      soft: { light: '#E5E9EF', dark: '#1D2530' },
+      softInk: { light: '#344054', dark: '#CDD5E0' },
+      icon: 'landmark',
+    },
+    entertainment: {
+      fill: { light: '#EE46BC', dark: '#F27BD0' },
+      ink: { light: '#2A0620', dark: '#2A0620' },
+      soft: { light: '#FCE3F4', dark: '#341129' },
+      softInk: { light: '#9E1E77', dark: '#F7B2E2' },
+      icon: 'clapperboard',
+    },
+    general: {
+      fill: { light: '#667085', dark: '#A3ACBA' },
+      ink: { light: '#FFFFFF', dark: '#0B1016' },
+      soft: { light: '#E8EBF0', dark: '#1D2530' },
+      softInk: { light: '#3D4554', dark: '#CBD2DC' },
+      icon: 'newspaper',
+    },
+  },
+  categoryFallback: {
+    fill: { light: '#667085', dark: '#A3ACBA' },
+    ink: { light: '#FFFFFF', dark: '#0B1016' },
+    soft: { light: '#E8EBF0', dark: '#1D2530' },
+    softInk: { light: '#3D4554', dark: '#CBD2DC' },
+    icon: 'newspaper',
+  },
+  font: {
+    display: {
+      family: 'Archivo',
+      fallback: ['Arial', 'Roboto', 'sans-serif'],
+      licence: 'SIL Open Font License 1.1',
+      source: 'https://fonts.google.com/specimen/Archivo',
+    },
+    text: {
+      family: 'Archivo',
+      fallback: ['system-ui', 'Roboto', 'sans-serif'],
+      licence: 'SIL Open Font License 1.1',
+      source: 'https://fonts.google.com/specimen/Archivo',
+    },
+  },
+  type: {
+    brand: { font: 'display', size: 24, line: 26, weight: 800, width: 87.5, tracking: -0.02 },
+    display: { font: 'display', size: 29, line: 32, weight: 750, width: 87.5, tracking: -0.015 },
+    title: { font: 'display', size: 20, line: 24, weight: 700, width: 87.5 },
+    headline: { font: 'display', size: 17, line: 21, weight: 700, width: 87.5, tracking: -0.005 },
+    body: { font: 'text', size: 16, line: 24, weight: 400 },
+    callout: { font: 'text', size: 14, line: 20, weight: 400 },
+    label: { font: 'text', size: 14, line: 18, weight: 600 },
+    caption: { font: 'text', size: 12, line: 16, weight: 500, numbers: 'tabular' },
+  },
+  space: { gutter: 16, laneGap: 10, cardPad: 12, stack: 6, section: 28 },
+  radius: { card: 12, media: 8, control: 8, chip: 8 },
+  card: {
+    border: 0,
+    shadow: { y: 1, blur: 3, light: '#0F1B2D1F', dark: '#00000000' },
+    art: 'field',
+    pulse: true,
+  },
+  icon: { stroke: 1.75, size: { small: 14, medium: 18, large: 22 } },
+  motion: { fast: 100, base: 180, easing: 'cubic-bezier(0.2, 0, 0, 1)' },
+} as const satisfies DesignValues;

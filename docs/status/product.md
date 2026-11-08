@@ -92,6 +92,17 @@ Last updated: 8 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/brie
   - anything naming a merged story is read as naming the story it went into; `withdrawn` also covers takedowns the law requires;
   - notes for Product: X's own embed code only, and the privacy policy (4.2) discloses X's embed tracking; an invited creator links their X account themselves (X's rule on matching people off X); the board's Latest tab sorts by the newest live update's `reported_at`, not `updated_at`;
   - the example data changed (relays 2 and 4 use it): the deleted take erased, two deleted news posts added, every update sourced, one update merged.
+- **Step 1.4's first pass, its first milestone: the readable-text check and the design values package** ([#39](https://github.com/Zugzwang-world/hrizzup/pull/39), Round 2, relay 4; `product/packages/design`, `@hrizzup/design`; [design log](../design/log.md)):
+  - **the design values, defined once for both surfaces:** colours in light and dark (shadcn/ui's names plus Hrizzup's own: live, notice, and each category's look), typefaces, text styles, spacing, corners, cards, icons and motion. The website reads them through `tokens.css`, written from the values by `pnpm --filter @hrizzup/design write`; the app reads the same objects. Icons are Lucide's (ISC), copied in for only those used, with the licence kept and listed in `THIRD_PARTY_NOTICES.md`;
+  - **three candidate directions** for the founder to choose from, each a full set of values: Neel (indigo ink, Eczar headlines), Bazaar (poster colours, Anek Latin condensed) and Pulse (live heat, Archivo, a pulse strip on every card). No screen uses them yet;
+  - **the readable-text check** (PLAN.md step 1.4), in Quick checks: every text colour on every background the components use reaches WCAG's 4.5 to 1, in light and in dark, for every direction; the check also fails when `tokens.css` or the icons are stale, or when the categories differ from the agreement's list;
+  - **answered without asking** (one line each):
+    - The founder gave no references before the first pass, so it starts from Claude Code's picks among today's best news and markets products; his references replace them when he gives them.
+    - The readable-text check lands in its own pull request, before any design page, as "checks come first" asks.
+    - Text contrast follows WCAG 2.2's 4.5 to 1 for all text, the stricter of its two levels, so no text style can slip under it by being smaller than planned.
+    - Colours are six-digit hex, the one format both the website and React Native read.
+    - Icons come from Lucide (shadcn/ui's set), copied per icon, so the app's bundle carries only the icons used.
+    - Typefaces come from Google Fonts under the SIL Open Font License; no paid typeface is proposed.
 
 - **The market model and the two tracks, the founder's decisions of 8 November 2026** ([#40](https://github.com/Zugzwang-world/hrizzup/pull/40), Round 2 relay 6, records only):
   - **the product first, the topics later** (PLAN.md section 2): a market is data, not code: its question, outcomes, rules, open and close times, named settlement source and status (draft, open, closed, settled or cancelled). The engine, trading, balances and settlement work the same for any question; series (templates for recurring questions) come later. Only Hrizzup creates markets;
