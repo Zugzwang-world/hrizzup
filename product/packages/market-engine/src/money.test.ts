@@ -391,7 +391,7 @@ describe('a sale', () => {
     });
   }
 
-  it('selling everything straight back returns the stake, less nothing', () => {
+  it('selling everything straight back returns the whole stake', () => {
     const ledger = new Ledger({ ann: 500 });
     const yes = ledger.buy('ann', 'YES', 200);
     ledger.sell('ann', 'YES', yes.shares);
