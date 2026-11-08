@@ -32,8 +32,8 @@ export function validator(): Ajv2020 {
 
 /**
  * Hidden text that no single pattern catches the same way in every language, so it's refused
- * here, in code; code in another language adds the same three checks with its own Unicode data
- * (agreement/README.md, "Rules for every hand-over point"):
+ * here, in code; code in another language adds the same three checks with its own Unicode data,
+ * plus FINAL_NEW_LINE below (agreement/README.md, "Rules for every hand-over point"):
  * - any invisible character: Unicode's default-ignorable characters, whether or not a Unicode
  *   version has assigned them yet (which takes in every tag character and variation selector),
  *   and every format, private-use or lone surrogate character (categories Cf, Co and Cs), apart
@@ -50,11 +50,21 @@ const HIDDEN = [
   /^\u{200D}|\u{200D}$|\u{200D}\u{200D}|[\n -~]\u{200D}|\u{200D}[\n -~]/u,
 ];
 
+/**
+ * A new line at the very end of any text. Every pattern refuses it here, because JavaScript's `$`
+ * means the end of the text. In Python, Java and .NET, `$` also matches just before a final new
+ * line, so their validators let it through the same patterns; code in those languages makes this
+ * check, and this code makes it too, so the four checks are the same everywhere.
+ */
+const FINAL_NEW_LINE = /\n$/;
+
 // Only runs on records whose shape has passed, so their depth is bounded by the definitions.
 function hiddenText(value: unknown, path: string, problems: Problem[]) {
   if (typeof value === 'string') {
     if (HIDDEN.some((rule) => rule.test(value))) {
       problems.push({ path, message: 'must not hide characters' });
+    } else if (FINAL_NEW_LINE.test(value)) {
+      problems.push({ path, message: 'must not end in a new line' });
     }
   } else if (Array.isArray(value)) {
     for (const [i, item] of value.entries()) hiddenText(item, `${path}/${i}`, problems);
