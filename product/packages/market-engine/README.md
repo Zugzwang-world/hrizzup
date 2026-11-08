@@ -54,6 +54,14 @@ Our changes to what the maths does (milestone 2), each pinned by a test in [src/
 
 The front door no longer offers `computeFills` and `computeCpmmBet`, whose time is optional; buying and selling cover them.
 
+## Our money tests
+
+[src/money.test.ts](src/money.test.ts) (milestone 3) checks that play money is never created or lost. A small ledger stands in for 1.7b's engine: it holds every balance, opens a yes/no market with the house's starting amount (Ṁ1,000), and applies what the maths returns for each trade, the way Manifold's server does. After every step it checks that the balances, the fees and the money in the market add up to what there was at the start, that every Yes share and every No share is backed by Ṁ1 in the market, and that no balance goes below zero; after settlement, that the market holds nothing. The clock throws throughout.
+
+They cover a yes/no buy, a limit order (filled in full, partly filled then withdrawn, expired, and stopped when its owner's money runs out), a sale (part, all, and into a resting order), Yes and No cancelling out, and settlement by Yes, by No, at a set probability (MKT) and by cancel, each case under all four settlements; then 40 random markets of 150 trades each and one of 2,000, every one settled.
+
+**What they found:** a cancel pays each trader what they put in less what they took out, so a trader who sold at a profit gets a negative payout: the profit is taken back. Within one market that returns everyone to where they started, but a trader who spent the profit elsewhere would go below zero. The question is in the Product brief.
+
 ## Checks
 
 - **Tests:** `pnpm --filter @hrizzup/market-engine test` (Vitest). Quick checks run them on every pull request, with the type check.

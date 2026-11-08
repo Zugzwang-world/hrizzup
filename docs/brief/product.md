@@ -19,7 +19,7 @@ One line per relay; each relay keeps only its own line current.
 
 1. **Relay 1, the round's records:** merged [#36](https://github.com/Zugzwang-world/hrizzup/pull/36). Next: nothing, relay 1 is done. For the founder: replace the Expo token.
 2. **Relay 2, steps 1.5a to 1.5d:** no milestone merged yet. Next: 1.5a, the speed check.
-3. **Relay 3, step 1.7a, Manifold's maths:** merged [#43](https://github.com/Zugzwang-world/hrizzup/pull/43), our changes: the time passed in, no loans, the two error messages fixed, no logging, fees at zero behind one setting (after [#38](https://github.com/Zugzwang-world/hrizzup/pull/38), the maths with its 158 tests). Next: our money tests.
+3. **Relay 3, step 1.7a, Manifold's maths:** merged [#44](https://github.com/Zugzwang-world/hrizzup/pull/44), our money tests: no play money created or lost, over every trade and settlement and 41 random markets; 1.7a is done (201 tests pass, after [#38](https://github.com/Zugzwang-world/hrizzup/pull/38) and [#43](https://github.com/Zugzwang-world/hrizzup/pull/43)). Next: nothing, relay 3 is done. Three questions below.
 4. **Relay 4, step 1.4's first pass:** first milestone [#39](https://github.com/Zugzwang-world/hrizzup/pull/39): the readable-text check and the design values package (three candidate directions, nothing on screen yet). Next: the three directions as working boards on preview links, for the founder to choose.
 5. **Relay 5, Sourcing's review of the agreement's first half:** done: the review [#37](https://github.com/Zugzwang-world/hrizzup/pull/37), its changes [#42](https://github.com/Zugzwang-world/hrizzup/pull/42) and [#45](https://github.com/Zugzwang-world/hrizzup/pull/45); the first half awaits the founder's approval. For the founder: approve it; three questions.
 6. **Relay 6, the market model and the two tracks (records):** merged [#40](https://github.com/Zugzwang-world/hrizzup/pull/40). Next: nothing, relay 6 is done. For the founder: the remaining screens, in the design chat; the market shape before approving the first half.
@@ -53,7 +53,9 @@ On 8 November 2026, in [#40](https://github.com/Zugzwang-world/hrizzup/pull/40) 
 - **Sign-in for the board's favourites** (2.1): add 1.6a to 2.1's needs, 1.6b to its app join.
 - **Vercel's bot challenge and the app** (1.5d): test first; if challenged, a staging-only firewall rule lets the API skip it.
 - **oRPC 2.0 late:** start on 1.x. **Tool tokens:** the Doppler check fails on a `hrizzup-tools` name in `stg`. **Dependabot's three alerts:** one small change raising them; find out why it opened none.
-- **The markets' trading fee** (1.7a): the maths keeps it at zero behind one setting, `TAKER_FEE_RATE`, using Manifold's formula (rate × p × (1 − p) × shares). Recommendation: zero at launch, as Manifold runs today; if one is wanted later, decide with it how a cancelled market refunds: Manifold refunds the whole stake, fee included, without taking the fee back, which would create play money.
+- **Market fee** (1.7a): zero behind one setting, `TAKER_FEE_RATE`. Recommendation: zero at launch; a later fee must settle how a cancel refunds it.
+- **A cancel takes back sale profits** (1.7b): a negative payout, which can leave a trader below zero. Recommendation: as Manifold, the balance shows what's owed; cancel only markets that can't be settled fairly.
+- **The trade call must refuse** (1.7d) what the maths lets through: limits outside 1% to 99%, an expiry of 0, amounts not positive or above the balance.
 - **Also open, with recommendations:** shared code (contract, data fetching, validation); X's own embed for found posts; perps' first settings (5-second prices, a 0.1% opening fee, hourly funding, a made-up stand-in price); Turnstile in a web view; background jobs on Supabase Cron and Queues.
 
 ## For the founder
@@ -79,4 +81,5 @@ On 8 November 2026, in [#40](https://github.com/Zugzwang-world/hrizzup/pull/40) 
 - `docs/setup/BLUEPRINT.md` (Expo 2, public staging 6, keys 7, sign-in 9, the typed API and the engine's calls 13, budgets 14) and `docs/setup/RUNBOOK.md` (keys, Part 4; the pre-launch checklist).
 - `agreement/README.md`: sign-offs, decisions, fields, lists; `agreement/reviews/sourcing-first-half.md`: Sourcing's review, with notes for Product (N12 to N14).
 - `docs/research/round-2-readiness.md`, `docs/research/manifold.md`: the research behind Round 2 and the engine (market data: reference only).
+- `product/packages/market-engine/README.md`: the maths copied from Manifold, every change, the money tests.
 - `docs/status/product.md`: Product's status in full, with each session's own answers.
