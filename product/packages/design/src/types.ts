@@ -161,6 +161,8 @@ export type DesignValues = {
   card: {
     /** Border width in pixels; 0 for none. */
     border: number;
+    /** The space between a card's edge and its picture, in pixels; 0 runs it edge to edge. */
+    inset: number;
     /** The shadow under a card, or none. Colours are `#RRGGBBAA` (the last two digits are
      *  its opacity), which both the website and the app read. */
     shadow: 'none' | { y: number; blur: number; light: string; dark: string };

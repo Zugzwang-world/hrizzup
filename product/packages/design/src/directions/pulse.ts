@@ -134,6 +134,7 @@ export const pulse = {
   radius: { card: 12, media: 8, control: 8, chip: 8 },
   card: {
     border: 0,
+    inset: 0,
     shadow: { y: 1, blur: 3, light: '#0F1B2D1F', dark: '#00000000' },
     art: 'field',
     pulse: true,

@@ -7,10 +7,10 @@ function EnvironmentNote() {
   const env = currentEnvironment();
   if (env === 'production') return null;
   return (
-    <div className="bg-note text-ink border-b border-line">
+    <div className="bg-notice text-notice-foreground border-b border-border">
       <p className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 text-sm sm:px-6">
         <span className="font-semibold uppercase tracking-wide">{env}</span>
-        <span className="text-muted">Not the live site.</span>
+        <span className="text-muted-foreground">Not the live site.</span>
         <Link href="/sign-in-test" className="underline">
           Sign-in test
         </Link>
@@ -38,13 +38,13 @@ export function SiteHeader() {
 export function SiteFooter() {
   return (
     <footer className="mx-auto w-full max-w-5xl px-4 pb-8 sm:px-6">
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-line pt-6 text-sm text-muted">
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-border pt-6 text-sm text-muted-foreground">
         <p>© 2026 {brand.name}</p>
         <nav aria-label="Legal" className="flex flex-wrap gap-x-6 gap-y-2">
-          <Link href="/privacy" className="underline hover:text-ink">
+          <Link href="/privacy" className="underline hover:text-foreground">
             Privacy
           </Link>
-          <Link href="/terms" className="underline hover:text-ink">
+          <Link href="/terms" className="underline hover:text-foreground">
             Terms
           </Link>
         </nav>

@@ -28,6 +28,15 @@ export function signInTestEnabled(env: Env = process.env): boolean {
   return currentEnvironment(env) !== 'production';
 }
 
+/**
+ * The design pages (PLAN.md step 1.4) exist only on previews and this Mac: they're for the
+ * founder to judge the design on, never for readers, so staging and production answer 404.
+ */
+export function designPagesEnabled(env: Env = process.env): boolean {
+  const environment = currentEnvironment(env);
+  return environment === 'preview' || environment === 'development';
+}
+
 /** The region the function runs in (`bom1` on Vercel), or `local` on this Mac. */
 export function currentRegion(env: Env = process.env): string {
   return env.VERCEL_REGION ?? (env.VERCEL ? 'unknown' : 'local');

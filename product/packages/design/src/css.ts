@@ -102,6 +102,7 @@ function otherLines(values: DesignValues): string[] {
   for (const role of radiusRoles) lines.push(`--hz-radius-${role}: ${values.radius[role]}px;`);
   lines.push(
     `--hz-card-border: ${values.card.border}px;`,
+    `--hz-card-inset: ${rem(values.card.inset)};`,
     `--hz-icon-stroke: ${values.icon.stroke};`,
     `--hz-icon-small: ${rem(values.icon.size.small)};`,
     `--hz-icon-medium: ${rem(values.icon.size.medium)};`,

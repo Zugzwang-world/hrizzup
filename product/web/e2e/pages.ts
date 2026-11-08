@@ -65,6 +65,36 @@ export const pages: readonly Page[] = [
     status: 404,
     budget: 'standard',
   },
+  // The design pages (PLAN.md step 1.4) exist on previews and this Mac only. Each route is
+  // checked in the active direction; the same components serve the other directions.
+  {
+    route: '/design',
+    name: 'design',
+    path: '/design',
+    budget: 'standard',
+    absentOn: ['production', 'staging'],
+  },
+  {
+    route: '/design/directions/[direction]',
+    name: 'design-board',
+    path: '/design/directions/bazaar',
+    budget: 'standard',
+    absentOn: ['production', 'staging'],
+  },
+  {
+    route: '/design/directions/[direction]/values',
+    name: 'design-values',
+    path: '/design/directions/bazaar/values',
+    budget: 'standard',
+    absentOn: ['production', 'staging'],
+  },
+  {
+    route: '/design/directions/[direction]/story/[id]',
+    name: 'design-story',
+    path: '/design/directions/bazaar/story/01a199e9-d180-75ec-8a81-134dd403419a',
+    budget: 'standard',
+    absentOn: ['production', 'staging'],
+  },
 ];
 
 /** The pages that exist in an environment (staging, previews and this Mac have them all). */

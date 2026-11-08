@@ -1,40 +1,11 @@
 @import "tailwindcss";
 
 /*
- * Holding-page tokens, until the design system arrives (PLAN.md step 1.4). Colours are
- * defined once here and switch with the visitor's light or dark setting. Sizes use rem, so
- * the page grows with the phone's text size.
+ * The design values (product/packages/design): every colour, typeface, text style, spacing and
+ * corner, in light and dark, defined once for the website and the app. This file only applies
+ * them; change a value there, never here.
  */
-:root {
-  --paper: oklch(0.985 0.004 85);
-  --ink: oklch(0.2 0.01 260);
-  --muted: oklch(0.45 0.01 260);
-  --line: oklch(0.88 0.005 85);
-  --accent: oklch(0.58 0.19 35);
-  --note: oklch(0.95 0.04 85);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --paper: oklch(0.17 0.008 260);
-    --ink: oklch(0.95 0.005 85);
-    --muted: oklch(0.72 0.01 260);
-    --line: oklch(0.3 0.01 260);
-    --accent: oklch(0.72 0.16 40);
-    --note: oklch(0.26 0.03 85);
-  }
-}
-
-@theme inline {
-  --color-paper: var(--paper);
-  --color-ink: var(--ink);
-  --color-muted: var(--muted);
-  --color-line: var(--line);
-  --color-accent: var(--accent);
-  --color-note: var(--note);
-  --font-display: var(--font-instrument-serif), ui-serif, Georgia, serif;
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif;
-}
+@import "@hrizzup/design/tokens.css";
 
 html {
   color-scheme: light dark;
@@ -43,9 +14,9 @@ html {
 }
 
 body {
-  background: var(--paper);
-  color: var(--ink);
-  font-family: var(--font-sans);
+  background: var(--hz-background);
+  color: var(--hz-foreground);
+  font-family: var(--hz-family-text);
   overflow-wrap: break-word;
 }
 
@@ -54,7 +25,18 @@ a {
 }
 
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--hz-ring);
   outline-offset: 3px;
   border-radius: 2px;
+}
+
+/* Readers who ask their phone for less motion get none (rules outside Tailwind's layers win
+   over its utilities, so no override is needed). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none;
+    transition: none;
+  }
 }

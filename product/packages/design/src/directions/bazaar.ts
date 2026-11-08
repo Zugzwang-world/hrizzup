@@ -132,7 +132,7 @@ export const bazaar = {
   },
   space: { gutter: 14, laneGap: 8, cardPad: 12, stack: 6, section: 28 },
   radius: { card: 18, media: 12, control: 999, chip: 999 },
-  card: { border: 0, shadow: 'none', art: 'poster', pulse: false },
+  card: { border: 0, inset: 8, shadow: 'none', art: 'poster', pulse: false },
   icon: { stroke: 2.25, size: { small: 15, medium: 19, large: 24 } },
   motion: { fast: 120, base: 220, easing: 'cubic-bezier(0.3, 1.3, 0.5, 1)' },
 } as const satisfies DesignValues;

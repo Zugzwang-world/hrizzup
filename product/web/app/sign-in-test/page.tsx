@@ -48,26 +48,29 @@ export default async function SignInTestPage({ searchParams }: Props) {
     <div className="flex min-h-dvh flex-col">
       <SiteHeader />
       <main className="mx-auto w-full max-w-xl flex-1 px-4 py-12 sm:px-6 sm:py-16">
-        <h1 className="font-display text-5xl leading-tight tracking-tight">Sign-in test</h1>
-        <p className="mt-3 text-muted">
+        <h1 className="type-display">Sign-in test</h1>
+        <p className="mt-3 text-muted-foreground">
           For checking Google sign-in on {currentEnvironment()}. This page doesn't exist on the live
           site.
         </p>
 
         {message && (
-          <p role="alert" className="mt-8 rounded-md border border-line bg-note px-4 py-3">
+          <p
+            role="alert"
+            className="mt-8 rounded-md border border-border bg-notice text-notice-foreground px-4 py-3"
+          >
             {message}
           </p>
         )}
 
         {!configured ? (
-          <p className="mt-8 rounded-md border border-line px-4 py-3">
+          <p className="mt-8 rounded-md border border-border px-4 py-3">
             Sign-in isn't set up in this environment yet.
           </p>
         ) : user ? (
           <section
             aria-labelledby="signed-in"
-            className="mt-8 rounded-lg border border-line p-5 sm:p-6"
+            className="mt-8 rounded-lg border border-border p-5 sm:p-6"
           >
             <h2 id="signed-in" className="text-xl font-semibold">
               You're signed in
@@ -75,21 +78,21 @@ export default async function SignInTestPage({ searchParams }: Props) {
             <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-[auto_1fr]">
               {user.name && (
                 <>
-                  <dt className="text-sm text-muted">Name</dt>
+                  <dt className="text-sm text-muted-foreground">Name</dt>
                   <dd className="min-w-0 break-words">{user.name}</dd>
                 </>
               )}
-              <dt className="text-sm text-muted">Email</dt>
+              <dt className="text-sm text-muted-foreground">Email</dt>
               <dd className="min-w-0 break-words" data-testid="signed-in-email">
                 {user.email}
               </dd>
-              <dt className="text-sm text-muted">Signed in with</dt>
+              <dt className="text-sm text-muted-foreground">Signed in with</dt>
               <dd className="min-w-0 break-words">{SIGNED_IN_WITH[user.signedInWith]}</dd>
             </dl>
             <form action="/auth/sign-out" method="post" className="mt-6">
               <button
                 type="submit"
-                className="min-h-11 rounded-md border border-line px-5 font-medium hover:bg-note"
+                className="min-h-11 rounded-md border border-border px-5 font-medium hover:bg-accent hover:text-primary-foreground"
               >
                 Sign out
               </button>
@@ -98,7 +101,7 @@ export default async function SignInTestPage({ searchParams }: Props) {
         ) : (
           <section
             aria-labelledby="signed-out"
-            className="mt-8 rounded-lg border border-line p-5 sm:p-6"
+            className="mt-8 rounded-lg border border-border p-5 sm:p-6"
           >
             <h2 id="signed-out" className="text-xl font-semibold">
               You're signed out
@@ -107,7 +110,7 @@ export default async function SignInTestPage({ searchParams }: Props) {
               <input type="hidden" name="next" value="/sign-in-test" />
               <button
                 type="submit"
-                className="inline-flex min-h-11 max-w-full items-center gap-3 rounded-md border border-line bg-white px-5 py-2 text-left font-medium text-[#1f1f1f] hover:bg-[#f2f2f2]"
+                className="inline-flex min-h-11 max-w-full items-center gap-3 rounded-md border border-border bg-white px-5 py-2 text-left font-medium text-[#1f1f1f] hover:bg-[#f2f2f2]"
               >
                 <GoogleMark />
                 <span className="min-w-0">Continue with Google</span>

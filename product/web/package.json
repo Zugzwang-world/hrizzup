@@ -16,6 +16,7 @@
     "@hrizzup/agreement": "workspace:*",
     "@hrizzup/api": "workspace:*",
     "@hrizzup/core": "workspace:*",
+    "@hrizzup/design": "workspace:*",
     "@orpc/openapi": "1.16.1",
     "@orpc/server": "1.16.1",
     "@supabase/ssr": "^0.12.7",
@@ -23,10 +24,14 @@
     "@upstash/redis": "^1.40.0",
     "@vercel/functions": "^3.10.0",
     "aws4fetch": "^1.0.20",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
     "next": "~16.4.3",
     "pg": "^8.20.0",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "tailwind-merge": "^3.7.0",
+    "thumbhash": "0.1.1"
   },
   "devDependencies": {
     "@hrizzup/tsconfig": "workspace:*",

@@ -131,7 +131,7 @@ export const neel = {
   },
   space: { gutter: 16, laneGap: 10, cardPad: 12, stack: 6, section: 28 },
   radius: { card: 6, media: 4, control: 6, chip: 999 },
-  card: { border: 1, shadow: 'none', art: 'ink', pulse: false },
+  card: { border: 1, inset: 0, shadow: 'none', art: 'ink', pulse: false },
   icon: { stroke: 1.5, size: { small: 14, medium: 18, large: 22 } },
   motion: { fast: 120, base: 200, easing: 'cubic-bezier(0.2, 0, 0, 1)' },
 } as const satisfies DesignValues;
