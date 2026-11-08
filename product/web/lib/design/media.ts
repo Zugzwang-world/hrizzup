@@ -30,7 +30,7 @@ function chartSvg(): string {
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" font-family="system-ui, sans-serif">',
     '<rect width="1200" height="675" fill="#0E1422"/>',
     `<line x1="80" x2="1150" y1="${y(100_000)}" y2="${y(100_000)}" stroke="#F7931A" stroke-width="3" stroke-dasharray="10 10"/>`,
-    `<text x="1150" y="${y(100_000) - 16}" text-anchor="end" fill="#F7931A" font-size="30" font-weight="600">$100,000</text>`,
+    `<text x="80" y="${y(100_000) - 16}" fill="#F7931A" font-size="30" font-weight="600">$100,000</text>`,
     `<path d="${area}" fill="#F7931A" fill-opacity="0.14"/>`,
     `<path d="${line}" fill="none" stroke="#FFFFFF" stroke-width="7" stroke-linejoin="round" stroke-linecap="round"/>`,
     `<circle cx="${x(2)}" cy="${y(week[2] ?? 0).toFixed(1)}" r="12" fill="#FFFFFF"/>`,

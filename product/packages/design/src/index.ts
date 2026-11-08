@@ -1,3 +1,4 @@
+export { contrast, READABLE, type TextPair, textPairs } from './contrast.ts';
 export { fontVariable, tokensCss } from './css.ts';
 export {
   type IconElement,

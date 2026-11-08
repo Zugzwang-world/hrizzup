@@ -18,7 +18,7 @@ type Props = {
   /** Which stories "For you" holds: the reader's favourite categories and bookmarks. */
   forYou: (story: BoardStory) => boolean;
   now: number;
-  href?: (id: string) => string;
+  href?: (id: string) => string | undefined;
 };
 
 const TABS = [
@@ -50,7 +50,7 @@ function choiceCss(categories: string[], locations: string[]): string {
 }
 
 /** A choice that looks like a chip or a tab: a label around a hidden radio button. */
-function Choice({
+export function Choice({
   name,
   value,
   checked,

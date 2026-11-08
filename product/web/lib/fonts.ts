@@ -13,7 +13,7 @@ export const eczar = Eczar({
   subsets: ['latin'],
   display: 'swap',
   variable: '--font-eczar',
-  preload: true,
+  preload: false,
 });
 
 export const anekLatin = Anek_Latin({
@@ -21,7 +21,7 @@ export const anekLatin = Anek_Latin({
   display: 'swap',
   variable: '--font-anek-latin',
   axes: ['wdth'],
-  preload: false,
+  preload: true,
 });
 
 export const archivo = Archivo({

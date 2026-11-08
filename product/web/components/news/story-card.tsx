@@ -2,9 +2,10 @@ import type { DesignValues, IconName } from '@hrizzup/design';
 import { Icon } from '@/components/icon.tsx';
 import type { BoardStory } from '@/lib/design/examples.ts';
 import { artRatio, pictureRatio } from '@/lib/design/masonry.ts';
-import { ago, duration } from '@/lib/design/time.ts';
+import { ago } from '@/lib/design/time.ts';
 import { cn } from '@/lib/utils.ts';
 import { CategoryArt } from './category-art.tsx';
+import { Picture } from './picture.tsx';
 import { PulseStrip } from './pulse-strip.tsx';
 
 export type CardContext = {
@@ -14,8 +15,8 @@ export type CardContext = {
   now: number;
   /** The most updates any story on the board had in the last day, to scale each card's heat. */
   busiest: number;
-  /** Where the headline leads (the story page), if it exists yet. */
-  href?: (id: string) => string;
+  /** Where the headline leads (the story page), for stories that have one. */
+  href?: (id: string) => string | undefined;
 };
 
 function iconFor(category: string, values: DesignValues): IconName {
@@ -42,35 +43,7 @@ function Media({ story, context }: { story: BoardStory; context: CardContext }) 
       </div>
     );
   }
-  const ratio = pictureRatio(story) ?? 1;
-  // The blurred placeholder sits behind the picture, so the space is held and coloured before
-  // it loads, and stays if it never does.
-  const behind = picture.placeholder
-    ? { backgroundImage: `url("${picture.placeholder}")`, backgroundSize: 'cover' }
-    : {};
-  return (
-    <div style={{ aspectRatio: `1 / ${ratio}`, ...behind }} className={cn(frame, 'bg-muted')}>
-      {picture.kind === 'image' && picture.src ? (
-        // biome-ignore lint/performance/noImgElement: the design pages draw their example picture inline; real screens use next/image with the Cloudflare loader (blueprint section 13)
-        <img
-          src={picture.src}
-          alt={picture.alt}
-          width={picture.width}
-          height={picture.height}
-          loading="lazy"
-          decoding="async"
-          className="size-full object-cover"
-        />
-      ) : picture.kind === 'video' ? (
-        <div className="flex size-full items-end p-2">
-          <span className="type-caption inline-flex items-center gap-1 rounded-chip bg-background px-2 py-0.5 text-foreground">
-            <Icon name="play" size="small" />
-            Video, {duration(picture.seconds)}
-          </span>
-        </div>
-      ) : null}
-    </div>
-  );
+  return <Picture picture={picture} ratio={pictureRatio(story) ?? 1} className={frame} />;
 }
 
 /** One story on the board: its picture or its category's look, its headline, and how it's moving. */
@@ -80,11 +53,10 @@ export function StoryCard({ story, context }: { story: BoardStory; context: Card
   const place = story.locations[0] ?? '';
   const poster = values.card.art === 'poster' && !story.picture;
   const updates = story.updateTimes.length;
-  const title = context.href ? (
-    <a
-      href={context.href(story.id)}
-      className="no-underline after:absolute after:inset-0 after:content-['']"
-    >
+  const link = context.href?.(story.id);
+  // The whole card opens the story: the headline's link stretches over it.
+  const title = link ? (
+    <a href={link} className="no-underline after:absolute after:inset-0 after:content-['']">
       {story.title}
     </a>
   ) : (

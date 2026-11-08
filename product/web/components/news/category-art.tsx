@@ -22,14 +22,15 @@ type Props = {
 export function CategoryArt({ art, icon, heat, recent, ratio, className }: Props) {
   const box = { aspectRatio: `1 / ${ratio}` };
   if (art === 'poster') {
-    // The whole card is already the category's colour: a big cut of its mark.
+    // The whole card is already the category's colour: a big cut of its mark, drawn out of
+    // the flow so the look keeps its shape whatever holds it.
     return (
-      <div
-        aria-hidden
-        style={box}
-        className={cn('flex items-end justify-end px-card pt-card', className)}
-      >
-        <Icon name={icon} crop className="h-full w-auto text-cat-ink opacity-35" />
+      <div aria-hidden style={box} className={cn('relative', className)}>
+        <Icon
+          name={icon}
+          crop
+          className="absolute top-card right-card h-[calc(100%-var(--hz-space-card))] w-auto text-cat-ink opacity-35"
+        />
       </div>
     );
   }

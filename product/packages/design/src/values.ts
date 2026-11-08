@@ -18,7 +18,7 @@ export function isDirectionKey(value: string): value is DirectionKey {
 }
 
 /** The direction every screen uses. */
-export const activeDirection: DirectionKey = 'neel';
+export const activeDirection: DirectionKey = 'bazaar';
 
 /** The design values every screen on the website and in the app reads. */
 export const values: DesignValues = directions[activeDirection];

@@ -2,6 +2,15 @@
 
 > Every change to the design values and the core screens: what changed, why, and which reference it came from (PLAN.md section 3, "Design", and step 1.4). Newest first. The values themselves live in [`product/packages/design`](../../product/packages/design/README.md); this log says how they got there. Claude Code adds a line in the pull request that makes each change.
 
+## 8 November 2026: Claude Code's pick, Bazaar, carried on: the values page and the story page
+
+**Bazaar is the active direction** while the founder looks (Claude Code's pick, not yet his choice): most stories won't have a creator's picture at first, and Bazaar's category posters make those stories the most eye-catching thing on the board; it also suits a creator-led app better than a classic newspaper look. Switching direction changes only `activeDirection` in `src/values.ts` and which typeface `lib/fonts.ts` preloads.
+
+- **The values page** (`/design/directions/<direction>/values`): every colour in light and dark with its value, each category's own look, the typefaces with their licences, every text style with its size, line, weight and width, the spacing and corners, every icon, and the core components: buttons, badges, the board's choices, story cards, a timeline with a correction, and takes from each route.
+- **The story page** (`/design/directions/<direction>/story/<id>`, one for each of the agreement's example stories): the story's picture or its category's look, its categories and places, the headline in full, its summary, then "How it developed" (the timeline, newest first, grouped by day in India time, a correction badged and tied to what it corrects, merged and withdrawn updates left out, sources and the posts it reports credited and linked, earlier updates folded away after six) and "Takes" (found posts credited to their creator on X with our summary standing in for X's embed until step 2.3, our own content crediting what it builds on, creators' and readers' posts as plain text; likes and dislikes). A merged story's old page says where it went.
+- **shadcn/ui's Button and Badge**, set in the design values (MIT; notice in `THIRD_PARTY_NOTICES.md`).
+- **The design samples' accounts** (names for the example account IDs) are made up, like the eight sample stories: the agreement carries account IDs only.
+
 ## 8 November 2026: the three directions as working boards
 
 **What:** each direction's board at phone size, on the design pages (`/design`, previews and this Mac only), built from the same components with the direction's own values, and filled with the agreement's example stories plus eight design samples.

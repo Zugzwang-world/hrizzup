@@ -31,6 +31,20 @@ export function DesignBar({ current }: { current?: DirectionKey }) {
             </li>
           ))}
         </ul>
+        {current && (
+          <ul className="flex flex-wrap gap-x-3">
+            <li>
+              <Link href={`/design/directions/${current}`} className="type-label underline">
+                Board
+              </Link>
+            </li>
+            <li>
+              <Link href={`/design/directions/${current}/values`} className="type-label underline">
+                Values and components
+              </Link>
+            </li>
+          </ul>
+        )}
       </div>
     </nav>
   );
