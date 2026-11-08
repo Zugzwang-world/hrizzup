@@ -111,12 +111,14 @@ export const neel = {
       fallback: ['Georgia', 'serif'],
       licence: 'SIL Open Font License 1.1',
       source: 'https://fonts.google.com/specimen/Eczar',
+      measure: 0.45,
     },
     text: {
       family: 'system',
       fallback: ['system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'Noto Sans', 'sans-serif'],
       licence: "The phone's own typeface",
       source: 'https://developer.mozilla.org/docs/Web/CSS/font-family#system-ui',
+      measure: 0.41,
     },
   },
   type: {

@@ -22,10 +22,14 @@ export function pictureRatio(story: BoardStory): number | undefined {
 /** The height of a picture-less card's category look, as a share of its width. */
 export const artRatio = { ink: 0.62, poster: 0.5, field: 0.56 } as const;
 
-function lines(text: string, size: number, width: number, available: number): number {
-  const perLine = Math.max(8, Math.floor(available / (size * 0.48 * (width / 100))));
-  // Words don't break mid-line, so a line holds a little less than its full measure.
-  return Math.ceil(text.length / (perLine * 0.95));
+/**
+ * How many lines a text takes in a box this wide: its typeface's measured character width,
+ * stretched or narrowed by the style's width, less the room words leave at the end of each
+ * line when they wrap.
+ */
+function lines(text: string, size: number, measure: number, width: number, available: number) {
+  const perLine = available / (size * measure * (width / 100)) - 3.5;
+  return Math.max(1, Math.round(text.length / Math.max(6, perLine) + 0.1));
 }
 
 /** The details row (time, updates, takes) wraps when its pieces don't fit on one line. */
@@ -50,10 +54,13 @@ export function rowSpan(story: BoardStory, values: DesignValues, viewport = 390)
   const t = values.type;
   const ratio = pictureRatio(story) ?? artRatio[values.card.art];
   const media = lane * ratio;
+  const measure = (style: (typeof t)[keyof typeof t]) => values.font[style.font].measure;
   const headline =
-    lines(story.title, t.headline.size, t.headline.width ?? 100, inner) * t.headline.line;
+    lines(story.title, t.headline.size, measure(t.headline), t.headline.width ?? 100, inner) *
+    t.headline.line;
   const latest = story.latest
-    ? lines(story.latest, t.callout.size, t.callout.width ?? 100, inner) * t.callout.line
+    ? lines(story.latest, t.callout.size, measure(t.callout), t.callout.width ?? 100, inner) *
+      t.callout.line
     : 0;
   const kicker = t.caption.line;
   const meta = t.caption.line * metaLines(story, t.caption.size, inner);

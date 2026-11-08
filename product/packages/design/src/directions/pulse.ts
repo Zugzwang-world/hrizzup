@@ -112,12 +112,14 @@ export const pulse = {
       fallback: ['Arial', 'Roboto', 'sans-serif'],
       licence: 'SIL Open Font License 1.1',
       source: 'https://fonts.google.com/specimen/Archivo',
+      measure: 0.47,
     },
     text: {
       family: 'Archivo',
       fallback: ['system-ui', 'Roboto', 'sans-serif'],
       licence: 'SIL Open Font License 1.1',
       source: 'https://fonts.google.com/specimen/Archivo',
+      measure: 0.43,
     },
   },
   type: {

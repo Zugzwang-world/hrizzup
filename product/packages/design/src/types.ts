@@ -81,6 +81,12 @@ export type Font = {
   /** Free licences only (spending needs the founder). */
   licence: string;
   source: string;
+  /**
+   * The typeface's average character width, in em at normal width, as measured in a browser.
+   * A fact about the typeface, not a choice: the board uses it to estimate how many lines a
+   * headline takes, so it can lay out its cards before the browser does.
+   */
+  measure: number;
 };
 
 export const typeRoles = [

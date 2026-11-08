@@ -112,12 +112,14 @@ export const bazaar = {
       fallback: ['Arial Narrow', 'Roboto Condensed', 'sans-serif'],
       licence: 'SIL Open Font License 1.1',
       source: 'https://fonts.google.com/specimen/Anek+Latin',
+      measure: 0.42,
     },
     text: {
       family: 'Anek Latin',
       fallback: ['system-ui', 'Roboto', 'sans-serif'],
       licence: 'SIL Open Font License 1.1',
       source: 'https://fonts.google.com/specimen/Anek+Latin',
+      measure: 0.405,
     },
   },
   type: {

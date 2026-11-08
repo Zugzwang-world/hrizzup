@@ -111,7 +111,7 @@ export function Board(props: Props) {
     <div data-board className="flex flex-col gap-4">
       <style>{choiceCss(categoryOrder, locationOrder)}</style>
 
-      <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+      <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-4">
         <p className="type-brand text-foreground">Hrizzup</p>
         <details className="group min-w-0 max-w-full">
           <summary className="type-label flex min-h-11 cursor-pointer list-none flex-wrap items-center gap-1.5 rounded-chip bg-secondary px-3.5 text-secondary-foreground [&::-webkit-details-marker]:hidden">
