@@ -1,0 +1,20 @@
+# The app answers from staging (PLAN.md step 1.5d): it calls the typed API's health read on
+# staging (https://staging.hrizzup.com/api/v1/health, public since 1.5d) and shows the answer.
+# Run by journeys/run.sh at a phone size and a tablet size (SIZE says which).
+appId: com.hrizzup.app
+name: The app shows staging's answer
+---
+- launchApp:
+    clearState: true
+# As in app-opens.yaml: wait out a frozen system app's dialog on the slow CI emulator.
+- runFlow:
+    when:
+      visible: ".*isn't responding"
+    commands:
+      - tapOn: "Wait"
+- extendedWaitUntil:
+    visible:
+      id: api-answer
+      text: "Hrizzup's servers answer: all working, from Mumbai \\(staging\\)"
+    timeout: 30000
+- takeScreenshot: ${SIZE}-answer
