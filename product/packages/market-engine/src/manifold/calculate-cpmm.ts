@@ -690,6 +690,7 @@ export function calculateCpmmAmountToBuyShares(
   allUnfilledBets: LimitBet[],
   balanceByUserId: { [userId: string]: number },
   answer?: Answer,
+  now?: number, // The time of the trade (see computeFills)
 ) {
   const startCpmmState =
     contract.mechanism === 'cpmm-1'
@@ -714,6 +715,7 @@ export function calculateCpmmAmountToBuyShares(
       outcome,
       unfilledBets,
       balanceByUserId,
+      now,
     );
   } else if (contract.mechanism === 'cpmm-multi-1') {
     return calculateAmountToBuySharesFixedP(
@@ -798,8 +800,16 @@ export function getCpmmProbabilityAfterSale(
   outcome: 'YES' | 'NO',
   unfilledBets: LimitBet[],
   balanceByUserId: { [userId: string]: number },
+  now?: number, // The time of the trade (see computeFills)
 ) {
-  const { cpmmState } = calculateCpmmSale(state, shares, outcome, unfilledBets, balanceByUserId);
+  const { cpmmState } = calculateCpmmSale(
+    state,
+    shares,
+    outcome,
+    unfilledBets,
+    balanceByUserId,
+    now,
+  );
   return getCpmmProbability(cpmmState.pool, cpmmState.p);
 }
 

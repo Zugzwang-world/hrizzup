@@ -1,12 +1,17 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { LimitBet } from './manifold/bet.ts';
-import { computeFills, getCpmmProbability } from './manifold/calculate-cpmm.ts';
+import {
+  calculateCpmmAmountToBuyShares,
+  computeFills,
+  getCpmmProbability,
+  getCpmmProbabilityAfterSale,
+} from './manifold/calculate-cpmm.ts';
 import type { BinaryContract } from './manifold/contract.ts';
 import type { ContractMetric } from './manifold/contract-metric.ts';
 import { getFeeTotal, noFees, TAKER_FEE_RATE } from './manifold/fees.ts';
 import { getBinaryCpmmBetInfo } from './manifold/new-bet.ts';
 import { getNewContract } from './manifold/new-contract.ts';
-import { getPayouts } from './manifold/payouts.ts';
+import { getLoanPayouts, getPayouts } from './manifold/payouts.ts';
 import {
   getBinaryRedeemableAmountFromContractMetric,
   getRedemptionBets,
@@ -104,6 +109,9 @@ describe('the time is passed in', () => {
     const buy = buyYes([restingNoOrder(now + 60_000)]);
     const traded = { ...market, pool: buy.newPool, p: buy.newP };
     getCpmmSellBetInfo(10, 'YES', traded, [], {}, undefined, now);
+    // The sell panel's numbers, too.
+    calculateCpmmAmountToBuyShares(traded, 10, 'NO', [], {}, undefined, now);
+    getCpmmProbabilityAfterSale(traded, 10, 'YES', [], {}, now);
     getRedemptionBets(
       traded,
       10,
@@ -163,6 +171,10 @@ describe('there are no loans', () => {
     });
     const bets = getRedemptionBets(openMarket(), 4, 0.5, undefined, 'trader', now);
     expect(bets.map((b) => b.loanAmount)).toEqual([0, 0]);
+  });
+
+  it('settlement deducts none, even if a position carried one', () => {
+    expect(getLoanPayouts([position({ YES: 10, NO: 0 }, 5)])).toEqual([]);
   });
 });
 
