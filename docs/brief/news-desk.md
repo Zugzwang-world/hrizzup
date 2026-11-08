@@ -2,14 +2,14 @@
 
 **This brief replaces Claude Code's report:** read it after clicking **Sync now**, instead of asking the founder for a report, and attach the files under "Read for detail" from GitHub when you need more.
 
-> Rewritten 5 November 2026. The only repository file the News Desk project keeps in its knowledge; Claude Code rewrites it at the end of every session that touches News Desk's part. If it and PLAN.md disagree, PLAN.md wins.
+> Rewritten 8 November 2026. The only repository file the News Desk project keeps in its knowledge; Claude Code rewrites it at the end of every session that touches News Desk's part. If it and PLAN.md disagree, PLAN.md wins.
 
 **Hrizzup** is a news app built around creators, plus a website with play-money prediction markets. Our AI finds news as it breaks on X and turns it into developing stories that readers see through creators' takes. **News Desk's job:** make our own content from the sourced pool and onboard creators. It produces text, images and video, which Product shows in the app and on the website, in the shape the hand-over agreement (`agreement/README.md`) fixes. **News Desk is on hold until the founder sets it up.**
 
 ## Where things stand
 
 - **On hold** (the founder's decision, 5 November 2026) until the founder sets News Desk up. No News Desk work has started; the `news-desk/` folder holds only its README.
-- **The agreement's first half is a Draft, revised today:** the creation shape (what News Desk hands to Product), the sourced item (what it builds on), every feed item's route, the shared lists and example posts. While News Desk is on hold, the founder approves it in News Desk's place after Sourcing's review; News Desk reviews it once it's set up.
+- **The agreement's first half is a Draft** (last revised 5 November 2026): the creation shape (what News Desk hands to Product), the sourced item (what it builds on), every feed item's route, the shared lists and example posts. While News Desk is on hold, the founder approves it in News Desk's place after Sourcing's review; News Desk reviews it once it's set up.
 - **The shared setup is finished** (Phase 0, 4 November 2026): the shared content store exists on staging, as the Supabase database plus Cloudflare R2 storage for images, which Cloudflare resizes and delivers. Creator video will use Cloudflare Stream, switched on when creator video is built (step 2.4). Staging is a sandbox with no real users; production is parked until launch.
 
 ## Decisions in force
@@ -35,14 +35,7 @@
 
 ## What changed in the latest session
 
-On 5 November 2026, in [#31](https://github.com/Zugzwang-world/hrizzup/pull/31):
-
-- News Desk went on hold until the founder sets it up; the founder approves the first half in its place.
-- The three routes were written into PLAN.md: News Desk's content is the made route, made from the sourced pool.
-- The agreement's first half gained the sourced item and a route on every creation; our own content names the found posts it builds on (`based_on`). The old question about embedding creators' posts for the market subjects is settled: found posts are embedded for every story, as sourced items, so no new kind of creation is needed.
-- Step 1.3's first batch now needs the pipeline (1.1); step 4.4 needs 1.3.
-- The second half no longer needs News Desk's agreement.
-- The briefs now replace Claude Code's report (CLAUDE.md).
+On 8 November 2026, in [#33](https://github.com/Zugzwang-world/hrizzup/pull/33), the founder added one Bitcoin perp to the website, in play money (PLAN.md step 3.4, Product's). It's a market feature on the website only, so nothing in News Desk's scope changes: no new kind of creation, and the app still has no bets or play money.
 
 ## Open questions
 

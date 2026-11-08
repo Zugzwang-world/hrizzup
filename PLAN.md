@@ -49,6 +49,11 @@ Most people now get their news first from creators on social media (posts, memes
 - **Markets:** a few global markets that run continuously and settle themselves from real-world data. Subjects: Bitcoin (many time windows), gold or oil, the best AI model, and cricket and football matches with live scores. The exact questions are still to be refined.
 - **News:** shown alongside the markets, linked to them through shared categories.
 - **Goal:** the fewest possible steps from arriving to placing a first bet. Extra features can be built now and kept switched off.
+- **Perps (founder's decision, 8 November 2026):** one perpetual future on Bitcoin, in play money, on the website (step 3.4). No second perp in the plan yet. It shows we can bring a proven financial product into Hrizzup, test it with users and improve it.
+  - **Built on Manifold's perps maths** (open source, MIT licence, with its tests; [docs/research/manifold.md](docs/research/manifold.md)), run by our own trading engine, the same one the markets use.
+  - **Starting rules:** leverage capped at 10 times; orders fill at the next new price, never the one on screen; a fee when a position is opened (closing is free); an off switch that stops trading at once.
+  - **A new price and a liquidation check every few seconds,** run by Supabase's scheduler (Supabase Cron, which can run a job every 1 to 59 seconds), so orders fill within seconds.
+  - **A rule-change log from the first day:** every change to the rules, with its date and its reason, so the improvements can be shown. A dashboard of perps' results waits for the admin page (section 2, "Decided later").
 
 ### How it's built (decided 2 November 2026)
 
@@ -74,7 +79,8 @@ Most people now get their news first from creators on social media (posts, memes
 
 ### Decided later
 
-- **Background jobs:** decided in the Sourcing project.
+- **Background jobs:** decided in the Sourcing project. The choice must cover perps, which need a job every few seconds (step 3.4).
+- **Invites:** how people are invited to try something before launch (for example, a test group for perps) is decided later.
 - **PostHog and the admin page:** later.
 - **Language:** English only.
 
@@ -159,7 +165,7 @@ Steps 0.4, 0.7 and 0.8 moved here from Phase 0 on 4 November 2026, keeping their
 | 0.7, second half | The hand-over agreement's second half: the Grok bots' result format, which is how the bots deliver their results to our pipeline. It carries creators' takes as well as news, and is kept separate from the sourced item, which is what the pipeline keeps after its checks. Designed only once the Sourcing project has chosen the Grok product and how the results reach our pipeline (0.8) | Sourcing designs it; Product reviews and agrees it; News Desk doesn't need to agree it (founder's decision, 5 November 2026) | 0.8's choice of Grok product and route | Agreed only after a real result from 0.8's test bot, carrying news and creators' takes, passes the agreement's own checks. **No bot result becomes content before this half is agreed.** |
 | 0.8 | Choose the Grok product and plan that run the bots, and the route that brings their results to our pipeline (both decided in the Sourcing project), then set them up | Sourcing decides; the founder sets it up, with AI | 0.2 | A test bot's result arrives by that route |
 | 1.1 | News pipeline, first version: Grok bots read X on a schedule, find news and creators' takes on stories, and send results in the agreed format; our pipeline receives them automatically, by the route 0.8 chose, keeps what passes its checks in the sourced pool, writes updates from the news, groups them into stories with timelines, tags location and category, and saves them to the content store | Sourcing | 0.7 (both halves), 0.8 | Stories appear and update on their own on staging, and the takes the bots find wait in the sourced pool, each linked to its story |
-| 1.2 | Data sources for the markets: prices (Bitcoin, gold or oil), scores (cricket, football), an AI model ranking, with their costs | Product (founder's decision, 5 November 2026) | — | Every market subject has a named source |
+| 1.2 | Data sources for the markets: prices (Bitcoin, including a live price every few seconds for perps; gold or oil), scores (cricket, football), an AI model ranking, with their costs | Product (founder's decision, 5 November 2026) | — | Every market subject has a named source |
 | 1.3 | Content formats, then the first batch of our own content for the launch categories, made from the sourced pool; a list of creators to invite | News Desk (on hold until the founder sets it up) | 0.7 (first half); 1.1, for the first batch | Enough content to fill the feeds in the launch categories |
 | 1.4 | Design: references, then the design system, then the core screens (board, story page, feed, app frame, market page), drawn from the agreement's shapes and example data | Product, in Claude Design | 0.7 (first half), for the core screens | Design system approved and screens handed to Claude Code |
 | 1.5 | Set up the one codebase (Expo app and Next.js website sharing code, with one typed API) and get a first empty app running on an Android phone. Before any page or screen is built in code, add the checks every pull request runs on them: the performance budget (blueprint section 14) and the core-journey tests (Playwright for the website; Maestro for the app, at phone and tablet sizes). The first database migration locks every new table (row-level security on automatically), and a check on every pull request fails if any table is unprotected (approved 3 November 2026) | Product | 0.6 | The website runs on staging, the app opens on a phone, and every pull request checks the performance budget and the core journeys of every page and screen that exists |
@@ -185,6 +191,7 @@ Steps 0.4, 0.7 and 0.8 moved here from Phase 0 on 4 November 2026, keeping their
 | 3.1 | Market pages in Kalshi's layout with our own look; a starting balance on signup | Product | 1.4, 1.5, 1.7 | A new visitor can sign in and place a bet in a few taps |
 | 3.2 | Markets that run continuously and settle themselves from the data sources; questions refined | Product | 1.2, 1.7 | Markets open, run and settle with no one touching them |
 | 3.3 | News on the website, linked to markets through shared categories | Product | 1.5, 2.1, 3.1 | A visitor can move between a market and its news |
+| 3.4 | Perps: one Bitcoin perp in play money, built on Manifold's perps maths with its tests, with a new price and a liquidation check every few seconds through Supabase Cron, the starting rules (10 times leverage at most, filling at the next price, an opening fee, an off switch) and the rule-change log (founder's decision, 8 November 2026) | Product | 1.2, 1.7, 3.1 | A visitor can open and close a Bitcoin perp; orders fill within seconds; liquidations and funding run with no one touching them; every rule change is in the log |
 
 ### Phase 4: Polish and launch preparation
 
@@ -221,7 +228,7 @@ Steps 0.4, 0.7 and 0.8 moved here from Phase 0 on 4 November 2026, keeping their
 - How the Grok bots are set up, how often they run, and the fixed format of their results (step 0.7's second half, designed in the Sourcing project and reviewed by Product, and 1.1). Each run starts fresh, so matching new items to existing stories happens in our pipeline.
 - Confirm that the chosen Grok product's terms allow its results to feed a public app (step 0.8)
 - The data sources for the markets, with their costs, and gold or oil (step 1.2, decided in the Product project)
-- Background jobs: which tool runs scheduled and queued work (decided in the Sourcing project)
+- Background jobs: which tool runs scheduled and queued work (decided in the Sourcing project); it must cover perps' jobs every few seconds (step 3.4)
 - How the app shows the bot check (Turnstile) on its email-code screen (step 1.6)
 - Feed design in depth, including how found posts are embedded from X and how each route is credited (step 2.3)
 - Exact market questions (step 3.2)

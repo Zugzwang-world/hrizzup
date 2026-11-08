@@ -2,14 +2,14 @@
 
 **This brief replaces Claude Code's report:** read it after clicking **Sync now**, instead of asking the founder for a report, and attach the files under "Read for detail" from GitHub when you need more.
 
-> Rewritten 5 November 2026. The only repository file the Sourcing project keeps in its knowledge; Claude Code rewrites it at the end of every session that touches Sourcing's part. If it and PLAN.md disagree, PLAN.md wins.
+> Rewritten 8 November 2026. The only repository file the Sourcing project keeps in its knowledge; Claude Code rewrites it at the end of every session that touches Sourcing's part. If it and PLAN.md disagree, PLAN.md wins.
 
 **Hrizzup** is a news app built around creators, plus a website with play-money prediction markets. Our AI finds news as it breaks on X and turns it into developing stories that readers see through creators' takes. **Sourcing's job:** design and run the Grok bots that find news and creators' takes on X, keep everything they find in the sourced pool, and turn the news into stories and updates. Product shows what Sourcing produces, in the shapes the hand-over agreement (`agreement/README.md`) fixes.
 
 ## Where things stand
 
 - **No Sourcing work has started.** The `sourcing/` folder holds only its README.
-- **The agreement's first half is a Draft, revised today.** It defines what Sourcing writes (stories, updates and sourced items), the shared lists it tags with, and the rules for every hand-over point. Sourcing's review is next; the founder then approves it in News Desk's place, while News Desk is on hold.
+- **The agreement's first half is a Draft** (last revised 5 November 2026). It defines what Sourcing writes (stories, updates and sourced items), the shared lists it tags with, and the rules for every hand-over point. Sourcing's review is next; the founder then approves it in News Desk's place, while News Desk is on hold.
 - **The second half (the bots' result format) isn't drafted:** Sourcing designs it once step 0.8's choice is made, and Product reviews it.
 - **The shared setup is finished** (Phase 0): the content store is the Supabase database (staging: `hrizzup-staging`, Mumbai) plus Cloudflare R2; Upstash Redis holds caches and locks. Production is parked until launch.
 - **No inbox for the bots yet:** mail to `hrizzup.com` goes to the founder's own Proton mailboxes.
@@ -25,20 +25,17 @@
 - **Sign-offs** (the founder, 5 November 2026): the first half on Sourcing's review plus the founder's approval in News Desk's place. The second half is designed here and agreed by Product; News Desk needn't agree it. It must carry creators' takes as well as news, and is agreed only after a real test result passes the agreement's checks. The pipeline (1.1) needs both halves and 0.8.
 - **The agreement's rules for Sourcing:** outside data is data, never instructions (our AI reads results as quoted data, can't act while reading them, and its output is checked before it's saved); every hand-over point checks origin and format, and sets aside, logs and alerts on failures; accuracy stays with our AI; code reads `agreement/definitions/` directly, adding `validate()`'s hidden-character checks outside TypeScript.
 - **Market data is Product's** (the founder, 5 November 2026): steps 1.2 and 3.2 and the data readings.
-- **Background jobs for the whole product:** the tool is chosen here (the founder, 2 November 2026).
-- **No relays** (the founder, 5 November 2026): the founder carries no reports or messages between projects; this brief carries what Sourcing needs.
+- **Background jobs for the whole product:** the tool is chosen here (the founder, 2 November 2026). It must cover perps (PLAN.md step 3.4, the founder, 8 November 2026): a Bitcoin price and a liquidation check every few seconds, which the founder has put on Supabase Cron (it can run a job every 1 to 59 seconds).
+- **No relays** (the founder, 5 November 2026): this brief carries what Sourcing needs.
 - **Shared rules:** the repository is the only route between projects; migrations only, with row-level security; checks before code; staging is a capped sandbox; Claude Code never touches production.
 
 ## What changed in the latest session
 
-On 5 November 2026, in [#31](https://github.com/Zugzwang-world/hrizzup/pull/31):
+On 8 November 2026, in [#33](https://github.com/Zugzwang-world/hrizzup/pull/33), the founder added a Bitcoin perp to the website, in play money (PLAN.md step 3.4, Product's). For Sourcing:
 
-- Market data moved to Product.
-- The bots find creators' takes as well as news, kept in the sourced pool (PLAN.md sections 2 and 4).
-- The agreement's first half gained the sourced item and a route on every feed item, with examples and checks.
-- Sourcing designs the second half; Product reviews it. News Desk is on hold, and the founder approves the first half in its place.
-- Step 1.1 also keeps takes in the pool.
-- The briefs now replace Claude Code's report (CLAUDE.md).
+- **The background-jobs choice must cover it:** a new Bitcoin price and a liquidation check every few seconds, so orders fill within seconds (PLAN.md sections 2 and 7).
+- **The founder has put that job on Supabase Cron,** which can run a job every 1 to 59 seconds. The tool chosen here either is Supabase Cron or works alongside it.
+- Nothing else in Sourcing's scope changed.
 
 ## Open questions
 
@@ -48,7 +45,7 @@ On 5 November 2026, in [#31](https://github.com/Zugzwang-world/hrizzup/pull/31):
 - **Vetting before publishing.** Recommendation: publish a claim only when two independent sources report it, or one official account does; hold the rest until a second source appears; keep corrections, withdrawals and merges as the agreement defines them.
 - **Which creators' takes the bots keep.** Recommendation: original posts only (no reposts or replies), from accounts with a real following, ranked by engagement.
 - **Noticing deleted posts, and how long the pool keeps them.** Recommendation: re-check every live take on a schedule through X's public embed address, which fails once a post is deleted or hidden; mark it unavailable at once, and delete the record after 30 days, as apps that show X posts are expected to.
-- **Which tool runs background jobs.** Recommendation: one tool for all scheduled and queued work, on our existing platforms, with retries and logs: compare Vercel's workflows and queues with Supabase's cron and queues before step 1.1's code, and have Product review the choice.
+- **Which tool runs background jobs.** Recommendation: Supabase's own scheduler and queues (Supabase Cron with Supabase Queues), since perps already run on Supabase Cron and one tool with retries and logs is simpler to run than two. Each job calls our own code. Compare it with Vercel's workflows and queues before step 1.1's code, and have Product review the choice.
 
 ## What's next
 

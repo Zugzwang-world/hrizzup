@@ -31,15 +31,22 @@ Last updated: 8 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/brie
 
 - **Manifold's code studied for steps 1.7 and 3.2, 8 November 2026** ([docs/research/manifold.md](../research/manifold.md); nothing copied). Its licence is MIT, so we may copy it with its notice. The yes/no maths, limit orders, selling, Yes-and-No cancelling out, fees and settlement payouts are plain TypeScript with no database code, and their tests pass on their own (19 files, 539 tests). Its trades keep their order through a queue in the memory of its one trading server, which can't work on Vercel; ours will use a per-market database lock inside each trade's transaction. Perps are there but aren't in PLAN.md. The self-settling sports bot (@ManifoldSports) is in the repository, without cricket. Sign-in, hosting, live updates, the job runner, storage and email are all replaced by what we already chose, except the job runner, which is still open. The research ends with a table of what we take as is, adapt or build.
 
+- **Perps added to the plan, the founder's decision of 8 November 2026** (PLAN.md section 2 and step 3.4):
+  - one Bitcoin perp in play money on the website, built on Manifold's perps maths with its tests and run by our own trading engine; no second perp in the plan yet;
+  - starting rules: leverage capped at 10 times, orders filled at the next new price, a fee on opening, and an off switch;
+  - a new price and a liquidation check every few seconds through Supabase Cron, so orders fill within seconds. The background-jobs choice (Sourcing) must cover this;
+  - a rule-change log from the first day; a dashboard waits for the admin page; an invited test group waits for the invite system, decided later;
+  - step 1.2 now includes a live Bitcoin price every few seconds.
+
 ## Next
 
 1. **Sign off the agreement's first half:** Sourcing reviews this version (with the sourced item and the routes) and agrees it or asks for changes, which Product makes; then the founder approves it in News Desk's place. It becomes Agreed only in a change the founder asks for.
-2. **Market data sources (step 1.2, needs nothing):** a named source for each market subject (Bitcoin, gold or oil, the best AI model, cricket, football), with its cost and licence.
+2. **Market data sources (step 1.2, needs nothing):** a named source for each market subject (Bitcoin, gold or oil, the best AI model, cricket, football), with its cost and licence, and a live Bitcoin price every few seconds for perps.
 3. **Design (step 1.4):** references and the design system (shadcn/ui, Claude Design) can start now; the core screens (board, story page, feed, app frame, market page) are drawn from the agreement's shapes and example data, the feed's three routes and their credits among them.
 4. **The rest of step 1.5, before any page or screen is built in code:** the performance-budget check (Lighthouse and download size against each preview; the app's code size and performance tests) and the core-journey tests (Playwright for the website; Maestro for the app, at phone and tablet sizes), covering today's pages and Google sign-in when they land; then the one typed API and the empty app running on an Android phone.
 5. **Review the agreement's second half** once Sourcing designs it (after step 0.8).
 6. **Accounts and login (step 1.6, needs 1.5):** email codes on the website (with the Turnstile widget), then Apple; the app's native sign-in with the app builds.
-7. **Market engine (step 1.7, needs the agreement's first half):** copy Manifold's maths with its tests as [docs/research/manifold.md](../research/manifold.md) sets out, with our own tables, trade transactions and ledger; then Phases 2 and 3 in the order in PLAN.md section 5; step 3.2 settles markets from step 1.2's sources through Product's data job.
+7. **Market engine (step 1.7, needs the agreement's first half):** copy Manifold's maths with its tests as [docs/research/manifold.md](../research/manifold.md) sets out, with our own tables, trade transactions and ledger; then Phases 2 and 3 in the order in PLAN.md section 5; step 3.2 settles markets from step 1.2's sources through Product's data job, and step 3.4 adds the Bitcoin perp.
 
 ## Open questions
 
@@ -47,7 +54,7 @@ Last updated: 8 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/brie
 - Gold or oil, and which source decides "the best AI model"? (step 1.2)
 - What are the exact market questions? (step 3.2)
 - How our market tables hold what Manifold's maths needs, shaped from the agreement's market shape (step 1.7). Manifold's maths tests don't touch its database, so our tables needn't copy Manifold's.
-- Perps: Manifold has them, PLAN.md doesn't. Leave them out unless the founder adds them to the plan.
+- Perps (step 3.4): how often the price updates to start (every few seconds; 5 seconds is a sensible first setting), the opening fee's rate, the funding settings, and how the rule-change log is kept (a table, shown on the admin page once it exists).
 - How live scores reach the screen faster than once a minute, if the job runner can't poll more often (steps 1.2 and 3.2).
 - Paid tier: what's free and what's paid? Decided before the paywall is built (step 2.7).
 - Comment threads: in or out?
