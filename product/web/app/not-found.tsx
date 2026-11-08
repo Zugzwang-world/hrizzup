@@ -6,7 +6,7 @@ export default function NotFound() {
     <div className="flex min-h-dvh flex-col">
       <SiteHeader />
       <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col justify-center px-4 py-16 sm:px-6">
-        <h1 className="font-display text-5xl tracking-tight">Page not found</h1>
+        <h1 className="type-display">Page not found</h1>
         <p className="mt-4 text-lg text-muted-foreground">
           There's nothing here yet.{' '}
           <Link href="/" className="underline">

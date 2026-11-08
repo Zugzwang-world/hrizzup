@@ -24,7 +24,7 @@ export function LegalPage({ title, children }: { title: string; children: React.
             to be decided.
           </p>
         )}
-        <h1 className="font-display text-5xl leading-tight tracking-tight sm:text-6xl">{title}</h1>
+        <h1 className="type-display sm:text-6xl">{title}</h1>
         <p className="mt-3 text-sm text-muted-foreground">Last updated {LEGAL_UPDATED}</p>
         <div className="legal mt-10 space-y-10 text-base leading-relaxed sm:text-lg">
           {children}
