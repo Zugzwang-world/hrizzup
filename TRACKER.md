@@ -18,7 +18,7 @@ Everything PLAN.md lists as a need of the first news feature (the board, step 2.
 | 1.5d | The empty app on the founder's Android phone, answering from the typed API on staging, with its own budget; staging becomes public | 1.5c | Round 2, relay 2; the founder installs it | not started |
 | 1.7a | Manifold's maths with its tests, plus our own tests that money in equals money out | 0.6 | Round 2, relay 3 | in progress |
 | 1.4, first pass | The design values, plus the board and a story page at phone size, on preview links | 1.5a, before its page merges; 0.7 (first half), for the board and the story page | Round 2, relay 4, with the founder | in progress |
-| 0.7, first half: Sourcing's review | Run by a Claude Code session in the repository, working from Sourcing's brief | — | Round 2, relay 5 | in progress |
+| 0.7, first half: Sourcing's review | Run by a Claude Code session in the repository, working from Sourcing's brief | — | Round 2, relay 5 | in progress: the review, [#37](https://github.com/Zugzwang-world/hrizzup/pull/37); its changes next |
 | 0.7, first half: the founder's approval | In News Desk's place; then Agreed, in a change he asks for | Sourcing's review | The founder | not started |
 | 1.8 | Parallel local development: three sessions run the website, the app's dev server and the local database side by side, and sign in and upload locally | 0.6 | Not yet given to a relay | not started |
 
