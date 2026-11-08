@@ -1,7 +1,7 @@
-import { mkdtemp, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { mkdir, writeFile } from 'node:fs/promises';
 import type { FullConfig } from '@playwright/test';
+import { asBrowserCookie, BYPASS_COOKIE, bypassCookieValue } from './support/bypass.ts';
+import { signedInState, signedOutState, statesFolder } from './support/states.ts';
 import {
   type Engine,
   stagingKeys,
@@ -10,18 +10,19 @@ import {
 } from './support/test-accounts.ts';
 
 /**
- * Before the screen check: find out which environment the address under test is (from its
- * /api/health), and, outside production, sign each browser engine's test account in, so
- * the signed-in pages are checked too. The sessions are saved in a temporary folder
- * outside the repository and never uploaded.
+ * Before the screen check and the journeys: find out which environment the address under test
+ * is (from its /api/health), and save each browser engine's starting states:
+ * - signed out: on a protected deployment, only Vercel's bypass cookie (support/bypass.ts), so
+ *   the bypass secret itself never travels with the browser's requests;
+ * - signed in, outside production: the same, plus a fresh session for the engine's test
+ *   account (support/test-accounts.ts).
+ * The states go in a temporary folder outside the repository (support/states.ts), never
+ * uploaded, and deleted when the run ends (global-teardown.ts).
  */
 export default async function globalSetup(config: FullConfig) {
-  const use = config.projects[0]?.use;
-  const baseURL = use?.baseURL ?? 'http://localhost:3000';
-  // Only the bypass itself: the "set a cookie" header makes Vercel answer with a redirect
-  // that sets a cookie, which browsers keep but this plain request can't.
-  const { 'x-vercel-set-bypass-cookie': _cookie, ...headers } = (use?.extraHTTPHeaders ??
-    {}) as Record<string, string>;
+  const baseURL = config.projects[0]?.use?.baseURL ?? 'http://localhost:3000';
+  const secret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+  const headers: Record<string, string> = secret ? { 'x-vercel-protection-bypass': secret } : {};
 
   const response = await fetch(new URL('/api/health', baseURL), { headers, redirect: 'manual' });
   if (response.status !== 200 && response.status !== 503) {
@@ -30,27 +31,20 @@ export default async function globalSetup(config: FullConfig) {
   const { environment } = (await response.json()) as { environment: string };
   process.env.SCREEN_CHECK_ENVIRONMENT = environment;
 
+  await mkdir(statesFolder(), { recursive: true, mode: 0o700 });
+  const bypass = secret
+    ? [asBrowserCookie(baseURL, BYPASS_COOKIE, await bypassCookieValue(baseURL, secret))]
+    : [];
   const keys = environment === 'production' ? null : stagingKeys();
-  if (!keys) return;
-  const folder = await mkdtemp(join(tmpdir(), 'hrizzup-screen-check-'));
-  const { hostname, protocol } = new URL(baseURL);
   for (const engine of Object.keys(TEST_ACCOUNTS) as Engine[]) {
-    const cookies = await testSessionCookies(keys, TEST_ACCOUNTS[engine]);
-    const state = {
-      cookies: cookies.map(({ name, value }) => ({
-        name,
-        value,
-        domain: hostname,
-        path: '/',
-        expires: Math.floor(Date.now() / 1000) + 3600,
-        httpOnly: false,
-        secure: protocol === 'https:',
-        sameSite: 'Lax' as const,
-      })),
-      origins: [],
-    };
-    const file = join(folder, `${engine}.json`);
-    await writeFile(file, JSON.stringify(state), { mode: 0o600 });
-    process.env[`SIGNED_IN_STATE_${engine.toUpperCase()}`] = file;
+    const save = (file: string, cookies: typeof bypass) =>
+      writeFile(file, JSON.stringify({ cookies, origins: [] }), { mode: 0o600 });
+    await save(signedOutState(engine), bypass);
+    if (!keys) continue;
+    const session = await testSessionCookies(keys, TEST_ACCOUNTS[engine]);
+    await save(signedInState(engine), [
+      ...bypass,
+      ...session.map(({ name, value }) => asBrowserCookie(baseURL, name, value)),
+    ]);
   }
 }

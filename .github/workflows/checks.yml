@@ -6,7 +6,9 @@
 #                   tests, including "every table is locked" (row-level security)
 #   Screen check    once Vercel's preview of the pull request is ready, opens it in
 #                   Chromium and WebKit at every screen size (CLAUDE.md, "Screens fit
-#                   every device"), signed out and signed in with a staging test account
+#                   every device"), signed out and signed in with a staging test account,
+#                   then runs the website's journeys (product/web/e2e/journeys: every page
+#                   opens; the test account signs in and out)
 #   Speed check     the performance budgets (blueprint section 14): every page of the
 #                   preview with Lighthouse (mobile preset, median of 5 runs) and the app's
 #                   code size against main's; the numbers go on the pull request
@@ -128,7 +130,7 @@ jobs:
         working-directory: product/web
         run: pnpm exec playwright install --with-deps chromium webkit
 
-      - name: Screen check on the preview
+      - name: Screen check and journeys on the preview
         if: steps.affected.outputs.website == 'true'
         working-directory: product/web
         env:
@@ -138,7 +140,7 @@ jobs:
         run: pnpm exec playwright test
 
       - name: Screenshots for the founder (360, 768, 1440 and 1920 pixels)
-        if: always() && steps.affected.outputs.website == 'true'
+        if: ${{ !cancelled() && steps.affected.outputs.website == 'true' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: screenshots
@@ -205,25 +207,25 @@ jobs:
 
       # The website: every page of this pull request's preview.
       - name: "Website: wait for Vercel's preview"
-        if: always() && steps.affected.outputs.website == 'true'
+        if: ${{ !cancelled() && steps.affected.outputs.website == 'true' }}
         id: preview
         env:
           GITHUB_TOKEN: ${{ github.token }}
           COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
         run: python3 .github/scripts/wait_for_preview.py "$COMMIT"
       - name: "Website: let Chrome use its sandbox"
-        if: always() && steps.preview.outcome == 'success'
+        if: ${{ !cancelled() && steps.preview.outcome == 'success' }}
         # Ubuntu 24.04 keeps programs from making the private namespaces Chrome's sandbox needs.
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || echo "No such setting here; Chrome starts as it is."
       - name: "Website: prove the check counts other sites' code and embeds"
-        if: always() && steps.preview.outcome == 'success'
+        if: ${{ !cancelled() && steps.preview.outcome == 'success' }}
         working-directory: product/web
         env:
           SPEED_OUT: ${{ runner.temp }}/speed-self-test
         run: node e2e/speed-check.ts --self-test
       - name: "Website: every page against its budget"
         id: website
-        if: always() && steps.preview.outcome == 'success'
+        if: ${{ !cancelled() && steps.preview.outcome == 'success' }}
         working-directory: product/web
         env:
           BASE_URL: ${{ steps.preview.outputs.url }}
@@ -232,7 +234,7 @@ jobs:
         run: node e2e/speed-check.ts
 
       - name: The numbers on the pull request
-        if: always() && (steps.affected.outputs.website == 'true' || steps.affected.outputs.app == 'true')
+        if: ${{ !cancelled() && (steps.affected.outputs.website == 'true' || steps.affected.outputs.app == 'true') }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -241,7 +243,7 @@ jobs:
           APP_OUTCOME: ${{ steps.app.outcome }}
         run: python3 .github/scripts/speed_comment.py speed-results
       - name: Lighthouse's reports (the run nearest each page's median)
-        if: always() && steps.affected.outputs.website == 'true'
+        if: ${{ !cancelled() && steps.affected.outputs.website == 'true' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: speed-reports

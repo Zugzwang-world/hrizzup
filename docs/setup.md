@@ -1272,6 +1272,12 @@ Not a problem: the worry that Claude Code could run the script on production. It
 - **App:** `product/app/scripts/bundle-size.ts`, through the Turborepo task `bundle-size` (cached, so main's size usually comes from the Remote Cache), compares the Android code bundle with main's checkout; the limit and its reason are in `product/app/bundle-limit.json` (2,700 KB; 2,424 KB measured).
 - **Required:** not yet; it joins the "main" ruleset once it has passed steadily (recorded here when it does).
 
+### Journey tests (PLAN.md step 1.5b, Claude Code)
+
+- **Website:** `product/web/e2e/journeys/` runs inside the Screen check (`checks.yml`, job "Screen check"), in Chromium and WebKit. The screen check and the journeys now trade `VERCEL_AUTOMATION_BYPASS_SECRET` for Vercel's bypass cookie in `e2e/global-setup.ts` (`e2e/support/bypass.ts`); the browsers carry only the cookie. Sign-in states live in a fresh folder outside the repository and are deleted when the run ends (`e2e/support/states.ts`, `e2e/global-teardown.ts`).
+- **App:** a new workflow, **App journeys** (`.github/workflows/app-journeys.yml`, job "App journeys"): on every pull request (work only when the app is affected), and on main after a merge that changes `product/app/`, `product/packages/`, the lockfile or the workflow. Maestro 2.12.1 (downloaded from its GitHub release, SHA-256 checked); Java 17 (Temurin); Gradle through `gradle/actions/setup-gradle` 6.4.1 (cache written from main only); `reactivecircus/android-emulator-runner` 2.38.0 (API 34, `google_apis`, x86_64, Pixel 7), with its booted snapshot cached; the built app cached under the hash of the app's tracked files. Every action pinned to its commit. Results and screenshots: the job's artifact `app-journeys`.
+- **Required:** not yet; each joins the "main" ruleset once it has passed steadily (recorded here when it does).
+
 ### `EXPO_TOKEN` found in Doppler `stg` (checked by Claude Code)
 
 **Found:** the founder saved Expo's robot token as `EXPO_TOKEN` in `hrizzup/stg`. It's a tool token, so its place is `hrizzup-tools/claude` (runbook Part 4, "Where each kind of key lives", now written out). Checked by name only, through Claude Code's own access; the value was never read, shown or copied:
