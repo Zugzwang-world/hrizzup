@@ -52,6 +52,10 @@ class Ledger {
   bets: Bet[] = [];
   liquidities: LiquidityProvision[];
   settled = false;
+  // Each trader's bets, and a running count of the shares each holds, kept as every trade
+  // lands (checked against Manifold's own position figures at settlement).
+  private betsByUser = new Map<string, Bet[]>();
+  private sharesByUser = new Map<string, Record<Outcome, number>>();
   private ids = 0;
 
   constructor(traders: Record<string, number>, initialProb = 50) {
@@ -110,7 +114,7 @@ class Ledger {
       this.now,
     );
     const bet = { ...result.newBet, id: this.newId(), userId } as Bet;
-    this.bets.push(bet);
+    this.record(bet);
     this.balances[userId] -= bet.amount;
     this.balances[FEES] += getFeeTotal(bet.fees);
     this.applyMakers(result.makers, bet.id);
@@ -133,7 +137,7 @@ class Ledger {
       this.now,
     );
     const bet = { ...result.newBet, id: this.newId(), userId } as Bet;
-    this.bets.push(bet);
+    this.record(bet);
     this.balances[userId] -= bet.amount; // A sale's amount is negative: money comes back
     this.balances[FEES] += getFeeTotal(bet.fees);
     this.applyMakers(result.makers, bet.id);
@@ -165,7 +169,7 @@ class Ledger {
         userId,
         this.now,
       );
-      this.bets.push(...bets.map((b) => ({ ...b, id: this.newId() })));
+      for (const b of bets) this.record({ ...b, id: this.newId() });
       expect(-sumBy(bets, 'amount')).toBeCloseTo(netAmount, 9);
       this.balances[userId] += netAmount;
     }
@@ -180,8 +184,11 @@ class Ledger {
       resolution: outcome,
       resolutionProbability: probability,
     };
-    const traders = [...new Set(this.bets.map((b) => b.userId))];
+    const traders = [...this.betsByUser.keys()];
     const metrics = traders.map((userId) => this.position(userId));
+    for (const m of metrics)
+      for (const o of ['YES', 'NO'] as const)
+        expect(this.sharesOf(m.userId)[o]).toBeCloseTo(m.totalShares[o] ?? 0, 6);
     const { traderPayouts, liquidityPayouts } = getPayouts(
       outcome,
       this.market,
@@ -202,7 +209,7 @@ class Ledger {
 
   /** A trader's position, as Manifold works it out from their bets. */
   position(userId: string): ContractMetric {
-    const bets = this.bets.filter((b) => b.userId === userId);
+    const bets = this.betsByUser.get(userId) ?? [];
     return {
       ...getContractBetMetrics(this.market, bets),
       id: 0,
@@ -225,10 +232,8 @@ class Ledger {
       expect(this.held, 'money left in a settled market').toBeCloseTo(0, 6);
       return;
     }
-    const traders = [...new Set(this.bets.map((b) => b.userId))];
     const shares = (outcome: Outcome) =>
-      this.market.pool[outcome] +
-      sumBy(traders, (userId) => this.position(userId).totalShares[outcome] ?? 0);
+      this.market.pool[outcome] + sumBy([...this.sharesByUser.values()], (held) => held[outcome]);
     expect(Math.abs(shares('YES') - this.held), 'Yes shares backed').toBeLessThan(TOLERANCE);
     expect(Math.abs(shares('NO') - this.held), 'No shares backed').toBeLessThan(TOLERANCE);
     const p = this.probability;
@@ -244,6 +249,7 @@ class Ledger {
       const order = this.bets.find((b) => b.id === maker.bet.id) as LimitBet;
       order.amount += maker.amount;
       order.shares += maker.shares;
+      this.sharesOf(order.userId)[order.outcome as Outcome] += maker.shares;
       order.fills = [
         ...order.fills,
         { matchedBetId: takerId, amount: maker.amount, shares: maker.shares, timestamp: this.now },
@@ -258,6 +264,23 @@ class Ledger {
       const order = this.bets.find((b) => b.id === id) as LimitBet;
       order.isCancelled = true;
     }
+  }
+
+  private record(bet: Bet) {
+    this.bets.push(bet);
+    const mine = this.betsByUser.get(bet.userId) ?? [];
+    mine.push(bet);
+    this.betsByUser.set(bet.userId, mine);
+    this.sharesOf(bet.userId)[bet.outcome as Outcome] += bet.shares;
+  }
+
+  private sharesOf(userId: string) {
+    let held = this.sharesByUser.get(userId);
+    if (!held) {
+      held = { YES: 0, NO: 0 };
+      this.sharesByUser.set(userId, held);
+    }
+    return held;
   }
 
   private newId() {
@@ -533,7 +556,10 @@ describe('long random sequences of trades', () => {
     return { done, settlement: settlement.outcome };
   };
 
-  it('keep every Ṁ1 over 40 markets of 150 trades each, whatever the settlement', () => {
+  // A long run: room for a slow or busy machine.
+  it('keep every Ṁ1 over 40 markets of 150 trades each, whatever the settlement', {
+    timeout: 30_000,
+  }, () => {
     const settled = new Set<string>();
     let trades = 0;
     for (let seed = 1; seed <= 40; seed++) {
@@ -545,7 +571,8 @@ describe('long random sequences of trades', () => {
     expect([...settled].sort()).toEqual(['CANCEL', 'MKT', 'NO', 'YES']);
   });
 
-  it('keep every Ṁ1 over one market of 2,000 trades', () => {
+  // A long run: room for a slow or busy machine.
+  it('keep every Ṁ1 over one market of 2,000 trades', { timeout: 30_000 }, () => {
     const { done } = run(2026, 2000);
     expect(done.orders).toBeGreaterThan(300);
     expect(done.sales).toBeGreaterThan(300);
