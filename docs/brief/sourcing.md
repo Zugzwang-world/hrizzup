@@ -31,10 +31,10 @@
 
 ## What changed in the latest session
 
-On 8 November 2026, in [#33](https://github.com/Zugzwang-world/hrizzup/pull/33), the founder added a Bitcoin perp to the website, in play money (PLAN.md step 3.4, Product's). For Sourcing:
+On 8 November 2026, in [#34](https://github.com/Zugzwang-world/hrizzup/pull/34), the founder decided that Product builds the website and the app in parallel, the website one stage ahead (PLAN.md sections 2, 3 and 5, and the new `TRACKER.md`). Each news feature (board, story pages, feed, posting) reaches both from one back end and one contract, and joins the real data on the website first, then in the app. For Sourcing:
 
-- **The background-jobs choice must cover it:** a new Bitcoin price and a liquidation check every few seconds, so orders fill within seconds (PLAN.md sections 2 and 7).
-- **The founder has put that job on Supabase Cron,** which can run a job every 1 to 59 seconds. The tool chosen here either is Supabase Cron or works alongside it.
+- **The stories, updates and takes Sourcing produces reach both surfaces through the same back end,** so nothing about what Sourcing writes changes: the agreement's shapes stay the hand-over point.
+- **They'll show on the website first,** since each feature joins the real data there before the app.
 - Nothing else in Sourcing's scope changed.
 
 ## Open questions

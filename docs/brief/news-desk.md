@@ -35,7 +35,11 @@
 
 ## What changed in the latest session
 
-On 8 November 2026, in [#33](https://github.com/Zugzwang-world/hrizzup/pull/33), the founder added one Bitcoin perp to the website, in play money (PLAN.md step 3.4, Product's). It's a market feature on the website only, so nothing in News Desk's scope changes: no new kind of creation, and the app still has no bets or play money.
+On 8 November 2026, in [#34](https://github.com/Zugzwang-world/hrizzup/pull/34), the founder decided that Product builds the website and the app in parallel, the website one stage ahead (PLAN.md sections 2, 3 and 5, and the new `TRACKER.md`). Each news feature (board, story pages, feed, posting) reaches both from one back end and one contract, and joins the real data on the website first, then in the app. For News Desk:
+
+- **Our own content and creators' posts reach both surfaces through the same back end,** so the creation shape doesn't change.
+- **Posting (step 2.4) is planned for both the website and the app,** since the founder's app-only list leaves it out; Product has asked the founder to confirm it, because PLAN.md still describes the website as news and markets.
+- Real people still first see our content at the Android closed test (2.6).
 
 ## Open questions
 

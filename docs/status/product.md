@@ -56,6 +56,8 @@ Last updated: 8 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/brie
 
 ## Open questions
 
+- **Posting on the website** (step 2.4): the founder's app-only list leaves posting out, so the plan builds it on both surfaces, yet PLAN.md section 2 still calls the website "news and markets" and the app "news and social". The founder decides.
+- **What the two surfaces share in code:** the contract, data-fetching, validation and design tokens in `product/packages/`, with each surface's screens built natively, is the likely answer.
 - Feed design in depth (step 2.3), including how found posts are embedded from X on the website and in the app, within the performance budget, and how each route's credit looks.
 - Gold or oil, and which source decides "the best AI model"? (step 1.2)
 - What are the exact market questions? (step 3.2)
