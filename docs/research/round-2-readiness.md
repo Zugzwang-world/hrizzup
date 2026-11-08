@@ -1,6 +1,6 @@
 # Round 2: readiness check
 
-> Research only, 8 November 2026, for the Product thinking project. Nothing was changed in code, settings or services. Every fact has its source (a repository file, a command's output, or a web page); "not confirmed" marks what couldn't be confirmed. No secret was printed or copied: access was checked, never contents. Staging and the repository only. If anything here disagrees with PLAN.md, PLAN.md wins.
+> Research only, 8 November 2026, for the Product thinking project. Nothing was changed in code, settings or services. Every fact has its source (a repository file, a command's output, or a web page); "not confirmed" marks what couldn't be confirmed. No secret was printed or copied: access was checked, never contents. Staging and the repository only. If anything here disagrees with PLAN.md, PLAN.md wins. Since 8 November 2026, D2 to D4 (market data) are reference only: step 1.2 is parked until markets work end to end on staging (PLAN.md section 2).
 
 **Round 2, as the request describes it:** one session runs 1.5a to 1.5d in order (the performance budget, journey tests, the typed API, the app on the founder's Android phone); a second runs 1.7a (Manifold's maths) alongside; the Product chat settles D1 to D4 (D1: blocking password sign-in; D2 to D4: market data).
 
@@ -320,6 +320,8 @@ Done when: the contract package exists with one example read (for instance `/api
 **Recommendation for D1:** block passwords in layers, all on Pro: (1) no password field anywhere on the website or in the app; (2) **a Custom Access Token hook, written as a migration, that refuses any session whose `authentication_method` is `password`**; (3) Database-check tests proving a password sign-in fails while email codes, Google and token refresh still work (check what new email-code sign-ups arrive as, `email/signup` or `otp`, before refusing anything else). Keep the hook tiny: if it errors, every sign-in fails. Optionally later, the trigger that refuses stored passwords, after a staging test. The change is risky-sized (login and database structure), so it goes through AI review; it belongs to 1.6a.
 
 ### D2 to D4. Market data
+
+> **Reference, not decisions** (founder's decision, 8 November 2026): step 1.2 is parked until markets work end to end on staging. Choosing the topics, many copied from Kalshi's market formats, and their data sources waits until then (PLAN.md section 2, "Markets"), and starts from this research.
 
 PLAN.md step 1.2 asks for a named source for every market subject, with its cost, including a live Bitcoin price every few seconds for perps; the markets settle in US dollars (agreement, decision D7). Which subjects D2, D3 and D4 each cover is the Product chat's labelling; this section goes subject by subject. Prices and terms were read on the providers' own pages on 8 November 2026 by a helper; Claude Code spot-checked Pyth and EIA. Where a provider's page refused the helper, the term is marked "not confirmed".
 

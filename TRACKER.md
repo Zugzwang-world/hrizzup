@@ -1,6 +1,6 @@
 # Hrizzup: news features, stage by stage
 
-> Where each news feature stands on the website and in the app, and what must be done before the first one starts. Claude Code keeps it current: each step and stage moves in the pull request that finishes it, with that pull request's link. Nobody maintains this file by hand. The steps and what they need are in [PLAN.md](PLAN.md) section 5; if this file and PLAN.md disagree, PLAN.md wins.
+> Where each news feature stands on the website and in the app, what must be done before the first one starts, and where the markets track stands. Claude Code keeps it current: each step and stage moves in the pull request that finishes it, with that pull request's link. Nobody maintains this file by hand. The steps and what they need are in [PLAN.md](PLAN.md) section 5; if this file and PLAN.md disagree, PLAN.md wins.
 
 Last updated: 8 November 2026
 
@@ -8,7 +8,7 @@ Last updated: 8 November 2026
 
 ## Before the first feature round
 
-Everything PLAN.md lists as a need of the first news feature (the board, step 2.1), and so of the round that starts the features. Round 2 runs most of it: five relays in parallel worktrees, attached to the GitHub milestone "Round 2", each moving its own rows here (CLAUDE.md, "Unattended sessions"). Each row is **not started**, **in progress**, or **done** with the pull request that finished it.
+Everything PLAN.md lists as a need of the first news feature (the board, step 2.1), and so of the round that starts the features. Round 2 runs most of it, in relays in parallel worktrees, attached to the GitHub milestone "Round 2", each moving its own rows here (CLAUDE.md, "Unattended sessions"). Each row is **not started**, **in progress**, or **done** with the pull request that finished it.
 
 | Step | What | Needs | Who | Status |
 |---|---|---|---|---|
@@ -22,8 +22,8 @@ Everything PLAN.md lists as a need of the first news feature (the board, step 2.
 | 0.7, first half: the founder's approval | In News Desk's place; then Agreed, in a change he asks for | Sourcing's review | The founder | not started |
 | 1.8 | Parallel local development: three sessions run the website, the app's dev server and the local database side by side, and sign in and upload locally | 0.6 | Not yet given to a relay | not started |
 
-- **Not needed before the first feature:** 1.7b (the rest of the market engine) and the markets track, which run alongside Phase 2; 1.6a and 1.6b (sign-in), which posting (2.4) and the paid tier (2.7) need.
-- **The rest of 1.4** (the market page next, then the feed and the app frame) comes in later passes, each before the feature that uses it.
+- **Not needed before the first feature:** the rest of the markets track (below), which runs alongside Phase 2; 1.6a and 1.6b (sign-in), which posting (2.4) and the paid tier (2.7) need.
+- **The rest of 1.4:** the market page, with placeholder questions, is the third and last core screen. Whether the remaining screens (the feed, the app frame and the rest) are designed up front or feature by feature is settled in the design chat (founder's decision, 8 November 2026).
 
 ## How a news feature is built (founder's decision, 8 November 2026)
 
@@ -31,14 +31,15 @@ The website and the app are built in parallel, with the website one stage ahead 
 
 | Stage | What it is | Can start when |
 |---|---|---|
-| 1. Design | One phone-first design for both surfaces, in Claude Code, from the founder's references, on preview links | The design values and the feature's core screens are approved (step 1.4) |
-| 2. Contract | The feature's part of the one typed API that both surfaces use, with example data drawn from the hand-over agreement | The design is done, and the typed API exists (step 1.5c) |
+| 1. Design | One phone-first design for both surfaces, built by Claude Code in the design chat, from the founder's references, on preview links | The design values and 1.4's three core screens are approved (step 1.4) |
+| 2. Contract | The feature's part of the one typed API that both surfaces use, with example data drawn from the hand-over agreement. The design and engineering tracks meet here | The design is done, and the typed API exists (step 1.5c) |
 | 3. Back end | The tables, rules and server code behind the contract, on staging | The contract is done, and the agreement's first half is Agreed (no tables for its shapes before then) |
 | 4a. Website screen | The website's screens, built against the contract and its example data | The contract is done, and the website's checks exist (steps 1.5a and 1.5b) |
 | 4b. App screen | The app's screens, built at the same time as 4a, in a separate worktree | The contract is done, and the app's checks exist (step 1.5b's Maestro test, step 1.5d's budget) |
 | 5. Website join | The website's screens wired to the real back end, checked on the pull request's preview | The back end and the website screen are done |
 | 6. App join | The app's screens wired to the same back end, checked on an Android phone | The website join and the app screen are done |
 
+- **Two tracks** (founder's decision, 8 November 2026): design runs in a dedicated design chat, led by the founder with Claude Code; engineering (the maths, the back end, the database, deployment, and joining the front end to the back end) runs in each round's chat. They meet at the contract (stage 2).
 - **Separate worktrees:** stages 4a and 4b each run in their own Claude Code session, branch and pull request, and never touch the same files. Code both need goes into `product/packages/` in the contract stage, before they split.
 - **Website first:** the website joins first, so any change the real data forces on the contract is found there and the app joins a settled contract.
 - **Done** means stage 6 is done: the feature works on the website and in the app, each passing its checks (performance budget, core-journey tests, every screen size).
@@ -59,6 +60,28 @@ Each cell is **not started**, **in progress**, or **done** with the pull request
 - **Posting (2.4)** joins the app only once the app's sign-in (1.6b) is done.
 - **The paid tier (2.7)** starts with deciding what's free and what's paid, before its design.
 
+## Markets track (founder's decision, 8 November 2026)
+
+Website only. The markets product comes first and works the same for any question; the topics come once markets work end to end on staging (PLAN.md section 2, "Markets"). Until then, staging uses test markets with placeholder questions, and the perp is built against a stand-in price. Each row is **not started**, **in progress**, **parked**, or **done** with the pull request that finished it.
+
+| Order | Step | What | Needs | Status |
+|---|---|---|---|---|
+| 1 | 1.7a | The engine maths: Manifold's maths with its tests, plus our own tests that money in equals money out | 0.6 | in progress (Round 2, relay 3): Manifold's maths and its tests ([#38](https://github.com/Zugzwang-world/hrizzup/pull/38)); our changes ([#43](https://github.com/Zugzwang-world/hrizzup/pull/43)); next, our money tests |
+| 2 | 1.7b | The ledger: play-money balances, trades and positions; each trade one database step; money in always equals money out | 0.6, 0.7 (first half), 1.7a | not started |
+| 3 | 1.7c | Markets as data, created only by Hrizzup, with settlement by hand: admin only, every settlement logged | 0.7 (first half), 1.7b | not started |
+| 4 | 1.7d | The engine's calls in the typed API: create, list, trade, positions, settle | 1.5c, 1.7c | not started |
+| 5 | 3.1 | The market pages, on test markets with placeholder questions; a starting balance on signup | 1.4, 1.5c, 1.7d | not started |
+| Alongside | 3.4a | The Bitcoin perp, built against a stand-in price | 1.7d, 3.1 | not started |
+| Alongside | 3.3 | Markets linked to the website's news through shared categories | 1.5c, 2.1, 3.1 | not started |
+| Then: the topics | 1.2 | Topics and data sources: the topics, many copied from Kalshi's market formats, and the source each settles from | Markets working end to end on staging (3.1) | **parked** until markets work end to end on staging |
+| Then: the topics | 3.2a | Automatic resolvers: each reads the source named in a market's rules at its closing moment | 1.2, 1.7c | not started |
+| Then: the topics | 3.2b | Series: templates for recurring questions | 3.2a | not started |
+| Then: the topics | 3.4b | The perp's real price feed, replacing the stand-in | 1.2, 3.4a | not started |
+
+- **Markets work end to end on staging** once 3.1 is done: a visitor signs in, bets on a test market in a few taps and sees the position, and an admin settles it by hand, with the payouts adding up.
+- **1.7a** is also in "Before the first feature round", since Round 2 runs it; a pull request that moves it moves both rows.
+- **The readiness check's market-data research** (`docs/research/round-2-readiness.md`, D2 to D4) is reference for step 1.2, not decisions.
+
 ## One surface only
 
 These steps don't split into stages; they are tracked in PLAN.md section 5 and Product's status file ([docs/status/product.md](docs/status/product.md)).
@@ -71,4 +94,4 @@ These steps don't split into stages; they are tracked in PLAN.md section 5 and P
 | App | 2.6 | The Android store build and the Google Play closed test |
 | App | 4.3 | The iPhone build: Sign in with Apple and Apple's review |
 | App | 4.5 | Google Play production access |
-| Website | 3.1 to 3.4 | The markets track: market pages, self-settling markets, markets linked to news, the Bitcoin perp |
+| Website | 1.7a to 3.4b | The markets track, tracked step by step in "Markets track", above |

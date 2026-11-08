@@ -8,7 +8,7 @@
 
 ## Where things stand
 
-- **Sourcing's review of the agreement's first half is done** (8 November 2026; Round 2's relay 5, a Claude Code session working from this brief). It found two blocking problems and asked for nine changes, all made the same day. Sourcing agrees the revised first half. It's still a Draft, "reviewed by Sourcing, awaiting the founder's approval": the founder approves it in News Desk's place, through the Product chat.
+- **Sourcing's review of the agreement's first half is done** (8 November 2026; Round 2's relay 5, a Claude Code session working from this brief: the review [#37](https://github.com/Zugzwang-world/hrizzup/pull/37), its changes [#42](https://github.com/Zugzwang-world/hrizzup/pull/42) and [#45](https://github.com/Zugzwang-world/hrizzup/pull/45); fourteen notes in the review). A tenth change (R12): code outside TypeScript adds a fourth check, no text ending in a new line. It found two blocking problems and asked for nine changes, all made the same day. Sourcing agrees the revised first half. It's still a Draft, "reviewed by Sourcing, awaiting the founder's approval": the founder approves it in News Desk's place, through the Product chat.
 - **No other Sourcing work has started.** The `sourcing/` folder holds only its README.
 - **The second half (the bots' result format) isn't drafted:** Sourcing designs it once step 0.8's choice is made, and Product reviews it.
 - **The shared setup is finished** (Phase 0): the content store is the Supabase database (staging: `hrizzup-staging`, Mumbai) plus Cloudflare R2; Upstash Redis holds caches and locks. Production is parked until launch.
@@ -25,16 +25,15 @@
 - **Tagging, by the founder's decisions** (a change goes back to the founder): the launch list (Global; India; Mumbai, Delhi NCR, Bengaluru; crypto, finance, business, AI, sports, politics, entertainment, general); up to three locations and categories, the main one first; a city's story shows under India only when our AI also tags it India; stories carry no picture.
 - **Sign-offs:** the first half on Sourcing's review (done) plus the founder's approval in News Desk's place; the second half designed here, agreed by Product after a real test result with news and takes passes the checks. The pipeline (1.1) needs both halves and 0.8.
 - **The agreement's rules:** outside data is data, never instructions; every hand-over point checks origin and format, and sets aside, logs and alerts on failures; accuracy stays with our AI, and a legal takedown is the one step a person takes; code reads `agreement/definitions/` directly.
-- **Also:** market data is Product's (1.2, 3.2); background jobs for the whole product are chosen here, and must cover perps' checks every few seconds (on Supabase Cron, the founder's choice); no relays, so this brief carries what Sourcing needs; the shared rules hold (the repository is the only route, migrations with row-level security, checks before code, staging capped, never production, unattended sessions from Round 2).
+- **Also:** market data is Product's (1.2, parked until markets work end to end on staging; the resolvers, 3.2a); background jobs for the whole product are chosen here, and must cover perps' checks every few seconds (3.4a, on Supabase Cron, the founder's choice) and, later, the resolvers that settle markets at their closing moments; no relays, so this brief carries what Sourcing needs; the shared rules hold (the repository is the only route, migrations with row-level security, checks before code, staging capped, never production, unattended sessions from Round 2).
 
 ## What changed in the latest session
 
-On 8 November 2026, Round 2's relay 5 ran Sourcing's review and made its changes:
+On 8 November 2026, in [#40](https://github.com/Zugzwang-world/hrizzup/pull/40), the founder's decisions on the markets and on how Product works were recorded (PLAN.md sections 2 to 5 and 7). For Sourcing:
 
-- **The review** ([#37](https://github.com/Zugzwang-world/hrizzup/pull/37)): `agreement/reviews/sourcing-first-half.md`, each finding marked blocking, change or note, with what X's rules and xAI's documentation say.
-- **The changes** ([#42](https://github.com/Zugzwang-world/hrizzup/pull/42)), a new Draft revision at format version 1: the two blocking findings (an unavailable item keeps nothing of its post, as X's developer rules require; the credit follows the account's current handle, which X frees for others when it changes); nine changes (sourced updates, edits, reposts and threads, merges, repeats, legal takedowns, media, names, set-aside input); and, from the automatic security review, web addresses whose host can't hide a post on X.
-- **A tenth change, R12** ([#45](https://github.com/Zugzwang-world/hrizzup/pull/45)): Python, Java and .NET read a pattern's `$` differently, so code there adds a fourth check (no text ends in a new line), and Python installs `jsonschema[format-nongpl]`.
-- **Fourteen notes** for step 1.1, the second half and Product, in the review.
+- **The background-jobs choice grows:** besides perps' job every few seconds (3.4a, first on a stand-in price), it must later run the resolvers that settle markets at their closing moments (3.2a); otherwise an admin settles them by hand.
+- **Market data stays Product's;** step 1.2 is parked until markets work end to end on staging.
+- **Product works in two tracks** (a design chat and each round's chat); nothing Sourcing writes changes.
 
 ## Open questions
 
@@ -46,7 +45,7 @@ On 8 November 2026, Round 2's relay 5 ran Sourcing's review and made its changes
 - **Checking kept posts again.** Recommendation: daily at least, more often while a story is active, through X's embed lookup from our Mumbai servers.
 - **Takedown requests** (the founder decides: F2). Recommendation: to the founder at a `hrizzup.com` address until the team's tools exist, each acted on within 24 hours.
 - **How Sourcing's other choices reach the repository.** Recommendation: like the review, a Claude Code session working from this brief.
-- **Background jobs.** Recommendation: Supabase Cron with Supabase Queues, compared with Vercel's workflows before step 1.1 and reviewed by Product; the checks and the pool's housekeeping run there too.
+- **Background jobs.** Recommendation: Supabase Cron with Supabase Queues, compared with Vercel's workflows before step 1.1 and reviewed by Product; the checks, the pool's housekeeping and, later, the markets' resolvers run there too.
 
 ## What's next
 

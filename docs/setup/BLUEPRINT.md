@@ -4,7 +4,7 @@
 > Claude Code commits it to `docs/setup/BLUEPRINT.md`. On the day it sets each value, it also records that value in `docs/setup.md`.
 > Secrets never go in either file.
 
-Status: proposed, 2 November 2026, and updated with the founder's decisions and the setup as built since (latest 3 November 2026, runbook Part 10), then with Round 2's decisions on 8 November 2026 (Expo in section 2, public staging in sections 3 and 6, tool tokens in section 7, no passwords in section 9, the typed API in section 13). Setup closed on 4 November 2026: the close-out at the top of `docs/setup.md` says what exists, and the runbook's pre-launch checklist holds what's parked, starting with production's own values. No **DECIDE** items remain open.
+Status: proposed, 2 November 2026, and updated with the founder's decisions and the setup as built since (latest 3 November 2026, runbook Part 10), then with Round 2's decisions on 8 November 2026 (Expo in section 2, public staging in sections 3 and 6, tool tokens in section 7, no passwords in section 9, the typed API and the market engine's calls in section 13). Setup closed on 4 November 2026: the close-out at the top of `docs/setup.md` says what exists, and the runbook's pre-launch checklist holds what's parked, starting with production's own values. No **DECIDE** items remain open.
 
 ---
 
@@ -385,6 +385,7 @@ AWS is not the production plan. Production runs on the same platforms as staging
 - **The typed API** (founder's decision, 8 November 2026): **oRPC, contract first,** pinned to its **1.x** line, in `product/packages/api` (`@hrizzup/api`).
   - **Contract first:** the contract is its own package, so each news feature's contract stage (`TRACKER.md`, stage 2) comes before its back end, and both screens are built against the contract and its example data. The real implementation lives in the website's server code; the app never imports it.
   - **Built in PLAN.md step 1.5c,** starting with calls that aren't content (health, who am I). How it's served, cached at the edge, signed in and checked is set out in the readiness research (`docs/research/round-2-readiness.md`, C7), for 1.5c to settle.
+  - **The market engine's calls** join it in step 1.7d: create, list, trade, positions and settle, with create and settle for admins only, since only Hrizzup creates markets (founder's decision, 8 November 2026; PLAN.md section 2, "Markets").
   - **oRPC 2.0** (in beta on 8 November 2026) comes in its own change, once it's stable and before the first feature's contract stage.
 - **Live updates:** Supabase Realtime, for market prices and new posts. Which tables send live updates is set in migrations, so staging and production match.
 - **Search:** the database's own text search (Postgres full-text search) from day one, set up in migrations.
