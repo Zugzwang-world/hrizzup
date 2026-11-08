@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # The app's journeys (Maestro) on the Android emulator that is running, at a phone size and
-# then a tablet size, with a screenshot of each screen at each size.
+# then a tablet size, with a screenshot of each screen at each size, and the app's cold start
+# timed against its budget (startup.sh).
 #
 #   bash product/app/journeys/run.sh <the app's .apk> <folder for results and screenshots>
 #
@@ -30,6 +31,8 @@ trap 'adb shell wm size reset; adb shell wm density reset' EXIT
 adb shell wm size reset
 adb shell wm density reset
 journeys phone
+# The app's own speed budget, at the phone size: first content within 2 s of a cold start.
+bash "$flows/startup.sh" "$out"
 adb shell wm size 1600x2560
 adb shell wm density 320
 journeys tablet

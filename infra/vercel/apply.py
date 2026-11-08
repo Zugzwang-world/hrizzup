@@ -1,13 +1,18 @@
 #!/usr/bin/env python3
 """Apply this folder's Vercel settings to the project, then read them back.
 
-    python3 infra/vercel/apply.py            # apply, then check
-    python3 infra/vercel/apply.py --check    # check only, change nothing
+    python3 infra/vercel/apply.py                  # apply, then check
+    python3 infra/vercel/apply.py --check          # check only, change nothing
+    python3 infra/vercel/apply.py --staging-only   # apply only what is staging's own, then check
 
 What it manages (project.json and firewall.json): the project itself and its link to the
 GitHub repo, its settings (region, framework, staged production builds, Skew Protection,
 deployment protection, toolbar), the custom environment "staging" and its branch, the
-domains, and the firewall. It fails, listing every difference, if Vercel doesn't match.
+domains, the protection exceptions (only staging's domain is public, from PLAN.md step 1.5d)
+and the firewall. It fails, listing every difference, if Vercel doesn't match.
+
+`--staging-only` changes nothing that reaches production: only the protection exception of
+staging's own domain. Then it checks everything, like `--check`.
 
 Needs VERCEL_TOKEN (Doppler project hrizzup-tools, config claude):
 
@@ -201,6 +206,38 @@ def domains(v, cfg, proj, envs, check_only):
     return live, problems
 
 
+def protection_exceptions(v, cfg, apply):
+    """Deployment Protection Exceptions: the domains Vercel's login doesn't cover.
+
+    Only staging's own domain may be one (PLAN.md step 1.5d). An exception lives on the domain's
+    alias, as a protection bypass of scope `alias-protection-override`, and stays with the
+    domain as new deployments take it. Only the scope is read, never a bypass's own value.
+    """
+    wanted = set(cfg.get("protectionExceptions", []))
+    staging = {d for e in cfg["customEnvironments"].values() for d in e.get("domains", [])}
+    if not wanted <= staging:
+        fail(f"protectionExceptions may name only staging's domains, not {sorted(wanted - staging)}")
+
+    def has_exception(name):
+        alias = must(v.call("GET", f"/v4/aliases/{name}"), f"read {name}")
+        scopes = {(entry or {}).get("scope") for entry in (alias.get("protectionBypass") or {}).values()}
+        return alias, "alias-protection-override" in scopes
+
+    problems = []
+    for name in sorted(staging):
+        alias, has = has_exception(name)
+        if apply and name in wanted and not has:
+            must(v.call("PATCH", f"/aliases/{alias['uid']}/protection-bypass",
+                        {"override": {"scope": "alias-protection-override", "action": "create"}}),
+                 f"add {name}'s protection exception")
+            print(f"added a protection exception for {name}: it is public now")
+            alias, has = has_exception(name)
+        if has != (name in wanted):
+            problems.append(f"{name}: {'has' if has else 'lacks'} a protection exception; "
+                            f"the repo says it {'should' if name in wanted else 'should not'}")
+    return problems
+
+
 def normalise_rule(rule):
     keep = {k: rule.get(k) for k in ("name", "description", "active", "conditionGroup", "action")}
     for group in keep.get("conditionGroup") or []:
@@ -244,9 +281,10 @@ def subset(have, want):
 
 def main():
     args = sys.argv[1:]
-    if args not in ([], ["--check"]):
+    if args not in ([], ["--check"], ["--staging-only"]):
         sys.exit(__doc__)
-    check_only = args == ["--check"]
+    staging_only = args == ["--staging-only"]
+    check_only = args == ["--check"] or staging_only
     cfg = load("project.json")
     v = Vercel(cfg["team"])
     proj = project(v, cfg, check_only)
@@ -257,6 +295,7 @@ def main():
     problems += p
     _, p = domains(v, cfg, proj, envs, check_only)
     problems += p
+    problems += protection_exceptions(v, cfg, apply=not args or staging_only)
     problems += firewall(v, proj, check_only)
     if problems:
         print(f"Vercel project {cfg['project']} does NOT match the repo:")
@@ -267,7 +306,8 @@ def main():
           f"{len(cfg['settings'])} settings, git {cfg['git']['repo']} (production branch "
           f"{cfg['git']['productionBranch']}), environments {', '.join(cfg['customEnvironments'])}, "
           f"{len(cfg['domains']) + sum(len(e.get('domains', [])) for e in cfg['customEnvironments'].values())} "
-          f"domains, firewall with {len(load('firewall.json')['rules'])} rules; "
+          f"domains, public without Vercel's login: {', '.join(cfg.get('protectionExceptions', [])) or 'none'}, "
+          f"firewall with {len(load('firewall.json')['rules'])} rules; "
           f"autoAssignCustomDomains is {live.get('autoAssignCustomDomains')}")
     return 0
 

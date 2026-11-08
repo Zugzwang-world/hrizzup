@@ -2,6 +2,7 @@ import { brand } from '@hrizzup/core';
 import { StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ApiAnswer } from '../components/api-answer.tsx';
+import { markFirstContent } from '../lib/startup.ts';
 
 /**
  * The app's only screen for now: an empty shell that shares the website's words, and shows what
@@ -13,6 +14,7 @@ export default function Home() {
   return (
     <SafeAreaView
       testID="home"
+      onLayout={markFirstContent}
       style={[styles.screen, { backgroundColor: dark ? '#16181c' : '#fbfaf7' }]}
     >
       <View style={styles.content}>
