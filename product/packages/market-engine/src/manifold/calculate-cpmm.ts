@@ -287,14 +287,17 @@ export const computeFills = (
   balanceByUserId: { [userId: string]: number | undefined },
   limitProbs?: { max: number; min: number },
   freeFees?: boolean,
+  // The time of the trade, in milliseconds since 1970: it decides which limit orders have
+  // expired, and stamps each fill. Hrizzup's yes/no maths always passes it. Only Manifold's
+  // multi-answer code, kept switched off, leaves it out, and falls back to the clock.
+  now: number = Date.now(),
 ) => {
   if (isNaN(betAmount)) {
-    throw new Error('Invalid bet amount: ${betAmount}');
+    throw new Error(`Invalid bet amount: ${betAmount}`);
   }
   if (isNaN(initialLimitProb ?? 0)) {
-    throw new Error('Invalid limitProb: ${limitProb}');
+    throw new Error(`Invalid limitProb: ${initialLimitProb}`);
   }
-  const now = Date.now();
   const { max, min } = limitProbs ?? {};
   const limit = initialLimitProb ?? (outcome === 'YES' ? max : min);
   const limitProb = !limit
@@ -342,6 +345,7 @@ export const computeFills = (
       matchedBet,
       currentBalanceByUserId[matchedBet?.userId ?? ''],
       freeFees,
+      now,
     );
 
     if (!fill) break;
@@ -389,7 +393,8 @@ const computeFill = (
   cpmmState: CpmmState,
   matchedBet: LimitBet | undefined,
   matchedBetUserBalance: number | undefined,
-  freeFees?: boolean,
+  freeFees: boolean | undefined,
+  now: number,
 ) => {
   const prob = getCpmmProbability(cpmmState.pool, cpmmState.p);
 
@@ -403,7 +408,7 @@ const computeFill = (
     return undefined;
   }
 
-  const timestamp = Date.now();
+  const timestamp = now;
 
   if (
     !matchedBet ||
@@ -636,6 +641,7 @@ export function calculateAmountToBuyShares(
   outcome: 'YES' | 'NO',
   unfilledBets: LimitBet[],
   balanceByUserId: { [userId: string]: number },
+  now?: number, // The time of the trade (see computeFills)
 ) {
   const prob = getCpmmProbability(state.pool, state.p);
   const minAmount = shares * (outcome === 'YES' ? prob : 1 - prob);
@@ -647,6 +653,9 @@ export function calculateAmountToBuyShares(
       undefined,
       unfilledBets,
       balanceByUserId,
+      undefined,
+      undefined,
+      now,
     );
     return sumBy(takers, (taker) => taker.shares);
   };
@@ -681,6 +690,7 @@ export function calculateCpmmAmountToBuyShares(
   allUnfilledBets: LimitBet[],
   balanceByUserId: { [userId: string]: number },
   answer?: Answer,
+  now?: number, // The time of the trade (see computeFills)
 ) {
   const startCpmmState =
     contract.mechanism === 'cpmm-1'
@@ -705,6 +715,7 @@ export function calculateCpmmAmountToBuyShares(
       outcome,
       unfilledBets,
       balanceByUserId,
+      now,
     );
   } else if (contract.mechanism === 'cpmm-multi-1') {
     return calculateAmountToBuySharesFixedP(
@@ -725,6 +736,7 @@ export function calculateCpmmSale(
   outcome: 'YES' | 'NO',
   unfilledBets: LimitBet[],
   balanceByUserId: { [userId: string]: number },
+  now?: number, // The time of the trade (see computeFills)
 ) {
   // Snap floating-point dust (e.g. -4.44e-16) to an exact zero no-op so it
   // can't invert the arbitrage binary search into NaN. Zero must stay legal:
@@ -742,6 +754,7 @@ export function calculateCpmmSale(
     oppositeOutcome,
     unfilledBets,
     balanceByUserId,
+    now,
   );
 
   const { cpmmState, makers, takers, totalFees, ordersToCancel } = computeFills(
@@ -751,6 +764,9 @@ export function calculateCpmmSale(
     undefined,
     unfilledBets,
     balanceByUserId,
+    undefined,
+    undefined,
+    now,
   );
 
   // Transform buys of opposite outcome into sells.
@@ -784,8 +800,16 @@ export function getCpmmProbabilityAfterSale(
   outcome: 'YES' | 'NO',
   unfilledBets: LimitBet[],
   balanceByUserId: { [userId: string]: number },
+  now?: number, // The time of the trade (see computeFills)
 ) {
-  const { cpmmState } = calculateCpmmSale(state, shares, outcome, unfilledBets, balanceByUserId);
+  const { cpmmState } = calculateCpmmSale(
+    state,
+    shares,
+    outcome,
+    unfilledBets,
+    balanceByUserId,
+    now,
+  );
   return getCpmmProbability(cpmmState.pool, cpmmState.p);
 }
 

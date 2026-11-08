@@ -26,23 +26,12 @@ export type Payout = {
   deposit?: number;
 };
 
-// Returns loan payouts (negative values, as loans are deducted from payouts).
-// Margin loan interest is calculated using the user_contract_loans table in resolve-market-helpers.ts.
-export const getLoanPayouts = (contractMetrics: ContractMetric[], answerId?: string): Payout[] => {
-  const metricsWithLoans = contractMetrics
-    // Include both free loans and margin loans
-    .filter((metric) => (metric.loan ?? 0) > 0 || (metric.marginLoan ?? 0) > 0)
-    .filter((metric) => (answerId ? metric.answerId === answerId : true));
-  const metricsByUser = groupBy(metricsWithLoans, (metric) => metric.userId);
-  const loansByUser = mapValues(metricsByUser, (metrics) =>
-    // Sum both free loans and margin loans as negative (to deduct from payouts)
-    sumBy(metrics, (metric) => -((metric.loan ?? 0) + (metric.marginLoan ?? 0))),
-  );
-  return Object.entries(loansByUser).map(([userId, payout]) => ({
-    userId,
-    payout,
-  }));
-};
+// Manifold deducts its loans from payouts here. Hrizzup has no loans, so settlement never
+// deducts one, whatever a position might carry.
+export const getLoanPayouts = (
+  _contractMetrics: ContractMetric[],
+  _answerId?: string,
+): Payout[] => [];
 
 export const groupPayoutsByUser = (payouts: Payout[]) => {
   const groups = groupBy(payouts, (payout) => payout.userId);
@@ -174,11 +163,16 @@ export const getIndependentMultiFixedPayouts = (
   }
 };
 
-export function getPayoutInfo(contract: Contract, metric: ContractMetric, answer?: Answer) {
+export function getPayoutInfo(
+  contract: Contract,
+  metric: ContractMetric,
+  answer: Answer | undefined,
+  now: number, // In milliseconds since 1970
+) {
   const yesWinnings = metric.totalShares.YES ?? 0;
   const noWinnings = metric.totalShares.NO ?? 0;
   const position = yesWinnings - noWinnings;
-  const canSell = tradingAllowed(contract, answer);
+  const canSell = tradingAllowed(contract, answer, now);
   const won =
     (position > 1e-7 && (answer ?? contract).resolution === 'YES') ||
     (position < -1e-7 && (answer ?? contract).resolution === 'NO');

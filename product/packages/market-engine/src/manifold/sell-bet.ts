@@ -32,8 +32,8 @@ export const getCpmmSellBetInfo = (
   contract: MarketContract,
   unfilledBets: LimitBet[],
   balanceByUserId: { [userId: string]: number },
-  loanPaid: number,
-  answer?: Answer,
+  answer: Answer | undefined,
+  now: number, // The time of the trade, in milliseconds since 1970
 ) => {
   if (isMultiCpmm(contract) && !answer) {
     throw new Error('getCpmmSellBetInfo: answer required for multi-choice cpmm contracts');
@@ -54,6 +54,7 @@ export const getCpmmSellBetInfo = (
     outcome,
     unfilledBets,
     balanceByUserId,
+    now,
   );
 
   const probBefore = getCpmmProbability(startCpmmState.pool, startCpmmState.p);
@@ -62,8 +63,6 @@ export const getCpmmSellBetInfo = (
   const takerAmount = sumBy(takers, 'amount');
   const takerShares = sumBy(takers, 'shares');
 
-  console.log('SELL ', shares, outcome, 'for M', -takerAmount, 'creator fee: M', fees.creatorFee);
-
   const newBet: CandidateBet<Bet> = removeUndefinedProps({
     contractId: contract.id,
     amount: takerAmount,
@@ -71,8 +70,8 @@ export const getCpmmSellBetInfo = (
     outcome,
     probBefore,
     probAfter,
-    createdTime: Date.now(),
-    loanAmount: -loanPaid,
+    createdTime: now,
+    loanAmount: 0, // Hrizzup has no loans
     fees,
     fills: takers,
     isFilled: true,

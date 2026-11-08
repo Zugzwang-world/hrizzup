@@ -159,10 +159,12 @@ export type resolution = 'YES' | 'NO' | 'MKT' | 'CANCEL';
 export const isMultiCpmm = (contract: Contract): contract is MultiContract =>
   contract.mechanism === 'cpmm-multi-1' || contract.mechanism === 'cpmm-multi-2';
 
-export function tradingAllowed(contract: Contract, answer?: Answer) {
+// Whether a market (or one of its answers) can still be traded at `now`, in milliseconds since
+// 1970: not settled, and not past its closing time.
+export function tradingAllowed(contract: Contract, answer: Answer | undefined, now: number) {
   return (
     !contract.isResolved &&
-    (!contract.closeTime || contract.closeTime > Date.now()) &&
+    (!contract.closeTime || contract.closeTime > now) &&
     (!answer || !answer.resolution)
   );
 }

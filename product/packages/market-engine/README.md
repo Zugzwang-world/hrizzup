@@ -41,6 +41,19 @@ The maths is [Manifold's](https://github.com/manifoldmarkets/manifold), copied w
 - Biome's errors, each fixed without changing what the code does: a few `forEach` callbacks that returned a value now have a block body (`answer-probs.ts`, `calculate-metrics.ts`, `fees.ts`, and four tests); `calculate-metrics.ts` compares answer ids with `(a ?? null) === (b ?? null)`, which is what its `==` did; `number.ts` uses `===` on a length; `calculate.ts` gives one variable its type.
 - `calculate-cpmm-arbitrage.ts` keeps Manifold's text exactly, apart from its import lines and one redaction, and Biome skips it (`biome.json`), so it stays easy to compare. The redaction: a commented-out example of a Manifold market carries a Firebase Storage access token (in an image address from Manifold's development site), which our secret check rightly refuses, so the token reads `REDACTED`.
 
+## Hrizzup's changes
+
+Our changes to what the maths does (milestone 2), each pinned by a test in [src/changes.test.ts](src/changes.test.ts):
+
+- **The time is passed in.** Buying (`getBinaryCpmmBetInfo`), selling (`getCpmmSellBetInfo`), redeeming (`getRedemptionBets`), the profit figures (`calculateUserMetricsWithoutLoans` and the functions under it) and `tradingAllowed` take the time as their last argument, `now`, in milliseconds since 1970, instead of reading the clock: it stamps the bet and its fills and decides which limit orders have expired, so one trade inside one database transaction uses one time, and tests repeat exactly. The functions those share with Manifold's multi-answer code (`computeFills`, `computeCpmmBet`, `calculateCpmmSale`, `calculateAmountToBuyShares`) take `now` as an optional last argument: the yes/no path always passes it; Manifold's multi-answer code, kept switched off, leaves it out and still reads the clock, as Manifold wrote it. A test makes the clock throw while buying, filling a limit order, selling, redeeming and settling.
+- **No loans.** A sale and a redemption always carry a loan of 0; their loan inputs are gone (`getCpmmSellBetInfo` no longer takes `loanPaid`, `getRedemptionBets` no longer takes `loanPayment`), and redeeming and settlement ignore any loan a position might carry (`getLoanPayouts` returns none).
+- **Manifold's other features stay switched off:** markets with several answers, numbers, dates and "stonks" are never opened; our slim market type has no second currency, leagues, ranking, bonuses or subsidy pools. Manifold's market-ranking measure (elasticity) is left as it was.
+- **No logging:** the two `console.log` calls in the yes/no maths are gone (selling, and the profit figures). Manifold's switched-off multi-answer code keeps its own.
+- **The two error messages** in `computeFills` show their numbers: they were in single quotes, so they printed `${betAmount}` literally. The second named `limitProb`, which is declared later in the function, so it now shows the limit price passed in (`initialLimitProb`); a plain template literal would itself have crashed.
+- **Fees: one setting, at zero.** `TAKER_FEE_RATE` in `fees.ts` (Manifold's unexported `TAKER_FEE_CONSTANT`, renamed and exported) sets every yes/no trade's fee, `rate × p × (1 − p) × shares`. It stays 0 until the Product chat decides the rate.
+
+The front door no longer offers `computeFills` and `computeCpmmBet`, whose time is optional; buying and selling cover them.
+
 ## Checks
 
 - **Tests:** `pnpm --filter @hrizzup/market-engine test` (Vitest). Quick checks run them on every pull request, with the type check.

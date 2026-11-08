@@ -151,10 +151,11 @@ export const calculateMetricsByContractAndAnswer = (
   contractsById: Dictionary<Contract>,
   userId: string,
   currentMetrics: ContractMetric[],
+  now: number, // The time the profit is measured to, in milliseconds since 1970
 ) => {
   const newMetrics = Object.entries(betsByContractId).flatMap(([contractId, bets]) => {
     const contract: Contract = contractsById[contractId];
-    return calculateUserMetricsWithoutLoans(contract, bets, userId);
+    return calculateUserMetricsWithoutLoans(contract, bets, userId, now);
   });
   // Find loan amounts from current metrics and paste them into the new metrics
   return newMetrics.map((m) => {
@@ -189,12 +190,14 @@ export const calculateUserMetricsWithoutLoans = (
   contract: Contract,
   bets: Bet[],
   userId: string,
+  now: number, // The time the profit is measured to, in milliseconds since 1970
 ) => {
   // ContractMetrics will have an answerId for every answer, and a null for the overall metrics.
   const currentMetrics = getContractBetMetricsPerAnswerWithoutLoans(
     contract,
     bets,
     'answers' in contract ? contract.answers : undefined,
+    now,
   );
 
   return currentMetrics.map((current) => {
