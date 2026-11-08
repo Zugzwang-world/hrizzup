@@ -76,6 +76,7 @@ Last updated: 9 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/brie
     - **answered without asking** (one line each):
       - The founder gets the preview build's direct download link: on Android it downloads at once, then Android asks to allow the browser to install it.
       - The development build loads its code from the Mac (`pnpm --filter @hrizzup/app start --dev-client`, same Wi-Fi), so it's for sessions at the Mac only.
+      - The preview build is one file for every kind of Android processor (about 91 MB), so the founder's steps say to use Wi-Fi; the Play Store will send each phone only its own part, so this size is a testing build's, not the app's.
   - **1.5d, 1 of 2: staging gets ready to open; the app gets ready for the phone, 9 November 2026** ([#49](https://github.com/Zugzwang-world/hrizzup/pull/49)):
     - **what becomes public, reviewed:** the holding page, the draft legal pages, the sign-in test page (Google lets only its listed test users in, and a signed-in person sees only their own account), the sign-in routes (rate-limited), the preview sign-in relay (forwards a code only to a correctly signed preview), `/api/health` (the same as production's), the typed API (health's states; who am I only to its own account). No email route yet; no real user data. Nothing needed closing;
     - **search engines:** `robots.txt` already refused every crawler outside production; every response outside production now also says `X-Robots-Tag: noindex, nofollow`;

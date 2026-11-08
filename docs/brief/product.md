@@ -57,7 +57,7 @@ Relay 2 finished step 1.5 on 8 and 9 November 2026:
 
 ## For the founder
 
-- **Install the app** on your Android phone (about 2 minutes): on the phone, open https://expo.dev/artifacts/eas/_jkiSqG2YisBSi0Xmyt3OrQUObdq271MkTV5Gyl_x44.apk; when Android asks, allow your browser to install unknown apps (if Play Protect offers a scan, either choice is fine); open Hrizzup. It should say "Hrizzup's servers answer: all working, from Mumbai (staging)". Then tell Claude Code "app installed".
+- **Install the app** on your Android phone (about 2 minutes, on Wi-Fi: the file is about 90 MB): on the phone, open https://expo.dev/artifacts/eas/_jkiSqG2YisBSi0Xmyt3OrQUObdq271MkTV5Gyl_x44.apk; when Android asks, allow your browser to install unknown apps (if Play Protect offers a scan, either choice is fine); open Hrizzup. It should say "Hrizzup's servers answer: all working, from Mumbai (staging)". Then tell Claude Code "app installed".
 - **Replace the Expo token** (runbook step 4.6, about 5 minutes).
 - **Approve the agreement's first half** in News Desk's place, once Product brings its market shape in line (recommended). **Sourcing's three questions** (F1 to F3), recommended: found takes in English only; takedown requests to a `hrizzup.com` address, answered within 24 hours; a lawyer's check before launch.
 - **Design:** the board and a story page on the Draft's examples now, approved once it's Agreed; the other screens feature by feature in the design chat, just ahead of each contract stage.
