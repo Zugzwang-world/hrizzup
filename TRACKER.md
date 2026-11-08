@@ -1,10 +1,29 @@
 # Hrizzup: news features, stage by stage
 
-> Where each news feature stands on the website and in the app. Claude Code keeps it current: each stage moves in the pull request that finishes it, with that pull request's link. Nobody maintains this file by hand. The steps and what they need are in [PLAN.md](PLAN.md) section 5; if this file and PLAN.md disagree, PLAN.md wins.
+> Where each news feature stands on the website and in the app, and what must be done before the first one starts. Claude Code keeps it current: each step and stage moves in the pull request that finishes it, with that pull request's link. Nobody maintains this file by hand. The steps and what they need are in [PLAN.md](PLAN.md) section 5; if this file and PLAN.md disagree, PLAN.md wins.
 
 Last updated: 8 November 2026
 
 ---
+
+## Before the first feature round
+
+Everything PLAN.md lists as a need of the first news feature (the board, step 2.1), and so of the round that starts the features. Round 2 runs most of it: five relays in parallel worktrees, attached to the GitHub milestone "Round 2", each moving its own rows here (CLAUDE.md, "Unattended sessions"). Each row is **not started**, **in progress**, or **done** with the pull request that finished it.
+
+| Step | What | Needs | Who | Status |
+|---|---|---|---|---|
+| 1.5a | The speed check: performance budgets measured on every pull request | 0.6 | Round 2, relay 2 | in progress |
+| 1.5b | Journey tests on the website and in the app, including the app's first Maestro test | 1.5a | Round 2, relay 2 | not started |
+| 1.5c | The typed API (oRPC, contract first), with calls that aren't content (health, who am I); done when the website makes a real call through it | 1.5b | Round 2, relay 2 | not started |
+| 1.5d | The empty app on the founder's Android phone, answering from the typed API on staging, with its own budget; staging becomes public | 1.5c | Round 2, relay 2; the founder installs it | not started |
+| 1.7a | Manifold's maths with its tests, plus our own tests that money in equals money out | 0.6 | Round 2, relay 3 | in progress |
+| 1.4, first pass | The design values, plus the board and a story page at phone size, on preview links | 1.5a, before its page merges; 0.7 (first half), for the board and the story page | Round 2, relay 4, with the founder | in progress |
+| 0.7, first half: Sourcing's review | Run by a Claude Code session in the repository, working from Sourcing's brief | — | Round 2, relay 5 | in progress |
+| 0.7, first half: the founder's approval | In News Desk's place; then Agreed, in a change he asks for | Sourcing's review | The founder | not started |
+| 1.8 | Parallel local development: three sessions run the website, the app's dev server and the local database side by side, and sign in and upload locally | 0.6 | Not yet given to a relay | not started |
+
+- **Not needed before the first feature:** 1.7b (the rest of the market engine) and the markets track, which run alongside Phase 2; 1.6a and 1.6b (sign-in), which posting (2.4) and the paid tier (2.7) need.
+- **The rest of 1.4** (the market page next, then the feed and the app frame) comes in later passes, each before the feature that uses it.
 
 ## How a news feature is built (founder's decision, 8 November 2026)
 
@@ -12,11 +31,11 @@ The website and the app are built in parallel, with the website one stage ahead 
 
 | Stage | What it is | Can start when |
 |---|---|---|
-| 1. Design | One phone-first design for both surfaces, in Claude Design | The design system and the feature's core screens are approved (step 1.4) |
-| 2. Contract | The feature's part of the one typed API that both surfaces use, with example data drawn from the hand-over agreement | The design is done |
+| 1. Design | One phone-first design for both surfaces, in Claude Code, from the founder's references, on preview links | The design values and the feature's core screens are approved (step 1.4) |
+| 2. Contract | The feature's part of the one typed API that both surfaces use, with example data drawn from the hand-over agreement | The design is done, and the typed API exists (step 1.5c) |
 | 3. Back end | The tables, rules and server code behind the contract, on staging | The contract is done, and the agreement's first half is Agreed (no tables for its shapes before then) |
-| 4a. Website screen | The website's screens, built against the contract and its example data | The contract is done, and step 1.5's checks exist |
-| 4b. App screen | The app's screens, built at the same time as 4a, in a separate worktree | As 4a |
+| 4a. Website screen | The website's screens, built against the contract and its example data | The contract is done, and the website's checks exist (steps 1.5a and 1.5b) |
+| 4b. App screen | The app's screens, built at the same time as 4a, in a separate worktree | The contract is done, and the app's checks exist (step 1.5b's Maestro test, step 1.5d's budget) |
 | 5. Website join | The website's screens wired to the real back end, checked on the pull request's preview | The back end and the website screen are done |
 | 6. App join | The app's screens wired to the same back end, checked on an Android phone | The website join and the app screen are done |
 
@@ -46,7 +65,7 @@ These steps don't split into stages; they are tracked in PLAN.md section 5 and P
 
 | Surface | Step | What |
 |---|---|---|
-| Website | 1.6a | The website's sign-in: Google (working on staging), then email codes |
+| Website | 1.6a | The website's sign-in: Google (working on staging), then email codes; passwords refused |
 | App | 1.6b | The app's sign-in: native Google sign-in and email codes, on the same accounts |
 | App | 2.5 | Notifications for breaking and developing stories |
 | App | 2.6 | The Android store build and the Google Play closed test |
