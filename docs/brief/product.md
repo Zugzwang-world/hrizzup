@@ -8,75 +8,78 @@
 
 ## Where things stand
 
-- **Setup is finished** (Phase 0). Staging works end to end at `staging.hrizzup.com`, a sandbox in Mumbai, behind Vercel's login. Production is a quiet twin showing the holding page; the rest is parked (runbook, pre-launch checklist).
-- **The codebase is nearly empty:** the website (holding page, legal drafts, `/api/health`, a sign-in test page off production), a one-screen Expo app (SDK 58), shared packages and `@hrizzup/agreement`. Google sign-in works on the website on staging.
-- **The agreement's first half is a Draft:** Sourcing hasn't reviewed it, and the founder hasn't approved it in News Desk's place. No tables exist for its shapes.
-- **Round 2 is ready to brief,** after a readiness check (`docs/research/round-2-readiness.md`): one session runs 1.5a to 1.5d (performance budget, journey tests, typed API, the app on the founder's phone); a second runs 1.7a (Manifold's maths) in its own worktree. Two things need the founder first (below).
-- **Not built yet:** any screen, the typed API, the step 1.5 checks, the app on a phone, the market engine, perps, the data job. Every stage in `TRACKER.md` is not started.
+- **Setup is finished** (Phase 0). Staging works end to end at `staging.hrizzup.com` (Mumbai), behind Vercel's login until step 1.5d. Production is a quiet twin showing the holding page; the rest is parked (runbook, pre-launch checklist).
+- **The codebase is nearly empty:** the website (holding page, legal drafts, `/api/health`, a sign-in test page off production), a one-screen Expo app, shared packages and `@hrizzup/agreement`. Google sign-in works on staging.
+- **Round 2 is running:** five unattended relays in their own worktrees, on the GitHub milestone "Round 2". `TRACKER.md` lists what comes before the first feature round.
+- **The agreement's first half is a Draft;** Sourcing's review is under way. No tables exist for its shapes.
+- **Not built yet:** any screen, Round 2's checks and API, the app on a phone, the market engine, perps, the data job.
+
+## Round 2 progress
+
+One line per relay; each relay keeps only its own line current.
+
+1. **Relay 1, the round's records:** merged [#36](https://github.com/Zugzwang-world/hrizzup/pull/36). Next: nothing, relay 1 is done. For the founder: replace the Expo token.
+2. **Relay 2, steps 1.5a to 1.5d:** no milestone merged yet. Next: 1.5a, the speed check.
+3. **Relay 3, step 1.7a, Manifold's maths:** no milestone merged yet. Next: the maths with its tests.
+4. **Relay 4, step 1.4's first pass:** no milestone merged yet. Next: the design values.
+5. **Relay 5, Sourcing's review of the agreement's first half:** no milestone merged yet. Next: the review.
 
 ## Decisions in force
 
-- **Two surfaces, one account:** the news app (news and social; no bets or play money) and the website (news and play-money markets). English only; launch in India.
-- **Built in parallel, the website one stage ahead** (the founder, 8 November 2026): each news feature (2.1 to 2.4, and 2.7) goes through design, contract, back end, then the website and app screens at the same time in separate worktrees, then the join on the website, then in the app (`TRACKER.md`). App only: 1.6b, 2.5, 2.6, 4.3, 4.5. Website only: 3.1 to 3.4.
-- **Sign-in:** 1.6a, the website's (Google, then email codes with Turnstile); 1.6b, the app's (native Google and email codes, same accounts). Supabase Auth throughout; Sign in with Apple with the iPhone (4.3).
-- **Three routes into the feed:** found (embedded and credited, never copied), made (News Desk's) and posted (creators and users).
-- **News surfaces:** a board (Latest, Top, For You: sorting, not an algorithm); story pages with timelines; ranking never by money; likes and dislikes.
-- **The agreement's seven decisions** (the founder, 5 November): among them the launch list (Global, India, Mumbai, Delhi NCR, Bengaluru; eight categories) and prices in US dollars.
-- **Markets:** Kalshi's layout, our look; Manifold's engine with its tests; a starting balance; the fewest steps to a first bet. Market data is Product's (1.2, 3.2).
-- **Perps** (3.4): one Bitcoin perp in play money on Manifold's perps maths; at most 10 times leverage, filling at the next price, an opening fee, an off switch; a price and liquidation check every few seconds (Supabase Cron); a rule-change log.
-- **Checks come first:** step 1.5's checks land before any screen is built in code. Every hand-over point runs `validate()`. No tables before a half is agreed.
-- **How changes land:** a pull request each, sized and checked; production only through the release pipeline.
+- **Two surfaces, one account:** the app (news and social, no play money) and the website (news and play-money markets); English; launch in India.
+- **Built in parallel, the website one stage ahead** (`TRACKER.md`): design, contract, back end, both screens at once in separate worktrees, then the website's join, then the app's. App only: 1.6b, 2.5, 2.6, 4.3, 4.5. Website only: 3.1 to 3.4.
+- **Unattended relays** (CLAUDE.md): never wait; production, spending, new accounts or keys and the founder's decisions go under "For the founder"; never his own login; one milestone per small pull request; checks, budgets and tests never loosened. Maths, back-end and architecture problems come here.
+- **Step 1.5, split:** 1.5a the speed check; 1.5b journey tests, with the app's first Maestro test; 1.5c the typed API with calls that aren't content (health, who am I), done when the website makes a real call through it; 1.5d the empty app on the founder's Android phone, answering from staging, with its own budget. Each needs the one before.
+- **Step 1.7, split:** 1.7a, Manifold's maths with its tests plus ours that money in equals money out, needs only 0.6; 1.7b, the rest of the engine, needs the agreement's first half.
+- **Step 1.8, new:** parallel local development, before the first feature round.
+- **The typed API:** oRPC, contract first, pinned to 1.x, in `product/packages/api`; 2.0 in its own change once stable, before the first feature's contract stage.
+- **Design (1.4):** Claude Code builds it from the founder's references in real code, on a page only previews show, filled with the agreement's example data, refined with him: values (colours, sizes, spacing, radii, typefaces, icons) defined once for both surfaces, light and dark from day one, a design log, checks only for speed, fit and readable text. First pass: the values, the board and a story page at phone size.
+- **Staging goes public in 1.5d** (a Vercel protection exception, after a review; search engines asked to stay out; previews stay private), or, if Vercel refuses, 1.5d narrows to the preview build on the phone and the development build answering from the Mac.
+- **Sign-in:** 1.6a the website's, with no passwords (a Custom Access Token hook on Supabase Pro refuses any session made with one, tested; no Team plan); 1.6b the app's; Apple with the iPhone (4.3).
+- **Expo:** the founder's own account owns the app; Claude Code uses a robot token (Developer role), never his; free plan until build waits hold up work, then Starter.
+- **Content and markets:** three credited routes into the feed (found, made, posted); no money in ranking; Kalshi's layout on Manifold's engine; one Bitcoin perp.
+- **Checks come first;** no tables before a half is Agreed; production only through the release pipeline.
 
 ## What changed in the latest session
 
-On 8 November 2026, in [#35](https://github.com/Zugzwang-world/hrizzup/pull/35), a research-only readiness check for Round 2 (nothing changed in code, settings or services):
+On 8 November 2026, in [#36](https://github.com/Zugzwang-world/hrizzup/pull/36) (Round 2, relay 1, records only), the founder's decisions of that day went in:
 
-- **Where we stand:** the 8 November decisions (#32 to #34) agree everywhere. Versions are current or a patch behind; Node 26 (LTS since 28 October), TypeScript 7, pnpm 12 and Supabase CLI 3 are later, separate changes. Pull requests use about 10 to 22 of 3,000 monthly GitHub minutes.
-- **Parallel sessions:** two worktrees can install, build and test side by side. Only one should run the dev servers and the local database: sign-in and uploads accept only `localhost:3000`, and the database containers share one name.
-- **1.5a:** Lighthouse CI on GitHub's runner against each preview, through the bypass header the Screen check already uses; download sizes as hard limits, timings as the median of 5 runs. A check from Mumbai (Calibre, $75 a month) waits for real pages.
-- **1.5b:** Maestro on GitHub Actions with an Android emulator, at phone and tablet sizes; practically free. Expo's own Maestro job (about $60 a month) is the fallback.
-- **1.5c:** the plan names no approach. Recommended: oRPC, contract first, in `product/packages/api`: cacheable GET addresses, our JSON Schemas as validators, an OpenAPI document. tRPC is the alternative.
-- **1.5d:** no Expo account exists. Expo's build service makes the app; the founder installs a preview build from a link. Google's developer verification isn't enforced in India until 2027.
-- **1.7a:** 22 Manifold files at commit `79997aa`; their 158 tests pass under our Vitest. Manifold has no direct tests for yes/no buying, selling, redeeming or payouts, so we add conservation tests. Perps: 14 files, 391 tests.
+- **CLAUDE.md:** "Unattended sessions"; `TRACKER.md` at every session's end; this brief's two new sections.
+- **PLAN.md:** steps 1.4, 1.5a to 1.5d, 1.7a, 1.7b and 1.8, with every step's needs repointed; Sourcing's review run by a Claude Code session from Sourcing's brief; Claude Design removed.
+- **Blueprint:** the typed API, public staging, no passwords, Expo. **`TRACKER.md`:** "Before the first feature round". **GitHub:** the milestone "Round 2".
+- **`EXPO_TOKEN`** was found in Doppler `stg`, already synced into Vercel's staging and previews; as a tool token it belongs in `hrizzup-tools` (runbook, Part 4).
 
 ## Open questions
 
-- **D1, blocking password sign-in** (1.6a). Supabase's password hook is Team-only ($599 a month). Recommendation: a Custom Access Token hook on Pro that refuses any session made with a password, as a migration with tests; no password field anywhere. Don't upgrade.
-- **D2 to D4, market data** (1.2). Recommendations, each with a backup:
-  - **Bitcoin:** Pyth (free if Pyth Core's key is free for a public app; otherwise Pyth Pro Starter, $500 a month); backup CoinMarketCap. Exchanges' free feeds forbid public use.
-  - **Gold, not oil:** GoldAPI.io ($99). Oil's free official price (EIA) comes only weekly; gold's official price costs $10,000 a year or more.
-  - **Best AI model:** Arena's leaderboard dataset (free, CC BY 4.0); question: the leader in the month's last snapshot.
-  - **Cricket:** Sportmonks Cricket World (about €75). **Football:** API-Football (about $19).
-  - About $205 to $705 a month at launch; nothing during Round 2 (free tiers and trials). Each vendor confirms in writing that a free-to-play game may show and settle on its data.
-- **Step 1.7 needs the agreement's first half,** still Draft, but Round 2 runs 1.7a. Recommendation: split 1.7 in PLAN.md so 1.7a (the maths, no tables) needs only 0.6.
-- **Staging behind Vercel's login:** the app can't call staging's API. Recommendation: before the first app join, make `staging.hrizzup.com` public with a protection exception (if free on Pro); previews stay private. Never put the bypass secret in the app.
-- **Posting on the website** (2.4). Recommendation: post on both; the website becomes "news, posts and markets". The founder decides.
-- **What the two surfaces share in code.** Recommendation: the contract, data fetching, validation and design tokens in `product/packages/`; screens built natively on each.
-- **Embedding found posts** (2.3). Recommendation: X's own embed, loaded just before it scrolls into view; a web view in the app.
-- **Perps' first settings** (3.4). Recommendation: a price every 5 seconds, a 0.1% opening fee, hourly funding, the rule-change log as a table.
-- **Free and paid** (2.7). Recommendation: reading and betting stay free; play money is never sold.
-- **Turnstile in the app** (1.6b). Recommendation: a small web view.
-- **Background jobs** (Sourcing chooses). Recommendation: Supabase Cron and Queues; Product reviews the choice.
-- **The closed test (2.6) needs News Desk's content.** Recommendation: start without it. The founder decides.
+- **The board's favourites and bookmarks need sign-in** (2.1), but 2.1 doesn't list 1.6a. Recommendation: add 1.6a to 2.1's needs, and 1.6b to its app join.
+- **Vercel's bot challenge and the app** (1.5d): a phone app doesn't behave like a browser; only `/api/health` is exempt. Recommendation: test first; if challenged, a staging-only firewall rule lets the API skip the challenge, keeping rate limits; production's goes through the release pipeline.
+- **oRPC 2.0 not stable in time:** recommendation: start the first contract on 1.x and move when it is.
+- **A guard for tool tokens:** recommendation: the Doppler check fails when a `hrizzup-tools` name appears in `stg`.
+- **Dependabot's three open alerts** (zod high; glob, minimatch moderate), with fixes released and no update pull request. Recommendation: one small change raising them, and find out why Dependabot opened none.
+- **Also open, with recommendations:** what the surfaces share beyond design values (the contract, data fetching, validation); embedding found posts (X's own embed; a web view in the app); perps' first settings (a price every 5 seconds, a 0.1% opening fee, hourly funding); Turnstile in the app (a small web view); background jobs (Supabase Cron and Queues, reviewed by Product).
+
+## For the founder
+
+- **Replace the Expo token** (runbook step 4.6, about 5 minutes): a fresh robot token straight into Doppler `hrizzup-tools`, then delete `EXPO_TOKEN` from `stg` and the old token in Expo. Until then it reaches every staging and preview build.
+- **1.4's first pass and the agreement:** the board and a story page are core screens, which need the first half Agreed. Recommendation: draw them now on the Draft's example data; approve them once it's Agreed.
+- **Approve the agreement's first half** in News Desk's place, once Sourcing's review lands.
+- **Market data** (1.2): approve the recommended sources: Pyth for Bitcoin (free or $500 a month), GoldAPI.io for gold ($99), Arena's dataset for AI models (free), Sportmonks for cricket (about €75), API-Football (about $19). Nothing to pay in Round 2.
+- **Install the app** on your Android phone when 1.5d shares its link.
+- **Posting on the website** (2.4): recommendation: both surfaces. **The closed test (2.6):** start without News Desk's content. **Free and paid** (2.7): reading and betting free; play money never sold.
+- Alongside: the developer accounts (0.4), 12 or more Google Play testers, and setting up News Desk.
 
 ## What's next
 
-1. **The founder:** create an Expo account with a token for Claude Code (needed by 1.5d); approve splitting step 1.7; decide D1 to D4.
-2. **Round 2:** 1.5a, 1.5b, 1.5c, 1.5d in one session; 1.7a alongside in its own worktree.
-3. **Sign off the agreement's first half:** Sourcing reviews it, then the founder approves it in News Desk's place.
-4. **Design (1.4):** references and the design system now; then the core screens.
-5. **Sign-in:** the website's email codes (1.6a, with D1's hook), then the app's (1.6b).
-6. **Then** each news feature through `TRACKER.md`, and the markets track (3.1 to 3.4) alongside.
-
-For the founder, alongside: the developer accounts (0.4), 12 or more Google Play testers, and setting up News Desk.
+1. **Round 2:** relays 2 to 5 in parallel; then the founder approves the first half.
+2. **Parallel local development (1.8).**
+3. **Sign-in:** 1.6a with the hook, then 1.6b.
+4. **The first feature round** through `TRACKER.md`; alongside, 1.7b and the markets track (3.1 to 3.4).
 
 ## Read for detail
 
-- `docs/research/round-2-readiness.md`: the readiness check in full, every fact with its source, ending with what's ready, what blocks and what only the founder can do.
-- `PLAN.md`: sections 2 (the surfaces, the parallel build, perps), 3 (how a feature is built), 5 (the order of work), 7 (open questions).
-- `TRACKER.md`: each news feature's stages.
+- `PLAN.md` (sections 2, 3, 5 and 7), `TRACKER.md` (before the first feature round; each feature's stages) and `CLAUDE.md` ("Unattended sessions").
+- `docs/setup/BLUEPRINT.md`: Expo (2), public staging (6), keys (7), sign-in (9), the typed API (13), budgets (14).
+- `docs/setup/RUNBOOK.md`: Part 4 (where keys live; step 4.6), the pre-launch checklist.
+- `docs/research/round-2-readiness.md` and `docs/research/manifold.md`: the research behind Round 2 and the market engine.
 - `agreement/README.md`: sign-offs, decisions, routes, fields, lists.
-- `docs/research/manifold.md`: Manifold's code and what we take, adapt or build.
-- `docs/status/product.md`: Product's status in full.
-- `docs/setup/BLUEPRINT.md`: services, sign-in (section 9), building blocks (13), performance budgets (14).
-- `CLAUDE.md`: the rules Claude Code works by.
+- `docs/status/product.md`: Product's status in full, with this session's own answers.
