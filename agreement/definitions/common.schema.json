@@ -41,11 +41,11 @@
     },
     "web_address": {
       "title": "Web address starting https://",
-      "description": "A public web address. Shown as a plain link; our software never follows it on its own.",
+      "description": "A public web address. Shown as a plain link; our software never follows it on its own. Its host is written in plain letters, digits, hyphens and dots (an international name in its xn-- form), with no name or password before it, so every language reads the same host from it.",
       "type": "string",
       "format": "uri",
       "maxLength": 2048,
-      "pattern": "^https://[^\\u0000-\\u0020\\u007f-\\u009f]+$"
+      "pattern": "^https://[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)+(?::[0-9]{1,5})?(?:[/?#][^\\u0000-\\u0020\\u007f-\\u009f\\\\]*)?$"
     },
     "code": {
       "title": "Short code (lower-case letters, digits and hyphens)",

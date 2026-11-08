@@ -94,14 +94,6 @@
     "id": "01a1a135-7e80-76b8-80ca-5550eecad2ee",
     "route": "found",
     "kind": "take",
-    "post": {
-      "url": "https://x.com/example_gone/status/9900000000000000106",
-      "handle": "example_gone",
-      "name": "Example Reactions",
-      "posted_at": "2026-11-03T11:20:00Z",
-      "media": "video"
-    },
-    "summary": "A video reacting to the Bengaluru team's model coming first in the ranking of AI coding tools.",
     "story_ids": ["01a1a0e7-aca0-71ed-94ec-7086aeb1161e"],
     "state": "unavailable",
     "created_at": "2026-11-03T11:40:00Z",
@@ -123,5 +115,25 @@
     "state": "live",
     "created_at": "2026-11-04T06:10:00Z",
     "updated_at": "2026-11-04T06:10:00Z"
+  },
+  {
+    "format": "sourced/1",
+    "id": "01a198ce-eba0-79f3-9705-d2319fd67801",
+    "route": "found",
+    "kind": "news",
+    "story_ids": ["01a19849-40e0-7f5f-8c4f-d23d4351e7aa"],
+    "state": "unavailable",
+    "created_at": "2026-11-01T20:31:00Z",
+    "updated_at": "2026-11-01T22:05:00Z"
+  },
+  {
+    "format": "sourced/1",
+    "id": "01a198d0-c060-756f-87f4-ad2cd2061e36",
+    "route": "found",
+    "kind": "news",
+    "story_ids": ["01a19849-40e0-7f5f-8c4f-d23d4351e7aa"],
+    "state": "unavailable",
+    "created_at": "2026-11-01T20:33:00Z",
+    "updated_at": "2026-11-01T22:05:00Z"
   }
 ]

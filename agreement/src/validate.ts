@@ -80,10 +80,12 @@ export function validate(record: unknown): Problem[] {
   if (!check) throw new Error(`The definition of ${format} isn't loaded`);
   if (!check(record)) {
     return (check.errors ?? []).map((e) => {
-      // A pattern's own text is unreadable in a log; its building block's title says what's expected.
+      // A pattern's own text is unreadable in a log, and so is "must NOT be valid" for a value the
+      // definition refuses (a post's handle-free address, a post on X among an update's other
+      // sources); the building block's title says what's expected.
       const title = (e.parentSchema as { title?: unknown } | undefined)?.title;
       const message =
-        e.keyword === 'pattern' && typeof title === 'string'
+        (e.keyword === 'pattern' || e.keyword === 'not') && typeof title === 'string'
           ? `must be ${title.charAt(0).toLowerCase()}${title.slice(1)}`
           : (e.message ?? 'is not valid');
       return { path: e.instancePath || '/', message };

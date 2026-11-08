@@ -2,20 +2,10 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://hrizzup.com/agreement/definitions/sourced.v1.schema.json",
   "title": "Sourced item, format version 1",
-  "description": "One thing the Grok bots found on X (news, or a creator's take on a story), as our pipeline keeps it in the sourced pool once it has passed the checks. It links to the original post and never copies it.",
+  "description": "One thing the Grok bots found on X (news, or a creator's take on a story), as our pipeline keeps it in the sourced pool once it has passed the checks. It links to the original post and never copies it, and once the post can't be shown, it keeps nothing of it.",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "format",
-    "id",
-    "route",
-    "kind",
-    "post",
-    "summary",
-    "state",
-    "created_at",
-    "updated_at"
-  ],
+  "required": ["format", "id", "route", "kind", "state", "created_at", "updated_at"],
   "properties": {
     "format": {
       "const": "sourced/1",
@@ -23,7 +13,7 @@
     },
     "id": {
       "$ref": "common.schema.json#/$defs/record_id",
-      "description": "The sourced item's ID, made by our pipeline when it first keeps the post. Our own content names it when it builds on the post."
+      "description": "The sourced item's ID, made by our pipeline when it first keeps the post. Our own content and our updates name it when they build on the post."
     },
     "route": {
       "$ref": "lists.schema.json#/$defs/route",
@@ -38,33 +28,34 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["url", "handle", "posted_at", "media"],
-      "description": "The original post on X. Only these facts about it are kept, never its words, pictures or video.",
+      "description": "The original post on X. Only these facts about it are kept, never its words, pictures or video, and only while the post can be shown: an unavailable item has none.",
       "properties": {
         "url": {
           "title": "Address of a post on X",
           "type": "string",
           "pattern": "^https://x\\.com/[A-Za-z0-9_]{1,15}/status/[1-9][0-9]{0,19}$",
-          "description": "The post's address on X, in its standard form, which screens embed and link to. The number at its end is the post's own, so the pool keeps each post once, by that number."
+          "not": { "type": "string", "pattern": "^https://x\\.com/i/" },
+          "description": "The post's standard address on X, as X's own embed lookup gives it: the account's handle when last checked, then the post's number, never the handle-free form (x.com/i/status/…) that Grok cites. For an edited post, its newest version. Screens embed it and link to it, and the pool keeps each post once, by its number."
         },
         "handle": {
           "title": "Handle on X (letters, digits and underscores, without the @)",
           "type": "string",
           "pattern": "^[A-Za-z0-9_]{1,15}$",
-          "description": "The handle of the account that posted it, as it was when found. The credit names it."
+          "description": "The handle of the account that posted it, as X showed it when our pipeline last checked: refreshed at every check, since a handle can change and then pass to another account. The credit names it."
         },
         "name": {
           "$ref": "common.schema.json#/$defs/one_line",
           "type": "string",
           "maxLength": 80,
-          "description": "The account's name, as X showed it when found. Left out when X shows none in plain text; the handle alone is enough to credit it."
+          "description": "The account's name, as X showed it when last checked, with any characters the agreement refuses taken out. Left out when nothing readable remains; the handle alone is enough to credit it."
         },
         "posted_at": {
           "$ref": "common.schema.json#/$defs/time",
-          "description": "When it was posted on X."
+          "description": "When it was first posted on X: for an edited post, when its first version was."
         },
         "media": {
           "enum": ["text", "image", "video"],
-          "description": "What the post holds: text (words only), image (one or more pictures, memes among them) or video (a video or a moving picture), so screens can hold room for it and News Desk can find what to build on."
+          "description": "What the post itself holds, so screens can hold room for it and News Desk can find what to build on: video if it holds any video or moving picture; otherwise image if it holds any picture (memes among them); otherwise text (words only, perhaps with a link's preview card or a poll). A quoted post's media don't count."
         }
       }
     },
@@ -72,7 +63,7 @@
       "$ref": "common.schema.json#/$defs/text",
       "type": "string",
       "maxLength": 300,
-      "description": "What the post says or shows, in one or two sentences of our own words, never copied from it. News Desk reads it to choose what to build on."
+      "description": "What the post says or shows, in one or two sentences of our own words, never copied from it: for an edited post, its newest version; for a thread, the whole thread. News Desk reads it to choose what to build on. An unavailable item has none."
     },
     "story_ids": {
       "type": "array",
@@ -80,17 +71,17 @@
       "maxItems": 3,
       "uniqueItems": true,
       "items": { "$ref": "common.schema.json#/$defs/record_id" },
-      "description": "The stories it belongs to. A take shows in their feeds, and always names at least one; news names the stories our AI used it in, once it has."
+      "description": "The stories it belongs to, never a merged one (a merge moves it to the story that stays). A take shows in their feeds, and always names at least one; news names the stories our AI used it in, once it has."
     },
     "state": {
       "enum": ["live", "unavailable", "withdrawn"],
-      "description": "live: in use. unavailable: the post is gone from X (deleted, hidden, or its account closed), so readers no longer see it, and News Desk doesn't build on it. withdrawn: our AI took it out (not genuine, not about its story, or not safe to show), and readers no longer see it."
+      "description": "live: in use. unavailable: the post can't be shown any more (deleted; its account protected, suspended or closed; withheld in India; or its creator asked us to take it down), so its post and summary are erased and nobody sees it; this is final, and a post that comes back is kept again as a new item. withdrawn: taken out, but still held so the same post isn't kept again: our AI found it wasn't genuine, wasn't about its story or wasn't safe to show, or the law requires it to come down. Readers no longer see it."
     },
     "withdrawn_reason": {
       "$ref": "common.schema.json#/$defs/one_line",
       "type": "string",
       "maxLength": 200,
-      "description": "Why our AI withdrew it, in our own words, kept for the record. Only when the state is withdrawn."
+      "description": "Why it was withdrawn, in our own words, kept for the record: our AI's reason, or the takedown the law required. Only when the state is withdrawn."
     },
     "created_at": {
       "$ref": "common.schema.json#/$defs/time",
@@ -105,6 +96,11 @@
     {
       "if": { "properties": { "kind": { "const": "take" } } },
       "then": { "required": ["story_ids"] }
+    },
+    {
+      "if": { "properties": { "state": { "const": "unavailable" } } },
+      "then": { "not": { "anyOf": [{ "required": ["post"] }, { "required": ["summary"] }] } },
+      "else": { "required": ["post", "summary"] }
     },
     {
       "if": { "properties": { "state": { "const": "withdrawn" } } },
