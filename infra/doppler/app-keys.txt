@@ -1,0 +1,40 @@
+# Doppler `hrizzup`: the app's keys, by name only, never a value.
+#
+# The app's keys are whatever the website, its server code or the database needs to run
+# (runbook Part 4, "Where each kind of key lives"). They are the only names allowed in
+# hrizzup's `stg`, `stg_preview` and `dev`, besides Doppler's own labels (DOPPLER_CONFIG,
+# DOPPLER_ENVIRONMENT, DOPPLER_PROJECT). Tool tokens are never listed here: a token a tool
+# uses to act on a service for Claude Code (Cloudflare, Supabase's API, Vercel, Expo,
+# GitHub, Doppler, and any future one) lives only in `hrizzup-tools/claude`.
+#
+# Checked on this Mac by `python3 infra/doppler/dev_follows_staging.py check`, which also
+# refuses any name `hrizzup-tools` holds, and by `infra/doppler/app_keys.py` in the GitHub
+# jobs that load a config whole, before they load it.
+#
+# A new app key: its name goes in here first, in a pull request that merges before the key
+# is added to `stg`, since every check that reads `stg` fails on a name not listed here.
+# A key deleted from `stg` leaves this list in the next pull request.
+#
+# One name per line, then what uses it after a #.
+
+AUTH_RELAY_SECRET           # previews' Google sign-in through staging's relay (product/web/lib/auth-relay.ts); staging and previews only, never prd
+DATABASE_URL                # the website's database address: Supabase's pooler, transaction mode (product/web/lib/db.ts)
+DATABASE_URL_SESSION        # the migrations' database address: the pooler in session mode (infra/supabase/database_url.py)
+GOOGLE_OAUTH_CLIENT_ID      # Google sign-in's client, set in Supabase Auth (infra/supabase/auth)
+GOOGLE_OAUTH_CLIENT_SECRET  # Google sign-in's client secret; Supabase Auth keeps a copy (infra/supabase/auth)
+MEDIA_BASE_URL              # the address images and media are served from
+R2_ACCESS_KEY_ID            # the website's storage key for this environment's two R2 buckets
+R2_BUCKET_MEDIA             # the media bucket's name
+R2_BUCKET_UPLOADS           # the uploads bucket's name
+R2_ENDPOINT                 # R2's address for the Cloudflare account
+R2_SECRET_ACCESS_KEY        # the storage key's secret half
+REDIS_KEY_PREFIX            # the environment at the start of every Redis key (stg, pre, dev, prd); dev's own value is in dev-overrides.txt
+RESEND_API_KEY              # sending the email codes; Supabase Auth keeps a copy (infra/supabase/auth)
+SUPABASE_DB_PASSWORD        # the database password the code fills into both database addresses
+SUPABASE_PUBLISHABLE_KEY    # Supabase's public key, for sign-in in the browser (product/web/lib/supabase/config.ts)
+SUPABASE_SECRET_KEY         # Supabase's server-only key: the server's admin calls and the test accounts
+SUPABASE_URL                # the Supabase project's address
+TURNSTILE_SECRET_KEY        # the bot check's secret; Supabase Auth keeps a copy (infra/supabase/auth)
+TURNSTILE_SITE_KEY          # the bot check's widget key, shown in the page
+UPSTASH_REDIS_REST_TOKEN    # the website's own Redis (Upstash) access token
+UPSTASH_REDIS_REST_URL      # Redis (Upstash) address

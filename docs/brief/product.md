@@ -2,7 +2,7 @@
 
 **This brief replaces Claude Code's report:** read it after **Sync now** instead of asking the founder for one, and attach the files under "Read for detail" from GitHub for more.
 
-> Rewritten 9 November 2026, after Round 2's relay 2. PLAN.md wins any disagreement.
+> Rewritten 9 November 2026, after Round 2's relays 1 and 2. PLAN.md wins any disagreement.
 
 **Hrizzup** is a news app built around creators, plus a website with play-money prediction markets: our AI finds news as it breaks on X and turns it into developing stories seen through creators' takes. **Product builds** the website and the app in parallel (the website a stage ahead; Android, then iPhone from the same code) and the markets. It displays content that arrives through the hand-over agreement (`agreement/README.md`), whose first half Product drafts.
 
@@ -17,7 +17,7 @@
 
 One line per relay; each relay keeps only its own line current.
 
-1. **Relay 1, the round's records:** merged [#36](https://github.com/Zugzwang-world/hrizzup/pull/36). Next: nothing, relay 1 is done. For the founder: replace the Expo token.
+1. **Relay 1, the round's records:** merged [#36](https://github.com/Zugzwang-world/hrizzup/pull/36) and its follow-up [#53](https://github.com/Zugzwang-world/hrizzup/pull/53), the Doppler names check. Next: its jobs' half, [#54](https://github.com/Zugzwang-world/hrizzup/pull/54), once the Expo token is replaced. For the founder: replace the Expo token.
 2. **Relay 2, steps 1.5a to 1.5d:** done: [#41](https://github.com/Zugzwang-world/hrizzup/pull/41) (the Speed check), [#47](https://github.com/Zugzwang-world/hrizzup/pull/47) (journey tests), [#48](https://github.com/Zugzwang-world/hrizzup/pull/48) (the typed API), [#49](https://github.com/Zugzwang-world/hrizzup/pull/49), [#51](https://github.com/Zugzwang-world/hrizzup/pull/51) and [#50](https://github.com/Zugzwang-world/hrizzup/pull/50) (staging public; the app answering from it). Next: nothing, relay 2 is done. For the founder: install the app.
 3. **Relay 3, step 1.7a, Manifold's maths:** merged [#44](https://github.com/Zugzwang-world/hrizzup/pull/44), our money tests: no play money created or lost, over every trade and settlement and 41 random markets; 1.7a is done (201 tests pass, after [#38](https://github.com/Zugzwang-world/hrizzup/pull/38) and [#43](https://github.com/Zugzwang-world/hrizzup/pull/43)). Next: nothing, relay 3 is done. Three questions below.
 4. **Relay 4, step 1.4's first pass:** first milestone [#39](https://github.com/Zugzwang-world/hrizzup/pull/39): the readable-text check and the design values package (three candidate directions, nothing on screen yet). Next: the three directions as working boards on preview links, for the founder to choose.
@@ -38,10 +38,16 @@ One line per relay; each relay keeps only its own line current.
 
 Relay 2 finished step 1.5 on 8 and 9 November 2026:
 
-- **The Speed check** ([#41](https://github.com/Zugzwang-world/hrizzup/pull/41)): every preview page against its budget (Lighthouse's mobile preset, median of 5; hard size limits that count other sites' code; faint text fails, light and dark), and the app's code size against main's. Pages load in about 0.8 s, with 141 of 200 KB of code.
-- **Journey tests** ([#47](https://github.com/Zugzwang-world/hrizzup/pull/47)): every website page opens, the test account signs in and out, Google sign-in starts; the app's first Maestro test.
-- **The typed API** ([#48](https://github.com/Zugzwang-world/hrizzup/pull/48)): oRPC 1.16.1, contract first (`product/packages/api`): health, cached at the edge for 30 s, and who am I, never cached; both the website and the app call it; validators and types come from the agreement.
-- **The app on the phone** ([#49](https://github.com/Zugzwang-world/hrizzup/pull/49), [#51](https://github.com/Zugzwang-world/hrizzup/pull/51), [#50](https://github.com/Zugzwang-world/hrizzup/pull/50)): staging public after a review of all it serves, its typed API exempt from the bot challenge (an app can't pass it) behind a rate limit; the app (`@hrizzups-team/hrizzup`) has an installable preview build and a development build; App journeys checks it shows staging's answer.
+- **The Speed check** ([#41](https://github.com/Zugzwang-world/hrizzup/pull/41)): every preview page against its budget, with Lighthouse's mobile preset (sizes count other sites' code; faint text fails), and the app's code size against main's. Pages load in about 0.8 s, with 141 of 200 KB of code.
+- **Journey tests** ([#47](https://github.com/Zugzwang-world/hrizzup/pull/47)): every website page opens, the test account signs in and out; the app's first Maestro test.
+- **The typed API** ([#48](https://github.com/Zugzwang-world/hrizzup/pull/48)): oRPC 1.16.1, contract first (`product/packages/api`): health (kept at the edge for 30 s) and who am I (never cached), called by the website and the app; validators and types from the agreement.
+- **The app on the phone** ([#49](https://github.com/Zugzwang-world/hrizzup/pull/49), [#51](https://github.com/Zugzwang-world/hrizzup/pull/51), [#50](https://github.com/Zugzwang-world/hrizzup/pull/50)): staging public after a review; its typed API skips the bot challenge for reads, behind a rate limit; the app (`@hrizzups-team/hrizzup`) has an installable preview build and a development build, and App journeys checks it shows staging's answer.
+
+On 9 November 2026, relay 1's follow-up [#53](https://github.com/Zugzwang-world/hrizzup/pull/53) added a guard so no tool token sits in the app's Doppler configs again, as `VERCEL_TOKEN` (3 November) and `EXPO_TOKEN` (8 November) did:
+
+- **The list:** `infra/doppler/app-keys.txt` names the app's 21 keys, names only; only those may be in `stg`, `stg_preview` and `dev`. A new key's name is listed in a pull request that merges before the key goes in (CLAUDE.md, runbook Part 4).
+- **The check:** `infra/doppler/dev_follows_staging.py check` fails on any other name and on any name `hrizzup-tools` holds; today it finds only `EXPO_TOKEN`. Its tests run in Quick checks.
+- **Held:** the same check in the Staging workflow and the Screen check ([#54](https://github.com/Zugzwang-world/hrizzup/pull/54)) merges after runbook step 4.6; until then it would stop every one of their runs.
 
 ## Open questions
 
@@ -53,12 +59,12 @@ Relay 2 finished step 1.5 on 8 and 9 November 2026:
 - **Who builds each feature's screens** (4a, 4b). Recommendation: the round's relays, from the design chat's approved design, reviewed there on previews.
 - **Sign-in for the board's favourites** (2.1). Recommendation: 1.6a joins 2.1's needs, and 1.6b its app join.
 - **The markets' maths** (relay 3), recommended: a zero fee behind `TAKER_FEE_RATE`, a later fee settling how cancels refund it (1.7a); a cancel takes back sale profits, as Manifold's does, the balance showing what's owed (1.7b); the trade call refuses limits outside 1% to 99%, an expiry of 0, and amounts not positive or over the balance (1.7d).
-- **Also open, recommendations in the status file:** the app's Hermes rewrite of oRPC's code (keep it until oRPC 2.0, its own change); a Doppler check against tool tokens in `stg`; Dependabot's three alerts; shared code (contract, data fetching, validation); perps' first settings (5-second prices, a 0.1% opening fee, hourly funding); Turnstile in a web view; background jobs on Supabase Cron and Queues.
+- **Also open, recommendations in the status file:** the app's Hermes rewrite of oRPC's code (keep it until oRPC 2.0, its own change); Dependabot's three alerts; shared code (contract, data fetching, validation); perps' first settings (5-second prices, a 0.1% opening fee, hourly funding); Turnstile in a web view; background jobs on Supabase Cron and Queues.
 
 ## For the founder
 
 - **Install the app** on your Android phone (about 2 minutes, on Wi-Fi: the file is about 90 MB): on the phone, open https://expo.dev/artifacts/eas/_jkiSqG2YisBSi0Xmyt3OrQUObdq271MkTV5Gyl_x44.apk; when Android asks, allow your browser to install unknown apps (if Play Protect offers a scan, either choice is fine); open Hrizzup. It should say "Hrizzup's servers answer: all working, from Mumbai (staging)". Then tell Claude Code "app installed".
-- **Replace the Expo token** (runbook step 4.6, about 5 minutes).
+- **Replace the Expo token** (runbook step 4.6, about 5 minutes). It also lets [#54](https://github.com/Zugzwang-world/hrizzup/pull/54) merge.
 - **Approve the agreement's first half** in News Desk's place, once Product brings its market shape in line (recommended). **Sourcing's three questions** (F1 to F3), recommended: found takes in English only; takedown requests to a `hrizzup.com` address, answered within 24 hours; a lawyer's check before launch.
 - **Design:** the board and a story page on the Draft's examples now, approved once it's Agreed; the other screens feature by feature in the design chat, just ahead of each contract stage.
 - **Spending, not now:** a speed check from India (Calibre Starter, $75 a month, Mumbai) once the board (2.1) exists; Expo's Maestro job (about $60 a month) only if the emulator check proves flaky.
