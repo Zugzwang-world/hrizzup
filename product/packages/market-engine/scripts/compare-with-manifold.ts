@@ -73,8 +73,10 @@ const formatLikeOurs = (rel: string, text: string) => {
     { cwd: repoRoot, input: text, encoding: 'utf8' },
   );
   // Biome still prints the formatted text when lint findings remain; those are ours to see in
-  // the comparison, not a failure here.
-  return result.stdout || text;
+  // the comparison, not a failure here. No text at all means Biome itself failed.
+  if (!result.stdout)
+    throw new Error(`Biome couldn't format ${rel}: ${result.stderr || result.error}`);
+  return result.stdout;
 };
 
 const scratch = mkdtempSync(join(tmpdir(), 'compare-with-manifold-'));
