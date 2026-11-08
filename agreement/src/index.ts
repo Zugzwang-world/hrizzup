@@ -3,7 +3,6 @@ export { standardSchema } from './standard-schema.ts';
 export type {
   Creation,
   Market,
-  Reading,
   Shapes,
   Sourced,
   Story,

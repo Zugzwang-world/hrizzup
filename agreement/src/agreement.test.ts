@@ -30,7 +30,6 @@ const updates = of('update/1');
 const sourced = of('sourced/1');
 const creations = of('creation/1');
 const markets = of('market/1');
-const readings = of('reading/1');
 const definitions = [...parts, ...Object.values(shapes)] as Item[];
 
 /** Visits every schema object, optionally skipping the rule keywords (if/then, allOf…). */
@@ -135,9 +134,6 @@ describe('the examples', () => {
         expect(storyIds.has(id)).toBe(true);
       for (const id of (c.based_on as string[] | undefined) ?? [])
         expect(sourcedIds.has(id), 'our own content builds on a sourced item').toBe(true);
-    }
-    for (const m of markets.filter((m) => m.match_ref)) {
-      expect(readings.some((r) => (r.match as Item | undefined)?.ref === m.match_ref)).toBe(true);
     }
   });
 
@@ -263,6 +259,33 @@ describe('the examples', () => {
       creations.some((c) => c.based_on),
       'our own content built on a found post',
     ).toBe(true);
+    // Test markets with placeholder questions until the topics come (PLAN.md section 2).
+    for (const state of ['draft', 'open', 'closed', 'settled', 'cancelled']) {
+      expect(
+        markets.some((m) => m.state === state),
+        `a market that is ${state}`,
+      ).toBe(true);
+    }
+    for (const kind of ['yes_no', 'multiple_choice']) {
+      expect(
+        markets.some((m) => m.kind === kind),
+        `a ${kind} market`,
+      ).toBe(true);
+    }
+    for (const settlement of ['by_hand', 'automatic']) {
+      expect(
+        markets.some((m) => m.settlement === settlement),
+        `a market settled ${settlement}`,
+      ).toBe(true);
+    }
+    expect(
+      markets.some((m) => String(m.question).length === 120),
+      'a market question at the longest allowed',
+    ).toBe(true);
+    expect(
+      markets.every((m) => String(m.question).startsWith('Placeholder: ')),
+      "every example market is a test market, since the topics aren't chosen yet",
+    ).toBe(true);
   });
 });
 
@@ -272,8 +295,7 @@ describe('the format check', () => {
   const take = sourced.find((s) => s.kind === 'take' && s.state === 'live') as Item;
   const creation = creations.find((c) => c.kind === 'image') as Item;
   const creatorPost = creations.find((c) => (c.author as Item).kind === 'creator') as Item;
-  const market = markets.find((m) => m.kind === 'yes_no') as Item;
-  const reading = readings.find((r) => r.subject === 'bitcoin') as Item;
+  const market = markets.find((m) => m.kind === 'yes_no' && m.state === 'open') as Item;
   const cp = (...points: number[]) => String.fromCodePoint(...points);
   const changed = (record: Item, change: (copy: Item) => void) => {
     const copy = structuredClone(record);
@@ -476,12 +498,22 @@ describe('the format check', () => {
         market,
         (m) =>
           (m.outcomes = [
-            { code: 'a', label: 'A', reading_value: 'A' },
-            { code: 'b', label: 'B', reading_value: 'B' },
+            { code: 'a', label: 'A' },
+            { code: 'b', label: 'B' },
           ]),
       ),
     ],
-    ['a price market without its threshold', changed(market, (m) => delete m.threshold)],
+    ['a market without its rules', changed(market, (m) => delete m.rules)],
+    ['a market without its settlement source', changed(market, (m) => delete m.source)],
+    ['a settlement source with no name', changed(market, (m) => (m.source = {}))],
+    [
+      'a settlement source at a plain http address',
+      changed(market, (m) => (m.source = { name: 'Test desk', url: 'http://example.com/feed' })),
+    ],
+    ['a market that settles some other way', changed(market, (m) => (m.settlement = 'oracle'))],
+    ['a market that names a data slot', changed(market, (m) => (m.subject = 'bitcoin'))],
+    ['a state the market model has no place for', changed(market, (m) => (m.state = 'void'))],
+    ['an open market with a result', changed(market, (m) => (m.result = 'yes'))],
     [
       'a settled market without its result',
       changed(market, (m) => {
@@ -490,12 +522,20 @@ describe('the format check', () => {
       }),
     ],
     [
-      'a price reading that holds a ranking',
-      changed(reading, (r) => (r.ranking = { leaders: [{ rank: 1, name: 'X' }] })),
+      'a cancelled market without its reason',
+      changed(market, (m) => {
+        m.state = 'cancelled';
+        m.settled_at = m.closes_at;
+      }),
     ],
     [
-      'a price written as a number, not text',
-      changed(reading, (r) => ((r.price as Item).amount = 101245.37)),
+      'a cancelled market with a result',
+      changed(market, (m) => {
+        m.state = 'cancelled';
+        m.settled_at = m.closes_at;
+        m.cancel_reason = 'The test desk recorded nothing.';
+        m.result = 'no';
+      }),
     ],
   ])('refuses %s', (_, record) => {
     expect(validate(record)).not.toEqual([]);

@@ -2,14 +2,14 @@
 
 **This brief replaces Claude Code's report:** read it after clicking **Sync now**, instead of asking the founder for a report, and attach the files under "Read for detail" from GitHub when you need more.
 
-> Rewritten 8 November 2026. The only repository file the News Desk project keeps in its knowledge; Claude Code rewrites it at the end of every session that touches News Desk's part. If it and PLAN.md disagree, PLAN.md wins.
+> Rewritten 9 November 2026. The only repository file the News Desk project keeps in its knowledge; Claude Code rewrites it at the end of every session that touches News Desk's part. If it and PLAN.md disagree, PLAN.md wins.
 
 **Hrizzup** is a news app built around creators, plus a website with play-money prediction markets. Our AI finds news as it breaks on X and turns it into developing stories that readers see through creators' takes. **News Desk's job:** make our own content from the sourced pool and onboard creators. It produces text, images and video, which Product shows in the app and on the website, in the shape the hand-over agreement (`agreement/README.md`) fixes. **News Desk is on hold until the founder sets it up.**
 
 ## Where things stand
 
 - **On hold** (the founder's decision, 5 November 2026) until the founder sets News Desk up. No News Desk work has started; the `news-desk/` folder holds only its README.
-- **The agreement's first half is a Draft, reviewed by Sourcing and awaiting the founder's approval** (revised 8 November 2026 after Sourcing's review, [#37](https://github.com/Zugzwang-world/hrizzup/pull/37), [#42](https://github.com/Zugzwang-world/hrizzup/pull/42) and [#45](https://github.com/Zugzwang-world/hrizzup/pull/45): the creation shape is unchanged; updates name their posts in `based_on`; `withdrawn` covers legal takedowns too): the creation shape (what News Desk hands to Product), the sourced item (what it builds on), every feed item's route, the shared lists and example posts. The founder approves it in News Desk's place; News Desk reviews it once it's set up.
+- **The agreement's first half is a Draft, reviewed by Sourcing and awaiting the founder's approval** (its market revised to the market model on 9 November 2026; revised 8 November after Sourcing's review, [#37](https://github.com/Zugzwang-world/hrizzup/pull/37), [#42](https://github.com/Zugzwang-world/hrizzup/pull/42) and [#45](https://github.com/Zugzwang-world/hrizzup/pull/45): the creation shape is unchanged; updates name their posts in `based_on`; `withdrawn` covers legal takedowns too): the creation shape (what News Desk hands to Product), the sourced item (what it builds on), every feed item's route, the shared lists and example posts. The founder approves it in News Desk's place; News Desk reviews it once it's set up.
 - **The shared setup is finished** (Phase 0, 4 November 2026): the content store on staging is the Supabase database plus Cloudflare R2 for images, which Cloudflare resizes and delivers; creator video uses Cloudflare Stream, switched on with step 2.4. Production is parked until launch.
 
 ## Decisions in force
@@ -35,11 +35,11 @@
 
 ## What changed in the latest session
 
-On 8 November 2026, in [#40](https://github.com/Zugzwang-world/hrizzup/pull/40), the founder's decisions on the markets and on how Product works were recorded (PLAN.md sections 2 to 5 and 7). For News Desk:
+On 9 November 2026, in [#52](https://github.com/Zugzwang-world/hrizzup/pull/52), the agreement's first half took the founder's market model, at his request (still Draft, version 1). For News Desk:
 
-- **The markets' topics wait:** Product builds markets first on test markets; their topics and data sources (step 1.2) come once markets work end to end on staging, and content on market subjects waits for them.
-- **The market shape News Desk reads may change** before the first half is Agreed (Product recommends revising it to the new model).
-- **Product designs in a dedicated design chat,** led by the founder. Nothing else in News Desk's scope changed.
+- **The market News Desk reads** now holds its question, outcomes, rules, opening and closing times, a named settlement source and its state (draft, open, closed, settled or cancelled); only Hrizzup creates markets.
+- **The market subjects list left the first half,** with data readings, until the markets' topics are chosen (step 1.2), so content on market subjects waits for them.
+- **The creation shape didn't change.**
 
 ## Open questions
 

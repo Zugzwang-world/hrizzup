@@ -1,16 +1,6 @@
-import type {
-  Creation,
-  Format,
-  Market,
-  Reading,
-  Shapes,
-  Sourced,
-  Story,
-  Update,
-} from '@hrizzup/agreement';
+import type { Creation, Format, Market, Shapes, Sourced, Story, Update } from '@hrizzup/agreement';
 import creations from '@hrizzup/agreement/examples/creations.json' with { type: 'json' };
 import markets from '@hrizzup/agreement/examples/markets.json' with { type: 'json' };
-import readings from '@hrizzup/agreement/examples/readings.json' with { type: 'json' };
 import sourced from '@hrizzup/agreement/examples/sourced.json' with { type: 'json' };
 import stories from '@hrizzup/agreement/examples/stories.json' with { type: 'json' };
 import updates from '@hrizzup/agreement/examples/updates.json' with { type: 'json' };
@@ -49,5 +39,4 @@ export const content: { [F in Format]: readonly Shapes[F][] } = {
   'sourced/1': sourced as unknown as Sourced[],
   'creation/1': creations as unknown as Creation[],
   'market/1': markets as unknown as Market[],
-  'reading/1': readings as unknown as Reading[],
 };

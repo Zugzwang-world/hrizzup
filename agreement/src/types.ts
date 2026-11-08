@@ -26,7 +26,6 @@ export const typeNames = {
   'sourced/1': 'Sourced',
   'creation/1': 'Creation',
   'market/1': 'Market',
-  'reading/1': 'Reading',
 } as const satisfies Record<Format, string>;
 
 type Node = { [key: string]: unknown };

@@ -39,6 +39,7 @@ Last updated: 8 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/brie
     - `format-nongpl` rather than `format`, which pulls in a GPL-licensed package.
 
 - **The market model, the founder's decisions of 8 November 2026** ([#40](https://github.com/Zugzwang-world/hrizzup/pull/40)): markets stay Product's, built first on test markets settled by hand; step 1.2 (the markets' topics and data sources) is parked until markets work end to end on staging. For Sourcing only the background-jobs choice grows: besides perps' job every few seconds (now step 3.4a, first on a stand-in price), it must later cover the automatic resolvers that settle markets at their closing moments (step 3.2a). Product now works in two tracks (design in a dedicated design chat, engineering in each round's chat); nothing in Sourcing's shapes changes.
+- **The agreement's market follows the market model, 9 November 2026** ([#52](https://github.com/Zugzwang-world/hrizzup/pull/52)): only Product's parts changed (the market; data readings and the market subjects list left the first half until step 1.2). Nothing Sourcing writes, reads or checks changed, so its review's findings all stand; the agreement's status records that Sourcing agreed the version before this change.
 
 ## Next
 

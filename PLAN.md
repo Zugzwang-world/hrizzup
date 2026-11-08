@@ -271,7 +271,6 @@ The markets follow the founder's build order (section 2, "Markets"; 8 November 2
 - The topics and their data sources (step 1.2, decided in the Product project; parked until markets work end to end on staging): which markets we run and their exact questions, many copied from Kalshi's market formats, and the source each settles from, with its cost, including the perp's live Bitcoin price. The readiness check's research is reference, not decisions
 - Background jobs: which tool runs scheduled and queued work (decided in the Sourcing project); it must cover perps' jobs every few seconds (step 3.4a) and the automatic resolvers (step 3.2a)
 - Admins before the admin page: how someone becomes an admin, who can create markets and settle them by hand (steps 1.7c and 1.7d)
-- The agreement's market shape (first half, Draft) predates the market model: it settles every market itself from a subject's data slot, and its states differ. How it follows the model before the first half is Agreed (step 0.7)
 - Whether the screens beyond 1.4's three core screens are designed up front or feature by feature (settled in the design chat)
 - How the app shows the bot check (Turnstile) on its email-code screen (step 1.6b)
 - Feed design in depth, including how found posts are embedded from X and how each route is credited (step 2.3)
