@@ -55,7 +55,7 @@ On 8 November 2026, Round 2's relay 5 reviewed the agreement's first half as Sou
 - **oRPC 2.0 not stable in time:** recommendation: start the first contract on 1.x and move when it is.
 - **A guard for tool tokens:** recommendation: the Doppler check fails when a `hrizzup-tools` name appears in `stg`.
 - **Dependabot's three open alerts** (zod high; glob, minimatch moderate), with fixes released and no update pull request. Recommendation: one small change raising them, and find out why Dependabot opened none.
-- **The markets' trading fee** (1.7a): the maths keeps it at zero behind one setting, `TAKER_FEE_RATE`, using Manifold's formula (rate × p × (1 − p) × shares). Recommendation: zero at launch, as Manifold runs today; if one is wanted later, decide with it how a cancelled market refunds fees (next point).
+- **The markets' trading fee** (1.7a): the maths keeps it at zero behind one setting, `TAKER_FEE_RATE`, using Manifold's formula (rate × p × (1 − p) × shares). Recommendation: zero at launch, as Manifold runs today; if one is wanted later, decide with it how a cancelled market refunds: Manifold refunds the whole stake, fee included, without taking the fee back, which would create play money.
 - **Also open, with recommendations:** what the surfaces share beyond design values (the contract, data fetching, validation); embedding found posts (X's own embed; a web view in the app); perps' first settings (a price every 5 seconds, a 0.1% opening fee, hourly funding); Turnstile in the app (a small web view); background jobs (Supabase Cron and Queues, reviewed by Product).
 
 ## For the founder
