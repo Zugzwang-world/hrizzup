@@ -66,7 +66,7 @@ Website only. The markets product comes first and works the same for any questio
 
 | Order | Step | What | Needs | Status |
 |---|---|---|---|---|
-| 1 | 1.7a | The engine maths: Manifold's maths with its tests, plus our own tests that money in equals money out | 0.6 | Round 2, relay 3: in progress: Manifold's maths and its tests ([#38](https://github.com/Zugzwang-world/hrizzup/pull/38)); our changes ([#43](https://github.com/Zugzwang-world/hrizzup/pull/43)); next, our money tests |
+| 1 | 1.7a | The engine maths: Manifold's maths with its tests, plus our own tests that money in equals money out | 0.6 | in progress (Round 2, relay 3): Manifold's maths and its tests ([#38](https://github.com/Zugzwang-world/hrizzup/pull/38)); our changes ([#43](https://github.com/Zugzwang-world/hrizzup/pull/43)); next, our money tests |
 | 2 | 1.7b | The ledger: play-money balances, trades and positions; each trade one database step; money in always equals money out | 0.6, 0.7 (first half), 1.7a | not started |
 | 3 | 1.7c | Markets as data, created only by Hrizzup, with settlement by hand: admin only, every settlement logged | 0.7 (first half), 1.7b | not started |
 | 4 | 1.7d | The engine's calls in the typed API: create, list, trade, positions, settle | 1.5c, 1.7c | not started |
