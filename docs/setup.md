@@ -1510,6 +1510,11 @@ No good sign-in failed, so the switch-off kept ready beside it (one setting, `ho
 - **Set:** the Screen check no longer loads Doppler `stg_preview` whole. `infra/doppler/named_keys.py` asks it for the ten keys the tests read (`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`, `TURNSTILE_SITE_KEY`, `R2_ENDPOINT`, `R2_BUCKET_UPLOADS`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `DATABASE_URL`, `SUPABASE_DB_PASSWORD`), by name, with the job's read-only token, and gives them to the tests' process alone ([#84](https://github.com/Zugzwang-world/hrizzup/pull/84)).
 - **Checked:** live with Claude Code's read-only `stg_preview` token, names only: the command received exactly those ten and not the token.
 
+### Dependabot's three alerts (Round 3, relay 3, Claude Code)
+
+- **Set:** `@vercel/functions` ^3.11.0 in the website (its `@vercel/cli-config` 0.3.7 asks for zod ^4.6.6); `pnpm-workspace.yaml` overrides glob `>=9.0.0 <14.0.2` to ^14.0.3 and minimatch `>=7.0.0 <11.0.1` to ^11.0.4, under Expo SDK 58's packages ([#85](https://github.com/Zugzwang-world/hrizzup/pull/85)). The lockfile holds zod 4.6.7, glob 14.0.3 and minimatch 11.0.4 alone. pnpm's 3-day wait unchanged; every version used had cleared it.
+- **Measured, for P.17:** this repository's checks used about 2,700 GitHub Actions minutes from 1 to 9 November 2026 (1,575 on 9 November), from each job's own run time.
+
 ---
 
 ## Rules for this log
