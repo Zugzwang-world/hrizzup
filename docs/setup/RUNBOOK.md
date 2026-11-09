@@ -151,7 +151,7 @@ The repo lives in your personal GitHub account, `Zugzwang-world`, on GitHub Pro,
 
 | Kind of key | Where it lives | Why |
 |---|---|---|
-| **The app's keys:** whatever the website, its server code or the database needs to run | `hrizzup`: `stg` for staging (previews inherit it through `stg_preview`; this Mac follows it through `dev`), `prd` for production | `stg` and `stg_preview` sync into Vercel's staging and previews, and `prd` into production; the Staging workflow reads `stg` whole; the Screen check asks `stg_preview` for the three keys its tests use, by name |
+| **The app's keys:** whatever the website, its server code or the database needs to run | `hrizzup`: `stg` for staging (previews inherit it through `stg_preview`; this Mac follows it through `dev`), `prd` for production | `stg` and `stg_preview` sync into Vercel's staging and previews, and `prd` into production; the Staging workflow reads `stg` whole; the Screen check asks `stg_preview` for the eight keys its tests use, by name |
 | **Tool tokens:** any token a tool uses to act on a service for Claude Code (Cloudflare, Supabase's API, Vercel, Expo, and any future one), and Claude Code's other setup values | `hrizzup-tools`, config `claude`, used only as `infra/doppler/run tools -- <command>` | Never synced anywhere, so no build and no check job ever holds one |
 | **A tool token a GitHub workflow needs** | A copy in GitHub's secrets, piped in without being shown (as the protection bypass is); where the service allows, a token of its own, so each can be revoked alone | A workflow reads only what it's given |
 | **The release pipeline's credentials** | `prd_release` (Part 10), never synced | Production's, held by the founder and the pipeline alone |
