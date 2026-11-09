@@ -21,6 +21,15 @@ export const TEST_ACCOUNTS = {
 
 export type Engine = keyof typeof TEST_ACCOUNTS;
 
+/**
+ * The market console's test account: an admin on staging (and so on previews), made one by the
+ * reviewed migration that names its ID (infra/supabase/migrations/*_staging_admins.sql), for the
+ * console's journeys. Like the accounts above it has no password and no Google identity, so only
+ * a check holding staging's server key can sign in to it. The two accounts above aren't admins,
+ * so the journeys also check what everyone else gets.
+ */
+export const ADMIN_TEST_ACCOUNT = 'delivered+market-admin@resend.dev';
+
 const STAGING_REF = projects.environments.staging.project_ref;
 
 type Keys = { url: string; publishableKey: string; secretKey: string };

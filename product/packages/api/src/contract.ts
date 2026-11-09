@@ -1,5 +1,13 @@
 import { type ContractRouterClient, oc } from '@orpc/contract';
 import { z } from 'zod';
+import {
+  consoleMarketWithLog,
+  createMarketInput,
+  marketIdInput,
+  marketPage,
+  marketPageInput,
+  settleMarketInput,
+} from './console.ts';
 
 /**
  * The typed API's contract (PLAN.md step 1.5c; blueprint section 13): every call the website
@@ -93,6 +101,83 @@ export const contract = {
     .errors({ UNAUTHORIZED: { status: 401, message: 'Not signed in' } })
     .input(noInput)
     .output(me),
+
+  /**
+   * The market console's calls (PLAN.md step 1.7c; console.ts): admins only, so every market
+   * write has one path, and the database checks the admins table on each. Personal, never kept.
+   * To anyone but an admin, signed in or not, each answers exactly as an address the API doesn't
+   * have: "No such call" (404). Only yes-or-no markets are made for now.
+   */
+  admin: {
+    markets: {
+      /** Markets, newest first, a page at a time. */
+      list: call
+        .route({
+          method: 'GET',
+          path: '/admin/markets',
+          summary: 'Markets, newest first (admins only)',
+          tags: ['admin'],
+        })
+        .input(marketPageInput)
+        .output(marketPage),
+
+      /** One market, with its log. */
+      get: call
+        .route({
+          method: 'GET',
+          path: '/admin/markets/{id}',
+          summary: 'One market, with its log (admins only)',
+          tags: ['admin'],
+        })
+        .input(marketIdInput)
+        .output(consoleMarketWithLog),
+
+      /** A new market, as a draft: no money moves until it opens. */
+      create: call
+        .route({
+          method: 'POST',
+          path: '/admin/markets',
+          successStatus: 201,
+          summary: 'Create a market, as a draft (admins only)',
+          tags: ['admin'],
+        })
+        .input(createMarketInput)
+        .output(consoleMarketWithLog),
+
+      /** Opens a draft: betting starts at once, and the house seeds its pool. */
+      open: call
+        .route({
+          method: 'POST',
+          path: '/admin/markets/{id}/open',
+          summary: 'Open a draft market (admins only)',
+          tags: ['admin'],
+        })
+        .input(marketIdInput)
+        .output(consoleMarketWithLog),
+
+      /** Closes an open market: betting stops at once. */
+      close: call
+        .route({
+          method: 'POST',
+          path: '/admin/markets/{id}/close',
+          summary: 'Close an open market (admins only)',
+          tags: ['admin'],
+        })
+        .input(marketIdInput)
+        .output(consoleMarketWithLog),
+
+      /** Settles a closed market by hand, logged with its evidence: Yes, No, a set probability, or cancel. */
+      settle: call
+        .route({
+          method: 'POST',
+          path: '/admin/markets/{id}/settle',
+          summary: 'Settle a closed market by hand (admins only)',
+          tags: ['admin'],
+        })
+        .input(settleMarketInput)
+        .output(consoleMarketWithLog),
+    },
+  },
 };
 
 export type Contract = typeof contract;

@@ -1,8 +1,9 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import type { FullConfig } from '@playwright/test';
 import { asBrowserCookie, BYPASS_COOKIE, bypassCookieValue } from './support/bypass.ts';
-import { signedInState, signedOutState, statesFolder } from './support/states.ts';
+import { adminState, signedInState, signedOutState, statesFolder } from './support/states.ts';
 import {
+  ADMIN_TEST_ACCOUNT,
   type Engine,
   stagingKeys,
   sweepJourneyAccounts,
@@ -17,6 +18,10 @@ import {
  *   the bypass secret itself never travels with the browser's requests;
  * - signed in, outside production: the same, plus a fresh session for the engine's test
  *   account (support/test-accounts.ts).
+ * - as the market console's admin test account, outside production: one session, shared by both
+ *   engines (each sign-in counts against staging's limit of 30 a 5 minutes from one address, and
+ *   a run is over long before the session's hour is up), for the console's screen check and
+ *   journeys.
  * Outside production it also deletes any account a sign-in journey made for itself that a
  * broken run left behind (support/test-accounts.ts, `sweepJourneyAccounts`).
  * The states go in a temporary folder outside the repository (support/states.ts), never
@@ -40,6 +45,7 @@ export default async function globalSetup(config: FullConfig) {
     : [];
   const keys = environment === 'production' ? null : stagingKeys();
   if (keys) await sweepJourneyAccounts(keys);
+  const admin = keys ? await testSessionCookies(keys, ADMIN_TEST_ACCOUNT) : [];
   for (const engine of Object.keys(TEST_ACCOUNTS) as Engine[]) {
     const save = (file: string, cookies: typeof bypass) =>
       writeFile(file, JSON.stringify({ cookies, origins: [] }), { mode: 0o600 });
@@ -49,6 +55,10 @@ export default async function globalSetup(config: FullConfig) {
     await save(signedInState(engine), [
       ...bypass,
       ...session.map(({ name, value }) => asBrowserCookie(baseURL, name, value)),
+    ]);
+    await save(adminState(engine), [
+      ...bypass,
+      ...admin.map(({ name, value }) => asBrowserCookie(baseURL, name, value)),
     ]);
   }
 }

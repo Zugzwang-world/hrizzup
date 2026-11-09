@@ -4,6 +4,7 @@ import markets from '@hrizzup/agreement/examples/markets.json' with { type: 'jso
 import sourced from '@hrizzup/agreement/examples/sourced.json' with { type: 'json' };
 import stories from '@hrizzup/agreement/examples/stories.json' with { type: 'json' };
 import updates from '@hrizzup/agreement/examples/updates.json' with { type: 'json' };
+import type { ConsoleMarket, ConsoleMarketWithLog } from './console.ts';
 import type { Health, Me } from './contract.ts';
 
 /**
@@ -40,3 +41,55 @@ export const content: { [F in Format]: readonly Shapes[F][] } = {
   'creation/1': creations as unknown as Creation[],
   'market/1': markets as unknown as Market[],
 };
+
+const [market] = markets as unknown as Market[];
+if (!market) throw new Error("The agreement's examples hold no market");
+
+/**
+ * A market as the market console shows it: the agreement's first example market (a test market
+ * with a placeholder question, open, settled by hand), with the trading state and the log the
+ * console adds, as an admin (the example account) made and opened it.
+ */
+export const consoleMarketWithLog: ConsoleMarketWithLog = {
+  id: market.id,
+  question: market.question,
+  categories: market.categories,
+  kind: market.kind,
+  rules: market.rules,
+  source: market.source,
+  settlement: market.settlement,
+  opensAt: market.opens_at,
+  closesAt: market.closes_at,
+  state: market.state,
+  result: null,
+  createdAt: market.created_at,
+  updatedAt: market.updated_at,
+  createdBy: { id: me.id, email: me.email },
+  startingProbability: '0.50000000',
+  seed: '1000.000000',
+  pool: { yes: '1000.000000', no: '1000.000000' },
+  probability: '0.50000000',
+  held: '1000.000000',
+  trades: 0,
+  log: [
+    {
+      id: 1,
+      action: 'create',
+      at: market.created_at,
+      by: { id: me.id, email: me.email },
+      settlement: null,
+    },
+    {
+      id: 2,
+      action: 'open',
+      at: market.opens_at,
+      by: { id: me.id, email: me.email },
+      settlement: null,
+    },
+  ],
+};
+
+/** The same market as a list shows it, without its log. */
+export const consoleMarket: ConsoleMarket = (({ log: _log, ...rest }) => rest)(
+  consoleMarketWithLog,
+);

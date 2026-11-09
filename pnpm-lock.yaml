@@ -266,6 +266,40 @@ importers:
         specifier: ^5.0.0
         version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(jiti@2.7.0)(terser@5.51.2))
 
+  product/packages/markets:
+    dependencies:
+      '@hrizzup/api':
+        specifier: workspace:*
+        version: link:../api
+      '@hrizzup/db':
+        specifier: workspace:*
+        version: link:../db
+    devDependencies:
+      '@hrizzup/database':
+        specifier: workspace:*
+        version: link:../../../infra/supabase
+      '@hrizzup/ledger':
+        specifier: workspace:*
+        version: link:../ledger
+      '@hrizzup/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+      '@types/node':
+        specifier: ^24.10.0
+        version: 24.19.2
+      '@types/pg':
+        specifier: ^8.15.0
+        version: 8.23.1
+      pg:
+        specifier: ^8.20.0
+        version: 8.23.1
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^5.0.0
+        version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(jiti@2.7.0)(terser@5.51.2))
+
   product/packages/tsconfig: {}
 
   product/web:
@@ -279,6 +313,12 @@ importers:
       '@hrizzup/core':
         specifier: workspace:*
         version: link:../packages/core
+      '@hrizzup/db':
+        specifier: workspace:*
+        version: link:../packages/db
+      '@hrizzup/markets':
+        specifier: workspace:*
+        version: link:../packages/markets
       '@orpc/openapi':
         specifier: 1.16.1
         version: 1.16.1(@opentelemetry/api@1.10.0)(ws@8.22.1)

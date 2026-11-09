@@ -18,8 +18,11 @@ async function handle(request: Request): Promise<Response> {
     context: { headers: request.headers },
   });
   if (!matched) {
+    // Written exactly as oRPC writes the same error (its fields in its order), so a call that
+    // answers "No such call" to someone who may not make it (the market console's, to anyone but
+    // an admin) can't be told apart from an address the API doesn't have.
     return Response.json(
-      { code: 'NOT_FOUND', status: 404, message: 'No such call', defined: false },
+      { defined: false, code: 'NOT_FOUND', status: 404, message: 'No such call' },
       { status: 404, headers: { 'Cache-Control': 'private, no-store' } },
     );
   }
