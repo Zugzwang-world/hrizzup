@@ -1,0 +1,7 @@
+#!/usr/bin/env python3
+"""Claims and runs this worktree's slot on this Mac: `infra/slots/slot --help` (slots.py, README.md)."""
+import sys
+
+import slots
+
+sys.exit(slots.main(sys.argv[1:]))

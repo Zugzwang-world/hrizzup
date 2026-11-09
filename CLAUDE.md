@@ -32,6 +32,15 @@ From Round 2 on, work runs in rounds of parallel Claude Code sessions ("relays")
 - **Where problems go:** problems in the maths, the back end or the architecture go into the Product brief's open questions, each with a recommendation, for the Product chat. Design taste goes to the founder, in the design session.
 - **At the end:** every session refreshes `TRACKER.md`, the status files and the briefs ("End of every session").
 
+## Parallel sessions
+
+Sessions share this Mac, each in its own worktree, so each runs the website, the app's dev server and the local database only in a slot of its own: its ports, database and Redis prefix (PLAN.md step 1.8; [infra/slots/README.md](infra/slots/README.md); [docs/setup.md](docs/setup.md), "Parallel local development").
+
+- **Claim a slot before running any of them:** `infra/slots/slot claim`, then run them through it (`infra/slots/slot web`, `slot app`, `slot db test`, which `pnpm test:db` also runs here); never `next dev`, `expo start` or `supabase start` directly.
+- **Release it when done:** `infra/slots/slot release` stops everything it runs. A slot whose worktree is gone counts as free again.
+- **If none is free, check again every 10 minutes** (`infra/slots/slot claim --wait` does it). Never use another session's slot; the last one is the design chat's (`claim --design`).
+- **Docker** is reached through the repository's scripts (`infra/slots/slot docker …`). Other projects' containers are left alone.
+
 ## Runbook steps
 
 When the founder says "do runbook step X.Y", follow that step in [docs/setup/RUNBOOK.md](docs/setup/RUNBOOK.md) exactly, then record the result in [docs/setup.md](docs/setup.md) the same day: what was set, where, and how it was checked. Never record a secret.
@@ -143,7 +152,7 @@ Every page and every screen is built to load fast and stay fast. Performance is 
 - **Cache in layers, designed in for every page and API from the start:** the device (browser and app caches, long-lived files with versioned names), the edge (Cloudflare and Vercel, refreshed in the background), server data caches (updated or cleared the moment the data changes), Upstash Redis (the shared fast layer; every entry has an expiry and is cleared when its data changes), and the database (indexes for every search and sort, page-by-page loading, no repeated small queries).
 - **Batch:** one request to Redis or the database, never several separate trips when one will do.
 - **Redis (Upstash; full rules in [blueprint section 14, "Redis (Upstash)"](docs/setup/BLUEPRINT.md#redis-upstash)):**
-  - **every key name starts with the environment,** from `REDIS_KEY_PREFIX` (`prd`, `stg`, `pre` for previews, `dev` for this Mac), then what the key is for: `stg:cache:feed:home`. Never personal data in a key name;
+  - **every key name starts with the environment,** from `REDIS_KEY_PREFIX` (`prd`, `stg`, `pre` for previews, `dev` for this Mac, where each slot adds its own: `dev:slot2`), then what the key is for: `stg:cache:feed:home`. Never personal data in a key name;
   - **every key has an expiry:** caches, rate limits, locks and counters alike. When a cached shape changes, its key name gets a new version (`v2`);
   - **batch:** a pipeline or a multi-key command instead of several separate trips, and a transaction or script when commands must apply together. Keep the client's auto-pipelining on;
   - **never the only copy:** eviction is on, so Redis may drop keys when full. Anything that matters lives in the database;

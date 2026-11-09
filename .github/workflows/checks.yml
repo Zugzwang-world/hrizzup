@@ -2,8 +2,9 @@
 #
 #   Quick checks    formatting and lint (Biome), type checks and unit tests (Turborepo),
 #                   including the hand-over agreement's check (agreement/src/agreement.test.ts),
-#                   the infrastructure tools' own tests (infra/vercel, infra/doppler) and the
-#                   checks' own scripts' tests (.github/scripts: tool downloads, affected parts)
+#                   the infrastructure tools' own tests (infra/vercel, infra/doppler,
+#                   infra/slots) and the checks' own scripts' tests (.github/scripts: tool
+#                   downloads, affected parts)
 #   Database check  builds a fresh database from infra/supabase/migrations and runs its
 #                   tests, including "every table is locked" (row-level security)
 #   Screen check    checks by name that Doppler stg_preview holds only the app's keys
@@ -70,6 +71,7 @@ jobs:
           python3 -m unittest discover -s infra/vercel
           python3 -m unittest discover -s infra/doppler
           python3 -m unittest discover -s .github/scripts
+          python3 -m unittest discover -s infra/slots
 
   database:
     name: Database check

@@ -22,7 +22,7 @@ One line per relay; each relay keeps only its own line current.
 
 1b. **Relay 1b, correcting the records about Sourcing:** [#61](https://github.com/Zugzwang-world/hrizzup/pull/61). Done; nothing for the founder.
 
-2. **Relay 2, step 1.8 with the database-order check (wave 1):** in progress.
+2. **Relay 2, step 1.8 with the database-order check (wave 1):** [#64](https://github.com/Zugzwang-world/hrizzup/pull/64) gives each session a slot on this Mac (its own website and Metro ports, database and Redis prefix; `infra/slots/slot claim`); the Mac holds four, three for relays and one kept for the design chat. Next: sign-in and uploads from every slot, then the database-order check. Nothing for the founder.
 
 3. **Relay 3, hardening (wave 1):** [#63](https://github.com/Zugzwang-world/hrizzup/pull/63): every tool the checks download is pinned, kept in GitHub's cache by its pin and fetched signed in, with retries (the 504s were GitHub's incident with anonymous downloads). Next: the release pipeline's key check, then the Screen check's keys and Dependabot's three alerts. Nothing for the founder.
 
