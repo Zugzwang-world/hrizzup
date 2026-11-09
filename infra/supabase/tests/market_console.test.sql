@@ -11,7 +11,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(112);
+select plan(118);
 
 -- Runs one query as the app's own role, signed in as `account` (null: nobody), and gives back its
 -- one value as text. The role lasts only for the query, so pgTAP's own functions (which the app's
@@ -56,6 +56,23 @@ select is_empty(
 select ok(
   not pg_catalog.has_schema_privilege('hrizzup_app', 'private', 'USAGE'),
   'the app''s role cannot even see the private schema'
+);
+select is_empty(
+  $$select r.rolname || ' on ' || t.table_name
+    from (values ('markets.details'), ('markets.log')) as t (table_name)
+    cross join pg_catalog.pg_roles r
+    where r.rolname in ('hrizzup_app', 'anon', 'authenticated', 'service_role')
+      and pg_catalog.has_table_privilege(r.oid, t.table_name::regclass,
+            'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')$$,
+  'no role the app or Supabase uses can read or write a market''s details or its log directly'
+);
+select is_empty(
+  $$select r.rolname || ' may use ' || s.schema_name
+    from (values ('markets'), ('admin'), ('private')) as s (schema_name)
+    cross join pg_catalog.pg_roles r
+    where r.rolname in ('anon', 'authenticated', 'service_role')
+      and pg_catalog.has_schema_privilege(r.oid, s.schema_name, 'USAGE')$$,
+  'Supabase''s own roles cannot even see the markets, admin or private schemas'
 );
 select set_eq(
   $$select p.oid::regprocedure::text from pg_catalog.pg_proc p
@@ -638,6 +655,43 @@ select is(
     $q$select admin.market('019a6b3c-0001-7000-8000-000000000001') -> 'log' -> 3 -> 'by' ->> 'email'$q$),
   'ada@console.test',
   'each line names the admin by their account''s email'
+);
+
+-- A draft can't be traded: the trade path refuses it before any of the maths ----------------------------
+
+insert into auth.users (id, email) values ('00000000-0000-4000-8000-0000000000c3', 'sam@console.test');
+select ok(
+  ledger.open_account('00000000-0000-4000-8000-0000000000c3', 100) is not null,
+  'someone with play money, to trade'
+);
+select is(
+  pg_temp.as_app('00000000-0000-4000-8000-0000000000c1',
+    $q$select admin.create_market('019a6b3c-0006-7000-8000-000000000006',
+         'Will test event F happen?', array['general'], 'Rules.', 'Hrizzup''s test desk', null,
+         now(), now() + interval '1 day', 0.5, 100) ->> 'state'$q$),
+  'draft',
+  'a draft to try to trade on'
+);
+select is(
+  pg_temp.as_app('00000000-0000-4000-8000-0000000000c3',
+    $q$select markets.begin_trade('00000000-0000-4000-8000-00000000f001',
+         '019a6b3c-0006-7000-8000-000000000006', 'buy', '{"outcome": "YES", "amount": "10"}')
+         #>> '{market,state}'$q$),
+  'draft',
+  'starting a trade on a draft shows it''s a draft, with its empty pool, and works out nothing'
+);
+select throws_ok(
+  $$select pg_temp.as_app('00000000-0000-4000-8000-0000000000c3',
+      $q$select markets.apply_trade('{
+           "request_id": "00000000-0000-4000-8000-00000000f001",
+           "market_id": "019a6b3c-0006-7000-8000-000000000006",
+           "action": "buy", "params": {"outcome": "YES", "amount": "10"},
+           "trade": {"id": "00000000-0000-4000-8000-00000000f002", "outcome": "YES",
+                     "order_amount": "10", "is_filled": true},
+           "fills": [{"matched": null, "amount": "10", "shares": "10"}],
+           "makers": [], "cancel": [], "pool": {"yes": "90", "no": "110"}}')$q$)$$,
+  '23514', 'Market 019a6b3c-0006-7000-8000-000000000006 is not open for trading',
+  'and applying one is refused before any of the pool''s maths'
 );
 
 -- A draft whose closing time has passed stays a draft ----------------------------------------------------

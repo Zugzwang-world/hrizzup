@@ -152,7 +152,7 @@ create table markets.details (
   opens_at agreement.time not null,
   cancel_reason agreement.one_line
     constraint details_cancel_reason_length check (char_length(cancel_reason) <= 200),
-  created_by uuid not null references auth.users (id),
+  created_by uuid not null,
   constraint details_outcomes_only_for_multiple_choice
     check ((kind = 'multiple_choice') = (outcomes is not null))
 );
@@ -168,7 +168,9 @@ comment on column markets.details.opens_at is
   'When betting opens: planned while it''s a draft, and the moment it opened once it has.';
 comment on column markets.details.cancel_reason is
   'Why the market was cancelled, in our own words: exactly when it''s cancelled.';
-comment on column markets.details.created_by is 'The admin who created the market.';
+comment on column markets.details.created_by is
+  'The admin who created the market: their account''s ID, kept as a record (no foreign key), so '
+  'the account can still be removed one day without rewriting the market''s history.';
 
 -- The rules that span a market's details and its trading state, checked when the transaction
 -- commits (so a call can change both in any order): a market opens no later than it closes; it
@@ -277,7 +279,7 @@ create table markets.log (
   market_id uuid not null references markets.markets (id),
   action text not null
     constraint log_action_values check (action in ('create', 'open', 'close', 'settle')),
-  by_account uuid not null references auth.users (id),
+  by_account uuid not null,
   at timestamptz not null default clock_timestamp(),
   outcome text
     constraint log_outcome_values check (outcome in ('yes', 'no', 'probability', 'cancel')),
@@ -306,7 +308,9 @@ comment on table markets.log is
   'Every create, open, close and settlement of a market: who did it (an admin''s account) and '
   'when; for a settlement, the outcome (yes, no, a set probability, or cancel), the evidence, the '
   'reason for a cancel, and what it paid: to people (net, after a cancel takes back sale profits), '
-  'to how many, and to the house. Lines are never edited or deleted.';
+  'to how many, and to the house. Lines are never edited or deleted. Who is the admin''s account '
+  'ID, kept as a record with no foreign key, so removing an account one day never needs a log '
+  'line changed; only an admin, checked against the admins table, can add one.';
 create index log_by_market on markets.log (market_id, id);
 
 create function markets.refuse_log_change()
