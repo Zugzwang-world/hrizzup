@@ -6,7 +6,8 @@
 #   1. Apply any new migrations (infra/supabase/migrations) to staging's database, over
 #      DATABASE_URL_SESSION (Supabase's pooler in session mode; infra/supabase/database_url.py
 #      fills in the password, as production's release pipeline does).
-#   2. Check that every table of ours is still locked (row-level security).
+#   2. Check that every table of ours is still locked (row-level security), and that the
+#      markets' books have no problem (infra/supabase/checks/books_balance.sql).
 #   3. Move the `staging` branch to this commit (only this workflow can: ruleset
 #      "staging"). Vercel's custom environment "staging" follows that branch.
 #   4. Ask Vercel to build it, through the deploy hook "Staging workflow" (it builds the
@@ -93,6 +94,12 @@ jobs:
           PGSSLMODE: verify-full
           PGSSLROOTCERT: infra/supabase/supabase-root-2021-ca.crt
         run: python3 infra/supabase/database_url.py run session -- sh -c 'psql "$DATABASE_ADDRESS" -q -v ON_ERROR_STOP=1 -f infra/supabase/checks/every_table_locked.sql'
+
+      - name: 2b. Check that the markets' books balance
+        env:
+          PGSSLMODE: verify-full
+          PGSSLROOTCERT: infra/supabase/supabase-root-2021-ca.crt
+        run: python3 infra/supabase/database_url.py run session -- sh -c 'psql "$DATABASE_ADDRESS" -q -v ON_ERROR_STOP=1 -f infra/supabase/checks/books_balance.sql'
 
       - name: 3. Move the staging branch to this commit
         env:

@@ -16,7 +16,8 @@
 #      project, and every key is valid and production's own (infra/keys/check.py).
 #   3. Production's Supabase project settings, applied and checked (encrypted connections
 #      only, legacy keys off; region, compute, Data API off) (infra/supabase/project).
-#   4. The commit's database changes (migrations), then every table checked locked.
+#   4. The commit's database changes (migrations), then every table checked locked and the
+#      markets' books checked (infra/supabase/checks/books_balance.sql).
 #   5. Sign-in settings (infra/supabase/auth) and storage settings (infra/cloudflare/r2),
 #      applied and read back; Redis checked (infra/upstash); the Vercel project checked
 #      against the repo, with autoAssignCustomDomains still off (infra/vercel, --check).
@@ -177,6 +178,13 @@ jobs:
           PGSSLMODE: verify-full
           PGSSLROOTCERT: infra/supabase/supabase-root-2021-ca.crt
         run: python3 infra/supabase/database_url.py run session -- sh -c 'psql "$DATABASE_ADDRESS" -q -v ON_ERROR_STOP=1 -f infra/supabase/checks/every_table_locked.sql'
+
+      - name: 4c. Check that the markets' books balance
+        if: inputs.action == 'release'
+        env:
+          PGSSLMODE: verify-full
+          PGSSLROOTCERT: infra/supabase/supabase-root-2021-ca.crt
+        run: python3 infra/supabase/database_url.py run session -- sh -c 'psql "$DATABASE_ADDRESS" -q -v ON_ERROR_STOP=1 -f infra/supabase/checks/books_balance.sql'
 
       - name: 5. Sign-in and storage settings; Redis and the Vercel project checked
         if: inputs.action == 'release'

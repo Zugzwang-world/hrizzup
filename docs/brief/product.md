@@ -30,7 +30,7 @@ One line per relay; each relay keeps only its own line current.
 
 5. **Relay 5, step 1.6a, the website's sign-in (wave 2, after 1.8):** [#70](https://github.com/Zugzwang-world/hrizzup/pull/70) adds the access-token hook that refuses password sessions, switched off; the Database check's tests prove both sides (email codes, Google, the test accounts' tokens and refreshes pass; passwords are refused). Next: email codes on the sign-in test page, then the hook switched on for staging. Nothing for the founder yet.
 
-6. **Relay 6, step 1.7b, the ledger (wave 2):** not started.
+6. **Relay 6, step 1.7b, the ledger (wave 2):** the tables, [#69](https://github.com/Zugzwang-world/hrizzup/pull/69): the double-entry books and the markets in exact decimals, the app's own database role, and the database's own checks of every trade, arriving on staging empty. Next: the trade code with its tests (milestone 2). Nothing for the founder yet.
 
 7. **Relay 7, step 1.9, the content store's tables (wave 2, when a slot is free):** not started.
 
