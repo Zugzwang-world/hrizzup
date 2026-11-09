@@ -2,14 +2,14 @@
 
 **This brief replaces Claude Code's report:** read it after **Sync now** instead of asking the founder for one, and attach the files under "Read for detail" from GitHub for more.
 
-> Rewritten 9 November 2026 with relay 8's markets as data and the market console (1.7c). PLAN.md wins any disagreement.
+> Rewritten 10 November 2026 with relay 9's list, trade and positions in the typed API (1.7d). PLAN.md wins any disagreement.
 
 **Hrizzup** is a news app built around creators, plus a website with play-money prediction markets: our AI finds news as it breaks on X and turns it into developing stories seen through creators' takes. **Product builds** the website and the app in parallel (the website a stage ahead; Android, then iPhone from the same code) and the markets. It shows the content it receives through the content store's tables, in the shapes of the hand-over agreement (`agreement/README.md`), whose first half is Agreed.
 
 ## Where things stand
 
 - **Staging** (`staging.hrizzup.com`, Mumbai) is public, asking search engines to stay out; previews need Vercel's login and share staging's database; production is a quiet twin.
-- **Built:** a holding page, legal drafts, the typed API (health, who am I), a one-screen app on the founder's phone, Manifold's maths (1.7a), the ledger (1.7b) and the content store (1.9), both empty, and the website's sign-in (1.6a) on its test page: Google and email codes; passwords refused; and markets as data with the **market console** (1.7c) at `staging.hrizzup.com/console`, for admins.
+- **Built:** a holding page, legal drafts, the typed API (health, who am I), a one-screen app on the founder's phone, Manifold's maths (1.7a), the ledger (1.7b) and the content store (1.9), the website's sign-in (1.6a) on its test page (Google and email codes; passwords refused), markets as data with the **market console** (1.7c) at `staging.hrizzup.com/console`, for admins; and **list, trade and positions** in the typed API (1.7d): anyone reads the markets, a signed-in person trades and reads their own positions and orders, with no screens of their own until the market pages (3.1).
 - **Required checks:** Secret, Quick, Database, Screen (with the website's journeys), Speed and App journeys.
 - **Design** restarts in the design chat, from the founder's references and diagrams.
 
@@ -35,7 +35,7 @@ One line per relay; each relay keeps only its own line current.
 
 8. **Relay 8, step 1.7c, markets as data and the console:** done ([#75](https://github.com/Zugzwang-world/hrizzup/pull/75), [#76](https://github.com/Zugzwang-world/hrizzup/pull/76), [#77](https://github.com/Zugzwang-world/hrizzup/pull/77), [#78](https://github.com/Zugzwang-world/hrizzup/pull/78); the done-test on staging, [#79](https://github.com/Zugzwang-world/hrizzup/pull/79)). Nothing for the founder: you're an admin on staging (below).
 
-9. **Relay 9, step 1.7d, list, trade and positions (after 1.7c):** in progress: [#80](https://github.com/Zugzwang-world/hrizzup/pull/80) and [#82](https://github.com/Zugzwang-world/hrizzup/pull/82) (merged), the database's reads, made safe for retried trades after the AI review; [#81](https://github.com/Zugzwang-world/hrizzup/pull/81), the typed API's calls (the public list kept at the edge and refreshed when a market changes, trading with a request ID per trade, cancelling an order, positions and open orders, the four refusals before the books, 30 trading calls a minute per person), whose done-test is its trading journey on its preview. Next: the proof on staging itself, then the records. Nothing for the founder.
+9. **Relay 9, step 1.7d, list, trade and positions:** done: [#80](https://github.com/Zugzwang-world/hrizzup/pull/80) and [#82](https://github.com/Zugzwang-world/hrizzup/pull/82), the database's reads (#82 makes a retried trade always get its first answer, the AI review's finding); [#81](https://github.com/Zugzwang-world/hrizzup/pull/81), the calls; the done-test passed on #81's preview and on staging itself ([#83](https://github.com/Zugzwang-world/hrizzup/pull/83)). Nothing for the founder.
 
 10. **Relay 10, Sourcing's test bot run and the second half's draft:** cancelled by the founder (9 November).
 
@@ -50,24 +50,25 @@ One line per relay; each relay keeps only its own line current.
 - **Database changes land first,** each in its own pull request, adding only, in order (1.8's check).
 - **The content store (1.9):** the agreement's shapes as tables, its rules as database rules; a change to them brings its migration with it.
 - **No xAI or X API in Product:** content arrives through 1.9's tables; X's own embed (2.3) is display. Sourcing works in its own project.
-- **Markets:** created only by Hrizzup, settled by hand or by our resolver; double-entry play money in exact decimals, one transaction per trade (1.7b); admins in a table only reviewed migrations write, everyone else getting "not found" (1.7c); list, trade, positions (1.7d); no fee at launch; cancelled only when it can't be settled fairly. **Order:** 1.7c, 1.7d, then 3.4a and 3.1, then 3.4c; then 1.2 (parked), 3.2a, 3.2b, 3.4b.
+- **Markets:** created only by Hrizzup, settled by hand or by our resolver; double-entry play money in exact decimals, one transaction per trade (1.7b); admins in a table only reviewed migrations write, everyone else getting "not found" (1.7c); list, trade and positions, every refusal made before the books and a retry always given its first answer (1.7d); no fee at launch; cancelled only when it can't be settled fairly. **Order:** 1.7c, 1.7d, then 3.4a and 3.1, then 3.4c; then 1.2 (parked), 3.2a, 3.2b, 3.4b.
 - **Sign-in:** no passwords anywhere; the access-token hook refuses any session made with one. Email codes go through our server, which checks the bot check first. Next, the app's (1.6b); Apple with the iPhone (4.3).
 - **Content:** three credited routes; no money in ranking. **Legal** is the founder's legal team's. No background jobs in Round 3. Production only through the release pipeline.
 
 ## What changed in the latest session
 
-On 9 November 2026, relay 8 (1.7c):
+On 9 and 10 November 2026, relay 9 (1.7d):
 
-- **The database** ([#75](https://github.com/Zugzwang-world/hrizzup/pull/75)): markets hold the agreement's shape beside the ledger's trading state; a draft holds no money until opened; a market log that's never edited; the admins table, which nothing the app runs can touch.
-- **Admins** ([#76](https://github.com/Zugzwang-world/hrizzup/pull/76)): on staging, the founder's account and the console's test account.
-- **The calls** ([#77](https://github.com/Zugzwang-world/hrizzup/pull/77)) **and the console** ([#78](https://github.com/Zugzwang-world/hrizzup/pull/78), `/console`): create, open, close and settle (Yes, No, a set probability, or cancel with its reason; always with evidence). To anyone but an admin, they aren't there.
-- **The done-test on staging** ([#79](https://github.com/Zugzwang-world/hrizzup/pull/79)): an admin made, opened, closed and settled a test market in the console, a real Ṁ100 bet in it; the bettor got Ṁ190.90909, the house Ṁ909.09091 (all Ṁ1,100 it held); the log showed each step. Each pull request had an AI review, every finding fixed.
+- **The database's reads** ([#80](https://github.com/Zugzwang-world/hrizzup/pull/80), [#82](https://github.com/Zugzwang-world/hrizzup/pull/82)) **and the calls** ([#81](https://github.com/Zugzwang-world/hrizzup/pull/81)): the market list (public, kept at Vercel's edge, refreshed the moment a market changes); trading (buy, sell, limit orders, each with its own request ID, so a retry gets its first answer and never trades twice); cancelling an order; positions and open orders (private). Refused before the books: limits outside 1% to 99%, an expiry of zero or past, amounts not above zero or over the balance. At most 30 trading calls a minute per person; writes from other sites refused.
+- **The done-test,** on #81's preview and on staging itself: a test account listed a test market, traded it every way and read its positions; every bad input was refused; the list came from the edge and showed the new price within two seconds; the console settled it Yes, the payouts adding up (on staging: Ṁ9.950495 to the trader, Ṁ995.03713 to the house, all Ṁ1,004.987625 it held).
+- **AI review:** one serious finding, fixed ([#82](https://github.com/Zugzwang-world/hrizzup/pull/82)): a retried trade could have been refused by today's balance instead of getting its first answer. The security review's (writes from other sites) fixed too.
 
 ## Open questions
 
-- **The app's writes to the typed API** (1.7d): staging's firewall lets only browsers write (the console is fine), so the app's trades would be challenged. Recommendation: let writes skip it on staging behind the per-visitor limit, as reads do.
-- **A market settled at a set probability** (1.7c): allowed, as asked, but market/1 can only name a winner, so it has no record to hand over. Recommendation: a market/2 with `result_probability`, agreed by Sourcing and the founder, before anything hands markets over; meanwhile, use it only when a market's rules say so.
-- **The ledger's next steps** (1.7b, 1.7d). Recommendations: an admin "cancel a resting order" in the console with 1.7d (settling already cancels a market's orders); yes/no markets only for now; lock fewer accounts per trade as markets grow.
+- **The app's writes** (when the app first writes): staging's firewall lets only browsers write; 1.7d needed nothing. Recommendation: then let writes skip it on staging behind the per-visitor limit, as reads do.
+- **A market settled at a set probability** (1.7c): market/1 can't describe it, so the list leaves it out. Recommendation: a market/2 with `result_probability` before anything hands markets over; meanwhile only when a market's rules say so.
+- **The ledger's next steps.** Recommendations: an admin's "cancel a resting order" when a market first needs it (people cancel their own); yes/no only for now; lock fewer accounts per trade as markets grow.
+- **Live prices** (3.1). Recommendation: Supabase Realtime on the market pages; the list's edge copy kept.
+- **The console's create page at its speed budget's edge:** the same code measures 65 to 285 ms against 200, failing a Speed check now and then. Recommendation: trim its work on load, not the budget.
 - **The pipeline's write access** (1.1). Recommendation: a role of its own that inserts and updates content, never deletes.
 - **A post's address and handle** (the agreement): `validate()` doesn't check they match. Recommendation: add it, with Sourcing's agreement.
 - **A deleted account's posts** (2.4). Recommendation: they go with the account; Hrizzup's own never do.
@@ -76,7 +77,7 @@ On 9 November 2026, relay 8 (1.7c):
 - **Creators' X accounts** (2.4). Recommendation: the link comes with News Desk's invitation.
 - **The perp's first settings** (3.4a). Recommendation, from Manifold: a price every 5 seconds; 0.1% to open; hourly funding; a seeded stand-in price; a log of rule changes.
 - **Embedding found posts** (2.3): an X embed is about 330 KB. Recommendation: load each near the screen, behind a placeholder.
-- **In the status file:** the Hermes rewrite; shared code.
+- **In the status file:** the Hermes rewrite; shared code; the test accounts' play money.
 
 ## For the founder
 
@@ -91,11 +92,11 @@ On 9 November 2026, relay 8 (1.7c):
 
 ## What's next
 
-Round 3's queue (`TRACKER.md`): relay 3's hardening; 1.7d (relay 9: list, trade and positions, on the console's markets); the closing record (12). The next round starts with the perp's back end (3.4a); then 3.1 and 3.4c, the app's sign-in (1.6b), and the board once 1.4's core screens are approved.
+Round 3's queue (`TRACKER.md`): relay 3's hardening; the closing record (12). The next round starts with the perp's back end (3.4a, whose need on 1.7d is met); then the market pages (3.1, on 1.7d's calls, with signup's starting balance) and the perp's page (3.4c), the app's sign-in (1.6b), and the board once 1.4's core screens are approved.
 
 ## Read for detail
 
 - `PLAN.md`, `TRACKER.md`, `CLAUDE.md`; `docs/setup/BLUEPRINT.md` (database 5, staging 6, sign-in 9, typed API 13, budgets 14), `docs/setup/RUNBOOK.md` (pre-launch checklist), `docs/setup.md` (9 November: the hook switched on).
 - `infra/supabase/auth/README.md` (sign-in settings and the hook); `infra/supabase/content-store.md`.
-- `product/packages/` (the contract, ledger, db, markets and market-engine); `infra/supabase/migrations/*_market_console.sql` (markets as data, the admins table, the log); `docs/research/manifold.md`; `agreement/README.md`.
+- `product/packages/` (the contract, ledger, db, markets and market-engine); `product/packages/markets/README.md` (the console's calls and everyone's: list, trade, positions); `infra/supabase/migrations/*_market_console.sql` and `*_trading_*.sql`; `docs/research/manifold.md`; `agreement/README.md`.
 - `docs/status/product.md`: Product's status in full.
