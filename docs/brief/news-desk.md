@@ -2,7 +2,7 @@
 
 **This brief replaces Claude Code's report:** read it after clicking **Sync now**, instead of asking the founder for a report, and attach the files under "Read for detail" from GitHub when you need more.
 
-> Rewritten 9 November 2026 by Round 3's relay 1b, correcting the round's records about Sourcing. The only repository file the News Desk project keeps in its knowledge; Claude Code rewrites it at the end of every session that touches News Desk's part. If it and PLAN.md disagree, PLAN.md wins.
+> Rewritten 9 November 2026 by Round 3's relays 1b and 1c (records). The only repository file the News Desk project keeps in its knowledge; Claude Code rewrites it at the end of every session that touches News Desk's part. If it and PLAN.md disagree, PLAN.md wins.
 
 **Hrizzup** is a news app built around creators, plus a website with play-money prediction markets. Our AI finds news as it breaks on X and turns it into developing stories that readers see through creators' takes. **News Desk's job:** make our own content from the sourced pool and onboard creators. It produces text, images and video, which Product shows in the app and on the website, in the shape the hand-over agreement (`agreement/README.md`) fixes. **News Desk is on hold until the founder sets it up.**
 
@@ -41,7 +41,7 @@ On 9 November 2026, in [#61](https://github.com/Zugzwang-world/hrizzup/pull/61) 
 
 - **Hrizzup uses no xAI API:** Grok bots source everything, and Sourcing's work runs asynchronously, in the Sourcing project, on its own schedule, not from Product's round chat.
 - **Product never uses xAI's API or X's API:** it receives what goes on the product, our own content included, through the content store's tables (1.9); found posts are still X's own embeds.
-- **For News Desk, nothing else changes;** the agreement's rules stand.
+- **For News Desk, nothing else changes;** the agreement's rules stand. Then [#62](https://github.com/Zugzwang-world/hrizzup/pull/62) (relay 1c) recorded how Product's rounds run and the perp's steps, nothing for News Desk.
 
 ## Open questions
 

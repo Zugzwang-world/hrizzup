@@ -2,7 +2,7 @@
 
 **This brief replaces Claude Code's report:** read it after clicking **Sync now**, instead of asking the founder for a report, and attach the files under "Read for detail" from GitHub when you need more.
 
-> Rewritten 9 November 2026 by Round 3's relay 1b, correcting the round's records about Sourcing. The only repository file the Sourcing project keeps in its knowledge; Claude Code rewrites it at the end of every session that touches Sourcing's part. If it and PLAN.md disagree, PLAN.md wins.
+> Rewritten 9 November 2026 by Round 3's relays 1b and 1c (records). The only repository file the Sourcing project keeps in its knowledge; Claude Code rewrites it at the end of every session that touches Sourcing's part. If it and PLAN.md disagree, PLAN.md wins.
 
 **Hrizzup** is a news app built around creators, plus a website with play-money prediction markets. Our AI finds news as it breaks on X and turns it into developing stories that readers see through creators' takes. **Sourcing's job:** design and run the Grok bots that find news and creators' takes on X, keep everything they find in the sourced pool, and turn the news into stories and updates. Product shows what Sourcing produces, in the shapes the hand-over agreement (`agreement/README.md`) fixes.
 
@@ -38,6 +38,7 @@ On 9 November 2026, in [#61](https://github.com/Zugzwang-world/hrizzup/pull/61) 
 - **Ruled out:** this brief's former 0.8 recommendation, xAI's API with its X search tool, and its costs. A dated note at the top of the review says which notes assumed that API (N2, N8, N9, N10); its findings stand.
 - **Kept:** the route by the bots' own inbox. **Background jobs:** Sourcing's choice, made here; none in Round 3.
 - **Unchanged:** the agreement's rules, including how its second half is agreed.
+- **Then, in [#62](https://github.com/Zugzwang-world/hrizzup/pull/62) (relay 1c):** how Product's rounds run, and the perp's steps; nothing in Sourcing's part.
 
 ## Open questions
 

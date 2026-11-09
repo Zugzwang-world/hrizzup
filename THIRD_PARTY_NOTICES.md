@@ -45,7 +45,7 @@ Hrizzup is proprietary software (see [LICENSE](LICENSE)). This file lists open-s
 
 ## Planned
 
-### Manifold's perps maths (PLAN.md step 3.4)
+### Manifold's perps maths (PLAN.md step 3.4a)
 
 - **Source:** https://github.com/manifoldmarkets/manifold, `common/src/perps/` (MIT, the same licence as the market maths above).
 - **When copied:** record the commit and where it lives under `product/`, keep `LICENSE.md` beside it, and add it under "Copied code".
