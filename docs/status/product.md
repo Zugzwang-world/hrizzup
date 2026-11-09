@@ -299,10 +299,28 @@ Last updated: 9 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/brie
     - `THIRD_PARTY_NOTICES.md`'s planned entry for the perps maths now names step 3.4a.
     - Relay 1c was prepared on top of relay 1b's branch while 1b's checks ran, and its pull request opened only once 1b had merged.
 
+- **Round 3, relay 3, hardening: the checks' downloads** ([#63](https://github.com/Zugzwang-world/hrizzup/pull/63)):
+  - **the cause of 9 November's 504s:** GitHub's incident "Increased timeouts due to surge in anonymous users" (05:59 to 09:09 UTC) answered anonymous requests, release downloads included, with 504 Gateway Timeout, while signed-in requests were unaffected. The Secret check and App journeys downloaded gitleaks and Maestro from GitHub's release pages anonymously, so five attempts failed between 07:40 and 08:14 UTC, each in its download step: the three that were re-run (#58's App journeys, #59's Secret check and App journeys) and two more on #59's first push, which its next push replaced;
+  - **pinned:** `.github/scripts/tools.py` holds every downloaded file's version and SHA-256: gitleaks 8.30.1, Maestro 2.12.1, the Android emulator 37.2.13 (build 16740729) and its system image (API 34, Google APIs, x86_64, r14). The lockfile pins the rest: Playwright's browsers, the database's Docker images (by the Supabase CLI's version) and pnpm's store;
+  - **cached by the pin:** each is kept in GitHub's Actions cache under a key made from its pin. The new **Tool cache** workflow (`.github/workflows/tools.yml`) fills the cache from `main` after a merge that can change a pin, every Monday and by hand; the checks only read it;
+  - **fetched signed in, retried after a pause:** a download that's still needed goes through `tools.py`: from GitHub through its API with the job's own token (never sent past GitHub's API); retried after 15, 30, 60 and 120 seconds on a network or server failure, never on a wrong pin or checksum; its checksum checked whether it came from the cache or the network. Only downloads are retried: `tools.py retry` refuses anything but Playwright's browser download;
+  - **the emulator, pinned for real:** App journeys boots it with `product/app/journeys/emulator.sh`, which replaces the `android-emulator-runner` action; the action always installed Google's newest emulator and system image, so no pin could hold;
+  - **pnpm's store, whole again:** `main`'s cache entry had been saved by the Staging workflow, which installs only the database package, so pull requests restored 13 packages and downloaded 734 in every job. Staging and the release pipeline now read the cache without saving to it;
+  - **also:** the Screen check installs its browsers before any key is loaded; the Database check loads its images only when Turborepo will really run its tests; a pull request that changes `.github/workflows` or `.github/scripts` runs every check (`affected.py`); the tests (`.github/scripts/test_tools.py`, `test_affected.py`) run in Quick checks and `pnpm check`;
+  - **answered without asking** (one line each):
+    - The founder's "three failed checks" are the three that were re-run; the two attempts their next push replaced are recorded too.
+    - The checks only read the cache and the Tool cache workflow alone fills it, from `main`: pull requests' own copies would serve only their re-runs, and the repository's cache was already at its 10 GB.
+    - The pauses are 15, 30, 60 and 120 seconds, since the incident came in waves of a few minutes; five attempts take about four minutes at most.
+    - A file on GitHub's release pages goes through GitHub's API because that's a signed-in request; the job's own read-only token is used, so no new key exists.
+    - Pinning the emulator needed the repository's own boot script, since the action can't keep a version; it makes the action's own calls.
+    - Lighthouse's Chrome, Node and Java come preinstalled on GitHub's machines, so nothing is downloaded for them; Gradle and pnpm already retry and cache their own downloads.
+    - Loading the database's images is a shortcut, so anything failing in it lets the check go on as before, the Supabase CLI pulling them itself.
+    - `main`'s 13-package cache entry is deleted once this merges, so the Tool cache workflow saves the whole store under that key.
+
 ## Next
 
 1. **Round 3** (`TRACKER.md`, "Round 3's queue"; the GitHub milestone "Round 3"):
-   - **wave 1, now:** parallel local development, with the database-order check (1.8, relay 2); hardening (relay 3): the release pipeline refuses production keys that aren't app keys, the Screen check loads only the keys its tests use, Dependabot's three alerts (zod; glob and minimatch) are fixed, and the tools the checks download are cached with retries;
+   - **wave 1, now:** parallel local development, with the database-order check (1.8, relay 2); hardening (relay 3): the tools the checks download are cached with retries ([#63](https://github.com/Zugzwang-world/hrizzup/pull/63)); next, the release pipeline refuses production keys that aren't app keys, the Screen check loads only the keys its tests use, and Dependabot's three alerts (zod; glob and minimatch) are fixed;
    - **wave 2, after 1.8:** the website's sign-in, with the access-token hook that refuses passwords, proven on the sign-in test page (1.6a, relay 5); the ledger, our double-entry books (1.7b, relay 6); the content store's tables (1.9, relay 7);
    - **then** markets as data, with the admins table, the market console and its calls in the typed API (1.7c, relay 8); then list, trade and positions (1.7d, relay 9);
    - **last:** the round's closing record (relay 12). Relays 4, 10 and 11 are cancelled: Sourcing's work runs in its own project.

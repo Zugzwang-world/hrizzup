@@ -1351,6 +1351,13 @@ Not a problem: the worry that Claude Code could run the script on production. It
 - **GitHub:** [#60](https://github.com/Zugzwang-world/hrizzup/pull/60) is in the milestone "Round 3" (number 8), which existed already.
 - **Where the decisions went:** database changes first, admins' migrations and the console's place in the design rule (CLAUDE.md); the order of work, with new step 1.9 and the changed steps 0.8, 1.1, 1.6a, 1.7b to 1.7d, 1.8 and 3.1 (PLAN.md); the markets' books, admins, the content store's tables, the console and background jobs (blueprint sections 5, 6, 9 and 13); Round 3's queue (`TRACKER.md`, the Product brief).
 
+### The checks' downloads: pinned, cached and retried (Round 3, relay 3, Claude Code)
+
+- **Why:** GitHub's incident on 9 November 2026, "Increased timeouts due to surge in anonymous users" (05:59 to 09:09 UTC), answered anonymous release downloads with 504 errors; signed-in requests were unaffected. Five check attempts failed downloading gitleaks or Maestro anonymously between 07:40 and 08:14 UTC ([#63](https://github.com/Zugzwang-world/hrizzup/pull/63) lists them).
+- **Set:** `.github/scripts/tools.py` pins every downloaded file (gitleaks 8.30.1, Maestro 2.12.1, the Android emulator 37.2.13 build 16740729, its system image API 34 Google APIs x86_64 r14), each with its SHA-256; the Android files' SHA-1 sums match Google's published ones, gitleaks' and Maestro's SHA-256 their publishers' checksum files. New workflow **Tool cache** (`.github/workflows/tools.yml`) keeps them, Playwright's browsers, the database's Docker images and pnpm's store in GitHub's Actions cache from `main`; the checks only read it. Downloads go through GitHub's API with the job's own token and are retried after a pause.
+- **Changed in App journeys:** the `android-emulator-runner` action is gone; `product/app/journeys/emulator.sh` boots the pinned emulator. Its snapshot cache key is now `emulator-snapshot-pixel_7-<emulator>-<system image>-v2`.
+- **Checked:** [#63](https://github.com/Zugzwang-world/hrizzup/pull/63)'s own checks, and the Tool cache workflow's first run on `main`.
+
 ---
 
 ## Rules for this log

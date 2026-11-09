@@ -24,7 +24,7 @@ One line per relay; each relay keeps only its own line current.
 
 2. **Relay 2, step 1.8 with the database-order check (wave 1):** in progress.
 
-3. **Relay 3, hardening (wave 1):** in progress.
+3. **Relay 3, hardening (wave 1):** [#63](https://github.com/Zugzwang-world/hrizzup/pull/63): every tool the checks download is pinned, kept in GitHub's cache by its pin and fetched signed in, with retries (the 504s were GitHub's incident with anonymous downloads). Next: the release pipeline's key check, then the Screen check's keys and Dependabot's three alerts. Nothing for the founder.
 
 4. **Relay 4, Sourcing's research for step 0.8:** cancelled by the founder (9 November).
 
