@@ -21,3 +21,13 @@ allowBuilds:
 
 # Install exactly what the lockfile says, everywhere.
 preferFrozenLockfile: true
+
+# Security fixes for packages that come in through others (Dependabot, 9 November 2026). Expo
+# SDK 58's own packages still ask for glob 13 and minimatch 10, which GitHub's advisories
+# GHSA-3g3m-2fjr-6pw4 (glob, fixed in 14.0.2) and GHSA-g3hv-75wg-m249 (minimatch, fixed in
+# 11.0.1) cover; nothing on those lines is fixed. Expo's calls work unchanged on the fixed
+# lines (glob's sync, globSync, glob and globStream; minimatch's Minimatch match and negate),
+# and the app's build and journeys run on them. Remove each once Expo's packages ask for it.
+overrides:
+  "glob@>=9.0.0 <14.0.2": ^14.0.3
+  "minimatch@>=7.0.0 <11.0.1": ^11.0.4
