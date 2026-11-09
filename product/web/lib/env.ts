@@ -28,6 +28,15 @@ export function signInTestEnabled(env: Env = process.env): boolean {
   return currentEnvironment(env) !== 'production';
 }
 
+/**
+ * The market console (its pages and its calls in the typed API) follows the same production rule
+ * as the sign-in routes: it exists everywhere except production until launch, and on production
+ * it answers "not found" to everyone, admins included (PLAN.md step 1.7c).
+ */
+export function consoleEnabled(env: Env = process.env): boolean {
+  return signInTestEnabled(env);
+}
+
 /** The region the function runs in (`bom1` on Vercel), or `local` on this Mac. */
 export function currentRegion(env: Env = process.env): string {
   return env.VERCEL_REGION ?? (env.VERCEL ? 'unknown' : 'local');

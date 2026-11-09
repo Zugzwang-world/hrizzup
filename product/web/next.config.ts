@@ -21,7 +21,13 @@ const searchEnginesStayOut = currentEnvironment() !== 'production';
 
 const config: NextConfig = {
   // The shared packages are TypeScript source, compiled as part of the website.
-  transpilePackages: ['@hrizzup/core', '@hrizzup/api', '@hrizzup/agreement'],
+  transpilePackages: [
+    '@hrizzup/core',
+    '@hrizzup/api',
+    '@hrizzup/agreement',
+    '@hrizzup/db',
+    '@hrizzup/markets',
+  ],
   poweredByHeader: false,
   reactStrictMode: true,
   typedRoutes: true,

@@ -19,3 +19,9 @@ export const signedOutState = (engine: string) => join(statesFolder(), `${engine
 
 /** Signed in as the engine's test account (support/test-accounts.ts), outside production. */
 export const signedInState = (engine: string) => join(statesFolder(), `${engine}-signed-in.json`);
+
+/**
+ * Signed in as the market console's admin test account (support/test-accounts.ts,
+ * ADMIN_TEST_ACCOUNT), outside production: the console's screen check and journeys.
+ */
+export const adminState = (engine: string) => join(statesFolder(), `${engine}-admin.json`);

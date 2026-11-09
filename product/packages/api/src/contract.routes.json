@@ -39,5 +39,118 @@
         ]
       }
     }
+  },
+  "admin": {
+    "markets": {
+      "list": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "personal"
+            }
+          },
+          "route": {
+            "method": "GET",
+            "path": "/admin/markets",
+            "summary": "Markets, newest first (admins only)",
+            "tags": [
+              "admin"
+            ]
+          }
+        }
+      },
+      "get": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "personal"
+            }
+          },
+          "route": {
+            "method": "GET",
+            "path": "/admin/markets/{id}",
+            "summary": "One market, with its log (admins only)",
+            "tags": [
+              "admin"
+            ]
+          }
+        }
+      },
+      "create": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "personal"
+            }
+          },
+          "route": {
+            "method": "POST",
+            "path": "/admin/markets",
+            "successStatus": 201,
+            "summary": "Create a market, as a draft (admins only)",
+            "tags": [
+              "admin"
+            ]
+          }
+        }
+      },
+      "open": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "personal"
+            }
+          },
+          "route": {
+            "method": "POST",
+            "path": "/admin/markets/{id}/open",
+            "summary": "Open a draft market (admins only)",
+            "tags": [
+              "admin"
+            ]
+          }
+        }
+      },
+      "close": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "personal"
+            }
+          },
+          "route": {
+            "method": "POST",
+            "path": "/admin/markets/{id}/close",
+            "summary": "Close an open market (admins only)",
+            "tags": [
+              "admin"
+            ]
+          }
+        }
+      },
+      "settle": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "personal"
+            }
+          },
+          "route": {
+            "method": "POST",
+            "path": "/admin/markets/{id}/settle",
+            "summary": "Settle a closed market by hand (admins only)",
+            "tags": [
+              "admin"
+            ]
+          }
+        }
+      }
+    }
   }
 }

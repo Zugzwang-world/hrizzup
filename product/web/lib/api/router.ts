@@ -1,4 +1,12 @@
 import { contract } from '@hrizzup/api';
+import {
+  closeMarket,
+  createMarket,
+  getMarket,
+  listMarkets,
+  openMarket,
+  settleMarket,
+} from '@hrizzup/markets';
 import { implement, ORPCError } from '@orpc/server';
 import type { ResponseHeadersPluginContext } from '@orpc/server/plugins';
 import { currentCommit, currentEnvironment, currentRegion } from '@/lib/env.ts';
@@ -10,6 +18,7 @@ import {
   type ServiceResult,
 } from '@/lib/health/checks.ts';
 import { cacheHeaders } from './caching.ts';
+import { asAdmin, consoleCall } from './console.ts';
 import { type ApiContext, signedIn } from './context.ts';
 
 /**
@@ -27,6 +36,13 @@ const api = implement(contract)
   });
 
 const state = (result: ServiceResult) => result.status;
+
+/**
+ * The market console's calls (console.ts): admins only. The admin check wraps the whole subtree,
+ * so it runs before any input is read: to anyone else, a call answers exactly as an address the
+ * API doesn't have, whatever was sent. The database checks the admins table again inside each.
+ */
+const admin = api.admin.use(asAdmin);
 
 export const router = api.router({
   health: api.health.handler(async () => {
@@ -69,4 +85,27 @@ export const router = api.router({
             : 'other',
     };
   }),
+
+  admin: {
+    markets: {
+      list: admin.markets.list.handler(({ context, input }) =>
+        consoleCall(() => listMarkets(context.pool, context.account, { after: input?.after })),
+      ),
+      get: admin.markets.get.handler(({ context, input }) =>
+        consoleCall(() => getMarket(context.pool, context.account, input.id)),
+      ),
+      create: admin.markets.create.handler(({ context, input }) =>
+        consoleCall(() => createMarket(context.pool, context.account, input)),
+      ),
+      open: admin.markets.open.handler(({ context, input }) =>
+        consoleCall(() => openMarket(context.pool, context.account, input.id)),
+      ),
+      close: admin.markets.close.handler(({ context, input }) =>
+        consoleCall(() => closeMarket(context.pool, context.account, input.id)),
+      ),
+      settle: admin.markets.settle.handler(({ context, input }) =>
+        consoleCall(() => settleMarket(context.pool, context.account, input)),
+      ),
+    },
+  },
 });
