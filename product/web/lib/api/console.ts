@@ -74,10 +74,13 @@ export async function consoleAdmin(headers: Headers): Promise<ConsoleAdmin | nul
   }
 }
 
-/** Whether an address under /api/v1 is one of the console's (`/admin/…`). */
+/**
+ * Whether an address under /api/v1 is one of the console's (`/admin/…`), however its slashes are
+ * doubled (`/api/v1//admin/…`), so no way of writing one can slip past the check.
+ */
 export function isConsoleAddress(url: string): boolean {
-  const { pathname } = new URL(url);
-  return pathname === '/api/v1/admin' || pathname.startsWith('/api/v1/admin/');
+  const path = new URL(url).pathname.replace(/\/{2,}/g, '/');
+  return path === '/api/v1/admin' || path.startsWith('/api/v1/admin/');
 }
 
 /**

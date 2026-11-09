@@ -29,6 +29,9 @@ const calls = (id: string): [string, string, unknown?, Record<string, string>?][
   ['POST', `/api/v1/admin/markets/${id}/close`],
   ['POST', `/api/v1/admin/markets/${id}/settle`, { outcome: 'yes' }],
   ['DELETE', `/api/v1/admin/markets/${id}`],
+  ['GET', '/api/v1/admin/no-such-call'],
+  ['GET', '/api/v1//admin/markets'],
+  ['POST', '/api/v1//admin/markets', '{', { 'content-type': 'application/json' }],
 ];
 
 /** Headers that differ from one answer to the next by their nature (the time, the request's ID). */
@@ -67,7 +70,8 @@ test("the console's calls answer anyone but an admin as an address the API doesn
   baseURL,
   browserName,
 }) => {
-  const unknown = await call(request, 'GET', '/api/v1/admin/no-such-call', {});
+  // An address outside the console that the API doesn't have: what every stranger must get.
+  const unknown = await call(request, 'GET', '/api/v1/no-such-call', {});
   expect(unknown.status).toBe(404);
   const id = newRecordId();
 

@@ -56,6 +56,13 @@ const attempts: [keyof typeof route, string, RequestInit][] = [
   ],
   ['DELETE', `/api/v1/admin/markets/${ID}`, {}],
   ['GET', '/api/v1/admin', {}],
+  ['GET', '/api/v1//admin/markets', {}],
+  [
+    'POST',
+    '/api/v1//admin//markets',
+    { body: '{', headers: { 'content-type': 'application/json' } },
+  ],
+  ['GET', '/api/v1/admin/no-such-call', {}],
 ];
 
 beforeEach(() => {
