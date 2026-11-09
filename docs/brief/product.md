@@ -2,14 +2,14 @@
 
 **This brief replaces Claude Code's report:** read it after **Sync now** instead of asking the founder for one, and attach the files under "Read for detail" from GitHub for more.
 
-> Rewritten 9 November 2026 with relay 1's two more records (1c): how rounds run, and the perp in two steps. PLAN.md wins any disagreement.
+> Rewritten 9 November 2026 with relay 6's ledger (1.7b). PLAN.md wins any disagreement.
 
 **Hrizzup** is a news app built around creators, plus a website with play-money prediction markets: our AI finds news as it breaks on X and turns it into developing stories seen through creators' takes. **Product builds** the website and the app in parallel (the website a stage ahead; Android, then iPhone from the same code) and the markets. It shows the content it receives through the content store's tables, in the shapes of the hand-over agreement (`agreement/README.md`), whose first half is Agreed.
 
 ## Where things stand
 
 - **Staging** (`staging.hrizzup.com`, Mumbai) is public, asking search engines to stay out; previews need Vercel's login and share staging's database; production is a quiet twin.
-- **Built:** a holding page, legal drafts, a sign-in test page, the typed API (health, who am I), a one-screen app on the founder's phone and Manifold's yes/no maths (1.7a). No tables yet.
+- **Built:** a holding page, legal drafts, a sign-in test page, the typed API (health, who am I), a one-screen app on the founder's phone, Manifold's maths (1.7a) and the ledger (1.7b; its tables on staging, empty).
 - **Required checks:** Secret, Quick, Database, Screen (with the website's journeys), Speed and App journeys.
 - **Design** restarts in the design chat, from the founder's references and diagrams; no design values exist yet.
 - **Round 3 has started** (the milestone "Round 3"): relays 1 to 12, with 1b, in waves; relays 4, 10 and 11 are cancelled (`TRACKER.md`).
@@ -30,7 +30,7 @@ One line per relay; each relay keeps only its own line current.
 
 5. **Relay 5, step 1.6a, the website's sign-in (wave 2, after 1.8):** [#70](https://github.com/Zugzwang-world/hrizzup/pull/70) adds the access-token hook that refuses password sessions, switched off; the Database check's tests prove both sides (email codes, Google, the test accounts' tokens and refreshes pass; passwords are refused). Next: email codes on the sign-in test page, then the hook switched on for staging. Nothing for the founder yet.
 
-6. **Relay 6, step 1.7b, the ledger (wave 2):** the tables, [#69](https://github.com/Zugzwang-world/hrizzup/pull/69): the double-entry books and the markets in exact decimals, the app's own database role, and the database's own checks of every trade, arriving on staging empty. Next: the trade code with its tests (milestone 2). Nothing for the founder yet.
+6. **Relay 6, step 1.7b, the ledger (wave 2):** done: [#69](https://github.com/Zugzwang-world/hrizzup/pull/69) the tables (on staging, empty), [#73](https://github.com/Zugzwang-world/hrizzup/pull/73) the trade, each one transaction through the app's own database role. For the founder: the app's own database login, before launch (below).
 
 7. **Relay 7, step 1.9, the content store's tables (wave 2, when a slot is free):** not started.
 
@@ -65,17 +65,14 @@ One line per relay; each relay keeps only its own line current.
 
 ## What changed in the latest session
 
-On 9 November 2026, in [#62](https://github.com/Zugzwang-world/hrizzup/pull/62) (Round 3, relay 1c, records only), what the Product chat settled at the founder's request:
+On 9 November 2026, relay 6 built the ledger (1.7b), as the founder's decisions set it out:
 
-- **How rounds run:** side by side only when independent (PLAN.md, CLAUDE.md).
-- **3.4a split:** the perp's back end (3.4a, needing 1.7d, not 3.1) and its page (new 3.4c, needing 3.1 and 3.4a); 3.4b unchanged.
-- **Nothing added to Round 3:** the perp starts the next round.
-
-Just before, [#61](https://github.com/Zugzwang-world/hrizzup/pull/61) (relay 1b): no xAI API; Sourcing works in its own project; relays 4, 10 and 11 cancelled.
+- **[#69](https://github.com/Zugzwang-world/hrizzup/pull/69), the tables:** double-entry books and markets in exact decimals; the app's own database role; the database checking every trade itself. Staging and every release check the books balance.
+- **[#73](https://github.com/Zugzwang-world/hrizzup/pull/73), the trade:** one transaction each, one at a time per market, rounded in the house's favour, a retry returning its first answer; tested in the Database check and once on staging, rolled back. An independent AI review (four rounds) found no way to create money.
 
 ## Open questions
 
-- **The app's database role** (1.7b, 1.7c): the app connects as Supabase's `postgres` user, which owns every table, so the admins table can't yet refuse it. Recommendation: the app's own least-privilege role, switched to in every transaction (`SET LOCAL ROLE`); built in 1.7b, with a test.
+- **The ledger's next steps** (1.7b, 1.7c). Recommendations: an admin "cancel a resting order" in 1.7c's console, for a stuck order; yes/no markets only until a topic needs Manifold's multi-answer maths; lock fewer accounts per trade once markets grow.
 - **Creators' X accounts** (2.4; the review's N13): linking one needs the creator's opt-in, and Product can't use X's sign-in. Recommendation: the link comes with the invitation, which News Desk checks outside the product.
 - **The perp's first settings** (3.4a's maths waits for them). Recommendation, from Manifold's perps: a price every 5 seconds; a 0.1% opening fee, closing free; hourly funding by its formula; a seeded stand-in price; a log table of rule changes.
 - **Embedding found posts** (2.3): one X embed is about 330 KB of code, over a page's budget. Recommendation: load each only as it nears the screen, behind a placeholder holding its space and credit.
@@ -87,6 +84,7 @@ Just before, [#61](https://github.com/Zugzwang-world/hrizzup/pull/61) (relay 1b)
 - **Design:** give your references and diagrams in the design chat. Recommendation: the board and a story page first, then the rest feature by feature (the sign-in screen and the perp's page among them).
 - **Spending, not now:** a speed check from India (Calibre, $75 a month) once the board exists; Expo's Maestro job (about $60 a month) only if the emulator proves flaky; a database per pull request only if database-first slows features.
 - **Three decisions, recommended:** posting on the website (2.4): both surfaces; the closed test (2.6): start without News Desk's content; free and paid (2.7): reading and betting free, play money never sold. **Alongside:** the developer accounts (0.4), 12 Google Play testers, News Desk.
+- **A database login of the app's own, before launch:** the app's role stops mistakes, not injected SQL, while the login is `postgres`. Recommendation: its own login, with a password you make in Supabase and keep in Doppler; Claude Code then switches to it.
 - **Parked until launch:** the runbook's pre-launch checklist, with P.16 (your admin row on production).
 
 ## What's next
@@ -99,5 +97,5 @@ Round 3's queue, with nothing added (`TRACKER.md`): wave 1 (relays 1, 1b, 2, 3);
 - `docs/setup/BLUEPRINT.md` (database, books, admins 5; staging 6; sign-in 9; typed API, console 13; budgets 14), `docs/setup/RUNBOOK.md` (pre-launch checklist).
 - `product/packages/api` (the contract), `product/README.md` (the app's builds).
 - `agreement/README.md`; `agreement/reviews/sourcing-first-half.md` (N12 to N14 are Product's).
-- `product/packages/market-engine/README.md` (the maths); `docs/research/manifold.md` (Manifold's engine and perps).
+- `product/packages/ledger/README.md` (a trade, the books' rules and their tests); `product/packages/db/README.md` (the server's one way into the database); `product/packages/market-engine/README.md` (the maths); `docs/research/manifold.md` (Manifold's engine and perps).
 - `docs/status/product.md`: Product's status in full.
