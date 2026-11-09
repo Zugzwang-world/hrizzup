@@ -191,7 +191,7 @@ Last updated: 9 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/brie
   - **The list:** `infra/doppler/app-keys.txt` names the app's 21 keys, names only, each with what uses it. Only those names may be in `stg`, `stg_preview` and `dev`, besides Doppler's own three labels.
   - **The check:** `infra/doppler/dev_follows_staging.py check` fails on any other name there, on any name `hrizzup-tools` holds, on a dev override that isn't an app key, and on a listed name `stg` doesn't hold; `apply` never gives `dev` a reference to a name that isn't listed. `infra/doppler/app_keys.py check <config>` does the same for a GitHub job, reading names only through Doppler's names endpoint. 30 tests with made-up names run in Quick checks.
   - **Run on 9 November 2026** (names only): one problem, the known `EXPO_TOKEN` in `stg` and `stg_preview`. The list matches today's app keys exactly, and `dev` follows staging (20 references, 1 override).
-  - **The jobs' half waits:** the same check in the Staging workflow and the Screen check, before they load a config, is [#54](https://github.com/Zugzwang-world/hrizzup/pull/54), a draft until runbook step 4.6: while `EXPO_TOKEN` is in `stg`, it would stop every one of their runs.
+  - **The jobs' half** ([#54](https://github.com/Zugzwang-world/hrizzup/pull/54), merged once runbook step 4.6 was done): the Staging workflow (its step 0) and the Screen check run `app_keys.py check` before they load `stg` or `stg_preview`, so a stray name stops them before they hold it. `infra/doppler/test_workflows.py` fails if any job loads one of `hrizzup`'s configs without checking its names first; the release pipeline is the one exception, since it loads production's `prd_release`, whose keys it checks itself.
   - **A new app key:** its name goes into the list in a pull request that merges before the key goes into `stg` (CLAUDE.md, runbook Part 4).
   - **Answered without asking** (one line each):
     - One list, of the app's keys; `hrizzup-tools`' live names are cross-checked instead of keeping a second list.
@@ -227,7 +227,6 @@ Last updated: 9 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/brie
 5. **Design, in the design chat, once the founder gives his references and diagrams** (step 1.4 restarts there): the design values with the board and a story page, then the market page with placeholder questions, the last of 1.4's three core screens. The design chat settles whether the remaining screens are designed up front or feature by feature.
 6. **Review the agreement's second half** once Sourcing designs it (after step 0.8).
 7. **Then the first feature round:** each news feature through its stages in `TRACKER.md`, design in the design chat and engineering in the round's chat, meeting at the contract; alongside, the markets track, built as [docs/research/manifold.md](../research/manifold.md) sets out.
-8. **The Doppler names check in the Staging workflow and the Screen check** ([#54](https://github.com/Zugzwang-world/hrizzup/pull/54)) can merge now: step 4.6 is done and `dev_follows_staging.py check` passes ([#57](https://github.com/Zugzwang-world/hrizzup/pull/57)).
 
 ## Open questions
 

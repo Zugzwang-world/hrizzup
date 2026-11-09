@@ -5,7 +5,9 @@
 #                   and the infrastructure tools' own tests (infra/vercel, infra/doppler)
 #   Database check  builds a fresh database from infra/supabase/migrations and runs its
 #                   tests, including "every table is locked" (row-level security)
-#   Screen check    once Vercel's preview of the pull request is ready, opens it in
+#   Screen check    checks by name that Doppler stg_preview holds only the app's keys
+#                   (infra/doppler/app-keys.txt) before loading it; then, once
+#                   Vercel's preview of the pull request is ready, opens it in
 #                   Chromium and WebKit at every screen size (CLAUDE.md, "Screens fit
 #                   every device"), signed out and signed in with a staging test account,
 #                   then runs the website's journeys (product/web/e2e/journeys: every page
@@ -122,6 +124,16 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
         run: python3 .github/scripts/wait_for_preview.py "$COMMIT"
+
+      # Before any key is loaded: every name in stg_preview must be one of the app's keys
+      # (infra/doppler/app-keys.txt), so a tool token there stops this job before it sits
+      # beside the pull request's code (runbook Part 4, "Where each kind of key lives").
+      # Names only: Doppler's names endpoint sends no values.
+      - name: The previews' keys are the app's own (names only)
+        if: steps.affected.outputs.website == 'true'
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN_PREVIEW }}
+        run: python3 infra/doppler/app_keys.py check stg_preview
 
       - name: Staging's keys for the test accounts (Doppler stg_preview, masked)
         if: steps.affected.outputs.website == 'true'
