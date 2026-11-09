@@ -12,7 +12,8 @@
 #                   from infra/supabase/migrations and runs its tests, including "every
 #                   table is locked" (row-level security)
 #   Screen check    checks by name that Doppler stg_preview holds only the app's keys
-#                   (infra/doppler/app-keys.txt) before loading it; then, once
+#                   (infra/doppler/app-keys.txt), then asks it for the three its tests
+#                   use, by name, for the tests alone (infra/doppler/named_keys.py); once
 #                   Vercel's preview of the pull request is ready, opens it in
 #                   Chromium and WebKit at every screen size (CLAUDE.md, "Screens fit
 #                   every device"), signed out and signed in with a staging test account,
@@ -206,13 +207,10 @@ jobs:
           DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN_PREVIEW }}
         run: python3 infra/doppler/app_keys.py check stg_preview
 
-      - name: Staging's keys for the test accounts (Doppler stg_preview, masked)
-        if: steps.affected.outputs.website == 'true'
-        uses: dopplerhq/secrets-fetch-action@451892f16195f9ac360e1a5bcbf0b5fd0e957534 # v2.0.0
-        with:
-          doppler-token: ${{ secrets.DOPPLER_TOKEN_PREVIEW }}
-          inject-env-vars: true
-
+      # The tests' own keys and nothing more: the test accounts' three (SUPABASE_URL,
+      # SUPABASE_PUBLISHABLE_KEY, SUPABASE_SECRET_KEY), asked of stg_preview by name and given to
+      # the tests' process alone, masked, never the whole config and never to a later step
+      # (infra/doppler/named_keys.py, which refuses any name that isn't one of the app's keys).
       - name: Screen check and journeys on the preview
         if: steps.affected.outputs.website == 'true'
         working-directory: product/web
@@ -220,7 +218,10 @@ jobs:
           BASE_URL: ${{ steps.preview.outputs.url }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
           SCREENSHOTS_DIR: ${{ github.workspace }}/screenshots
-        run: pnpm exec playwright test
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN_PREVIEW }} # read-only, for the three keys below
+        run: >-
+          python3 ../../infra/doppler/named_keys.py SUPABASE_URL SUPABASE_PUBLISHABLE_KEY SUPABASE_SECRET_KEY
+          -- pnpm exec playwright test
 
       - name: Screenshots for the founder (360, 768, 1440 and 1920 pixels)
         if: ${{ !cancelled() && steps.affected.outputs.website == 'true' }}
