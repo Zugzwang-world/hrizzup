@@ -6,8 +6,9 @@ import * as examples from './examples.ts';
 /**
  * A stand-in implementation of the whole contract that answers with the example answers
  * (examples.ts): for screens built before their back end (TRACKER.md, stages 4a and 4b), and
- * for tests. `signedIn: false` makes `me` answer as when nobody is signed in; `admin: false`
- * makes the market console's calls answer as they do for anyone but an admin ("No such call").
+ * for tests. `signedIn: false` makes `me`, trading and the portfolio answer as when nobody is
+ * signed in; `admin: false` makes the market console's calls answer as they do for anyone but an
+ * admin ("No such call").
  */
 export function standIn(options: { signedIn?: boolean; admin?: boolean } = {}) {
   const api = implement(contract);
@@ -25,12 +26,71 @@ export function standIn(options: { signedIn?: boolean; admin?: boolean } = {}) {
     return examples.consoleMarketWithLog;
   };
 
+  /** Trading and the portfolio need someone signed in. */
+  const asPerson = () => {
+    if (!signedIn) throw new ORPCError('UNAUTHORIZED', { message: 'Not signed in' });
+  };
+  /** Trading needs a market the list has: the stand-in trades only the example market. */
+  const tradable = (marketId: string) => {
+    if (marketId !== examples.tradeResult.marketId) {
+      throw new ORPCError('NOT_FOUND', { message: 'No such market' });
+    }
+  };
+
   return api.router({
     health: api.health.handler(() => examples.health),
     me: api.me.handler(() => {
       if (!signedIn) throw new ORPCError('UNAUTHORIZED');
       return examples.me;
     }),
+    markets: {
+      list: api.markets.list.handler(() => examples.marketList),
+      trade: api.markets.trade.handler(({ input }) => {
+        asPerson();
+        tradable(input.marketId);
+        if (input.action === 'sell') {
+          // Selling the example's Yes shares back: the pool returns to 50%.
+          return {
+            ...examples.tradeResult,
+            requestId: input.requestId,
+            outcome: input.outcome,
+            amount: '-24.999999',
+            shares: '-49.390243',
+            orderAmount: null,
+            probBefore: examples.tradeResult.probAfter,
+            probAfter: '0.50000000',
+            balance: '999.999999',
+            position: { yes: '0.000000', no: '0.000000' },
+          };
+        }
+        // As the real call: an expiry that isn't in the future is refused (here, with no answer to
+        // replay, always).
+        if (input.expiresAt !== undefined && Date.parse(input.expiresAt) <= Date.now()) {
+          throw new ORPCError('BAD_REQUEST', { message: 'An expiry must be in the future' });
+        }
+        const example =
+          input.limitProb === undefined ? examples.tradeResult : examples.restingOrder;
+        return { ...example, requestId: input.requestId, outcome: input.outcome };
+      }),
+      cancelOrder: api.markets.cancelOrder.handler(({ input }) => {
+        asPerson();
+        tradable(input.marketId);
+        if (input.orderId !== examples.restingOrder.tradeId) {
+          throw new ORPCError('REFUSED', { data: { reason: 'no_open_order' } });
+        }
+        return { ...examples.cancelOrderResult, requestId: input.requestId };
+      }),
+    },
+    portfolio: {
+      positions: api.portfolio.positions.handler(() => {
+        asPerson();
+        return examples.positionsPage;
+      }),
+      orders: api.portfolio.orders.handler(() => {
+        asPerson();
+        return examples.ordersPage;
+      }),
+    },
     admin: {
       markets: {
         list: api.admin.markets.list.handler(() => {

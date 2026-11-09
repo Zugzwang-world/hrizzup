@@ -26,12 +26,18 @@ export const categories: readonly { code: string; name: string }[] = (
 const category = z.enum(categories.map((c) => c.code) as [string, ...string[]]);
 
 /** An exact amount or probability, written as text, as the database keeps it. */
-const decimal = z.string().regex(/^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$/, 'Must be an exact decimal');
+export const decimal = z
+  .string()
+  .regex(/^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$/, 'Must be an exact decimal');
 
-const moment = z.iso.datetime();
+/** A moment, as the agreement writes one: UTC, in ISO 8601 (`2026-11-09T06:30:00Z`). */
+export const moment = z.iso.datetime();
 
-/** A probability a market starts at, or is settled at: 1% to 99%, to at most 8 decimal places. */
-const probability = z
+/**
+ * A probability a market starts at, is settled at, or a limit order buys up to: 1% to 99%, to at
+ * most 8 decimal places.
+ */
+export const probability = z
   .string()
   .regex(/^0\.[0-9]{1,8}$/, 'Must be a decimal from 0.01 to 0.99')
   .refine((value) => Number(value) >= 0.01 && Number(value) <= 0.99, {

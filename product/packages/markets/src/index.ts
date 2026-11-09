@@ -10,3 +10,17 @@ export {
   openMarket,
   settleMarket,
 } from './console.ts';
+export {
+  asTradingError,
+  cancelOrder,
+  checkBefore,
+  type Holdings,
+  marketList,
+  openOrders,
+  PAGE_SIZE,
+  placeTrade,
+  positions,
+  refusalBefore,
+  TradingError,
+  type TradingErrorKind,
+} from './trading.ts';

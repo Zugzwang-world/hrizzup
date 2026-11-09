@@ -22,3 +22,18 @@ export {
   me,
   noInput,
 } from './contract.ts';
+export {
+  type CancelOrderInput,
+  type CancelOrderResult,
+  type ListedMarket,
+  type MarketList,
+  type OpenOrder,
+  type OrdersPage,
+  type Position,
+  type PositionsPage,
+  type Refusal,
+  refusal,
+  type Side,
+  type TradeInput,
+  type TradeResult,
+} from './trading.ts';

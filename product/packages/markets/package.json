@@ -1,7 +1,7 @@
 {
   "name": "@hrizzup/markets",
   "private": true,
-  "description": "Markets as data, run by admins (PLAN.md step 1.7c): the market console's calls (create, open, close and settle, and the reads the console shows), each one database transaction as the app's own role with the admin signed in, so the database itself checks the admins table and logs every settlement. Server only.",
+  "description": "Markets as data (PLAN.md steps 1.7c and 1.7d): the market console's calls for admins (create, open, close and settle, and the reads the console shows) and the markets' calls for everyone (the list, trading, cancelling an order, positions and open orders), each one database transaction as the app's own role with the person signed in, so the database itself checks the admins table and the books. Server only.",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
@@ -13,11 +13,11 @@
   },
   "dependencies": {
     "@hrizzup/api": "workspace:*",
-    "@hrizzup/db": "workspace:*"
+    "@hrizzup/db": "workspace:*",
+    "@hrizzup/ledger": "workspace:*"
   },
   "devDependencies": {
     "@hrizzup/database": "workspace:*",
-    "@hrizzup/ledger": "workspace:*",
     "@hrizzup/tsconfig": "workspace:*",
     "@types/node": "^24.10.0",
     "@types/pg": "^8.15.0",
