@@ -25,9 +25,8 @@ Built in Expo's cloud (EAS Build, free plan) for the project `@hrizzups-team/hri
 - **Preview build** (an APK with its code inside, which opens on its own; what people install from its link):
 
   ```sh
-  infra/doppler/run stg -- pnpm --dir product/app dlx eas-cli@27.4.1 build --platform android --profile preview --non-interactive
+  infra/doppler/run tools -- pnpm --dir product/app dlx eas-cli@27.4.1 build --platform android --profile preview --non-interactive
   ```
 - **Development build** (Expo's development client, for sessions at the Mac): the same with `--profile development`, then `pnpm --filter @hrizzup/app start --dev-client` with the phone on the Mac's Wi-Fi.
-- Once runbook step 4.6 has moved the token, use `infra/doppler/run tools` instead of `stg`.
 
 Status: [docs/status/product.md](../docs/status/product.md). Brief: [docs/brief/product.md](../docs/brief/product.md). Plan: [PLAN.md](../PLAN.md), section 4.
