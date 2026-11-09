@@ -333,11 +333,13 @@ def listener(port: int):
     return pids[0] if pids else None
 
 
-def stop_tree(entry, grace: float = 15, *, folder: str = "") -> bool:
+def stop_tree(entry, grace: float = 30, *, folder: str = "") -> bool:
     """Stops a service this tool started: its first process and everything under it.
 
     Next.js and Expo each put their server in a process group of its own, so the whole tree
-    is found from the first process, and each process and each of their groups is stopped.
+    is found from the first process, and each process and each of their groups is stopped:
+    first as Ctrl-C would (SIGINT), so Next.js can finish writing its build cache, and only
+    after `grace` seconds by force.
     If that first process is already gone but the service still answers on its port, the
     listener is stopped only when its own command line, or its parent's, names the
     worktree the slot belonged to (`folder`), so another program on that port is never touched.
@@ -358,7 +360,7 @@ def stop_tree(entry, grace: float = 15, *, folder: str = "") -> bool:
         return False
     own = os.getpgrp()
     groups = {table[pid][1] for pid in pids if pid in table} - {0, 1, own}
-    for signum in (signal.SIGTERM, signal.SIGKILL):
+    for signum in (signal.SIGINT, signal.SIGKILL):
         for group in groups:
             try:
                 os.killpg(group, signum)
@@ -369,7 +371,7 @@ def stop_tree(entry, grace: float = 15, *, folder: str = "") -> bool:
                 os.kill(pid, signum)
             except (ProcessLookupError, PermissionError):
                 pass
-        deadline = time.monotonic() + (grace if signum == signal.SIGTERM else 5)
+        deadline = time.monotonic() + (grace if signum == signal.SIGINT else 5)
         while time.monotonic() < deadline:
             remaining = processes()
             if not any(pid in remaining for pid in pids) and not any(
@@ -550,6 +552,18 @@ def ready(service: str, slot: Slot) -> bool:
         return False
 
 
+def fresh_dev_build(folder: str) -> None:
+    """The website starts from a clean development build (`.next/dev`) each time.
+
+    Next.js 16 keeps Turbopack's build cache between runs (`turbopackFileSystemCacheForDev`).
+    On 9 November 2026 a cache left by an earlier run made two slots' websites rebuild on
+    every page load, so each page reloaded itself hundreds of times a second and the sign-in
+    journeys failed; switching the cache off, or deleting it, cured it. A first compile from
+    nothing takes a few seconds for this site, so each start begins clean instead.
+    """
+    shutil.rmtree(os.path.join(folder, ".next", "dev"), ignore_errors=True)
+
+
 def installed(folder: str, program: str) -> str:
     """A package's own command from its node_modules, run directly: through `pnpm exec`, two
     more Node processes (about 170 MB) would sit above every server."""
@@ -590,6 +604,8 @@ def run_service(register: Register, service: str, detach: bool) -> int:
                          f"(port {port}); `infra/slots/slot stop {service}` stops it")
         if answers(port):
             raise Failed(f"Port {port} is in use by another program, so the {name} can't start")
+        if service == "web":
+            fresh_dev_build(folder)
         output = open(log, "ab") if log else None
         child = subprocess.Popen(
             command, cwd=folder, env=env, start_new_session=True,

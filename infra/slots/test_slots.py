@@ -266,6 +266,19 @@ class Processes(unittest.TestCase):
         kill.assert_not_called()
 
 
+class Website(unittest.TestCase):
+    def test_the_website_starts_from_a_clean_development_build(self):
+        """Turbopack's build cache from an earlier run can leave the website reloading every
+        page in a loop, so each start removes the development build, and nothing else."""
+        with tempfile.TemporaryDirectory() as web:
+            os.makedirs(os.path.join(web, ".next", "dev", "cache"))
+            os.makedirs(os.path.join(web, ".next", "types"))
+            slots.fresh_dev_build(web)
+            self.assertFalse(os.path.exists(os.path.join(web, ".next", "dev")))
+            self.assertTrue(os.path.isdir(os.path.join(web, ".next", "types")))
+            slots.fresh_dev_build(web)  # nothing to remove is fine too
+
+
 class Docker(unittest.TestCase):
     def test_docker_is_found_inside_docker_desktop_when_not_on_path(self):
         with tempfile.TemporaryDirectory() as app:
