@@ -3,8 +3,8 @@
 #   Quick checks    formatting and lint (Biome), type checks and unit tests (Turborepo),
 #                   including the hand-over agreement's check (agreement/src/agreement.test.ts),
 #                   the infrastructure tools' own tests (infra/vercel, infra/doppler,
-#                   infra/supabase) and the checks' own scripts' tests (.github/scripts:
-#                   tool downloads, affected parts)
+#                   infra/slots, infra/supabase) and the checks' own scripts' tests
+#                   (.github/scripts: tool downloads, affected parts)
 #   Database check  first, the database-order check (infra/supabase/migration_order.py):
 #                   every migration the pull request adds comes after the newest one on
 #                   main as it is now, none already on main is touched, and
@@ -75,6 +75,7 @@ jobs:
           python3 -m unittest discover -s infra/vercel
           python3 -m unittest discover -s infra/doppler
           python3 -m unittest discover -s .github/scripts
+          python3 -m unittest discover -s infra/slots
           python3 -m unittest discover -s infra/supabase
 
   database:

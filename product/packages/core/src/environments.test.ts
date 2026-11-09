@@ -10,6 +10,13 @@ describe('redisKey', () => {
     expect(() => redisKey('prod', 'cache', 'home')).toThrow(/prefix/);
   });
 
+  it("names this Mac's slot after dev, so side-by-side sessions never share a key", () => {
+    expect(redisKey('dev:slot2', 'cache', 'feed', 'home')).toBe('dev:slot2:cache:feed:home');
+    expect(() => redisKey('stg:slot2', 'cache', 'home')).toThrow(/prefix/);
+    expect(() => redisKey('dev:slot0', 'cache', 'home')).toThrow(/prefix/);
+    expect(() => redisKey('dev:other', 'cache', 'home')).toThrow(/prefix/);
+  });
+
   it('refuses parts that could hold personal data or break the key format', () => {
     expect(() => redisKey('stg', 'rate', 'someone@example.com')).toThrow();
     expect(() => redisKey('stg', 'rate', 'a:b')).toThrow();
