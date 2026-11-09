@@ -1461,9 +1461,12 @@ No good sign-in failed, so the switch-off kept ready beside it (one setting, `ho
 
 **For the founder (about a minute):** sign in once with Google on `https://staging.hrizzup.com/sign-in-test`, then sign out. A test can't sign in to Google; the hook passes Google (its tests, and Supabase Auth's source), and this confirms it with the hook on.
 
----
-
 ## 10 November 2026
+
+### The release pipeline's key check (Round 3, relay 3, Claude Code)
+
+- **Set:** `infra/doppler/release-keys.txt` lists the release pipeline's own credentials by name (`CLOUDFLARE_API_TOKEN`, `SUPABASE_ACCESS_TOKEN`, `VERCEL_TOKEN`). The release pipeline (`.github/workflows/release.yml`) now reads `prd_release`'s names before loading it (step 1a) and the names in Vercel's production settings before changing production (step 2), and stops on any name production mustn't hold ([#65](https://github.com/Zugzwang-world/hrizzup/pull/65)). Nothing was set on production, and no production key or name was read.
+- **Checked:** with fixtures, and live against staging's names through Claude Code's own staging tokens (Doppler `stg`, 21 names; Vercel's staging settings, the same 21 plus Doppler's three labels, read with Vercel's staging filter).
 
 ### The repository made ready to go public (Round 3, relay 13; the founder's decision of 10 November 2026; Claude Code)
 

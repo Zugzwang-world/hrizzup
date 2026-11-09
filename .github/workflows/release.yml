@@ -16,8 +16,18 @@
 # repo's own scripts (Python's standard library only) and the Supabase CLI from the
 # frozen lockfile. In order, stopping at the first failure:
 #   1. The commit is on main and passed staging (its Staging workflow run succeeded).
-#   2. Production's values: the database addresses are Supabase's pooler for production's
-#      project, and every key is valid and production's own (infra/keys/check.py).
+#   1a. Before production's keys are loaded, their names alone (Doppler's names endpoint, no
+#      values): each must be one of the app's keys production holds or one of this
+#      pipeline's own credentials (infra/doppler/app-keys.txt, release-keys.txt), so a tool
+#      token there stops the pipeline before it holds it. Releases and rollbacks alike. These
+#      key checks always come from this workflow's own commit (main's newest), never from
+#      the commit being released or rolled back to, so today's rules and lists apply.
+#   2. Production's values: Vercel's production settings, which prd fills, hold every
+#      production key prd holds and nothing else, so none of this pipeline's credentials went
+#      into prd (a rollback skips this: it only returns production to an earlier build,
+#      which today's settings don't change, so they never block it); the database addresses
+#      are Supabase's pooler for production's project, and every key is valid and
+#      production's own (infra/keys/check.py).
 #   3. Production's Supabase project settings, applied and checked (encrypted connections
 #      only, legacy keys off; region, compute, Data API off) (infra/supabase/project).
 #   4. The commit's database changes (migrations), then every table checked locked and the
@@ -133,6 +143,17 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      # The key checks (steps 1a and 2) run from this workflow's own commit, main's newest, not
+      # from the commit checked out above: a rollback to an older commit must meet today's rules
+      # and lists, not that commit's (or none, before they existed).
+      - name: The key checks, from this workflow's own commit
+        env:
+          WORKFLOW_COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/key-checks"
+          git archive "$WORKFLOW_COMMIT" infra/doppler | tar -x -C "$RUNNER_TEMP/key-checks"
+
       - name: 1. The commit is on main and passed staging
         env:
           GH_TOKEN: ${{ github.token }}
@@ -167,6 +188,16 @@ jobs:
       - run: pnpm install --frozen-lockfile --filter @hrizzup/database
         if: inputs.action == 'release'
 
+      # Before any key is loaded: every name in prd_release must be one of the app's keys
+      # production holds, or one of this pipeline's own credentials (infra/doppler/app-keys.txt,
+      # infra/doppler/release-keys.txt), so a tool token there stops the pipeline before it
+      # holds it (runbook Part 4, "Where each kind of key lives"). Names only: Doppler's names
+      # endpoint sends no values, and nothing here reads one.
+      - name: 1a. Production's keys are the app's own and the pipeline's (names only)
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+        run: python3 "$RUNNER_TEMP/key-checks/infra/doppler/app_keys.py" check prd_release
+
       - name: Production's keys (Doppler prd_release, masked)
         uses: dopplerhq/secrets-fetch-action@451892f16195f9ac360e1a5bcbf0b5fd0e957534 # v2.0.0
         with:
@@ -189,6 +220,7 @@ jobs:
         if: inputs.action == 'release'
         run: |
           set -euo pipefail
+          python3 "$RUNNER_TEMP/key-checks/infra/doppler/app_keys.py" vercel production
           python3 infra/supabase/database_url.py check
           python3 infra/keys/check.py production
 

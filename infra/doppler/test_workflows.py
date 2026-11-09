@@ -5,11 +5,14 @@ reading the workflow files only.
 
 A job that loads a config with Doppler's action must run `infra/doppler/app_keys.py check
 <config>` earlier in the same job, with the same token and under the same condition, so a
-config holding a name that isn't one of the app's keys stops the job before the job holds the
-key (runbook Part 4, "Where each kind of key lives"). The release pipeline is the one
-exception: it loads production's `prd_release`, which also holds the pipeline's own
-credentials and which Claude Code never reads; production's keys are checked by the pipeline
-itself (`infra/keys/check.py`).
+config holding a name that isn't allowed there stops the job before the job holds the key
+(runbook Part 4, "Where each kind of key lives"). That includes the release pipeline, which
+loads production's `prd_release`: its names must be production's app keys or the pipeline's
+own credentials. Before a release changes production, the pipeline also reads the names
+in Vercel's production settings (`app_keys.py vercel production`); a rollback, which only returns
+production to an earlier build that today's settings don't change, skips that one. The pipeline's key checks come from the workflow's own commit, never
+from the commit being released or rolled back to. No check may be let fail
+(`continue-on-error`).
 """
 import os
 import re
@@ -18,12 +21,13 @@ import unittest
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 WORKFLOWS = os.path.join(ROOT, ".github", "workflows")
 LOADS = "dopplerhq/secrets-fetch-action"
-CHECK = re.compile(r"python3 infra/doppler/app_keys\.py check (\w+)")
+CHECK = re.compile(r"python3 \"?(?:\$RUNNER_TEMP/key-checks/)?infra/doppler/app_keys\.py\"? check (\w+)")
 LOAD_TOKEN = re.compile(r"doppler-token:\s*\$\{\{\s*secrets\.(\w+)\s*\}\}")
 CHECK_TOKEN = re.compile(r"DOPPLER_TOKEN:\s*\$\{\{\s*secrets\.(\w+)\s*\}\}")
 CONDITION = re.compile(r"^\s+if:\s*(.+?)\s*$", re.M)
-LEFT_TO_THE_RELEASE_PIPELINE = {"release.yml"}
-KNOWN = {"staging.yml": {"stg"}, "checks.yml": {"stg_preview"}}  # jobs known to load hrizzup today
+KNOWN = {"staging.yml": {"stg"}, "checks.yml": {"stg_preview"}, "release.yml": {"prd_release"}}  # loads today
+CHANGES_PRODUCTION = re.compile(r"name: [3-8][a-z]?\. ")  # the release pipeline's steps 3 to 8, 4a and 4b too
+RELEASE_ONLY = "inputs.action == 'release'"
 
 
 def jobs(text):
@@ -54,7 +58,7 @@ class EveryJobChecksNamesBeforeLoading(unittest.TestCase):
     def test_each_load_is_preceded_by_the_names_check(self):
         checked = {}
         for file in sorted(os.listdir(WORKFLOWS)):
-            if not file.endswith((".yml", ".yaml")) or file in LEFT_TO_THE_RELEASE_PIPELINE:
+            if not file.endswith((".yml", ".yaml")):
                 continue
             with open(os.path.join(WORKFLOWS, file), encoding="utf-8") as f:
                 text = f.read()
@@ -65,7 +69,13 @@ class EveryJobChecksNamesBeforeLoading(unittest.TestCase):
                     with self.subTest(workflow=file, job=job, step=i):
                         token = first(LOAD_TOKEN, step)
                         self.assertIsNotNone(token, "a load without a Doppler token from GitHub's secrets")
+                        self.assertNotRegex(first(CONDITION, step) or "", r"always\(\)|failure\(\)|cancelled\(\)",
+                                            f"{file}, job {job}: a load that could run after its names check failed")
+                        self.assertNotIn("continue-on-error", step)
                         guards = [s for s in steps[:i] if CHECK.search(s) and first(CHECK_TOKEN, s) == token]
+                        for guard in guards:
+                            self.assertNotIn("continue-on-error", guard,
+                                             f"{file}, job {job}: a names check may never be let fail")
                         self.assertTrue(guards, f"{file}, job {job}: loads Doppler with {token} "
                                                 f"without first running app_keys.py check with it")
                         self.assertIn(first(CONDITION, guards[-1]), (None, first(CONDITION, step)),
@@ -73,6 +83,39 @@ class EveryJobChecksNamesBeforeLoading(unittest.TestCase):
                         checked.setdefault(file, set()).add(first(CHECK, guards[-1]))
         for file, configs in KNOWN.items():  # so the test can't pass by finding nothing
             self.assertLessEqual(configs, checked.get(file, set()), f"{file}: no checked load found")
+
+    def test_the_release_pipeline_reads_vercels_production_names_before_a_release_changes_production(self):
+        with open(os.path.join(WORKFLOWS, "release.yml"), encoding="utf-8") as f:
+            steps = jobs(f.read())["release"]
+        reads = [i for i, step in enumerate(steps) if re.search(r"app_keys\.py\"? vercel production", step)]
+        self.assertEqual(len(reads), 1, "release.yml must run `app_keys.py vercel production` once")
+        read = steps[reads[0]]
+        self.assertNotIn("continue-on-error", read)
+        changes = [i for i, step in enumerate(steps) if CHANGES_PRODUCTION.search(step)]
+        self.assertGreaterEqual(len(changes), 7, "steps 3, 4a, 4b, 5, 6, 7 and 8")
+        self.assertLess(reads[0], min(changes))
+        loads = [i for i, step in enumerate(steps) if LOADS in step]
+        self.assertGreater(reads[0], loads[0], "it needs the pipeline's Vercel token, loaded with the keys")
+        # A release always reads it; a rollback, which only returns production to an earlier build
+        # that today's settings don't change, is the one exemption.
+        self.assertEqual(first(CONDITION, read), RELEASE_ONLY)
+        for i in changes:
+            condition = first(CONDITION, steps[i])
+            self.assertIn(condition, (RELEASE_ONLY, None), f"step {i} changes production under {condition}")
+
+    def test_the_release_pipelines_key_checks_come_from_its_own_commit(self):
+        with open(os.path.join(WORKFLOWS, "release.yml"), encoding="utf-8") as f:
+            steps = jobs(f.read())["release"]
+        extract = [i for i, step in enumerate(steps)
+                   if 'git archive "$WORKFLOW_COMMIT" infra/doppler' in step and "${{ github.sha }}" in step]
+        self.assertEqual(len(extract), 1, "the key checks are taken from the workflow's own commit")
+        self.assertIsNone(first(CONDITION, steps[extract[0]]), "releases and rollbacks both need them")
+        uses = [i for i, step in enumerate(steps) if "app_keys.py" in step and "git archive" not in step]
+        self.assertGreaterEqual(len(uses), 2)
+        for i in uses:
+            self.assertIn('"$RUNNER_TEMP/key-checks/infra/doppler/app_keys.py"', steps[i],
+                          "never the checked-out commit's copy, which a rollback makes an older one")
+            self.assertGreater(i, extract[0])
 
     def test_the_reader_finds_jobs_and_steps(self):
         text = ("name: x\njobs:\n  first:\n    steps:\n      - name: a\n        run: one\n"
