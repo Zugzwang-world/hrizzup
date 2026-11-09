@@ -48,9 +48,30 @@ importers:
 
   infra/supabase:
     devDependencies:
+      '@hrizzup/agreement':
+        specifier: workspace:*
+        version: link:../../agreement
+      '@hrizzup/tsconfig':
+        specifier: workspace:*
+        version: link:../../product/packages/tsconfig
+      '@types/node':
+        specifier: ^24.10.0
+        version: 24.19.2
+      '@types/pg':
+        specifier: ^8.15.0
+        version: 8.23.1
+      pg:
+        specifier: ^8.20.0
+        version: 8.23.1
       supabase:
         specifier: ^2.90.0
         version: 2.122.0
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^5.0.0
+        version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(jiti@2.7.0)(terser@5.51.2))
 
   product/app:
     dependencies:

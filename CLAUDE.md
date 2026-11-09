@@ -80,6 +80,7 @@ In that session's pull request:
 - **`agreement/definitions/` holds the only definition of each shape and shared list.** Code uses those files directly (TypeScript through `@hrizzup/agreement`, any other language through its own JSON Schema validator), never a copy.
 - **Changes follow its "Changing the agreement" rules:** adding an optional field or a founder-approved list item is one change; anything else is a new format version, agreed by the projects that sign off that half. While a half is Draft, its shapes change in place and stay at version 1.
 - **After changing a definition, a list or an example,** run `pnpm --filter @hrizzup/agreement readme` and `pnpm --filter @hrizzup/agreement types`: the README's tables and the TypeScript types are written from the definitions, and the check (in Quick checks) fails when either differs.
+- **The content store's tables follow the agreement** (PLAN.md step 1.9; `infra/supabase/content-store.md` lists each rule and where it's enforced). A change to a shape's fields, a list's codes, a pattern, a value list or a limit takes its migration in the same pull request, adding only, like every database change: the Database check fails until the database holds exactly what the agreement says.
 
 ## How changes land (from now on, including staging)
 

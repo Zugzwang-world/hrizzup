@@ -2,4 +2,4 @@
 # A pull request that adds a migration puts its name on the last line. Two such pull requests
 # then change the same line, so once one merges, the other conflicts with main until it's
 # rebased and its migration renamed after the first's (migration_order.py checks both).
-20261109115245_markets_books.sql
+20261109115247_content_store.sql

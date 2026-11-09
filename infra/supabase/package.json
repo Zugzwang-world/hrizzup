@@ -2,11 +2,20 @@
   "name": "@hrizzup/database",
   "private": true,
   "description": "The database's structure: migrations applied the same way on staging and production, and their tests. Supabase CLI project folder (config.toml, migrations/, tests/).",
+  "type": "module",
   "scripts": {
+    "typecheck": "tsc --noEmit",
     "test:db": "python3 ../slots/slot db test",
     "db:stop": "python3 ../slots/slot db stop"
   },
   "devDependencies": {
-    "supabase": "^2.90.0"
+    "@hrizzup/agreement": "workspace:*",
+    "@hrizzup/tsconfig": "workspace:*",
+    "@types/node": "^24.10.0",
+    "@types/pg": "^8.15.0",
+    "pg": "^8.20.0",
+    "supabase": "^2.90.0",
+    "typescript": "6.0.3",
+    "vitest": "^5.0.0"
   }
 }
