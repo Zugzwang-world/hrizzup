@@ -42,6 +42,10 @@ if (supabase !== STAGING || !publishable || !secret) {
 }
 const address = process.env.DATABASE_ADDRESS;
 if (!address) throw new Error('DATABASE_ADDRESS is not set: run through database_url.py');
+// The database too must be staging's: Supabase's pooler names the project in the user.
+if (decodeURIComponent(new URL(address).username) !== 'postgres.mlccgqxtqmllwbyjfzzm') {
+  throw new Error("DATABASE_ADDRESS isn't staging's database; this refuses any other");
+}
 
 const ca = readFileSync(
   new URL('../../../../infra/supabase/supabase-root-2021-ca.crt', import.meta.url),

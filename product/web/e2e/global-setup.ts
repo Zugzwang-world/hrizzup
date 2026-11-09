@@ -75,6 +75,9 @@ export default async function globalSetup(config: FullConfig) {
  * The console's fixture market (pages.ts, CONSOLE_FIXTURE_MARKET): made, opened, closed and
  * settled Yes through the console's calls the first time, as the admin test account, and found
  * again by its ID on every later run, so the screen check sees a market page with its whole log.
+ * Several runs can do this at once (checks of other pull requests, this Mac): making it twice
+ * gets back the same market, and a step another run has already taken is taken as done, so it
+ * always ends settled, or the run fails saying why.
  */
 async function ensureFixtureMarket(baseURL: string, headers: Record<string, string>) {
   const call = async (path: string, method = 'GET', body?: unknown) => {
@@ -86,14 +89,32 @@ async function ensureFixtureMarket(baseURL: string, headers: Record<string, stri
     const answer = (await response.json()) as { state?: string; message?: string };
     return { status: response.status, answer };
   };
-  let found = await call(`/${CONSOLE_FIXTURE_MARKET}`);
-  if (found.status === 404 && found.answer.message === 'No such call') {
-    throw new Error(
-      "The console's admin test account isn't an admin here (infra/supabase/migrations/*_staging_admins.sql)",
-    );
-  }
-  if (found.status === 404) {
-    found = await call('', 'POST', {
+  const read = async (): Promise<string | null> => {
+    const found = await call(`/${CONSOLE_FIXTURE_MARKET}`);
+    if (found.status === 404 && found.answer.message === 'No such call') {
+      throw new Error(
+        "The console's admin test account isn't an admin here (infra/supabase/migrations/*_staging_admins.sql)",
+      );
+    }
+    if (found.status === 404) return null;
+    if (found.status !== 200) {
+      throw new Error(`Couldn't read the console's fixture market (${found.status})`);
+    }
+    return found.answer.state ?? null;
+  };
+  const steps: Record<string, [string, unknown]> = {
+    draft: ['/open', {}],
+    open: ['/close', {}],
+    closed: [
+      '/settle',
+      { outcome: 'yes', evidence: "Settled Yes for the console's screen check." },
+    ],
+  };
+
+  let state = await read();
+  if (state === null) {
+    // Another run making it at the same moment gets back the same market (its ID is fixed).
+    const made = await call('', 'POST', {
       id: CONSOLE_FIXTURE_MARKET,
       question: "Screen check: a test market kept on staging for the console's screen check",
       categories: ['general'],
@@ -103,21 +124,24 @@ async function ensureFixtureMarket(baseURL: string, headers: Record<string, stri
       opensAt: new Date(Date.now() - 60_000).toISOString(),
       closesAt: new Date(Date.now() + 86_400_000).toISOString(),
     });
+    if (made.status !== 201) {
+      throw new Error(`Couldn't make the console's fixture market (${made.status})`);
+    }
+    state = made.answer.state ?? null;
   }
-  const steps: Record<string, [string, unknown?]> = {
-    draft: ['/open'],
-    open: ['/close'],
-    closed: [
-      '/settle',
-      { outcome: 'yes', evidence: "Settled Yes for the console's screen check." },
-    ],
-  };
-  for (let state = found.answer.state; state && steps[state]; ) {
-    const [step, body] = steps[state] as [string, unknown?];
+  for (let attempts = 0; state && steps[state] && attempts < 6; attempts++) {
+    const [step, body] = steps[state] as [string, unknown];
     const next = await call(`/${CONSOLE_FIXTURE_MARKET}${step}`, 'POST', body);
-    if (next.status !== 200) {
+    if (next.status === 200) {
+      state = next.answer.state ?? null;
+    } else if (next.status === 409) {
+      // Another run took this step first: read where the market is now, and go on from there.
+      state = await read();
+    } else {
       throw new Error(`The console's fixture market couldn't ${step.slice(1)} (${next.status})`);
     }
-    state = next.answer.state;
+  }
+  if (state !== 'settled') {
+    throw new Error(`The console's fixture market ended ${state ?? 'missing'}, not settled`);
   }
 }

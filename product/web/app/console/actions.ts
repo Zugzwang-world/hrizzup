@@ -4,14 +4,21 @@ import { ORPCError, ValidationError } from '@orpc/server';
 import { revalidatePath } from 'next/cache';
 import { notFound, redirect } from 'next/navigation';
 import { serverApi } from '@/lib/api/server.ts';
+import { consoleAdmin } from '@/lib/console.ts';
 import { indiaTimeToUtc, percentToDecimal } from '@/lib/console-format.ts';
 
 /**
  * The market console's forms (PLAN.md step 1.7c). Each sends one of the console's calls through
  * the typed API, in process (lib/api/server.ts), which checks that the signed-in account is an
  * admin before reading anything; the database checks the admins table again and logs each step.
- * To anyone but an admin, every form answers "not found".
+ * To anyone but an admin, every form answers "not found", before it reads anything sent: a form
+ * that answered a stranger's bad input with a message would tell them the console exists.
  */
+
+/** The first thing every form does: anyone but an admin gets "not found". */
+async function adminsOnly(): Promise<void> {
+  if (!(await consoleAdmin())) notFound();
+}
 
 /** What a form shows after it's sent: why it was refused, and what was typed, to fix it. */
 export type ConsoleFormState = { error: string | null; values: Record<string, string> };
@@ -66,6 +73,7 @@ export async function createMarketAction(
   _before: ConsoleFormState,
   form: FormData,
 ): Promise<ConsoleFormState> {
+  await adminsOnly();
   const values = typed(form);
   const url = field(form, 'sourceUrl');
   const probability = percentToDecimal(field(form, 'probability'));
@@ -95,7 +103,7 @@ export async function createMarketAction(
   redirect(`/console/markets/${id}`);
 }
 
-/** Opens, closes or settles a market, then shows it again as it now is. */
+/** Opens, closes or settles a market (for an admin: each action checks first), then shows it again as it now is. */
 async function step(
   form: FormData,
   call: (id: string) => Promise<unknown>,
@@ -116,6 +124,7 @@ export async function openMarketAction(
   _before: ConsoleFormState,
   form: FormData,
 ): Promise<ConsoleFormState> {
+  await adminsOnly();
   return step(form, (id) => serverApi.admin.markets.open({ id }));
 }
 
@@ -123,6 +132,7 @@ export async function closeMarketAction(
   _before: ConsoleFormState,
   form: FormData,
 ): Promise<ConsoleFormState> {
+  await adminsOnly();
   return step(form, (id) => serverApi.admin.markets.close({ id }));
 }
 
@@ -130,6 +140,7 @@ export async function settleMarketAction(
   _before: ConsoleFormState,
   form: FormData,
 ): Promise<ConsoleFormState> {
+  await adminsOnly();
   const outcome = field(form, 'outcome');
   const reason = field(form, 'reason');
   const typedProbability = field(form, 'probability');
