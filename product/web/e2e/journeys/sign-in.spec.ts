@@ -1,7 +1,13 @@
 import { expect, test } from '@playwright/test';
+import { PENDING_COOKIE, pendingCookieValue } from '../../lib/email-code.ts';
+import { sendSignInCode } from '../../lib/supabase/send-code.ts';
 import { asBrowserCookie } from '../support/bypass.ts';
 import {
+  createJourneyAccount,
+  deleteJourneyAccount,
   type Engine,
+  journeyAddress,
+  readSignInCode,
   stagingKeys,
   TEST_ACCOUNTS,
   testSessionCookies,
@@ -10,13 +16,29 @@ import { phone } from './phone.ts';
 
 /**
  * Journey: signing in and out, on the sign-in test page (staging, previews and this Mac; it
- * doesn't exist on production). Google can't be signed into by a test, so the test account
- * signs in the only way it can: a fresh session from staging's one-time token, set as the very
- * cookies the website sets after a real sign-in (support/test-accounts.ts). Signing out then
- * goes through the page's own button. Google sign-in itself is followed up to Google's door,
- * and Supabase is shown to allow the way back to this site (on this Mac, each slot's own
- * address: infra/slots/README.md).
+ * doesn't exist on production).
+ * - The test account signs in the way the other checks do: a fresh session from staging's
+ *   one-time token, set as the very cookies the website sets after a real sign-in
+ *   (support/test-accounts.ts). Signing out then goes through the page's own button.
+ * - A reader signs in with a code sent by email, through the page itself: the address, the
+ *   bot check, the code, and signing out. Where the bot check is real (staging), it is for
+ *   people, so the test asks for the code the way our server does once a person has passed it,
+ *   and carries on from the page's code step.
+ * - Google can't be signed into by a test, so Google sign-in is followed up to Google's door,
+ *   and Supabase is shown to allow the way back to this site (on this Mac, each slot's own
+ *   address: infra/slots/README.md).
  */
+
+/** Cloudflare's published test site keys that always pass (shown, and not shown). */
+const PASSING_TEST_SITE_KEYS = ['1x00000000000000000000AA', '1x00000000000000000000BB'];
+
+/** Whether a test can pass the page's bot check: previews, or this Mac run with a test key. */
+function botCheckIsATest() {
+  return (
+    process.env.SCREEN_CHECK_ENVIRONMENT === 'preview' ||
+    PASSING_TEST_SITE_KEYS.includes(process.env.TURNSTILE_SITE_KEY ?? '')
+  );
+}
 test.use(phone);
 
 const SIGNED_OUT = "You're signed out";
@@ -58,6 +80,64 @@ test('the test account signs in and out', async ({ page, context, baseURL, brows
   ).toEqual([]);
   await page.reload();
   await expect(page.getByRole('heading', { name: SIGNED_OUT })).toBeVisible();
+});
+
+test('an email code signs a reader in, and out again', async ({
+  page,
+  context,
+  baseURL,
+  browserName,
+}) => {
+  skipOnProduction();
+  const keys = stagingKeys();
+  if (!keys) throw new Error("Staging's Supabase keys are missing, so no code can be read");
+
+  // Chromium signs up a new reader; WebKit signs in one who already has an account. Each run
+  // uses fresh addresses at Resend's test inbox (support/test-accounts.ts).
+  const email = journeyAddress('code', browserName as Engine);
+  if (browserName === 'webkit') await createJourneyAccount(keys, email);
+  const tooMany =
+    '(Supabase sends at most one email a minute to an address, and 30 an hour for staging ' +
+    'and every preview together)';
+  try {
+    if (botCheckIsATest()) {
+      await page.goto('/sign-in-test');
+      await page.getByLabel('Email address').fill(email);
+      await page.getByRole('button', { name: 'Email me a code' }).click();
+    } else {
+      // The real bot check is for people: ask for the code as our server does once one has
+      // passed it, and remember the address in the cookie the server would set.
+      const sent = await sendSignInCode(keys.url, keys.secretKey, email);
+      if (sent !== 'sent') throw new Error(`No code was sent (${sent}) ${tooMany}`);
+      const remembered = pendingCookieValue({ email, next: '/sign-in-test' });
+      await context.addCookies([
+        asBrowserCookie(baseURL ?? '', PENDING_COOKIE, encodeURIComponent(remembered)),
+      ]);
+      await page.goto('/sign-in-test');
+    }
+    // The code step, or the page's reason why not.
+    const sentTo = page.getByTestId('code-sent-to');
+    const problem = page.getByRole('main').getByRole('alert');
+    await expect(sentTo.or(problem)).toBeVisible({ timeout: 30_000 });
+    if (await problem.isVisible()) {
+      throw new Error(`No code was sent: "${await problem.textContent()}" ${tooMany}`);
+    }
+    await expect(sentTo).toHaveText(email);
+
+    // No inbox is read: staging's admin access gives a working code for the address.
+    await page.getByLabel('Code', { exact: true }).fill(await readSignInCode(keys, email));
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await expect(page.getByRole('heading', { name: SIGNED_IN })).toBeVisible();
+    await expect(page.getByTestId('signed-in-email')).toHaveText(email);
+    await expect(page.getByText('An email code')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Sign out' }).click();
+    await expect(page.getByRole('heading', { name: SIGNED_OUT })).toBeVisible();
+    const sessionCookies = (await context.cookies()).filter((c) => c.name.startsWith('sb-'));
+    expect(sessionCookies, 'no session cookie left').toEqual([]);
+  } finally {
+    await deleteJourneyAccount(keys, email);
+  }
 });
 
 test('Continue with Google goes to Google for our app, and Supabase allows the way back', async ({

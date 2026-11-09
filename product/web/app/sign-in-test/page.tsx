@@ -1,8 +1,17 @@
 import type { Me } from '@hrizzup/api';
 import type { Metadata } from 'next';
+import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
+import { EmailCodeRequest } from '@/components/email-code-request.tsx';
 import { SiteFooter, SiteHeader } from '@/components/site-shell.tsx';
 import { whoAmI } from '@/lib/api/server.ts';
+import {
+  CODE_LENGTH,
+  CODE_MINUTES,
+  PENDING_COOKIE,
+  type PendingCode,
+  readPendingCookie,
+} from '@/lib/email-code.ts';
 import { currentEnvironment, signInTestEnabled } from '@/lib/env.ts';
 import { supabaseConfig } from '@/lib/supabase/config.ts';
 
@@ -18,6 +27,14 @@ const ERRORS: Record<string, string> = {
   exchange: "The sign-in code couldn't be used. Try again.",
   'not-configured': "Sign-in isn't set up in this environment.",
   relay: "Staging couldn't return you to this preview. Start again from the preview.",
+  email: 'Enter a valid email address.',
+  'bot-check': "The bot check didn't pass. Try again.",
+  'too-many': 'Too many codes were asked for. Wait a minute, then try again.',
+  send: "The code couldn't be sent. Try again.",
+  'code-format': `Enter the ${CODE_LENGTH}-digit code from the email.`,
+  'code-wrong': "That code didn't work. Check it and try again, or get a new code.",
+  'code-expired': 'Your code has run out. Ask for a new one.',
+  'verify-failed': "The code couldn't be checked just now. Try again.",
 };
 
 const SIGNED_IN_WITH: Record<Me['signedInWith'], string> = {
@@ -31,7 +48,9 @@ type Props = { searchParams: Promise<{ error?: string | string[] }> };
 
 /**
  * A plain page for testing sign-in end to end on staging, previews and this Mac (runbook
- * step 9.6). It doesn't exist on production.
+ * step 9.6; PLAN.md step 1.6a): Google, and a code sent by email. There is no password field,
+ * here or anywhere. It doesn't exist on production; the real sign-in screen comes from the
+ * design chat.
  */
 export default async function SignInTestPage({ searchParams }: Props) {
   if (!signInTestEnabled()) notFound();
@@ -43,6 +62,8 @@ export default async function SignInTestPage({ searchParams }: Props) {
   // Who is signed in comes through the typed API's `me`, called in process (lib/api/server.ts);
   // it checks the session's signature locally against the project's public key.
   const user = configured ? await whoAmI() : null;
+  const pending = readPendingCookie((await cookies()).get(PENDING_COOKIE)?.value);
+  const siteKey = process.env.TURNSTILE_SITE_KEY;
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -50,8 +71,8 @@ export default async function SignInTestPage({ searchParams }: Props) {
       <main className="mx-auto w-full max-w-xl flex-1 px-4 py-12 sm:px-6 sm:py-16">
         <h1 className="font-display text-5xl leading-tight tracking-tight">Sign-in test</h1>
         <p className="mt-3 text-muted">
-          For checking Google sign-in on {currentEnvironment()}. This page doesn't exist on the live
-          site.
+          For checking sign-in on {currentEnvironment()}: Google, and a code sent by email. This
+          page doesn't exist on the live site.
         </p>
 
         {message && (
@@ -113,11 +134,66 @@ export default async function SignInTestPage({ searchParams }: Props) {
                 <span className="min-w-0">Continue with Google</span>
               </button>
             </form>
+
+            <h3 id="email-code" className="mt-8 border-t border-line pt-6 font-semibold">
+              Or get a sign-in code by email
+            </h3>
+            {pending ? (
+              <CodeStep pending={pending} />
+            ) : siteKey ? (
+              <EmailCodeRequest siteKey={siteKey} next="/sign-in-test" />
+            ) : (
+              <p className="mt-3 text-muted">Email codes aren't set up in this environment yet.</p>
+            )}
           </section>
         )}
       </main>
       <SiteFooter />
     </div>
+  );
+}
+
+/**
+ * The code step, once a code has been emailed: the code itself (the email carries nothing
+ * else), or start again with another address or a new code.
+ */
+function CodeStep({ pending }: { pending: PendingCode }) {
+  return (
+    <>
+      <p className="mt-3">
+        We emailed a code to{' '}
+        <strong className="break-words" data-testid="code-sent-to">
+          {pending.email}
+        </strong>
+        . It has {CODE_LENGTH} digits and works for {CODE_MINUTES} minutes.
+      </p>
+      <form action="/auth/code/verify" method="post" className="mt-4 grid gap-3">
+        <label htmlFor="sign-in-code" className="text-sm font-medium">
+          Code
+        </label>
+        <input
+          id="sign-in-code"
+          name="code"
+          type="text"
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          maxLength={CODE_LENGTH + 4}
+          required
+          className="min-h-11 w-full min-w-0 rounded-md border border-line bg-transparent px-3 py-2 tracking-widest"
+        />
+        <button
+          type="submit"
+          className="min-h-11 justify-self-start rounded-md border border-line px-5 font-medium hover:bg-note"
+        >
+          Sign in
+        </button>
+      </form>
+      <form action="/auth/code/cancel" method="post" className="mt-4">
+        <button type="submit" className="min-h-11 text-left underline">
+          Use another email, or get a new code
+        </button>
+      </form>
+    </>
   );
 }
 

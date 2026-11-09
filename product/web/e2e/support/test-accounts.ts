@@ -1,5 +1,6 @@
+import { randomUUID } from 'node:crypto';
 import { createServerClient } from '@supabase/ssr';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
 import projects from '../../../../infra/supabase/project/settings.json' with { type: 'json' };
 
 /**
@@ -41,12 +42,21 @@ function admin(keys: Keys) {
   });
 }
 
+/** Every account in staging's project, a page of 1,000 at a time. */
+async function allUsers(client: SupabaseClient): Promise<User[]> {
+  const users: User[] = [];
+  for (let page = 1; ; page++) {
+    const { data, error } = await client.auth.admin.listUsers({ page, perPage: 1000 });
+    if (error) throw new Error(`Couldn't list staging's users (${error.status})`);
+    users.push(...data.users);
+    if (data.users.length < 1000) return users;
+  }
+}
+
 /** Creates the test account if it is missing, and keeps it marked as a test account. */
 export async function ensureTestAccount(keys: Keys, email: string): Promise<string> {
   const client = admin(keys);
-  const { data, error } = await client.auth.admin.listUsers({ page: 1, perPage: 1000 });
-  if (error) throw new Error(`Couldn't list staging's users (${error.status})`);
-  const existing = data.users.find((u) => u.email === email);
+  const existing = (await allUsers(client)).find((u) => u.email === email);
   const attributes = {
     app_metadata: { test_account: true },
     user_metadata: { full_name: 'Screen check' },
@@ -69,6 +79,66 @@ export async function ensureTestAccount(keys: Keys, email: string): Promise<stri
   if (createError || !created.user)
     throw new Error(`Couldn't create ${email} (${createError?.status})`);
   return created.user.id;
+}
+
+/**
+ * Accounts the sign-in journeys make for themselves (journeys/sign-in.spec.ts): a fresh address
+ * at Resend's test inbox for every run, so runs of several pull requests never share one
+ * (Supabase sends at most one email a minute to an address, and the test accounts above get
+ * one-time tokens all the time, which count too). Each is deleted when its journey ends, and
+ * any left behind by a broken run is swept at the start of the next (`sweepJourneyAccounts`).
+ */
+const JOURNEY = 'delivered+journey-';
+
+/** What a journey's account is for: a reader who signs in with an email code. */
+export type JourneyPurpose = 'code';
+
+export function journeyAddress(purpose: JourneyPurpose, engine: Engine): string {
+  return `${JOURNEY}${purpose}-${engine}-${randomUUID().slice(0, 8)}@resend.dev`;
+}
+
+function ownJourneyAddress(email: string) {
+  if (!email.startsWith(JOURNEY) || !email.endsWith('@resend.dev')) {
+    throw new Error("Not one of the journeys' own addresses");
+  }
+}
+
+/** An account that already exists, for the journey of a returning reader. */
+export async function createJourneyAccount(keys: Keys, email: string): Promise<void> {
+  ownJourneyAddress(email);
+  const { error } = await admin(keys).auth.admin.createUser({ email, email_confirm: true });
+  if (error) throw new Error(`Couldn't create ${email} (${error.status})`);
+}
+
+/**
+ * A working sign-in code for `email`, through staging's admin access instead of an inbox. It
+ * replaces the code in the email just sent (Resend's test inbox drops that email anyway).
+ */
+export async function readSignInCode(keys: Keys, email: string): Promise<string> {
+  const { data, error } = await admin(keys).auth.admin.generateLink({ type: 'magiclink', email });
+  const code = data.properties?.email_otp;
+  if (error || !code) throw new Error(`Couldn't read a code for ${email} (${error?.status})`);
+  return code;
+}
+
+/** Deletes a journey's account: only ever one of the journeys' own addresses. */
+export async function deleteJourneyAccount(keys: Keys, email: string): Promise<void> {
+  ownJourneyAddress(email);
+  const client = admin(keys);
+  for (const user of (await allUsers(client)).filter((u) => u.email === email)) {
+    await client.auth.admin.deleteUser(user.id);
+  }
+}
+
+/** Deletes journeys' accounts more than an hour old, which a broken run left behind. */
+export async function sweepJourneyAccounts(keys: Keys): Promise<void> {
+  const client = admin(keys);
+  const hourAgo = Date.now() - 3_600_000;
+  for (const user of await allUsers(client)) {
+    if (user.email?.startsWith(JOURNEY) && Date.parse(user.created_at) < hourAgo) {
+      await client.auth.admin.deleteUser(user.id);
+    }
+  }
 }
 
 export type SessionCookie = { name: string; value: string };

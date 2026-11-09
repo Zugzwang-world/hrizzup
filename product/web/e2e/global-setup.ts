@@ -5,6 +5,7 @@ import { signedInState, signedOutState, statesFolder } from './support/states.ts
 import {
   type Engine,
   stagingKeys,
+  sweepJourneyAccounts,
   TEST_ACCOUNTS,
   testSessionCookies,
 } from './support/test-accounts.ts';
@@ -16,6 +17,8 @@ import {
  *   the bypass secret itself never travels with the browser's requests;
  * - signed in, outside production: the same, plus a fresh session for the engine's test
  *   account (support/test-accounts.ts).
+ * Outside production it also deletes any account a sign-in journey made for itself that a
+ * broken run left behind (support/test-accounts.ts, `sweepJourneyAccounts`).
  * The states go in a temporary folder outside the repository (support/states.ts), never
  * uploaded, and deleted when the run ends (global-teardown.ts).
  */
@@ -36,6 +39,7 @@ export default async function globalSetup(config: FullConfig) {
     ? [asBrowserCookie(baseURL, BYPASS_COOKIE, await bypassCookieValue(baseURL, secret))]
     : [];
   const keys = environment === 'production' ? null : stagingKeys();
+  if (keys) await sweepJourneyAccounts(keys);
   for (const engine of Object.keys(TEST_ACCOUNTS) as Engine[]) {
     const save = (file: string, cookies: typeof bypass) =>
       writeFile(file, JSON.stringify({ cookies, origins: [] }), { mode: 0o600 });
