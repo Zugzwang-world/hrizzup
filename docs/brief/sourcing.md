@@ -39,8 +39,6 @@ On 9 November 2026, in [#59](https://github.com/Zugzwang-world/hrizzup/pull/59) 
 
 Also on 9 November, in [#58](https://github.com/Zugzwang-world/hrizzup/pull/58): Product's first design pass was retired, and design starts only from the founder's references and diagrams, in the design chat. Nothing changes for Sourcing.
 
-Also on 9 November, in [#58](https://github.com/Zugzwang-world/hrizzup/pull/58): PLAN.md step 1.4 now says design starts only from the founder's references and diagrams, given in the design chat, and no session builds design directions, values or screens of its own choosing; Product's first design pass was retired. Nothing changes for Sourcing.
-
 ## Open questions
 
 - **Grok product, plan and route** (step 0.8). Recommendation: xAI's API with its X search tool, called by our own scheduled job; the review found it fits the shapes (its citations give each post's number; its structured output can carry the second half).
