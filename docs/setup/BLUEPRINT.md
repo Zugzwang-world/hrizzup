@@ -65,7 +65,7 @@ Production is a twin of staging: the same services, versions, region and setting
 | Doppler config | `dev` (refers to `stg`'s values) | `stg_preview` (a branch of `stg`) | `stg` | `prd` |
 | Database | Staging | Staging | Supabase `hrizzup-staging` | Supabase `hrizzup-production` |
 | Redis | Staging's, keys starting `dev:` | Staging's, keys starting `pre:` | Upstash `hrizzup-staging`, keys starting `stg:` | Upstash `hrizzup-production`, keys starting `prd:` |
-| Sign-in (Supabase Auth, section 9) | Staging's: Google test users and email codes, returning to `http://localhost:3000` | Staging's: Google test users, returning through staging's signed relay; Turnstile's test keys | Google (staging client) and email codes | Google (production client), email codes, Apple |
+| Sign-in (Supabase Auth, section 9) | Staging's: Google test users and email codes, returning to `http://localhost:3000` or a session's slot (`http://localhost:3101` to `3104`, `infra/slots/`) | Staging's: Google test users, returning through staging's signed relay; Turnstile's test keys | Google (staging client) and email codes | Google (production client), email codes, Apple |
 | Access | — | Vercel login (deployment protection); checks use the protection bypass | Vercel login until step 1.5d, then public, with search engines asked to stay out (section 6) | Holding page until launch, then public. Hidden builds stay private |
 | Changed by | You and Claude Code | Claude Code | Claude Code | **The release pipeline only**, with its own production credentials |
 
@@ -111,7 +111,7 @@ Production is a twin of staging: the same services, versions, region and setting
   - two buckets per environment: staging, and production in the production twin;
   - public files are served from a single-level subdomain: `media-staging.hrizzup.com` for staging and `media.hrizzup.com` for production. Cloudflare's standard certificate covers only one level below the domain, and `r2.dev` addresses are rate-limited;
   - production's buckets are **`hrizzup-uploads`** (private) and **`hrizzup-media`** (public at `media.hrizzup.com`), staging's `hrizzup-staging-uploads` and `hrizzup-staging-media`, all in Asia-Pacific. The buckets, their public address, `r2.dev` off, and the CORS and lifecycle rules are written into the repo (`infra/cloudflare/r2/`) and applied by `apply.py`, which reads everything back and fails if Cloudflare's copy differs. Staging is applied by Claude Code, production by the release pipeline (Claude Code created production's once, before it had keys or data):
-    - **uploads bucket:** browsers may only `PUT` (with a `content-type` header), and only from our own sites: staging, local (`http://localhost:3000`), and previews of our project (`https://hrizzup-*-hrizzup.vercel.app`, added 3 November 2026) on staging; `hrizzup.com` and `www` on production. A pattern is acceptable here, unlike in sign-in, because every upload also needs a short-lived signed address that only our server makes;
+    - **uploads bucket:** browsers may only `PUT` (with a `content-type` header), and only from our own sites: staging, local (`http://localhost:3000`, and each session's slot, `http://localhost:3101` to `3104`, added 9 November 2026), and previews of our project (`https://hrizzup-*-hrizzup.vercel.app`, added 3 November 2026) on staging; `hrizzup.com` and `www` on production. A pattern is acceptable here, unlike in sign-in, because every upload also needs a short-lived signed address that only our server makes;
     - **media bucket:** browser reads (`GET`, `HEAD`) from the same sites; everyone else can still load the images normally;
     - **lifecycle:** incomplete uploads are aborted after a day on both buckets, and raw uploads are deleted a day after upload, once the server has made the clean copy (section 13). Media is never deleted by a rule;
   - the uploads bucket has no public address; the media bucket's only public address is its own subdomain, with its `r2.dev` address off;
@@ -309,7 +309,7 @@ Production is a twin of staging: the same services, versions, region and setting
 
   | | Site address | Redirects allowed |
   |---|---|---|
-  | Staging | `https://staging.hrizzup.com` | `https://staging.hrizzup.com/**` and `http://localhost:3000/**` (this Mac) |
+  | Staging | `https://staging.hrizzup.com` | `https://staging.hrizzup.com/**`, `http://localhost:3000/**` and each slot's `http://localhost:3101/**` to `3104/**` (this Mac; `infra/slots/`) |
   | Production | `https://hrizzup.com` | `https://hrizzup.com/**` and `https://www.hrizzup.com/**`; the app's own links join with the app builds |
 
   **No `vercel.app` address is ever allowed,** because anyone can create a `vercel.app` site, so even a narrow pattern could match a stranger's. Previews sign in through **staging's relay** instead (`/auth/relay`, `product/web/lib/auth-relay.ts`): a preview asks Supabase to return the visitor to staging with a note naming the preview, signed with `AUTH_RELAY_SECRET` (Doppler `stg`, which previews inherit) and valid for 15 minutes; staging forwards the one-time code only to a correctly signed preview of our project. The code is then exchanged on that preview, which alone holds the matching code verifier (PKCE).

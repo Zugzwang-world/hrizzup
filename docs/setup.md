@@ -1397,6 +1397,28 @@ Not a problem: the worry that Claude Code could run the script on production. It
 - **An active slot costs about 1.3–1.5 GB:** the website about 0.6–0.8 GB once its pages are compiled, Metro about 0.6–0.8 GB once it has built the Android bundle (1.1 GB just after), the database about 70 MB inside Docker's VM, whose memory is set aside already. Idle, a slot shrinks to about 0.7 GB.
 - **A fifth wasn't tried,** to keep the founder's Mac, and the relays running on it, away from critical memory: swap had grown to about 16 GB. Relays 5 to 9 can rely on three slots at once (wave 2's three relays fit), with the design chat's slot kept apart.
 
+### Sign-in and uploads from every slot (PLAN.md step 1.8, part 2 of 3; Claude Code)
+
+**Applied to staging at 16:10 India time (10:40 UTC),** with Claude Code's own keys (`infra/doppler/run tools stg -- python3 infra/supabase/auth/apply.py staging`; `infra/doppler/run tools -- python3 infra/cloudflare/r2/apply.py staging`). Both were checked first (`--check`): the only differences were these, and both read back matching the repo afterwards. Production's lists are unchanged and hold no local address.
+
+| Where | Added |
+|---|---|
+| Staging's sign-in redirect list (`uri_allow_list`, `infra/supabase/auth/settings.json`) | `http://localhost:3101/**` to `http://localhost:3104/**`, beside `https://staging.hrizzup.com/**` and `http://localhost:3000/**` |
+| `hrizzup-staging-uploads`' browser rule (`uploads.cors.staging.json`) and `hrizzup-staging-media`'s (`media.cors.staging.json`) | `http://localhost:3101` to `http://localhost:3104`, beside staging, `http://localhost:3000` and the previews |
+
+**Choices made (Claude Code, unattended):**
+- **Exact addresses, no pattern:** each slot's address is listed, not `http://localhost:*`, so nothing else on this Mac can be a sign-in's way back. `infra/slots/test_slots.py` fails if the two lists and the slot table drift apart, or if production's lists ever hold a local address.
+- **`http://localhost:3000` stays** (the unslotted default, and Playwright's when no address is given).
+- **The media bucket's reads too,** so a slot's pages can read media the way staging's do.
+- **How sign-in is proven without Google:** the sign-in journey now also asks Supabase whether it will send a visitor back the way our server asked (its verify step, given a code that's no good, returns the browser to that address only if the redirect list allows it, and to staging's home otherwise). No account, key or email is involved. On a preview the way back is staging's relay, which the list already allows.
+- **A new journey, uploads:** `product/web/e2e/journeys/upload.spec.ts` signs a five-minute upload address the way our server will, has the browser on one of the site's pages send a small file to staging's uploads bucket, reads the answer (the ETag the rule exposes), reads the file back and deletes it. It refuses any bucket but staging's and doesn't run against production. It also runs in the Screen check on every preview, which loads Doppler `stg_preview`'s storage keys; if the Screen check is later limited to the keys its tests use, it needs `R2_ENDPOINT`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` and `R2_BUCKET_UPLOADS`.
+- **The website starts from a clean development build** (`slot web` removes `product/web/.next/dev` first), and servers stop as Ctrl-C would, by force only after 30 seconds. Why: in the first three-slot run, two slots' websites rebuilt on every page load, so their pages reloaded themselves hundreds of times a second (346 in 8 seconds) and four of six journeys failed in those slots. Only Next.js 16's Turbopack build cache, kept between runs (`turbopackFileSystemCacheForDev`, on by default), was to blame: switching it off cured the loop with everything else unchanged, and so did deleting `.next/dev`. A first compile from nothing takes a few seconds for this site.
+
+**Checked on this Mac:**
+- **Before applying,** from slot 1 (`http://localhost:3101`), in Chromium and WebKit: Supabase sent the visitor to staging's home instead of the slot, and the browser's upload was refused ("Failed to fetch", "Load failed"). The test account's own sign-in, which needs no redirect, passed.
+- **After applying, three worktrees side by side,** each claiming its own slot at the same moment (they got 1, 2 and 3), each running the website (staging's database, Redis, storage and sign-in all "ok"), Metro (the Android bundle built) and its database (8 of 8 tests passed in each), with no page reloading itself: from every slot, in Chromium and WebKit, the test account signed in and out on the sign-in test page, Supabase returned the visitor to the slot's own address, and a browser upload reached the staging bucket and was read back (18 of 18 passed).
+- **Memory meanwhile:** each slot about 1.15–1.23 GB (website and Metro) plus 69 MB for its database; macOS reported 46% free.
+
 ---
 
 ## Rules for this log

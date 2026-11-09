@@ -10,7 +10,8 @@ Several Claude Code sessions work on this Mac at once, each in its own git workt
 | 4 | `http://localhost:3104` | 8104 | `hrizzup-slot4`, 55362 (55360–55369) | `dev:slot4` | the design chat (`claim --design`) |
 
 - **Every number follows from the slot's own:** website 3100 + n, Metro 8100 + n, the database's ports 10n above `config.toml`'s block (55320–55329, which the Database check uses in GitHub). The defaults (3000, 8081, 55322) are never a slot's, so a stray unslotted server can't land on one.
-- **Signing in and uploading from a slot** needs its website address in staging's sign-in redirect list and the staging buckets' browser rules; until they're added, only `http://localhost:3000` is allowed there.
+- **Staging's sign-in and the staging buckets allow exactly these website addresses** (`infra/supabase/auth/settings.json`, `infra/cloudflare/r2/*.cors.staging.json`), besides the unslotted default `http://localhost:3000`; `test_slots.py` fails if they and this table drift apart. Production's lists never include a local address.
+- **Proof from any slot:** `infra/slots/slot run --doppler dev -- sh -c 'cd product/web && pnpm exec playwright test e2e/journeys/sign-in.spec.ts e2e/journeys/upload.spec.ts'` signs the test account in and out on the sign-in test page, shows Supabase returns visitors to the slot's own address, and uploads from the browser to the staging bucket, in Chromium and WebKit.
 
 ## Commands
 
@@ -34,7 +35,8 @@ Several Claude Code sessions work on this Mac at once, each in its own git workt
 
 - **The register** is one small file per held slot in the repository's shared git folder (`.git/hrizzup-slots/`), which every worktree sees and nothing commits. Claims take a lock first, so two sessions claiming at the same moment never get the same slot.
 - **A slot whose worktree is gone counts as free again.** A worktree is gone once its folder is, or once git has dropped it (`git worktree remove` unregisters it first, and a server still running in it can leave files behind). The next claim stops whatever that worktree left running in the slot (its website and Metro, recognised by their start times; its database) and takes it. A port held by any other program puts the slot out of reach until it's freed; that program is never stopped.
-- **Stopping a service** stops its whole process tree: Next.js and Expo each start their server in a process group of its own.
+- **Stopping a service** stops its whole process tree (Next.js and Expo each start their server in a process group of its own), first as Ctrl-C would, so Next.js can finish writing its build cache, and by force only after 30 seconds.
+- **The website starts from a clean development build** (`product/web/.next/dev`) each time: a Turbopack build cache left by an earlier run once made two slots' websites rebuild on every page load, so pages reloaded themselves hundreds of times a second (docs/setup.md). A first compile from nothing takes a few seconds.
 - **Docker** isn't on the PATH sessions get (Docker Desktop keeps `docker` and its credential helpers inside the app). The tool finds them there and puts them on the PATH of everything it runs, so nothing in this Mac's shell setup changes; it starts Docker Desktop if it isn't running.
 - **The database is Postgres alone** (`supabase db start`), about 70 MB, the only service the Database check's tests use. The website on this Mac uses staging's services through Doppler `dev`, so no other local service (sign-in, storage, Studio…) is ever started. The Supabase CLI takes the slot's project name and ports from `SUPABASE_PROJECT_ID` and `SUPABASE_<SECTION>_<KEY>`, so `config.toml` stays as the Database check uses it; none of a session's own `SUPABASE_` settings (staging's, from Doppler) reach the CLI.
 - **Redis:** the website's keys start `dev:slot<n>:`, so sessions side by side never share a key in staging's Redis (`redisKey()` in `@hrizzup/core`; blueprint section 14).
