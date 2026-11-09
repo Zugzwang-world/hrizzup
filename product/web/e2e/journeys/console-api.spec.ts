@@ -85,8 +85,12 @@ test("the console's calls answer anyone but an admin as an address the API doesn
       }),
     });
   }
+  // On staging itself, Vercel's Security Checkpoint answers every write to the typed API from
+  // anything but a browser (429), the console's and every other address alike, before it reaches
+  // the API; so there only the reads are compared. Previews, where the checks run, have no such rule.
+  const sent = calls(id).filter(([method]) => environment() !== 'staging' || method === 'GET');
   for (const { who, as } of strangers) {
-    for (const [method, path, data, headers] of calls(id)) {
+    for (const [method, path, data, headers] of sent) {
       const answer = await call(as, method, path, headers ?? {}, data);
       const what = `${who}: ${method} ${path} ${data ? JSON.stringify(data) : ''}`;
       expect(answer.status, what).toBe(404);
@@ -104,6 +108,13 @@ test('an admin creates, opens, closes and settles a market; the log shows it, an
   browserName,
 }) => {
   test.skip(environment() === 'production', "The console doesn't exist on production until launch");
+  // Staging's firewall challenges a write to the typed API from anything but a browser (Vercel's
+  // Security Checkpoint; previews, where the checks run, have no such rule). On staging itself the
+  // console's writes are proven in the browser (journeys/console.spec.ts, proofs/console-staging.spec.ts).
+  test.skip(
+    environment() === 'staging',
+    "Staging's firewall lets only browsers write; see console.spec.ts",
+  );
   const request = await playwright.request.newContext({
     ...(baseURL ? { baseURL } : {}),
     storageState: adminState(browserName),
