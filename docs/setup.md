@@ -1317,6 +1317,28 @@ Not a problem: the worry that Claude Code could run the script on production. It
 
 ---
 
+## 9 November 2026
+
+### Runbook step 4.6 done: the Expo token in `hrizzup-tools` (the founder; checked by Claude Code)
+
+**Done by the founder:** the Expo robot token saved as `EXPO_TOKEN` in `hrizzup-tools/claude`, and deleted from `hrizzup/stg`. A first check at 03:58 India time found nothing saved yet, since Doppler keeps edits as a draft until **Save**; the founder saved both, and the check below passed.
+
+**Checked by Claude Code at 12:56 India time,** by name only through its own access; the token's value was never read, shown or copied:
+
+| Where | Holds `EXPO_TOKEN`? | How it was checked |
+|---|---|---|
+| Doppler `hrizzup-tools/claude` | Yes | `infra/doppler/run tools` |
+| Doppler `stg`, `stg_preview`, `dev` | No, and no other name with "EXPO" or "EAS" | `infra/doppler/run stg`, `stg_preview` and `dev` |
+| Vercel's staging and preview settings | No: Doppler's two syncs removed their copies by themselves, so nothing was removed by hand | Vercel's API through `infra/doppler/run tools`, names only; production's entries dropped unread |
+| Whose token it is | A robot (Expo's `Robot` type), role Developer, on the account `hrizzups-team`: not a person's | Expo's API asked who the token is, as `eas whoami` does; only the type, the role and the account's name printed |
+
+- **The names check passes:** `python3 infra/doppler/dev_follows_staging.py check` reports `stg`, `stg_preview` and `dev` holding only the 21 app keys and none of `hrizzup-tools`' names, and `dev` following staging (20 references, 1 override).
+- **Not checked by Claude Code:** step 5, the old token deleted in Expo, since the old value is gone from Doppler. Staging and preview builds made between 22:28 on 8 November and this morning still carry the old value in their settings; once Expo has deleted it, those copies no longer work.
+- **Changed:** the app's build command reads the token from `hrizzup-tools` (`infra/doppler/run tools`, `product/README.md`). The runbook's step 4.6 now names Doppler's rows as the dashboard shows them ("Claude Code" in `hrizzup-tools`, "Staging" in `hrizzup`).
+- **Next:** the Doppler names check in the Staging workflow and the Screen check ([#54](https://github.com/Zugzwang-world/hrizzup/pull/54)) can merge, since `stg` now holds only the app's keys.
+
+---
+
 ## Rules for this log
 
 - It records every account, plan, region and setting configured for Hrizzup, on the day it is set. Add each new day above this section, newest day last.
