@@ -1,4 +1,5 @@
--- Tests for migrations/*_trading_reads.sql (PLAN.md step 1.7d), run by the Database check on every
+-- Tests for migrations/*_trading_reads.sql and *_trading_holdings_retries.sql (PLAN.md step 1.7d),
+-- run by the Database check on every
 -- pull request against a fresh database built from the migrations. Everything runs in a transaction
 -- that is rolled back, so nothing is left behind.
 --
@@ -11,7 +12,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(65);
+select plan(71);
 
 -- Runs one query as the app's own role, signed in as `account` (null: nobody), and gives back its
 -- one value as text. The role lasts only for the query, so pgTAP's own functions (which the app's
@@ -64,7 +65,7 @@ select set_eq(
     where p.pronamespace = 'trading'::regnamespace$$,
   array[
     'trading.markets(uuid,integer)',
-    'trading.holdings(uuid)',
+    'trading.holdings(uuid,uuid)',
     'trading.positions(uuid,integer)',
     'trading.orders(uuid,integer)'
   ],
@@ -331,42 +332,83 @@ select throws_ok(
 -- 2. Holdings: what the trade call checks before it touches the books ----------------------------------
 
 select throws_ok(
-  $$select pg_temp.as_app(null, format('select trading.holdings(%L)', pg_temp.market(1)))$$,
+  $$select pg_temp.as_app(null, format('select trading.holdings(%L, ''00000000-0000-4000-8000-00000000ffff'')', pg_temp.market(1)))$$,
   '42501', 'Holdings are read for a signed-in account', 'nobody signed in reads no holdings'
 );
 select is(
   pg_temp.as_app('00000000-0000-4000-8000-0000000000d2', format(
-    'select trading.holdings(%L)', pg_temp.market(1)))::jsonb,
+    'select trading.holdings(%L, ''00000000-0000-4000-8000-00000000ffff'')', pg_temp.market(1)))::jsonb,
   jsonb_build_object('market_id', pg_temp.market(1), 'state', 'open',
     'closes_at', markets.utc((select closes_at from markets.markets where id = pg_temp.market(1)::uuid)),
-    'has_account', true, 'balance', '90.000000', 'yes', '19.090909', 'no', '0.000000'),
+    'has_account', true, 'balance', '90.000000', 'yes', '19.090909', 'no', '0.000000',
+    'answered', false),
   'Ann sees her balance (Ṁ100 less the Ṁ10 she spent) and her shares, with the market''s state and closing time'
 );
 select is(
   pg_temp.as_app('00000000-0000-4000-8000-0000000000d2', format(
-    'select trading.holdings(%L) ->> ''yes''', pg_temp.market(2))),
+    'select trading.holdings(%L, ''00000000-0000-4000-8000-00000000ffff'') ->> ''yes''', pg_temp.market(2))),
   '0.000000',
   '... and none of Raj''s shares in market 2 as hers'
 );
 select is(
   pg_temp.as_app('00000000-0000-4000-8000-0000000000d4', format(
-    'select trading.holdings(%L)', pg_temp.market(1)))::jsonb
+    'select trading.holdings(%L, ''00000000-0000-4000-8000-00000000ffff'')', pg_temp.market(1)))::jsonb
     - 'closes_at',
   jsonb_build_object('market_id', pg_temp.market(1), 'state', 'open', 'has_account', false,
-    'balance', '0.000000', 'yes', '0.000000', 'no', '0.000000'),
+    'balance', '0.000000', 'yes', '0.000000', 'no', '0.000000', 'answered', false),
   'Zoe, with no play money yet, holds nothing'
 );
 select is(
   pg_temp.as_app('00000000-0000-4000-8000-0000000000d2', format(
-    'select trading.holdings(%L)', pg_temp.market(3))),
+    'select trading.holdings(%L, ''00000000-0000-4000-8000-00000000ffff'')', pg_temp.market(3))),
   null,
   'a draft answers as no market at all: it exists only for admins until it opens'
 );
 select is(
   pg_temp.as_app('00000000-0000-4000-8000-0000000000d2',
-    $q$select trading.holdings('019a7000-0009-7000-8000-000000000009')$q$),
+    $q$select trading.holdings('019a7000-0009-7000-8000-000000000009',
+         '00000000-0000-4000-8000-00000000ffff')$q$),
   null,
   'there are no holdings in a market that doesn''t exist'
+);
+select is(
+  pg_temp.as_app('00000000-0000-4000-8000-0000000000d2', format(
+    $q$select trading.holdings(%L, '00000000-0000-4000-8000-00000000e001') ->> 'answered'$q$,
+    pg_temp.market(1))),
+  'true',
+  'a request Ann has already sent is answered, so a retry goes straight to the books'
+);
+select is(
+  pg_temp.as_app('00000000-0000-4000-8000-0000000000d2', format(
+    $q$select trading.holdings(%L, '00000000-0000-4000-8000-00000000e001') ->> 'answered'$q$,
+    pg_temp.market(2))),
+  'true',
+  '... whichever market it''s sent for again (the books then refuse it as a different request)'
+);
+select is(
+  pg_temp.as_app('00000000-0000-4000-8000-0000000000d3', format(
+    $q$select trading.holdings(%L, '00000000-0000-4000-8000-00000000e001') ->> 'answered'$q$,
+    pg_temp.market(1))),
+  'false',
+  'someone else''s request ID is never answered for Raj'
+);
+select is(
+  pg_temp.as_app('00000000-0000-4000-8000-0000000000d4', format(
+    $q$select trading.holdings(%L, '00000000-0000-4000-8000-00000000e001') ->> 'answered'$q$,
+    pg_temp.market(1))),
+  'false',
+  '... nor for Zoe, who has no play money yet'
+);
+select ok(
+  not pg_catalog.has_function_privilege('anon', 'trading.holdings(uuid,uuid)', 'EXECUTE')
+  and pg_catalog.has_function_privilege('hrizzup_app', 'trading.holdings(uuid,uuid)', 'EXECUTE'),
+  'only the app''s role may read holdings'
+);
+select is_empty(
+  $$select p.oid::regprocedure::text from pg_catalog.pg_proc p
+    where p.pronamespace = 'trading'::regnamespace and p.proname = 'holdings'
+      and p.pronargs <> 2$$,
+  'the one-argument holdings, which nothing called, is gone'
 );
 
 -- 3. Positions -----------------------------------------------------------------------------------------
@@ -539,7 +581,7 @@ select is(
 );
 select is(
   pg_temp.as_app('00000000-0000-4000-8000-0000000000d2', format(
-    'select trading.holdings(%L) ->> ''state''', pg_temp.market(1))),
+    'select trading.holdings(%L, ''00000000-0000-4000-8000-00000000ffff'') ->> ''state''', pg_temp.market(1))),
   'settled',
   'holdings show it''s settled'
 );
