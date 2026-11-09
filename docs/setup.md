@@ -1419,6 +1419,21 @@ Not a problem: the worry that Claude Code could run the script on production. It
 - **After applying, three worktrees side by side,** each claiming its own slot at the same moment (they got 1, 2 and 3), each running the website (staging's database, Redis, storage and sign-in all "ok"), Metro (the Android bundle built) and its database (8 of 8 tests passed in each), with no page reloading itself: from every slot, in Chromium and WebKit, the test account signed in and out on the sign-in test page, Supabase returned the visitor to the slot's own address, and a browser upload reached the staging bucket and was read back (18 of 18 passed).
 - **Memory meanwhile:** each slot about 1.15–1.23 GB (website and Metro) plus 69 MB for its database; macOS reported 46% free.
 
+### The database-order check (PLAN.md step 1.8, part 3 of 3; the founder's decision of 9 November 2026; Claude Code)
+
+**What:** the Database check's first step (`infra/supabase/migration_order.py`, Python's standard library and git) compares each pull request with `main` as it is at that moment, and fails, saying what to rename, when the pull request adds a migration whose timestamp isn't later than the newest one on `main`; renames, changes or deletes one already on `main`; adds a badly named migration, two with one timestamp or one dated more than a day ahead; or adds a migration but leaves `infra/supabase/newest-migration.txt` naming another. Its 14 tests run in Quick checks and `pnpm check`.
+
+**Choices made (Claude Code, unattended):**
+- **How it holds when `main` gains a migration after a pull request's checks have passed:** `infra/supabase/newest-migration.txt` names the newest migration on one line, and every pull request that adds a migration changes it. Once one merges, every other one changes the same line differently, so GitHub sees a conflict and won't merge it, however green its checks, until it's rebased; then the check runs again against `main`'s new newest. Pull requests without migrations never touch the line, so they never wait. The same idea as Rails' schema version line and Atlas's `atlas.sum`. A test in a real git repository shows it: the second of two migration pull requests conflicts once the first merges (`git merge-tree`), fails the check once rebased, and passes and merges cleanly once renamed.
+- **Not chosen:** the ruleset's "require branches to be up to date before merging", which would hold back every pull request after every merge and re-run all its checks (the Screen and Speed checks take up to 40 minutes), and GitHub's merge queue, which would need every required check to run on its merge groups too (a larger change to the workflows), and whose availability for a repository in a personal account wasn't confirmed.
+- **Required:** it's a step of "Database check", which the ruleset "main" already requires (checked through GitHub's API: Secret check, Quick checks, Database check, Screen check, Speed check and App journeys; "up to date" off), so the ruleset is unchanged.
+- **A pull request branched before the lock file existed** isn't held to it unless it adds a migration (it then has to rebase anyway).
+- **No migration may be dated more than a day ahead,** so none can claim the future and keep everyone else's out.
+
+**Checked:**
+- Locally against `main`: no new migrations, `20261103120000_lock_every_table.sql` the newest; a migration dated 1 November failed with "doesn't come after the newest migration on main … rename it to a later timestamp, for example …".
+- **On GitHub:** a throwaway draft pull request, never merged, added `20261101000000_out_of_order_proof.sql` ([#67](https://github.com/Zugzwang-world/hrizzup/pull/67)): its Database check failed at "The database-order check (rename your migration if main has moved past it)" and skipped the rest; then it was closed and its branch deleted.
+
 ---
 
 ## Rules for this log

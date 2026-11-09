@@ -3,10 +3,14 @@
 #   Quick checks    formatting and lint (Biome), type checks and unit tests (Turborepo),
 #                   including the hand-over agreement's check (agreement/src/agreement.test.ts),
 #                   the infrastructure tools' own tests (infra/vercel, infra/doppler,
-#                   infra/slots) and the checks' own scripts' tests (.github/scripts: tool
-#                   downloads, affected parts)
-#   Database check  builds a fresh database from infra/supabase/migrations and runs its
-#                   tests, including "every table is locked" (row-level security)
+#                   infra/slots, infra/supabase) and the checks' own scripts' tests
+#                   (.github/scripts: tool downloads, affected parts)
+#   Database check  first, the database-order check (infra/supabase/migration_order.py):
+#                   every migration the pull request adds comes after the newest one on
+#                   main as it is now, none already on main is touched, and
+#                   newest-migration.txt names the newest; then builds a fresh database
+#                   from infra/supabase/migrations and runs its tests, including "every
+#                   table is locked" (row-level security)
 #   Screen check    checks by name that Doppler stg_preview holds only the app's keys
 #                   (infra/doppler/app-keys.txt) before loading it; then, once
 #                   Vercel's preview of the pull request is ready, opens it in
@@ -72,6 +76,7 @@ jobs:
           python3 -m unittest discover -s infra/doppler
           python3 -m unittest discover -s .github/scripts
           python3 -m unittest discover -s infra/slots
+          python3 -m unittest discover -s infra/supabase
 
   database:
     name: Database check
@@ -83,7 +88,16 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0 # main as it is now, and where this pull request branched from it
           persist-credentials: false
+      # Staging and production apply migrations in timestamp order and refuse an older one,
+      # so the pull request's new migrations must come after main's newest. If main gains a
+      # migration after this passes, newest-migration.txt's one line conflicts, so GitHub
+      # won't merge this until it's rebased and this runs again (CLAUDE.md, "Database changes").
+      - name: The database-order check (rename your migration if main has moved past it)
+        env:
+          HEAD_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: python3 infra/supabase/migration_order.py --main origin/main --head "$HEAD_COMMIT"
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:

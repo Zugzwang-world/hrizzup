@@ -1,0 +1,5 @@
+# The newest migration in migrations/ (PLAN.md step 1.8; CLAUDE.md, "Database changes").
+# A pull request that adds a migration puts its name on the last line. Two such pull requests
+# then change the same line, so once one merges, the other conflicts with main until it's
+# rebased and its migration renamed after the first's (migration_order.py checks both).
+20261103120000_lock_every_table.sql
