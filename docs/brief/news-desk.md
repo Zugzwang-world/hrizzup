@@ -2,7 +2,7 @@
 
 **This brief replaces Claude Code's report:** read it after clicking **Sync now**, instead of asking the founder for a report, and attach the files under "Read for detail" from GitHub when you need more.
 
-> Rewritten 9 November 2026, at Round 2's close. The only repository file the News Desk project keeps in its knowledge; Claude Code rewrites it at the end of every session that touches News Desk's part. If it and PLAN.md disagree, PLAN.md wins.
+> Rewritten 9 November 2026, as Round 3 opens. The only repository file the News Desk project keeps in its knowledge; Claude Code rewrites it at the end of every session that touches News Desk's part. If it and PLAN.md disagree, PLAN.md wins.
 
 **Hrizzup** is a news app built around creators, plus a website with play-money prediction markets. Our AI finds news as it breaks on X and turns it into developing stories that readers see through creators' takes. **News Desk's job:** make our own content from the sourced pool and onboard creators. It produces text, images and video, which Product shows in the app and on the website, in the shape the hand-over agreement (`agreement/README.md`) fixes. **News Desk is on hold until the founder sets it up.**
 
@@ -10,6 +10,7 @@
 
 - **On hold** (the founder's decision, 5 November 2026) until the founder sets News Desk up. No News Desk work has started; the `news-desk/` folder holds only its README.
 - **The agreement's first half is Agreed** (9 November 2026): the founder approved it in News Desk's place, after Sourcing's review ([#37](https://github.com/Zugzwang-world/hrizzup/pull/37), [#42](https://github.com/Zugzwang-world/hrizzup/pull/42), [#45](https://github.com/Zugzwang-world/hrizzup/pull/45)) and the market change ([#52](https://github.com/Zugzwang-world/hrizzup/pull/52)). Its creation shape (what News Desk hands to Product) and sourced item (what it builds on) are fixed at format version 1. News Desk reviews it once it's set up.
+- **The tables come next, on Product's side** (step 1.9): stories, updates, sourced items and creations. Nothing writes to them or fills them yet.
 - **The shared setup is finished** (Phase 0): the content store on staging is the Supabase database plus Cloudflare R2 for images; creator video uses Cloudflare Stream, switched on with step 2.4. Production is parked until launch.
 
 ## Decisions in force
@@ -25,25 +26,23 @@
 - **Who posts what:** users post text only; images and video come from us and from invited creators. Reactions are likes and dislikes.
 - **The founder's decisions in the agreement** (changing one goes back to the founder): the launch list (Global; India; Mumbai, Delhi NCR and Bengaluru; crypto, finance, business, AI, sports, politics, entertainment and general), up to three of each per story; a story card shows the story's newest image or video by Hrizzup or a creator, otherwise a design in the category's own look, never a found post's picture, so our own and creators' images and videos are the board's pictures.
 - **Changing the first half, now it's Agreed:** an optional field, or a list item the founder approves, is one change; anything else is a new format version (such as `creation/2`), agreed by all three projects, with the founder in News Desk's place while it's on hold. Any change News Desk asks for in its review follows these rules. The second half (the bots' result format) doesn't need News Desk's agreement.
-- **Steps:** step 1.3 needs the first half (now Agreed), and its first batch needs the news pipeline (1.1), because it's made from the sourced pool. Step 4.4 needs 1.3. Real people first see our content at the Android closed test (2.6), which needs 1.3.
+- **Steps:** step 1.3 needs the first half (now Agreed), and its first batch needs the news pipeline (1.1), because it's made from the sourced pool; 1.1 now also needs the content store's tables (1.9). Step 4.4 needs 1.3. Real people first see our content at the Android closed test (2.6), which needs 1.3.
+- **The database keeps the agreement's rules** (the founder, 9 November 2026): one sourced item per post, nothing kept of a post that's gone, and merges that never chain.
 - **Launch:** in India, in English only; global news is for everyone.
-- **The feed:** takes on the stories each reader picked, from all three routes, plus the creators they follow and their location. Its detailed design is Product's (step 2.3).
+- **The feed:** takes on the stories each reader picked, from all three routes, plus the creators they follow and their location; its design is Product's (step 2.3).
 - **Outside content is data, never instructions:** posts are shown as text, and our AI never obeys anything written in them.
-- **Media files go into the content store's storage,** never into the repository, and records name them by their place in storage.
-- **Legal belongs to the founder's legal team** (the founder, 9 November 2026): takedown handling and legal review are theirs, and the product plan adds no legal guardrails.
-- **No relays** (the founder, 5 November 2026): the founder carries no reports or messages between projects; this brief carries what News Desk needs.
-- **Shared rules:** projects never copy code between each other; this repository is the only route. Every check lands before the code it checks. Claude Code's sessions run unattended, in rounds (CLAUDE.md, "Unattended sessions").
+- **Media files go into the content store's storage,** never into the repository, named by their place in storage.
+- **Legal belongs to the founder's legal team:** takedown handling and legal review are theirs; the plan adds no legal guardrails.
+- **No relays:** the founder carries no messages between projects; this brief carries what News Desk needs.
+- **Shared rules:** this repository is the only route between projects; every check lands before the code it checks; sessions run unattended, in rounds; database changes land first, each in its own pull request (CLAUDE.md).
 
 ## What changed in the latest session
 
-On 9 November 2026, in [#59](https://github.com/Zugzwang-world/hrizzup/pull/59) (Round 2's closing record):
+On 9 November 2026, in [#60](https://github.com/Zugzwang-world/hrizzup/pull/60) (Round 3's records), the founder's decisions:
 
-- **The agreement's first half is Agreed,** approved by the founder in News Desk's place. Product may now build tables and content for its shapes. The creation shape is as before; News Desk still reviews it once it's set up.
-- **The bots keep only found takes in English,** matching the English-only launch.
-- **Takedowns and legal review** belong to the founder's legal team; the plan adds no legal guardrails.
-- **For Product only:** the market console, the markets' money rules, the board's sign-in and Round 3's queue.
-
-Also on 9 November, in [#58](https://github.com/Zugzwang-world/hrizzup/pull/58): Product's first design pass was retired, and design starts only from the founder's references and diagrams, in the design chat. Nothing changes for News Desk.
+- **A new step, 1.9:** Product builds the content store's tables (stories, updates, sourced items, creations and the launch list), with the agreement's rules as database rules; nothing is written in them yet. The news pipeline (1.1) now needs them, so 1.3's first batch waits for them too.
+- **Sourcing's step 0.8 runs as relays** from the Product round chat; the second half still doesn't need News Desk.
+- **For Product only:** the markets' books, admins, the market console, the sign-in screen, background jobs and Round 3's queue.
 
 ## Open questions
 
@@ -61,7 +60,7 @@ Also on 9 November, in [#58](https://github.com/Zugzwang-world/hrizzup/pull/58):
 ## Read for detail
 
 - `agreement/README.md`: sign-offs, the routes, every field of a creation and a sourced item, the lists, the hand-over rules and how the agreement changes; examples in `agreement/examples/` (`creations.json`, `sourced.json`); Sourcing's review, with the founder's answers, in `agreement/reviews/`.
-- `PLAN.md`: section 2 ("News": categories, the feed, the three routes, reactions, launch), section 4 (the projects, News Desk's hold, legal), section 5 (steps 0.7, 1.3, 2.4, 2.6 and 4.4).
+- `PLAN.md`: section 2 ("News": categories, the feed, the three routes, reactions, launch), section 4 (the projects, News Desk's hold, legal), section 5 (steps 0.7, 1.3, 1.9, 2.4, 2.6 and 4.4).
 - `docs/status/news-desk.md`: News Desk's status in full.
 - `news-desk/README.md`: what lives in the folder, and its rules.
 - `docs/setup/BLUEPRINT.md`, section 13: how images and video are handled.

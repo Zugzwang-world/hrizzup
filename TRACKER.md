@@ -12,7 +12,7 @@ Round 2 closed on 9 November 2026. Round 3 runs in twelve relays, in waves, atta
 
 | Relay | When | Step | What | Needs | Status |
 |---|---|---|---|---|---|
-| 1 | Wave 1, now | — | The round's records: the founder's decisions of 9 November 2026 | — | in progress |
+| 1 | Wave 1, now | — | The round's records: the founder's decisions of 9 November 2026 | — | done, [#60](https://github.com/Zugzwang-world/hrizzup/pull/60) |
 | 2 | Wave 1, now | 1.8 | Parallel local development: three sessions run the website, the app's dev server and the local database side by side, and sign in and upload locally; with the database-order check (each pull request's database changes come after the newest one on `main`) | 0.6 | not started |
 | 3 | Wave 1, now | Hardening | The release pipeline refuses to release when production's keys include a name that isn't an app key | [#54](https://github.com/Zugzwang-world/hrizzup/pull/54), merged 9 November 2026 | not started |
 | 3 | Wave 1, now | Hardening | The Screen check loads only the keys its tests use, not the whole preview config | [#54](https://github.com/Zugzwang-world/hrizzup/pull/54), merged 9 November 2026 | not started |
