@@ -5,6 +5,8 @@
 > **The changes were made the same day,** in [#42](https://github.com/Zugzwang-world/hrizzup/pull/42): every finding below, R1 to R11, is in the definitions, the examples, the check or the README. R12, found while making them, followed in [#45](https://github.com/Zugzwang-world/hrizzup/pull/45).
 >
 > **The founder answered on 9 November 2026** ([#59](https://github.com/Zugzwang-world/hrizzup/pull/59)): he approved the first half in News Desk's place, as it stood after the market change ([#52](https://github.com/Zugzwang-world/hrizzup/pull/52)), and it is Agreed. **F1:** as recommended, the bots keep only found takes in English, matching the English-only launch. **F2 and F3:** takedown handling and legal review belong to the founder's legal team; the product plan adds no legal guardrails, so neither is an open question for Sourcing or Product.
+>
+> **The founder ruled out xAI's API, also on 9 November 2026** ([#61](https://github.com/Zugzwang-world/hrizzup/pull/61)): Hrizzup uses no xAI API; Grok bots source everything, and Sourcing's work runs in the Sourcing project, on its own schedule. So this review's assumption that a bot run calls xAI's API with its X search tool (step 1 under "How the pipeline will fill a sourced item"), its recommendation for step 0.8 ("The brief's open questions, as inputs"), and the notes written for that API (N2's date filter, N8's cost, N9's structured output and N10's proof of origin) no longer apply. The findings (R1 to R12), the agreement they changed, and the agreement's rules stand. N13 needs Product to link a creator's X account without X's API, an open question in Product's brief.
 
 ## In short
 
