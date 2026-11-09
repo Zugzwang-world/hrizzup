@@ -13,7 +13,9 @@ import { phone } from './phone.ts';
  * doesn't exist on production). Google can't be signed into by a test, so the test account
  * signs in the only way it can: a fresh session from staging's one-time token, set as the very
  * cookies the website sets after a real sign-in (support/test-accounts.ts). Signing out then
- * goes through the page's own button. Google sign-in itself is followed up to Google's door.
+ * goes through the page's own button. Google sign-in itself is followed up to Google's door,
+ * and Supabase is shown to allow the way back to this site (on this Mac, each slot's own
+ * address: infra/slots/README.md).
  */
 test.use(phone);
 
@@ -58,7 +60,9 @@ test('the test account signs in and out', async ({ page, context, baseURL, brows
   await expect(page.getByRole('heading', { name: SIGNED_OUT })).toBeVisible();
 });
 
-test('Continue with Google sends the visitor to Google for our app', async ({ page }) => {
+test('Continue with Google goes to Google for our app, and Supabase allows the way back', async ({
+  page,
+}) => {
   skipOnProduction();
   // The click is real and so is our server's answer, but the browser stops there: the test
   // reads where the answer sends it, then follows the way to Google itself, one step at a time,
@@ -93,4 +97,27 @@ test('Continue with Google sends the visitor to Google for our app', async ({ pa
   expect(google.searchParams.get('redirect_uri')).toBe(
     `${project ?? toSupabase?.origin}/auth/v1/callback`,
   );
+
+  // And Supabase will send the visitor back the way our server asked: to this site's own
+  // callback (on a preview, staging's relay), which only its redirect list allows
+  // (infra/supabase/auth/settings.json). Supabase's verify step, given a code that's no good,
+  // sends the browser to that address if the list allows it and to staging's home otherwise,
+  // so this asks without signing anyone in, without a key and without touching an account.
+  const wayBack = toSupabase?.searchParams.get('redirect_to') ?? '';
+  expect(wayBack, 'our server names a way back').not.toBe('');
+  const verify = new URL('/auth/v1/verify', toSupabase?.origin);
+  verify.searchParams.set('token', 'not-a-real-code');
+  verify.searchParams.set('type', 'magiclink');
+  verify.searchParams.set('redirect_to', wayBack);
+  const answer = await page.request.get(verify.href, { maxRedirects: 0 });
+  expect(answer.status()).toBe(303);
+  // Compared as addresses (place, then each parameter), so a re-encoded character can't matter.
+  const address = (href: string) => {
+    const url = new URL(href);
+    return { at: url.origin + url.pathname, with: [...url.searchParams].sort() };
+  };
+  expect(
+    address(answer.headers().location ?? 'about:blank'),
+    "Supabase's redirect list allows this site's way back",
+  ).toEqual(address(wayBack));
 });

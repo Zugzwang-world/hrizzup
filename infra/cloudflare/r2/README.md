@@ -5,7 +5,7 @@ Each environment's two R2 buckets and their rules, kept here so every environmen
 | File | Applies to |
 |---|---|
 | `apply.py` | Applies and checks one environment: both buckets exist in Asia-Pacific (Standard storage), their `r2.dev` addresses are off, the media bucket's only public address is its own (minimum TLS 1.2, certificate active) and the uploads bucket has none, and the CORS and lifecycle rules match these files. `--check` only compares |
-| `uploads.cors.staging.json` | `hrizzup-staging-uploads`: browser uploads (`PUT`) only from staging, `http://localhost:3000` and our previews |
+| `uploads.cors.staging.json` | `hrizzup-staging-uploads`: browser uploads (`PUT`) only from staging, `http://localhost:3000`, this Mac's slots (`http://localhost:3101` to `3104`; `infra/slots/test_slots.py` keeps them in step) and our previews. The website's upload journey proves it from each (`product/web/e2e/journeys/upload.spec.ts`) |
 | `media.cors.staging.json` | `hrizzup-staging-media`: browser reads (`GET`, `HEAD`) from the same sites |
 | `uploads.cors.production.json` | `hrizzup-uploads`: browser uploads only from `https://hrizzup.com` and `https://www.hrizzup.com` |
 | `media.cors.production.json` | `hrizzup-media`: browser reads from the same two |
