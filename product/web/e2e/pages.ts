@@ -47,6 +47,13 @@ export type Page = {
   absentOn?: readonly Environment[];
 };
 
+/**
+ * A test market the screen check keeps on staging for the console's market page: made, opened,
+ * closed and settled once by the console's admin test account (global-setup.ts), and found
+ * again by its ID on every run after.
+ */
+export const CONSOLE_FIXTURE_MARKET = '019a6c00-0000-7000-8000-000000000001';
+
 export const pages: readonly Page[] = [
   { route: '/', name: 'home', path: '/', budget: 'standard' },
   { route: '/privacy', name: 'privacy', path: '/privacy', budget: 'standard' },
@@ -62,6 +69,24 @@ export const pages: readonly Page[] = [
     route: 'not-found',
     name: 'not-found',
     path: '/this-page-does-not-exist',
+    status: 404,
+    budget: 'standard',
+  },
+  // The market console: admins only, so "not found" to every visitor, as everywhere on production
+  // until launch. The screen check also opens it as the console's admin test account
+  // (screens.spec.ts), and its journeys run it end to end (journeys/console.spec.ts).
+  { route: '/console', name: 'console', path: '/console', status: 404, budget: 'standard' },
+  {
+    route: '/console/markets/new',
+    name: 'console-new-market',
+    path: '/console/markets/new',
+    status: 404,
+    budget: 'standard',
+  },
+  {
+    route: '/console/markets/[id]',
+    name: 'console-market',
+    path: `/console/markets/${CONSOLE_FIXTURE_MARKET}`,
     status: 404,
     budget: 'standard',
   },
