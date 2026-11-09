@@ -168,6 +168,39 @@ class Claiming(unittest.TestCase):
         self.assertEqual(sorted(results.values()), [1, 2, 3])
 
 
+class Worktrees(unittest.TestCase):
+    def setUp(self):
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        self.base = folder.name
+
+    def make(self, name, record=True):
+        path = os.path.join(self.base, name)
+        os.makedirs(path)
+        admin = os.path.join(self.base, "repo.git", "worktrees", name)
+        if record:
+            os.makedirs(admin)
+        with open(os.path.join(path, ".git"), "w") as f:
+            f.write(f"gitdir: {admin}\n")
+        return path
+
+    def test_a_live_worktree_exists(self):
+        self.assertTrue(slots.worktree_exists(self.make("live")))
+
+    def test_the_main_folder_exists(self):
+        path = os.path.join(self.base, "main")
+        os.makedirs(os.path.join(path, ".git"))
+        self.assertTrue(slots.worktree_exists(path))
+
+    def test_a_deleted_worktree_is_gone(self):
+        self.assertFalse(slots.worktree_exists(os.path.join(self.base, "never-there")))
+
+    def test_a_half_removed_worktree_is_gone(self):
+        """git unregisters a worktree before deleting its files; servers still running in it
+        can leave files behind, but the slot is free once git has dropped it."""
+        self.assertFalse(slots.worktree_exists(self.make("half-removed", record=False)))
+
+
 class Processes(unittest.TestCase):
     def test_a_process_tree_is_found_from_its_first_process(self):
         table = {10: (1, 10, "doppler"), 11: (10, 10, "node next"), 12: (11, 12, "next-server"),

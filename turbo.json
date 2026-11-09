@@ -19,7 +19,8 @@
     },
     "test:db": {
       "inputs": ["migrations/**", "tests/**", "config.toml", "package.json"],
-      "outputs": []
+      "outputs": [],
+      "passThroughEnv": ["GITHUB_ACTIONS"]
     },
     "transit": {
       "dependsOn": ["^transit"]

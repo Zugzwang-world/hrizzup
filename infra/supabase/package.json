@@ -3,8 +3,8 @@
   "private": true,
   "description": "The database's structure: migrations applied the same way on staging and production, and their tests. Supabase CLI project folder (config.toml, migrations/, tests/).",
   "scripts": {
-    "test:db": "supabase --workdir .. db start && supabase --workdir .. test db",
-    "db:stop": "supabase --workdir .. stop --no-backup"
+    "test:db": "python3 ../slots/slot db test",
+    "db:stop": "python3 ../slots/slot db stop"
   },
   "devDependencies": {
     "supabase": "^2.90.0"

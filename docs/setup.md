@@ -1358,6 +1358,45 @@ Not a problem: the worry that Claude Code could run the script on production. It
 - **Changed in App journeys:** the `android-emulator-runner` action is gone; `product/app/journeys/emulator.sh` boots the pinned emulator. Its snapshot cache key is now `emulator-snapshot-pixel_7-<emulator>-<system image>-v2`.
 - **Checked:** [#63](https://github.com/Zugzwang-world/hrizzup/pull/63)'s own checks, and the Tool cache workflow's first run on `main`.
 
+### Parallel local development: slots (PLAN.md step 1.8, part 1 of 3; Claude Code)
+
+**What:** sessions on this Mac each claim a **slot** before running the website, the app's dev server (Metro) or the local database, so two worktrees never share a port, a container or a Redis key (`infra/slots/`, with its README; CLAUDE.md, "Parallel sessions"). Python's standard library only, like the other infrastructure tools; its tests run in Quick checks and `pnpm check`.
+
+| Slot | Website | Metro | Database (Supabase project, port) | Redis prefix | For |
+|---|---|---|---|---|---|
+| 1 to 3 | `http://localhost:3101` to `3103` | 8101 to 8103 | `hrizzup-slot1` to `3`, ports 55332, 55342, 55352 (blocks 55330–55359) | `dev:slot1` to `3` | a round's relays |
+| 4 | `http://localhost:3104` | 8104 | `hrizzup-slot4`, 55362 (55360–55369) | `dev:slot4` | the design chat (`claim --design`) |
+
+**Choices made (Claude Code, unattended):**
+- **Ports:** website 3100 + n, Metro 8100 + n, the database's whole block 10n above `config.toml`'s (55320–55329, still the Database check's in GitHub): no slot uses a default (3000, 8081, 55322), so an unslotted server can't land on one.
+- **The register:** one file per held slot in `.git/hrizzup-slots/`, the repository's shared git folder, which every worktree sees and nothing commits; claims and releases take a lock first.
+- **A gone worktree frees its slot:** gone means its folder is gone or git has dropped it (`git worktree remove` unregisters first; servers still running can leave files behind). The next claim stops what it left running (processes recognised by their start times; its database) and takes the slot. A port held by any other program puts the slot out of reach; that program is never stopped.
+- **The design chat's slot:** the last one is kept for it (`claim --design`), so a round's relays can't leave it without one.
+- **Docker:** Docker Desktop keeps `docker` and `docker-credential-desktop` inside the app, off the sessions' PATH (and the Supabase CLI runs `docker` itself for some commands: `supabase status` failed with "docker: command not found"). The tool puts that folder first on the PATH of everything it runs, and starts Docker Desktop if it isn't running; this Mac's shell setup is unchanged.
+- **A light database:** Postgres alone (`supabase db start`, about 70 MB), the only service the Database check's tests use. The website on this Mac uses staging's services through Doppler `dev`, so nothing else is started. The slot's project name and ports reach the Supabase CLI as `SUPABASE_PROJECT_ID` and `SUPABASE_<SECTION>_<KEY>` (each name checked against the CLI 2.122.0: a bad value is refused by name, or the setting is one of its own fields), so `config.toml` is unchanged; a session's own `SUPABASE_` values (staging's, from Doppler) are kept from the CLI.
+- **`pnpm test:db`** goes through the slot tool (`infra/supabase/package.json`): on this Mac it uses the worktree's slot and refuses to run without one; in GitHub (`GITHUB_ACTIONS`, passed through by Turborepo) it uses `config.toml` as before.
+- **Redis:** each slot's prefix is `dev:slot<n>`, so keys stay under this Mac's `dev`; `redisKey()` in `@hrizzup/core` accepts it, and the Upstash check's prefix rule (`dev:`) holds unchanged.
+- **Servers run directly** (`node_modules/.bin/next`, `…/expo`), not through `pnpm exec`, which adds two Node processes (about 170 MB) above each; Metro runs without `CI`, which would turn off its file watching and Fast Refresh.
+- **Expo's own `.gitignore`** (`product/app/.gitignore`, for the `expo-env.d.ts` it writes on every start) is committed, so starting Metro leaves no stray file.
+
+**Checked on this Mac (Apple M4, 10 cores, 24 GB; Docker Desktop's VM 8 GB):**
+- **Three worktrees side by side** (this relay's, plus two scratch worktrees at the same commit, removed afterwards), each claiming its own slot, then running the website, Metro and its database: every database ran the Database check's tests (8 of 8 passed in each), every website answered on its own port with staging's services all "ok" (`/api/health`), and every Metro built the Android bundle (6.4 MB).
+- **Claims:** a fourth relay claim was refused (exit 3, naming each slot's holder) while `claim --design` got slot 4; claims at the same moment never share a slot (unit test).
+- **A gone worktree:** a scratch worktree removed while its slot ran (`git worktree remove --force`, which left files behind because its servers were writing) was taken by the next claim, which first stopped its website, Metro and database: nothing was left on its ports or in Docker.
+- **Unslotted:** `pnpm test:db` in a worktree without a slot refused, naming `infra/slots/slot claim`; with `GITHUB_ACTIONS=true` it used `config.toml`'s project and port 55322 and passed.
+
+**How many slots: four (three for relays, one kept for the design chat).** Measured with about 18 Claude Code processes, Chrome and another project's Supabase stack ("experiment", left alone) already running, macOS already at its "warn" memory level with 12 GB in swap before any slot started:
+
+| Running | macOS memory level | Free memory (macOS) |
+|---|---|---|
+| Before any slot | warn | 44% |
+| 3 slots, each with the website, Metro and its database | warn | 33% |
+| 4 slots (one as the design chat) | warn | 34% |
+| 4 slots, plus type checks and unit tests in two worktrees at once (24 tasks, none cached) | normal or warn, never critical | lowest 32%; every website answered within 0.25 s meanwhile |
+
+- **An active slot costs about 1.3–1.5 GB:** the website about 0.6–0.8 GB once its pages are compiled, Metro about 0.6–0.8 GB once it has built the Android bundle (1.1 GB just after), the database about 70 MB inside Docker's VM, whose memory is set aside already. Idle, a slot shrinks to about 0.7 GB.
+- **A fifth wasn't tried,** to keep the founder's Mac, and the relays running on it, away from critical memory: swap had grown to about 16 GB. Relays 5 to 9 can rely on three slots at once (wave 2's three relays fit), with the design chat's slot kept apart.
+
 ---
 
 ## Rules for this log

@@ -173,8 +173,23 @@ def branch() -> str:
 
 
 def worktree_exists(path: str) -> bool:
-    """A worktree is gone once its folder (or the folder's git link) is."""
-    return os.path.isdir(path) and os.path.exists(os.path.join(path, ".git"))
+    """Whether a worktree is still there. It's gone once its folder is, and also once git has
+    dropped it (`git worktree remove` unregisters it first, and running servers can keep
+    leftover files in the folder): its `.git` file then points at a record git no longer has."""
+    link = os.path.join(path, ".git")
+    if os.path.isdir(link):
+        return True  # the repository's main folder
+    try:
+        with open(link, encoding="utf-8") as f:
+            first = f.readline().strip()
+    except OSError:
+        return False
+    if not first.startswith("gitdir:"):
+        return False
+    record = first[len("gitdir:"):].strip()
+    if not os.path.isabs(record):
+        record = os.path.join(path, record)
+    return os.path.isdir(record)
 
 
 # ---- The register: one small file per held slot, changed only under one lock ----
@@ -641,12 +656,12 @@ def stop(register: Register, what: str) -> None:
 # ---- The database ----
 
 
-def database(register: Register, action: str) -> int:
+def database(register, action: str) -> int:
     """This slot's database: Postgres alone (`supabase db start`), the only service the
     Database check's tests use. The website on this Mac uses staging's services (Doppler
     dev), so nothing else is ever started. In GitHub's runners there are no slots: the
     Database check uses config.toml as it is."""
-    in_ci = os.environ.get("GITHUB_ACTIONS") == "true"
+    in_ci = register is None
     slot = None if in_ci else my_slot(register)
     env = db_env(slot)
     if not in_ci:
@@ -741,6 +756,10 @@ def main(argv: list) -> int:
             env = with_docker(dict(os.environ))
             binary = os.path.join(docker_bin(), "docker")
             os.execve(binary, ["docker", *args], env)
+        if command == "db" and os.environ.get("GITHUB_ACTIONS") == "true":
+            if len(args) != 1:
+                raise Failed("infra/slots/slot db start|test|stop")
+            return database(None, args[0])  # GitHub's runners hold no slots (database())
         register = Register(register_folder())
         if command == "claim":
             wait, design = "--wait" in args, "--design" in args
