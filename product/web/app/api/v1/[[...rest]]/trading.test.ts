@@ -61,14 +61,22 @@ const PERSON = { id: '00000000-0000-4000-8000-0000000000e1', email: 'ann@trading
 const MARKET = tradeResult.marketId;
 const REQUEST = '01a1b0c4-5e00-7a10-9c3d-1f2e3d4c5b6a';
 
-async function answer(method: 'GET' | 'POST', path: string, body?: unknown) {
+async function answer(
+  method: 'GET' | 'POST',
+  path: string,
+  body?: unknown,
+  headers: Record<string, string> = {},
+) {
   const handler = route[method] as (request: Request) => Promise<Response>;
   const response = await handler(
     new Request(`${SITE}${path}`, {
       method,
       ...(body === undefined
-        ? {}
-        : { body: JSON.stringify(body), headers: { 'content-type': 'application/json' } }),
+        ? { headers }
+        : {
+            body: JSON.stringify(body),
+            headers: { 'content-type': 'application/json', ...headers },
+          }),
     }),
   );
   const text = await response.text();
@@ -323,5 +331,53 @@ describe("the console's changes clear the list at the edge", () => {
     });
     expect(calls.createMarket).toHaveBeenCalled();
     expect(refreshEdge).not.toHaveBeenCalled();
+  });
+});
+
+describe('a write from another site', () => {
+  it('is refused before anything runs, when it would ride on the session cookie', async () => {
+    calls.placeTrade.mockResolvedValue(tradeResult);
+    for (const [what, headers] of [
+      ['another site', { origin: 'https://elsewhere.example', 'sec-fetch-site': 'cross-site' }],
+      [
+        'another of our subdomains',
+        { origin: 'https://media.hrizzup.com', 'sec-fetch-site': 'same-site' },
+      ],
+      ['an older browser naming another site', { origin: 'https://elsewhere.example' }],
+    ] as const) {
+      const refused = await answer('POST', '/api/v1/trades', buy(), headers);
+      expect(refused.status, what).toBe(403);
+      expect(refused.body, what).toMatchObject({ code: 'FORBIDDEN' });
+      expect(refused.headers['cache-control'], what).toBe('private, no-store');
+      const cancel = { marketId: MARKET, orderId: restingOrder.tradeId, requestId: REQUEST };
+      expect((await answer('POST', '/api/v1/orders/cancel', cancel, headers)).status, what).toBe(
+        403,
+      );
+    }
+    expect(signedIn).not.toHaveBeenCalled();
+    expect(allowTrade).not.toHaveBeenCalled();
+    expect(calls.placeTrade).not.toHaveBeenCalled();
+  });
+
+  it('goes through from this site, from a client that is not a browser, or with its own token', async () => {
+    calls.placeTrade.mockResolvedValue(tradeResult);
+    const allowed: Record<string, string>[] = [
+      { origin: SITE, 'sec-fetch-site': 'same-origin' },
+      { origin: SITE },
+      {},
+      { authorization: 'Bearer a-token', origin: 'https://elsewhere.example' },
+    ];
+    for (const headers of allowed) {
+      expect((await answer('POST', '/api/v1/trades', buy(), headers)).status).toBe(200);
+    }
+  });
+
+  it('never stops a read: the list stays public', async () => {
+    calls.marketList.mockResolvedValue(marketList);
+    const listed = await answer('GET', '/api/v1/markets', undefined, {
+      origin: 'https://elsewhere.example',
+      'sec-fetch-site': 'cross-site',
+    });
+    expect(listed.status).toBe(200);
   });
 });

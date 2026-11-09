@@ -2,6 +2,7 @@ import { OpenAPIHandler } from '@orpc/openapi/fetch';
 import { ResponseHeadersPlugin } from '@orpc/server/plugins';
 import { SHARED_CACHE_HEADERS } from '@/lib/api/caching.ts';
 import { consoleAdmin, isConsoleAddress } from '@/lib/api/console.ts';
+import { crossSiteWrite } from '@/lib/api/cross-site.ts';
 import { router } from '@/lib/api/router.ts';
 
 /**
@@ -25,7 +26,16 @@ function noSuchCall(): Response {
   );
 }
 
+/** What a cross-site write gets: refused, never kept. */
+function crossSite(): Response {
+  return Response.json(
+    { defined: false, code: 'FORBIDDEN', status: 403, message: 'A write must come from this site' },
+    { status: 403, headers: { 'Cache-Control': 'private, no-store', 'X-Robots-Tag': 'noindex' } },
+  );
+}
+
 async function handle(request: Request): Promise<Response> {
+  if (crossSiteWrite(request)) return crossSite();
   // The market console's calls: anyone but an admin is turned away before the request is read
   // at all (oRPC decodes a body before any middleware runs, and a body that doesn't decode would
   // answer differently), with exactly the answer for an address the API doesn't have.

@@ -7,6 +7,7 @@ import { adminState, signedInState, signedOutState } from '../support/states.ts'
 import {
   createJourneyAccount,
   deleteJourneyAccount,
+  type Engine,
   journeyAddress,
   stagingKeys,
 } from '../support/test-accounts.ts';
@@ -18,7 +19,7 @@ import {
  * - a signed-in test account lists a test market, buys, retries, sells, places a limit order and
  *   cancels it, and reads its positions and open orders;
  * - bad inputs are refused before the books are touched: a limit outside 1% to 99%, an expiry of
- *   zero, an amount that isn't above zero or is over the balance;
+ *   zero, an amount that isn't above zero or is over the balance; so is a write from another site;
  * - the console settles the market, and the payouts add up: the trader gets Ṁ1 a Yes share, the
  *   house the rest, all the market held;
  * - the public list is kept at Vercel's edge, and refreshed when a trade moves the price, well
@@ -223,6 +224,13 @@ test.describe('the markets for everyone', () => {
     expect(affordable.status, 'the refused request left nothing in the books').toBe(200);
     expect(affordable.body).toMatchObject({ status: 'filled', requestId: tooMuch.requestId });
     expect((await call(request, 'POST', '/api/v1/trades', fresh({}))).status).toBe(401);
+    // A write from another site's page, riding on the session cookie, is refused before it runs.
+    const forged = await trader.fetch('/api/v1/trades', {
+      method: 'POST',
+      data: fresh({}),
+      headers: { origin: 'https://elsewhere.example', 'sec-fetch-site': 'cross-site' },
+    });
+    expect(forged.status(), 'a cross-site write is refused').toBe(403);
     expect(
       (await call(trader, 'POST', '/api/v1/trades', fresh({ marketId: newRecordId() }))).status,
     ).toBe(404);
@@ -346,7 +354,7 @@ test.describe('the markets for everyone', () => {
     const keys = stagingKeys();
     if (!keys) throw new Error("Staging's Supabase keys are missing, so no account can sign in");
     // An account of its own, so using up a minute of trading holds up no other run.
-    const email = journeyAddress('trade', browserName);
+    const email = journeyAddress('trade', browserName as Engine);
     await createJourneyAccount(keys, email);
     try {
       const admin = createClient(keys.url, keys.secretKey, {
