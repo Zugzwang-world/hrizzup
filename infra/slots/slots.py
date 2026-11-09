@@ -354,7 +354,7 @@ def stop_tree(entry, grace: float = 30, *, folder: str = "") -> bool:
         if pid in table:
             parent = table[pid][0]
             lines = table[pid][2] + " " + table.get(parent, (0, 0, ""))[2]
-            if folder in lines:
+            if folder.rstrip("/") + "/" in lines:
                 pids = tree(table[pid][1], table) | {pid} if table[pid][1] > 1 else {pid}
     if not pids:
         return False
@@ -680,7 +680,7 @@ def database(register, action: str) -> int:
     in_ci = register is None
     slot = None if in_ci else my_slot(register)
     env = db_env(slot)
-    if not in_ci:
+    if not in_ci and action != "stop":
         ensure_docker(env)
     cli = supabase_cli()
 

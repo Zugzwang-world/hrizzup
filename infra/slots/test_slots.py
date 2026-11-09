@@ -279,6 +279,21 @@ class Website(unittest.TestCase):
             slots.fresh_dev_build(web)  # nothing to remove is fine too
 
 
+class Leftovers(unittest.TestCase):
+    def test_a_leftover_server_counts_as_the_slots_only_inside_its_own_worktree_folder(self):
+        """A worktree at /w/foo must never claim a server running from /w/foo-bar."""
+        table = {60: (1, 60, "node /w/foo-bar/product/web/node_modules/.bin/../next/dist/bin/next dev")}
+        with mock.patch.object(slots, "processes", return_value=table), \
+                mock.patch.object(slots, "answers", return_value=True), \
+                mock.patch.object(slots, "listener", return_value=60), \
+                mock.patch.object(slots.os, "killpg") as killpg, \
+                mock.patch.object(slots.os, "kill") as kill:
+            self.assertFalse(slots.stop_tree({"pid": 999999, "started": "never", "port": 3101},
+                                             folder="/w/foo"))
+        killpg.assert_not_called()
+        kill.assert_not_called()
+
+
 class Docker(unittest.TestCase):
     def test_docker_is_found_inside_docker_desktop_when_not_on_path(self):
         with tempfile.TemporaryDirectory() as app:
