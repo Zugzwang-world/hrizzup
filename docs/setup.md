@@ -1337,6 +1337,13 @@ Not a problem: the worry that Claude Code could run the script on production. It
 - **Changed:** the app's build command reads the token from `hrizzup-tools` (`infra/doppler/run tools`, `product/README.md`). The runbook's step 4.6 now names Doppler's rows as the dashboard shows them ("Claude Code" in `hrizzup-tools`, "Staging" in `hrizzup`).
 - **Then:** the Doppler names check went into the Staging workflow (its step 0) and the Screen check, which now run it before they load `stg` or `stg_preview` ([#54](https://github.com/Zugzwang-world/hrizzup/pull/54)), since `stg` holds only the app's keys.
 
+### Round 2 closes: the agreement's first half Agreed, and the round's milestones (Claude Code, founder's decisions)
+
+- **The hand-over agreement's first half: Agreed,** the founder approving it in News Desk's place, as it stood on `main` after [#52](https://github.com/Zugzwang-world/hrizzup/pull/52); marked in [#59](https://github.com/Zugzwang-world/hrizzup/pull/59) wherever its status shows. Product may build tables and content for its shapes from now on. Nothing was loaded into any database by this change.
+- **GitHub milestones:** "Round 2" (number 7) closes once #59 merges, holding Round 2's pull requests; any still open move to "Round 3", created then for Round 3's pull requests (CLAUDE.md, "Unattended sessions", names it).
+- **Pre-launch checklist:** two items from Round 2 joined it, P.14 (production's firewall rules for the app's API, through the release pipeline) and P.15 (the app's cold start timed on a real phone). Nothing was set on production.
+- **Where the founder's decisions of 9 November 2026 went:** the agreement's status (`agreement/README.md`, its review's opening note); found takes in English only, and legal with the founder's legal team (PLAN.md sections 2 and 4); the market console, admins, the fee, cancels and the trade call's limits (PLAN.md section 2, steps 1.7b to 1.7d; blueprint section 13); the board's sign-in and who builds screens (PLAN.md sections 3 and 5, `TRACKER.md`); Round 3's queue (`TRACKER.md`, the Product brief).
+
 ---
 
 ## Rules for this log
