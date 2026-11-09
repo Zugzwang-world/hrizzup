@@ -1,7 +1,7 @@
 import { DatabaseBusyError } from '@hrizzup/db';
 import { TradeInputError } from '@hrizzup/ledger';
 import { describe, expect, it } from 'vitest';
-import { asTradingError, refusalBefore, TradingError } from './trading.ts';
+import { asTradingError, checkBefore, refusalBefore, TradingError } from './trading.ts';
 
 /**
  * The trade call's checks before the books (trading.ts), with the person's holdings stood in for:
@@ -17,6 +17,7 @@ const held = {
   balance: '100.000000',
   yes: '20.000000',
   no: '0.000000',
+  answered: false,
 };
 const NOW = Date.parse('2026-11-10T00:00:00Z');
 const base = { marketId: MARKET, requestId: '01a1b0c4-5e00-7a10-9c3d-1f2e3d4c5b6a' };
@@ -64,6 +65,40 @@ describe('the checks before the books', () => {
     expect(refusalBefore(buy('100000'), held, Date.parse(held.closes_at) + 1)).toBe(
       'market_closed',
     );
+  });
+});
+
+describe('the whole check before the books', () => {
+  const limit = (expiresAt: string) => ({ ...buy('10'), limitProb: '0.4', expiresAt });
+
+  it('refuses an expiry of zero, or one that has passed, as a mistake in what was sent', () => {
+    for (const expiresAt of [
+      '1970-01-01T00:00:00Z',
+      '2026-11-09T23:59:59Z',
+      '2026-11-10T00:00:00Z',
+    ]) {
+      expect(checkBefore(limit(expiresAt), held, NOW), expiresAt).toMatchObject({
+        kind: 'invalid',
+        message: 'An expiry must be in the future',
+      });
+    }
+    expect(checkBefore(limit('2026-11-10T00:00:00.001Z'), held, NOW)).toBeUndefined();
+  });
+
+  it("refuses what the books would, with the books' reason", () => {
+    expect(checkBefore(buy('100.5'), held, NOW)).toMatchObject({
+      kind: 'refused',
+      reason: 'insufficient_balance',
+    });
+    expect(checkBefore(buy('100'), held, NOW)).toBeUndefined();
+  });
+
+  it('checks nothing for a request already answered: the books answer it as they did the first time', () => {
+    const answered = { ...held, answered: true, balance: '0.000000', state: 'closed' };
+    expect(checkBefore(buy('100'), answered, NOW)).toBeUndefined();
+    expect(checkBefore(sell('yes', '999'), answered, NOW)).toBeUndefined();
+    expect(checkBefore(limit('1970-01-01T00:00:00Z'), answered, NOW)).toBeUndefined();
+    expect(checkBefore(buy('1'), answered, Date.parse(held.closes_at) + 1)).toBeUndefined();
   });
 });
 

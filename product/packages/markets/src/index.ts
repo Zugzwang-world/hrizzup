@@ -13,6 +13,8 @@ export {
 export {
   asTradingError,
   cancelOrder,
+  checkBefore,
+  type Holdings,
   marketList,
   openOrders,
   PAGE_SIZE,

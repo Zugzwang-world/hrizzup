@@ -276,18 +276,25 @@ describe("a trade's input", () => {
     }
   });
 
-  it('refuses an expiry of zero, or any other not in the future, and an expiry without a limit', () => {
-    for (const expiresAt of [
-      '1970-01-01T00:00:00Z',
-      '1970-01-01T00:00:00.000Z',
-      new Date(Date.now() - 1000).toISOString(),
-      0,
-      '0',
-      '',
-    ]) {
+  it('refuses an expiry that is not a moment, and an expiry without a limit', () => {
+    for (const expiresAt of [0, '0', '', 'tomorrow', '1970-01-01', 1_800_000_000_000]) {
       expect(takes({ ...buy, limitProb: '0.4', expiresAt }), String(expiresAt)).toBe(false);
     }
     expect(takes({ ...buy, expiresAt: new Date(Date.now() + hour).toISOString() })).toBe(false);
+  });
+
+  it("leaves an expiry that isn't in the future (zero included) to the server, which checks it unless the request was already answered", async () => {
+    // A retried limit order's expiry may have passed by the time it's retried: the server's check
+    // (`checkBefore` in @hrizzup/markets) gives the books' first answer instead. The stand-in, with
+    // no answer to give back, always refuses it.
+    const zero = { ...buy, limitProb: '0.4', expiresAt: '1970-01-01T00:00:00Z' };
+    expect(takes(zero)).toBe(true);
+    const api = createRouterClient(standIn());
+    for (const expiresAt of ['1970-01-01T00:00:00Z', new Date(Date.now() - 1000).toISOString()]) {
+      await expect(
+        api.markets.trade({ ...zero, expiresAt } as Parameters<typeof api.markets.trade>[0]),
+      ).rejects.toMatchObject({ code: 'BAD_REQUEST', status: 400 });
+    }
   });
 
   it("refuses an amount or shares that isn't more than zero, or isn't exact", () => {

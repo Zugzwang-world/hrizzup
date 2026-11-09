@@ -381,6 +381,89 @@ describe('refused before the books are touched', () => {
   });
 });
 
+describe('a retry gets its first answer, whatever has changed since', () => {
+  it('after the whole balance was spent', async () => {
+    const market = await openedMarket();
+    const trader = await person('100');
+    const request = buy(market, { amount: '100' });
+    const first = await placeTrade(app, trader, request);
+    expect(first).toMatchObject({ status: 'filled', balance: '0.000000' });
+    await expect(placeTrade(app, trader, request)).resolves.toEqual(first);
+  });
+
+  it('after every share was sold', async () => {
+    const market = await openedMarket();
+    const trader = await person('100');
+    const bought = await placeTrade(app, trader, buy(market, { amount: '10' }));
+    const sale = {
+      marketId: market,
+      requestId: randomUUID(),
+      action: 'sell' as const,
+      outcome: 'yes' as const,
+      shares: bought.shares,
+    };
+    const first = await placeTrade(app, trader, sale);
+    expect(first.status).toBe('filled');
+    await expect(placeTrade(app, trader, sale)).resolves.toEqual(first);
+  });
+
+  it('after the market closed, and after it was settled', async () => {
+    const market = await openedMarket();
+    const trader = await person('100');
+    const request = buy(market, { amount: '10' });
+    const first = await placeTrade(app, trader, request);
+    await closeMarket(app, ADMIN, market);
+    await expect(placeTrade(app, trader, request)).resolves.toEqual(first);
+    await settleMarket(app, ADMIN, { id: market, outcome: 'no', evidence: 'The desk said no.' });
+    await expect(placeTrade(app, trader, request)).resolves.toEqual(first);
+  });
+
+  it("after a limit order's expiry passed, and its cancel after it", async () => {
+    const market = await openedMarket();
+    const trader = await person('100');
+    const order = buy(market, {
+      amount: '10',
+      limitProb: '0.2',
+      expiresAt: new Date(Date.now() + 1500).toISOString(),
+    });
+    const first = await placeTrade(app, trader, order);
+    expect(first.status).toBe('resting');
+    const cancel = { marketId: market, orderId: first.tradeId, requestId: randomUUID() };
+    const cancelled = await cancelOrder(app, trader, cancel);
+    await new Promise((resolve) => setTimeout(resolve, 1600));
+    await expect(placeTrade(app, trader, order)).resolves.toEqual(first);
+    await expect(cancelOrder(app, trader, cancel)).resolves.toEqual(cancelled);
+  });
+
+  it('but a request ID sent again for a different request is refused as one, whatever it asks', async () => {
+    const market = await openedMarket();
+    const trader = await person('100');
+    const request = buy(market, { amount: '10' });
+    await placeTrade(app, trader, request);
+    const overBalance = await refusal(placeTrade(app, trader, { ...request, amount: '1000' }));
+    expect(overBalance.kind).toBe('conflict');
+    const elsewhere = await refusal(
+      placeTrade(app, trader, { ...request, marketId: await openedMarket() }),
+    );
+    expect(elsewhere.kind).toBe('conflict');
+  });
+});
+
+describe('an expiry that is not in the future', () => {
+  it('is refused before the books, zero included, with nothing written', async () => {
+    const market = await openedMarket();
+    const trader = await person('100');
+    for (const expiresAt of ['1970-01-01T00:00:00Z', new Date(Date.now() - 1000).toISOString()]) {
+      const request = buy(market, { limitProb: '0.3', expiresAt });
+      await expect(refusal(placeTrade(app, trader, request))).resolves.toMatchObject({
+        kind: 'invalid',
+        message: 'An expiry must be in the future',
+      });
+      expect(await written(request.requestId)).toBe(false);
+    }
+  });
+});
+
 describe('the books still check everything themselves', () => {
   it('refuse a second buy that the balance no longer covers, made at the same moment', async () => {
     const market = await openedMarket();

@@ -63,6 +63,11 @@ export function standIn(options: { signedIn?: boolean; admin?: boolean } = {}) {
             position: { yes: '0.000000', no: '0.000000' },
           };
         }
+        // As the real call: an expiry that isn't in the future is refused (here, with no answer to
+        // replay, always).
+        if (input.expiresAt !== undefined && Date.parse(input.expiresAt) <= Date.now()) {
+          throw new ORPCError('BAD_REQUEST', { message: 'An expiry must be in the future' });
+        }
         const example =
           input.limitProb === undefined ? examples.tradeResult : examples.restingOrder;
         return { ...example, requestId: input.requestId, outcome: input.outcome };

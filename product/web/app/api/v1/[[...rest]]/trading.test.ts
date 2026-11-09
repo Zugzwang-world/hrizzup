@@ -173,15 +173,12 @@ describe('a trade', () => {
     expect(refreshEdge).not.toHaveBeenCalled();
   });
 
-  it('refuses, before anything runs: a limit outside 1% to 99%, an expiry of zero or past, an amount not above zero', async () => {
-    const past = new Date(Date.now() - 60_000).toISOString();
+  it('refuses, before anything runs: a limit outside 1% to 99%, an amount not above zero, an expiry that is no moment', async () => {
     for (const [what, sent] of [
       ['a limit of 0.5%', buy({ limitProb: '0.005' })],
       ['a limit of 99.5%', buy({ limitProb: '0.995' })],
       ['a limit of 100%', buy({ limitProb: '1' })],
-      ['an expiry of zero', buy({ limitProb: '0.4', expiresAt: '1970-01-01T00:00:00Z' })],
       ['an expiry of the number zero', buy({ limitProb: '0.4', expiresAt: 0 })],
-      ['an expiry past', buy({ limitProb: '0.4', expiresAt: past })],
       [
         'an expiry without a limit',
         buy({ expiresAt: new Date(Date.now() + 60_000).toISOString() }),
@@ -199,6 +196,100 @@ describe('a trade', () => {
     }
     expect(allowTrade).not.toHaveBeenCalled();
     expect(calls.placeTrade).not.toHaveBeenCalled();
+  });
+
+  describe('through the real call, with the database stood in for', () => {
+    /** A database connection answering the holdings read and the books' start of a trade. */
+    function database(answered: boolean, replay?: unknown) {
+      const sent: string[] = [];
+      const client = {
+        query: vi.fn(async (text: string) => {
+          sent.push(text);
+          if (text.includes('trading.holdings')) {
+            return {
+              rows: [
+                {
+                  answer: {
+                    market_id: MARKET,
+                    state: 'open',
+                    closes_at: '2099-01-01T00:00:00Z',
+                    has_account: true,
+                    balance: '100.000000',
+                    yes: '0.000000',
+                    no: '0.000000',
+                    answered,
+                  },
+                },
+              ],
+            };
+          }
+          if (text.includes('markets.begin_trade')) return { rows: [{ state: { replay } }] };
+          return { rows: [] };
+        }),
+        release: vi.fn(),
+      };
+      pool.connect.mockResolvedValue(client);
+      return sent;
+    }
+
+    beforeEach(async () => {
+      const actual = await vi.importActual<typeof import('@hrizzup/markets')>('@hrizzup/markets');
+      calls.placeTrade.mockImplementation(actual.placeTrade);
+    });
+
+    it('refuses an expiry of zero, or one already past, before the books are touched', async () => {
+      const sent = database(false);
+      for (const expiresAt of [
+        '1970-01-01T00:00:00Z',
+        new Date(Date.now() - 60_000).toISOString(),
+      ]) {
+        const refused = await answer(
+          'POST',
+          '/api/v1/trades',
+          buy({ limitProb: '0.4', expiresAt }),
+        );
+        expect(refused.status, expiresAt).toBe(400);
+        expect(refused.body, expiresAt).toMatchObject({
+          code: 'BAD_REQUEST',
+          message: 'An expiry must be in the future',
+        });
+      }
+      expect(sent.some((text) => text.includes('trading.holdings'))).toBe(true);
+      expect(sent.some((text) => text.includes('markets.begin_trade'))).toBe(false);
+    });
+
+    it("answers a retry of a request already answered with the books' first answer, even after its expiry passed", async () => {
+      const first = {
+        status: 'resting',
+        request_id: REQUEST,
+        market_id: MARKET,
+        trade_id: restingOrder.tradeId,
+        number: 2,
+        outcome: 'YES',
+        amount: '0.000000',
+        shares: '0.000000',
+        order_amount: '10.000000',
+        limit_prob: '0.40000000',
+        prob_before: '0.51234380',
+        prob_after: '0.51234380',
+        balance: '975.000000',
+        position: { yes: '49.390243', no: '0.000000' },
+        at: '2026-11-09T07:20:00+00:00',
+      };
+      database(true, first);
+      const retried = await answer(
+        'POST',
+        '/api/v1/trades',
+        buy({ amount: '10', limitProb: '0.4', expiresAt: '2026-11-09T08:00:00Z' }),
+      );
+      expect(retried.status).toBe(200);
+      // The same answer; its moment written as the API writes every one (with milliseconds).
+      expect(retried.body).toEqual({
+        ...restingOrder,
+        requestId: REQUEST,
+        at: '2026-11-09T07:20:00.000Z',
+      });
+    });
   });
 
   it('refuses someone not signed in, counting nothing', async () => {

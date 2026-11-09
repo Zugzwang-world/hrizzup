@@ -28,12 +28,18 @@ import type { Pool } from 'pg';
  * ledger's `trade()` (step 1.7b), each one transaction under its market's lock.
  *
  * A trade is refused **before it touches the books** when it can't trade: the contract refuses a
- * limit outside 1% to 99%, an expiry that isn't in the future and an amount that isn't more than zero
- * before the call runs at all; then this reads the person's holdings (`trading.holdings`) and
- * refuses a market that isn't open or whose closing time has passed, an amount over the balance and
- * shares over what's held, with no lock taken and nothing written. The ledger checks all of it again
- * under the market's lock, so a balance spent in the meantime is still refused there (and that
- * refusal is stored under the request's ID, as the books keep every answer).
+ * limit outside 1% to 99% and an amount that isn't more than zero before the call runs at all; then
+ * this reads the person's holdings (`trading.holdings`) and refuses an expiry that isn't in the
+ * future (zero included), a market that isn't open or whose closing time has passed, an amount over
+ * the balance and shares over what's held, with no lock taken and nothing written. The ledger checks
+ * all of it again under the market's lock, so a balance spent in the meantime is still refused there
+ * (and that refusal is stored under the request's ID, as the books keep every answer).
+ *
+ * **A retry always gets its first answer.** The books keep every answer under its request's ID, so
+ * when the holdings show the person has already sent this request ID, these checks are skipped and the
+ * books answer: as they did the first time (even if the balance has since been spent, the shares
+ * sold, the market closed or the order's expiry passed), or refusing a different request sent under
+ * the same ID.
  *
  * Refusals come back as a TradingError; `DatabaseBusyError` (from `@hrizzup/db`) means "try again".
  */
@@ -159,7 +165,8 @@ export async function marketList(
 
 // Trading ----------------------------------------------------------------------------------------------
 
-type Holdings = {
+/** What `trading.holdings` reads: the person's money and shares in one market, and that market. */
+export type Holdings = {
   market_id: string;
   state: string;
   closes_at: string;
@@ -167,11 +174,24 @@ type Holdings = {
   balance: string;
   yes: string;
   no: string;
+  /** Whether the person has already sent a request with this ID: the books then answer it. */
+  answered: boolean;
 };
 
-/** The signed-in person's balance and shares in one market; null for no such market (or a draft). */
-function holdings(pool: Database, account: string, marketId: string): Promise<Holdings | null> {
-  return read<Holdings | null>(pool, account, 'select trading.holdings($1) as answer', [marketId]);
+/**
+ * The signed-in person's balance and shares in one market, and whether they've already sent
+ * `requestId`; null for no such market (or a draft).
+ */
+function holdings(
+  pool: Database,
+  account: string,
+  marketId: string,
+  requestId: string,
+): Promise<Holdings | null> {
+  return read<Holdings | null>(pool, account, 'select trading.holdings($1, $2) as answer', [
+    marketId,
+    requestId,
+  ]);
 }
 
 /**
@@ -193,6 +213,26 @@ export function refusalBefore(
     return 'not_enough_shares';
   }
   return undefined;
+}
+
+/**
+ * What the trade call refuses before it touches the books, by the person's holdings as just read and
+ * the server's clock; undefined when nothing. Nothing at all for a request already answered: the books
+ * answer that, as they did the first time.
+ */
+export function checkBefore(
+  input: TradeInput,
+  held: Holdings,
+  now: number = Date.now(),
+): TradingError | undefined {
+  if (held.answered) return undefined;
+  if (input.action === 'buy' && input.expiresAt !== undefined) {
+    if (Date.parse(input.expiresAt) <= now) {
+      return new TradingError('invalid', 'An expiry must be in the future');
+    }
+  }
+  const reason = refusalBefore(input, held, now);
+  return reason ? refused(reason) : undefined;
 }
 
 /** The trade as the ledger takes it. */
@@ -233,8 +273,8 @@ function toTradeResult(result: Extract<BooksResult, { trade_id: string }>): Trad
 /**
  * A trade for the signed-in `account`: buying (now, or as a limit order) or selling. Refused before
  * it touches the books when the person's holdings show it can't trade; otherwise one transaction
- * through the ledger. A retry with the same request ID answers what the first did, and never trades
- * twice.
+ * through the ledger. A retry with the same request ID answers what the first did, whatever has
+ * changed since, and never trades twice.
  */
 export async function placeTrade(
   pool: Database,
@@ -243,10 +283,10 @@ export async function placeTrade(
   now: number = Date.now(),
 ): Promise<TradeResult> {
   const request = asRequest(input);
-  const held = await holdings(pool, account, input.marketId);
+  const held = await holdings(pool, account, input.marketId, input.requestId);
   if (!held) throw new TradingError('not_found', 'No such market');
-  const before = refusalBefore(input, held, now);
-  if (before) throw refused(before);
+  const before = checkBefore(input, held, now);
+  if (before) throw before;
   let result: BooksResult;
   try {
     result = await trade(pool, account, request);
@@ -267,10 +307,11 @@ export async function cancelOrder(
   account: string,
   input: CancelOrderInput,
 ): Promise<CancelOrderResult> {
-  const held = await holdings(pool, account, input.marketId);
+  const held = await holdings(pool, account, input.marketId, input.requestId);
   if (!held) throw new TradingError('not_found', 'No such market');
-  // Someone with no play money yet has no orders: nothing to cancel, and nothing written.
-  if (!held.has_account) throw refused('no_open_order');
+  // Someone with no play money yet has no orders: nothing to cancel, and nothing written. (A cancel
+  // already answered goes to the books, which answer it again.)
+  if (!held.has_account && !held.answered) throw refused('no_open_order');
   let result: BooksResult;
   try {
     result = await trade(pool, account, {

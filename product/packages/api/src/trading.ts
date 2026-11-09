@@ -52,9 +52,11 @@ export const refusal = z.enum([
 /**
  * A trade: buying Yes or No with an amount of play money, now or as a limit order that rests until a
  * later trade reaches its price; or selling shares held. Each carries its own request ID. The call
- * refuses, before touching the books: a limit outside 1% to 99%, an expiry that isn't in the future
- * (zero included), an amount or shares that aren't more than zero, and (once it has read the
- * person's holdings) an amount over the balance or shares over what's held.
+ * refuses, before touching the books: a limit outside 1% to 99% and an amount or shares that aren't
+ * more than zero (here, in the contract); then, once it has read the person's holdings, an expiry that
+ * isn't in the future (zero included), an amount over the balance and shares over what's held. A
+ * retry of a request the books have already answered gets that answer back instead, whatever has
+ * changed since: the expiry is checked against the clock on the server for that reason, not here.
  */
 const buy = z.strictObject({
   marketId: recordId,
@@ -68,7 +70,10 @@ const buy = z.strictObject({
    * probability is at most this; buying No, only while it's at least this.
    */
   limitProb: probability.optional(),
-  /** When a limit order stops resting, if ever: a moment in the future. Only for a limit order. */
+  /**
+   * When a limit order stops resting, if ever: a moment in the future (the server refuses one that
+   * isn't, zero included, unless the request was already answered). Only for a limit order.
+   */
   expiresAt: moment.optional(),
 });
 
@@ -85,13 +90,6 @@ export const tradeInput = z.discriminatedUnion('action', [buy, sell]).superRefin
   if (input.action !== 'buy' || input.expiresAt === undefined) return;
   if (input.limitProb === undefined) {
     ctx.addIssue({ code: 'custom', message: 'Only a limit order can expire', path: ['expiresAt'] });
-  }
-  if (Date.parse(input.expiresAt) <= Date.now()) {
-    ctx.addIssue({
-      code: 'custom',
-      message: 'An expiry must be in the future',
-      path: ['expiresAt'],
-    });
   }
 });
 
