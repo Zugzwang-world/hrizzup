@@ -32,6 +32,29 @@ CHECK_TOKEN = re.compile(r"DOPPLER_TOKEN:\s*\$\{\{\s*secrets\.(\w+)\s*\}\}")
 CONDITION = re.compile(r"^\s+if:\s*(.+?)\s*$", re.M)
 KNOWN = {"staging.yml": {"stg"}, "checks.yml": {"stg_preview"}, "release.yml": {"prd_release"}}  # loads today
 WEBSITE_TESTS = [os.path.join(ROOT, "product", "web", "e2e"), os.path.join(ROOT, "product", "web", "playwright.config.ts")]
+IMPORT = re.compile(r"""(?:from|import)\s*\(?\s*['"](\.{1,2}/[^'"]+)['"]""")
+ENV_READ = re.compile(r"""\benv\.([A-Z][A-Z0-9_]*)|\benv\[\s*['"]([A-Z][A-Z0-9_]*)['"]\s*\]""")
+
+
+def keys_read(starts):
+    """The variable names the website's tests read, in their own files and in every module of
+    ours they import (relative imports, followed through), such as lib/db.ts's database address."""
+    todo, seen, read = list(starts), set(), set()
+    while todo:
+        file = todo.pop()
+        if file in seen:
+            continue
+        seen.add(file)
+        with open(file, encoding="utf-8") as f:
+            text = f.read()
+        read |= {a or b for a, b in ENV_READ.findall(text)}
+        for spec in IMPORT.findall(text):
+            path = os.path.normpath(os.path.join(os.path.dirname(file), spec))
+            for candidate in (path, path + ".ts", path + ".tsx", path + ".js", os.path.join(path, "index.ts")):
+                if os.path.isfile(candidate) and candidate.endswith((".ts", ".tsx", ".js", ".mjs")):
+                    todo.append(candidate)
+                    break
+    return read
 CHANGES_PRODUCTION = re.compile(r"name: [3-8][a-z]?\. ")  # the release pipeline's steps 3 to 8, 4a and 4b too
 RELEASE_ONLY = "inputs.action == 'release'"
 
@@ -98,15 +121,25 @@ class EveryJobChecksNamesBeforeLoading(unittest.TestCase):
         self.assertEqual(len(asked), 1, "one named request, the Screen check's")
         app = app_keys.app_keys()
         self.assertLessEqual(asked[0], app)
-        read = set()
+        starts = []
         for place in WEBSITE_TESTS:
-            files = [place] if os.path.isfile(place) else [
+            starts += [place] if os.path.isfile(place) else [
                 os.path.join(folder, name) for folder, _, names in os.walk(place) for name in names
                 if name.endswith((".ts", ".tsx", ".js", ".mjs"))]
-            for file in files:
-                with open(file, encoding="utf-8") as f:
-                    read |= set(re.findall(r"\benv\.([A-Z][A-Z0-9_]*)", f.read()))
+        read = keys_read(starts)
         self.assertEqual(asked[0], read & app, "the Screen check asks for exactly the app keys its tests read")
+
+    def test_the_reader_follows_imports(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as folder:
+            os.makedirs(os.path.join(folder, "e2e"))
+            os.makedirs(os.path.join(folder, "lib"))
+            with open(os.path.join(folder, "e2e", "a.spec.ts"), "w") as f:
+                f.write("import { db } from '../lib/db.ts';\nconst u = process.env.SUPABASE_URL;\n")
+            with open(os.path.join(folder, "lib", "db.ts"), "w") as f:
+                f.write("export const db = (env = process.env) => env.DATABASE_URL + env['SUPABASE_DB_PASSWORD'];\n")
+            self.assertEqual(keys_read([os.path.join(folder, "e2e", "a.spec.ts")]),
+                             {"SUPABASE_URL", "DATABASE_URL", "SUPABASE_DB_PASSWORD"})
 
     def test_the_release_pipeline_reads_vercels_production_names_before_a_release_changes_production(self):
         with open(os.path.join(WORKFLOWS, "release.yml"), encoding="utf-8") as f:

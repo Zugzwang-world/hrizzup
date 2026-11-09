@@ -12,7 +12,7 @@
 #                   from infra/supabase/migrations and runs its tests, including "every
 #                   table is locked" (row-level security)
 #   Screen check    checks by name that Doppler stg_preview holds only the app's keys
-#                   (infra/doppler/app-keys.txt), then asks it for the eight its tests
+#                   (infra/doppler/app-keys.txt), then asks it for the ten its tests
 #                   use, by name, for the tests alone (infra/doppler/named_keys.py); once
 #                   Vercel's preview of the pull request is ready, opens it in
 #                   Chromium and WebKit at every screen size (CLAUDE.md, "Screens fit
@@ -210,9 +210,11 @@ jobs:
       # The tests' own keys and nothing more, asked of stg_preview by name and given to the
       # tests' process alone, masked, never the whole config and never to a later step
       # (infra/doppler/named_keys.py, which refuses any name that isn't one of the app's keys):
-      # the test accounts' three (Supabase), the bot check's site key (the sign-in journey) and
-      # the uploads bucket's four (the upload journey). A test that reads another app key fails
-      # infra/doppler/test_workflows.py until it's added here.
+      # the test accounts' three (Supabase), the bot check's site key (the sign-in journey), the
+      # uploads bucket's four (the upload journey), and staging's database address and password,
+      # with which the trading journeys give the test accounts play money until signup gives a
+      # starting balance (step 3.1; e2e/support/play-money.ts). A test that reads another app key,
+      # here or in a module it imports, fails infra/doppler/test_workflows.py until it's added.
       - name: Screen check and journeys on the preview
         if: steps.affected.outputs.website == 'true'
         working-directory: product/web
@@ -220,11 +222,12 @@ jobs:
           BASE_URL: ${{ steps.preview.outputs.url }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
           SCREENSHOTS_DIR: ${{ github.workspace }}/screenshots
-          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN_PREVIEW }} # read-only, for the eight keys below
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN_PREVIEW }} # read-only, for the ten keys below
         run: >-
           python3 ../../infra/doppler/named_keys.py
           SUPABASE_URL SUPABASE_PUBLISHABLE_KEY SUPABASE_SECRET_KEY TURNSTILE_SITE_KEY
           R2_ENDPOINT R2_BUCKET_UPLOADS R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY
+          DATABASE_URL SUPABASE_DB_PASSWORD
           -- pnpm exec playwright test
 
       - name: Screenshots for the founder (360, 768, 1440 and 1920 pixels)
