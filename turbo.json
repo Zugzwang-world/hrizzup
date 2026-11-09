@@ -18,7 +18,19 @@
       "outputs": []
     },
     "test:db": {
-      "inputs": ["migrations/**", "tests/**", "config.toml", "package.json"],
+      "inputs": [
+        "migrations/**",
+        "tests/**",
+        "config.toml",
+        "package.json",
+        "tsconfig.json",
+        "vitest.config.ts",
+        "$TURBO_ROOT$/infra/slots/slots.py",
+        "$TURBO_ROOT$/agreement/definitions/**",
+        "$TURBO_ROOT$/agreement/examples/**",
+        "$TURBO_ROOT$/agreement/src/**",
+        "$TURBO_ROOT$/agreement/package.json"
+      ],
       "outputs": [],
       "passThroughEnv": ["GITHUB_ACTIONS"]
     },

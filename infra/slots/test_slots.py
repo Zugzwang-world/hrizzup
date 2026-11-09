@@ -315,6 +315,56 @@ class Docker(unittest.TestCase):
         self.assertEqual(env["SUPABASE_PROJECT_ID"], "hrizzup-slot3")
 
 
+class DatabaseTests(unittest.TestCase):
+    """`slot db test`: a fresh database, then pgTAP's tests, then the agreement's, all on it."""
+
+    def run_test(self, slot):
+        calls = []
+
+        def run(command, **kwargs):
+            calls.append((command, kwargs))
+            return mock.Mock(returncode=0)
+
+        register = None if slot is None else mock.Mock()
+        with mock.patch.object(slots.subprocess, "run", side_effect=run), \
+                mock.patch.object(slots, "my_slot", return_value=slot), \
+                mock.patch.object(slots, "ensure_docker"), \
+                mock.patch.object(slots, "db_running", return_value=False), \
+                mock.patch.object(slots, "supabase_cli", return_value=["supabase"]), \
+                mock.patch.object(slots.os, "access", return_value=True):
+            self.assertEqual(slots.database(register, "test"), 0)
+        return calls
+
+    def test_the_agreement_tests_run_after_pgtap_on_the_slots_own_database(self):
+        calls = self.run_test(slots.Slot(2))
+        self.assertEqual([c[0][1:] for c in calls[:2]], [["db", "start"], ["test", "db"]])
+        vitest, options = calls[2]
+        self.assertEqual(os.path.basename(vitest[0]), "vitest")
+        self.assertEqual(options["cwd"], os.path.join(slots.ROOT, "infra", "supabase"))
+        self.assertEqual(options["env"]["TEST_DATABASE_URL"],
+                         "postgresql://postgres:postgres@127.0.0.1:55342/postgres")
+
+    def test_in_githubs_runners_they_use_config_tomls_database(self):
+        with open(CONFIG_TOML, encoding="utf-8") as f:
+            lines = f.read().splitlines()
+        section, port = "", None
+        for line in (line.strip() for line in lines):
+            if line.startswith("[") and line.endswith("]"):
+                section = line.strip("[]")
+            elif section == "db" and line.partition("=")[0].strip() == "port":
+                port = int(line.partition("=")[2].strip())
+        self.assertIsNotNone(port)
+        calls = self.run_test(None)
+        self.assertEqual(calls[2][1]["env"]["TEST_DATABASE_URL"],
+                         f"postgresql://postgres:postgres@127.0.0.1:{port}/postgres")
+
+    def test_a_failure_in_them_fails_the_command(self):
+        with mock.patch.object(slots.subprocess, "run", return_value=mock.Mock(returncode=1)), \
+                mock.patch.object(slots.os, "access", return_value=True):
+            with self.assertRaises(slots.Failed):
+                slots.agreement_tests(slots.Slot(2), {})
+
+
 class CommandLine(unittest.TestCase):
     def run_main(self, *argv, held=None):
         folder, register = register_and_hold(held)

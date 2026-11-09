@@ -2,7 +2,7 @@
 
 **This brief replaces Claude Code's report:** read it after clicking **Sync now**, instead of asking the founder for a report, and attach the files under "Read for detail" from GitHub when you need more.
 
-> Rewritten 9 November 2026 by Round 3's relays 1b and 1c (records). The only repository file the News Desk project keeps in its knowledge; Claude Code rewrites it at the end of every session that touches News Desk's part. If it and PLAN.md disagree, PLAN.md wins.
+> Rewritten 9 November 2026 by Round 3's relays 1b and 1c (records); its line on the content store's tables brought up to date by relay 7 ([#72](https://github.com/Zugzwang-world/hrizzup/pull/72), step 1.9). The only repository file the News Desk project keeps in its knowledge; Claude Code rewrites it at the end of every session that touches News Desk's part. If it and PLAN.md disagree, PLAN.md wins.
 
 **Hrizzup** is a news app built around creators, plus a website with play-money prediction markets. Our AI finds news as it breaks on X and turns it into developing stories that readers see through creators' takes. **News Desk's job:** make our own content from the sourced pool and onboard creators. It produces text, images and video, which Product shows in the app and on the website, in the shape the hand-over agreement (`agreement/README.md`) fixes. **News Desk is on hold until the founder sets it up.**
 
@@ -10,7 +10,7 @@
 
 - **On hold** (the founder's decision, 5 November 2026) until the founder sets News Desk up. No News Desk work has started; the `news-desk/` folder holds only its README.
 - **The agreement's first half is Agreed** (9 November 2026): the founder approved it in News Desk's place, after Sourcing's review ([#37](https://github.com/Zugzwang-world/hrizzup/pull/37), [#42](https://github.com/Zugzwang-world/hrizzup/pull/42), [#45](https://github.com/Zugzwang-world/hrizzup/pull/45)) and the market change ([#52](https://github.com/Zugzwang-world/hrizzup/pull/52)). Its creation shape (what News Desk hands to Product) and sourced item (what it builds on) are fixed at format version 1. News Desk reviews it once it's set up.
-- **The tables come next, on Product's side** (step 1.9): stories, updates, sourced items and creations, the way content reaches the product. Nothing writes to them or fills them yet.
+- **The tables exist, on Product's side** (step 1.9, [#72](https://github.com/Zugzwang-world/hrizzup/pull/72)): stories, updates, sourced items and creations, the way content reaches the product, holding the agreement's rules as database rules (our own content's route is always made, and builds only on sourced items that exist). Empty: nothing writes to them or fills them yet.
 - **The shared setup is finished** (Phase 0): the content store on staging is the Supabase database plus Cloudflare R2 for images; creator video uses Cloudflare Stream, switched on with step 2.4. Production is parked until launch.
 
 ## Decisions in force

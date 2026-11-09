@@ -455,6 +455,26 @@ def db_env(slot) -> dict:
     return with_docker(env)
 
 
+def database_url_for_tests(slot) -> str:
+    """The local database the tests run against: the slot's, or in GitHub's runners
+    config.toml's own (its block's third port, as in every slot). Supabase's local
+    database always has the user postgres, password postgres."""
+    port = slot.db_port if slot is not None else DB_PORTS + 2
+    return f"postgresql://postgres:postgres@127.0.0.1:{port}/postgres"
+
+
+def agreement_tests(slot, env: dict) -> None:
+    """The tests that hold the database to the hand-over agreement (PLAN.md step 1.9;
+    infra/supabase/tests/agreement/), with Vitest, on the database the pgTAP tests just used."""
+    folder = os.path.join(ROOT, "infra", "supabase")
+    vitest = os.path.join(folder, "node_modules", ".bin", "vitest")
+    if not os.access(vitest, os.X_OK):
+        raise Failed("Vitest isn't installed in this worktree: run `pnpm install --frozen-lockfile` first")
+    run_env = dict(env, TEST_DATABASE_URL=database_url_for_tests(slot))
+    if subprocess.run([vitest, "run"], cwd=folder, env=run_env).returncode != 0:
+        raise Failed("the database's agreement tests failed")
+
+
 def stop_db(slot: Slot, env=None) -> None:
     env = env or db_env(slot)
     if not docker_ready(env) or not db_running(slot, env):
@@ -695,12 +715,14 @@ def database(register, action: str) -> int:
     if action == "start":
         step("db", "start")
     elif action == "test":
-        # As in the Database check: a fresh database from the migrations, then the tests.
+        # As in the Database check: a fresh database from the migrations, then the tests
+        # (pgTAP's, then the agreement's).
         if slot is not None and db_running(slot, env):
             step("db", "reset")
         else:
             step("db", "start")
         step("test", "db")
+        agreement_tests(slot, env)
     else:
         raise Failed("infra/slots/slot db start|test|stop")
     return 0

@@ -2,7 +2,7 @@
 
 **This brief replaces Claude Code's report:** read it after clicking **Sync now**, instead of asking the founder for a report, and attach the files under "Read for detail" from GitHub when you need more.
 
-> Rewritten 9 November 2026 by Round 3's relays 1b and 1c (records). The only repository file the Sourcing project keeps in its knowledge; Claude Code rewrites it at the end of every session that touches Sourcing's part. If it and PLAN.md disagree, PLAN.md wins.
+> Rewritten 9 November 2026 by Round 3's relays 1b and 1c (records); its lines on the content store's tables brought up to date by relay 7 ([#72](https://github.com/Zugzwang-world/hrizzup/pull/72), step 1.9). The only repository file the Sourcing project keeps in its knowledge; Claude Code rewrites it at the end of every session that touches Sourcing's part. If it and PLAN.md disagree, PLAN.md wins.
 
 **Hrizzup** is a news app built around creators, plus a website with play-money prediction markets. Our AI finds news as it breaks on X and turns it into developing stories that readers see through creators' takes. **Sourcing's job:** design and run the Grok bots that find news and creators' takes on X, keep everything they find in the sourced pool, and turn the news into stories and updates. Product shows what Sourcing produces, in the shapes the hand-over agreement (`agreement/README.md`) fixes.
 
@@ -10,7 +10,7 @@
 
 - **The agreement's first half is Agreed** (9 November 2026), as Sourcing agreed it in its review ([#37](https://github.com/Zugzwang-world/hrizzup/pull/37), changes [#42](https://github.com/Zugzwang-world/hrizzup/pull/42) and [#45](https://github.com/Zugzwang-world/hrizzup/pull/45)); its shapes are fixed at format version 1.
 - **Sourcing's work runs in this project, on its own schedule** (the founder, 9 November 2026), with no xAI API. Nothing of it runs from Product's round chat.
-- **No Sourcing work has started** (`sourcing/` holds only its README); the second half isn't drafted. The tables the pipeline will write come first, on Product's side (step 1.9).
+- **No Sourcing work has started** (`sourcing/` holds only its README); the second half isn't drafted. The tables the pipeline will write now exist on Product's side (step 1.9, [#72](https://github.com/Zugzwang-world/hrizzup/pull/72)): empty and locked until 1.1 gets its own write access.
 - **The shared setup is finished** (Phase 0): the Supabase database (staging, Mumbai) plus Cloudflare R2, and Upstash Redis; production is parked until launch. No inbox for the bots yet: mail to `hrizzup.com` reaches the founder's own mailboxes.
 
 ## Decisions in force
@@ -21,7 +21,7 @@
 - **Product has nothing to do with xAI's API or X's API:** it receives what goes on the product, in the agreement's shapes, through the content store's tables (step 1.9); showing a found post as X's own embed is display.
 - **The sourced item:** news or a take; the post's address, handle and name **as X showed them at the last check**; when it was first posted; what it holds; a summary in our own words; its stories; its state. **Unavailable** (deleted; account protected, suspended or closed; withheld in India; or taken down at its creator's request) keeps **nothing of the post**, for good. **Withdrawn** (not genuine, off-story or unsafe, or taken down by law) keeps the post, so it isn't kept twice. One item per post (an edited post under its newest version); never a repost or a reply to someone else as a take; a thread is its first post.
 - **Updates** name their sources: found posts (`based_on`) and other pages (`sources`, never X's own); a repeat is `merged` into the update it repeats; a correction is a new update. **Stories:** merges never chain, and the pipeline moves its own records to the story that stays.
-- **The database enforces those rules:** the content store's tables (step 1.9, built by Product) make one item per post, nothing kept of an unavailable post, and no chained merges database rules. The pipeline (1.1) writes into them, so 1.1 needs 1.9.
+- **The database enforces those rules:** the content store's tables (step 1.9, built by Product) hold every agreement rule a database can (one item per post; nothing kept of an unavailable post; no chained merges; a merged story keeps no updates or sourced items; and every field's limits), so the database refuses a record that breaks one. The pipeline (1.1) writes into them in read committed transactions (Postgres's default; the others are refused); rules across records are checked at commit, so a merge (the duplicate marked, its updates and sourced items moved, earlier duplicates repointed) goes in one transaction, in any order. `infra/supabase/content-store.md` has each rule and how to write.
 - **Every fact about a post comes from X, never from the bot's words:** the bots' citations give its number, X's public embed lookup its address, handle and name, the number its time. The post's words are never kept; set-aside input goes after 7 days.
 - **Tagging, by the founder's decisions:** the launch list (Global; India; Mumbai, Delhi NCR, Bengaluru; crypto, finance, business, AI, sports, politics, entertainment, general); up to three locations and categories, the main one first; a city's story shows under India only when our AI also tags it India; stories carry no picture.
 - **Changing the first half:** an optional field, or a list item the founder approves, is one change; anything else is a new format version (such as `story/2`), agreed by all three projects, with the founder in News Desk's place while it's on hold.
@@ -50,6 +50,7 @@ On 9 November 2026, in [#61](https://github.com/Zugzwang-world/hrizzup/pull/61) 
 - **Which takes the bots keep,** beyond English. Recommendation: original and quote posts from accounts with a real following.
 - **Checking kept posts again.** Recommendation: daily at least, more often while a story is active, from our Mumbai servers.
 - **Background jobs.** Recommendation: Supabase Cron with Supabase Queues, compared with Vercel's workflows; the checks, the pool's housekeeping and, later, the markets' resolvers run there too.
+- **A post's address and its handle** (the agreement; found by Product's step 1.9): the README defines both from the same check of X, and the agreement's own check holds its examples to it, but `validate()` doesn't check that the address names the handle; the content store's database does, letter case aside. Recommendation: add it to `validate()` as a change to the first half, which Sourcing agrees.
 - **Not open:** takedown handling and legal review (the founder's legal team).
 
 ## What's next
@@ -64,4 +65,5 @@ On 9 November 2026, in [#61](https://github.com/Zugzwang-world/hrizzup/pull/61) 
 - `agreement/reviews/sourcing-first-half.md`: the review, its notes and the founder's answers, with what no longer applies.
 - `PLAN.md`: sections 2, 4, 5 (steps 0.7, 0.8, 1.1, 1.9) and 7.
 - `docs/status/sourcing.md`: Sourcing's status in full; `sourcing/README.md`: the folder's rules.
+- `infra/supabase/content-store.md`: the content store's tables, every rule they hold and how the pipeline writes to them.
 - `docs/setup/RUNBOOK.md`, Part 3's note on the bots' inbox; `docs/setup/BLUEPRINT.md` section 5 (the content store's tables); `CLAUDE.md` (the agreement, database changes).
