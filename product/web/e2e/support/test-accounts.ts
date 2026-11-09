@@ -5,11 +5,12 @@ import projects from '../../../../infra/supabase/project/settings.json' with { t
 
 /**
  * Test accounts for the automatic checks (runbook step 9.6). They exist only in staging's
- * Supabase project, which previews share. They have no password and no Google identity,
- * so nobody can sign in to them; a check gets a session for one only by asking staging's
- * own server key for a one-time sign-in token, which no email ever carries. Production is
- * a separate Supabase project, so these accounts don't exist there, and this file refuses
- * to run against any project but staging's.
+ * Supabase project, which previews share. They have no password anyone knows (Supabase gives
+ * an account made this way a random one it never shows, and refuses any session made with a
+ * password) and no Google identity, so nobody can sign in to them; a check gets a session for
+ * one only by asking staging's own server key for a one-time sign-in token, which no email
+ * ever carries. Production is a separate Supabase project, so these accounts don't exist
+ * there, and this file refuses to run against any project but staging's.
  */
 export const TEST_ACCOUNTS = {
   chromium: 'delivered+screen-check-chromium@resend.dev',
@@ -90,8 +91,11 @@ export async function ensureTestAccount(keys: Keys, email: string): Promise<stri
  */
 const JOURNEY = 'delivered+journey-';
 
-/** What a journey's account is for: a reader who signs in with an email code. */
-export type JourneyPurpose = 'code';
+/**
+ * What a journey's account is for: a reader who signs in with an email code, or the trial of
+ * a password sign-in, which must be refused.
+ */
+export type JourneyPurpose = 'code' | 'password';
 
 export function journeyAddress(purpose: JourneyPurpose, engine: Engine): string {
   return `${JOURNEY}${purpose}-${engine}-${randomUUID().slice(0, 8)}@resend.dev`;
@@ -103,10 +107,22 @@ function ownJourneyAddress(email: string) {
   }
 }
 
-/** An account that already exists, for the journey of a returning reader. */
-export async function createJourneyAccount(keys: Keys, email: string): Promise<void> {
+/**
+ * An account that already exists, for the journey of a returning reader. With `password`, the
+ * account gets that password, which nobody can do through the website: only the trial of a
+ * password sign-in uses it, with staging's server key.
+ */
+export async function createJourneyAccount(
+  keys: Keys,
+  email: string,
+  password?: string,
+): Promise<void> {
   ownJourneyAddress(email);
-  const { error } = await admin(keys).auth.admin.createUser({ email, email_confirm: true });
+  const { error } = await admin(keys).auth.admin.createUser({
+    email,
+    email_confirm: true,
+    ...(password ? { password } : {}),
+  });
   if (error) throw new Error(`Couldn't create ${email} (${error.status})`);
 }
 

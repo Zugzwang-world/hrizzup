@@ -42,7 +42,9 @@
     "rate_limit_otp": 30,
     "rate_limit_verify": 30,
     "security_captcha_enabled": true,
-    "security_captcha_provider": "turnstile"
+    "security_captcha_provider": "turnstile",
+    "hook_custom_access_token_enabled": true,
+    "hook_custom_access_token_uri": "pg-functions://postgres/auth_hooks/refuse_password_sessions"
   },
   "templates": {
     "mailer_templates_confirmation_content": "templates/sign-in-code.html",

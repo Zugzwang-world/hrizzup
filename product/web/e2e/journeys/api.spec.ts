@@ -77,5 +77,7 @@ test('who-am-I refuses a stranger and answers the signed-in account', async ({
   expect(answered.status()).toBe(200);
   expect(await answered.json()).toMatchObject({ email, signedInWith: 'test_account' });
   expect(answered.headers()['cache-control']).toBe('private, no-store');
-  await app.auth.signOut();
+  // Only this session: the test account is shared with other runs, whose sessions a
+  // global sign-out would end (supabase-js signs out everywhere unless told otherwise).
+  await app.auth.signOut({ scope: 'local' });
 });
