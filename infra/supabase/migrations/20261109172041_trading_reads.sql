@@ -13,7 +13,8 @@
 --   2. trading.holdings(market): the signed-in person's balance and their shares in one market, with
 --      the market's state and closing time: what the trade call checks before it touches the books,
 --      so an amount over the balance, shares over what's held, or a market that isn't open is
---      refused without a lock taken or a line written.
+--      refused without a lock taken or a line written. A draft answers as no market at all: it
+--      exists only for admins until it opens.
 --   3. trading.positions(after_market, max_count): the signed-in person's balance and their positions
 --      in markets still open or waiting to be settled, newest market first, a page at a time.
 --   4. trading.orders(after_order, max_count): the signed-in person's resting limit orders (not filled,
@@ -82,8 +83,9 @@ $$;
 -- 2. What the signed-in person holds in one market --------------------------------------------------
 
 -- Their balance (zero while they have no play money yet) and their Yes and No shares in `market`,
--- with the market's state and closing time; null when there's no such market. Read before a trade,
--- outside its transaction: the trade checks all of it again under the market's lock.
+-- with the market's state and closing time; null when there's no such market, or it's a draft, which
+-- exists only for admins until it opens. Read before a trade, outside its transaction: the trade
+-- checks all of it again under the market's lock.
 create function trading.holdings(market uuid)
 returns jsonb
 language plpgsql
@@ -111,6 +113,7 @@ begin
     left join ledger.accounts a on a.kind = 'person' and a.user_id = who
     left join markets.positions p on p.market_id = m.id and p.account_id = a.id
     where m.id = holdings.market
+      and m.state <> 'draft'
   );
 end;
 $$;

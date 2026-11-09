@@ -358,9 +358,9 @@ select is(
 );
 select is(
   pg_temp.as_app('00000000-0000-4000-8000-0000000000d2', format(
-    'select trading.holdings(%L) ->> ''state''', pg_temp.market(3))),
-  'draft',
-  'a draft shows it''s a draft'
+    'select trading.holdings(%L)', pg_temp.market(3))),
+  null,
+  'a draft answers as no market at all: it exists only for admins until it opens'
 );
 select is(
   pg_temp.as_app('00000000-0000-4000-8000-0000000000d2',
