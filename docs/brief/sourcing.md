@@ -35,6 +35,8 @@ On 9 November 2026, in [#52](https://github.com/Zugzwang-world/hrizzup/pull/52),
 - **Only Product's parts moved:** the market now holds its rules, a named settlement source and how it settles (by hand or automatically); data readings and the market subjects list left the first half until the markets' topics are chosen (step 1.2, parked).
 - **The background-jobs choice still covers** perps' job every few seconds (3.4a) and, later, the resolvers that settle markets (3.2a).
 
+Also on 9 November, in PR_LINK: PLAN.md step 1.4 now says design starts only from the founder's references and diagrams, given in the design chat, and no session builds design directions, values or screens of its own choosing; Product's first design pass was retired. Nothing changes for Sourcing.
+
 ## Open questions
 
 - **Grok product, plan and route** (step 0.8). Recommendation: xAI's API with its X search tool, called by our own scheduled job; the review found it fits the shapes (its citations give each post's number; its structured output can carry the second half).

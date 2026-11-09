@@ -2,7 +2,7 @@
 
 > Where each news feature stands on the website and in the app, what must be done before the first one starts, and where the markets track stands. Claude Code keeps it current: each step and stage moves in the pull request that finishes it, with that pull request's link. Nobody maintains this file by hand. The steps and what they need are in [PLAN.md](PLAN.md) section 5; if this file and PLAN.md disagree, PLAN.md wins.
 
-Last updated: 8 November 2026
+Last updated: 9 November 2026
 
 ---
 
@@ -17,12 +17,13 @@ Everything PLAN.md lists as a need of the first news feature (the board, step 2.
 | 1.5c | The typed API (oRPC, contract first), with calls that aren't content (health, who am I); done when the website makes a real call through it | 1.5b | Round 2, relay 2 | done, [#48](https://github.com/Zugzwang-world/hrizzup/pull/48) |
 | 1.5d | The empty app on the founder's Android phone, answering from the typed API on staging, with its own budget; staging becomes public | 1.5c | Round 2, relay 2; the founder installs it | done, [#49](https://github.com/Zugzwang-world/hrizzup/pull/49), [#51](https://github.com/Zugzwang-world/hrizzup/pull/51), [#55](https://github.com/Zugzwang-world/hrizzup/pull/55) and [#50](https://github.com/Zugzwang-world/hrizzup/pull/50); on the founder's phone: he installed it and confirmed on 9 November 2026 |
 | 1.7a | Manifold's maths with its tests, plus our own tests that money in equals money out | 0.6 | Round 2, relay 3 | done ([#38](https://github.com/Zugzwang-world/hrizzup/pull/38), [#43](https://github.com/Zugzwang-world/hrizzup/pull/43), [#44](https://github.com/Zugzwang-world/hrizzup/pull/44)) |
-| 1.4, first pass | The design values, plus the board and a story page at phone size, on preview links | 1.5a, before its page merges; 0.7 (first half), for the board and the story page | Round 2, relay 4, with the founder | in progress |
+| 1.4, first pass | The design values, plus the board and a story page at phone size, on preview links, built only from the founder's references and diagrams | The founder's references and diagrams, given in the design chat; 0.7 (first half), for the board and the story page | The design chat (the founder, with Claude Code). Relay 4's pass, built from Claude Code's own picks, was retired on 9 November 2026: [#46](https://github.com/Zugzwang-world/hrizzup/pull/46) closed, its values removed in PR_LINK | not started |
 | 0.7, first half: Sourcing's review | Run by a Claude Code session in the repository, working from Sourcing's brief | — | Round 2, relay 5 | done: the review [#37](https://github.com/Zugzwang-world/hrizzup/pull/37), its changes [#42](https://github.com/Zugzwang-world/hrizzup/pull/42) and [#45](https://github.com/Zugzwang-world/hrizzup/pull/45) |
 | 0.7, first half: the founder's approval | In News Desk's place; then Agreed, in a change he asks for | Sourcing's review; the agreement's market following the market model (done: [#52](https://github.com/Zugzwang-world/hrizzup/pull/52), Round 2, relay 6) | The founder | not started |
 | 1.8 | Parallel local development: three sessions run the website, the app's dev server and the local database side by side, and sign in and upload locally | 0.6 | Not yet given to a relay | not started |
 
 - **Not needed before the first feature:** the rest of the markets track (below), which runs alongside Phase 2; 1.6a and 1.6b (sign-in), which posting (2.4) and the paid tier (2.7) need.
+- **1.4 restarts in the design chat** (founder's decision, 9 November 2026): design starts only from the founder's references and diagrams, given there, and no session builds design directions, values or screens of its own choosing. The readable-text check (`@hrizzup/core`) is ready for the values when they arrive.
 - **The rest of 1.4:** the market page, with placeholder questions, is the third and last core screen. Whether the remaining screens (the feed, the app frame and the rest) are designed up front or feature by feature is settled in the design chat (founder's decision, 8 November 2026).
 
 ## How a news feature is built (founder's decision, 8 November 2026)
@@ -31,7 +32,7 @@ The website and the app are built in parallel, with the website one stage ahead 
 
 | Stage | What it is | Can start when |
 |---|---|---|
-| 1. Design | One phone-first design for both surfaces, built by Claude Code in the design chat, from the founder's references, on preview links | The design values and 1.4's three core screens are approved (step 1.4) |
+| 1. Design | One phone-first design for both surfaces, built by Claude Code in the design chat, only from the founder's references and diagrams, on preview links | The design values and 1.4's three core screens are approved (step 1.4) |
 | 2. Contract | The feature's part of the one typed API that both surfaces use, with example data drawn from the hand-over agreement. The design and engineering tracks meet here | The design is done, and the typed API exists (step 1.5c) |
 | 3. Back end | The tables, rules and server code behind the contract, on staging | The contract is done, and the agreement's first half is Agreed (no tables for its shapes before then) |
 | 4a. Website screen | The website's screens, built against the contract and its example data | The contract is done, and the website's checks exist (steps 1.5a and 1.5b) |

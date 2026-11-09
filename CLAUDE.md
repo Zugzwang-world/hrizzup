@@ -147,6 +147,11 @@ Every page and every screen is built to load fast and stay fast. Performance is 
 - **Performance budget for every page and screen** (load time, responsiveness, layout stability, download size), checked automatically on every pull request and measured on real users once live.
 - Open-source code copied in keeps its licence notice and is listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
+## Design (founder's decision, 9 November 2026)
+
+- **Design starts only from the founder's references and diagrams, given in the design chat.** No session builds design directions, values or screens of its own choosing (PLAN.md step 1.4).
+- **Readable text is a check, not a design:** once design values exist, every text colour on its background, in light and dark, is tested with the readable-text check (`unreadable()` in `@hrizzup/core`), which asks for WCAG's 4.5 to 1. The Speed check also audits the text on every page in both schemes.
+
 ## Screens fit every device
 
 Every screen adjusts itself to any device, from a small phone to a large monitor, with nothing cut off, overlapping or scrolling sideways.
