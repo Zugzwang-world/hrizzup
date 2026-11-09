@@ -9,7 +9,7 @@
 ## Where things stand
 
 - **Staging** (`staging.hrizzup.com`, Mumbai) is public since 1.5d, asking search engines to stay out; previews still need Vercel's login; production is a quiet twin; the rest is parked (runbook, pre-launch checklist).
-- **Built:** a holding page, legal drafts, a sign-in test page, `/api/health`, the typed API (`/api/v1`: health, who am I), a one-screen app showing staging's answer (ready for the founder's phone), shared packages and Manifold's yes/no maths (`product/packages/market-engine`).
+- **Built:** a holding page, legal drafts, a sign-in test page, `/api/health`, the typed API (`/api/v1`: health, who am I), a one-screen app showing staging's answer (on the founder's phone), shared packages and Manifold's yes/no maths (`product/packages/market-engine`).
 - **Required checks:** Secret, Quick, Database, Screen (with the website's journeys), Speed and App journeys.
 - **The agreement's first half,** reviewed by Sourcing, is a Draft awaiting the founder's approval, so no tables for its shapes. Its market now follows the market model ([#52](https://github.com/Zugzwang-world/hrizzup/pull/52)). For screens: a post gone from X shows nothing; credits use X's current names; updates name their sources; merges point onward.
 
@@ -18,7 +18,7 @@
 One line per relay; each relay keeps only its own line current.
 
 1. **Relay 1, the round's records:** merged [#36](https://github.com/Zugzwang-world/hrizzup/pull/36) and its follow-up [#53](https://github.com/Zugzwang-world/hrizzup/pull/53), the Doppler names check. Next: its jobs' half, [#54](https://github.com/Zugzwang-world/hrizzup/pull/54), once the Expo token is replaced. For the founder: replace the Expo token.
-2. **Relay 2, steps 1.5a to 1.5d:** done: [#41](https://github.com/Zugzwang-world/hrizzup/pull/41) (the Speed check), [#47](https://github.com/Zugzwang-world/hrizzup/pull/47) (journey tests), [#48](https://github.com/Zugzwang-world/hrizzup/pull/48) (the typed API), [#49](https://github.com/Zugzwang-world/hrizzup/pull/49), [#51](https://github.com/Zugzwang-world/hrizzup/pull/51), [#55](https://github.com/Zugzwang-world/hrizzup/pull/55) and [#50](https://github.com/Zugzwang-world/hrizzup/pull/50) (staging public; the app answering from it). Next: nothing, relay 2 is done. For the founder: install the app.
+2. **Relay 2, steps 1.5a to 1.5d:** done: [#41](https://github.com/Zugzwang-world/hrizzup/pull/41) (the Speed check), [#47](https://github.com/Zugzwang-world/hrizzup/pull/47) (journey tests), [#48](https://github.com/Zugzwang-world/hrizzup/pull/48) (the typed API), [#49](https://github.com/Zugzwang-world/hrizzup/pull/49), [#51](https://github.com/Zugzwang-world/hrizzup/pull/51), [#55](https://github.com/Zugzwang-world/hrizzup/pull/55) and [#50](https://github.com/Zugzwang-world/hrizzup/pull/50) (staging public; the app answering from it). Next: nothing, relay 2 is done; the app is on the founder's phone.
 3. **Relay 3, step 1.7a, Manifold's maths:** merged [#44](https://github.com/Zugzwang-world/hrizzup/pull/44), our money tests: no play money created or lost, over every trade and settlement and 41 random markets; 1.7a is done (201 tests pass, after [#38](https://github.com/Zugzwang-world/hrizzup/pull/38) and [#43](https://github.com/Zugzwang-world/hrizzup/pull/43)). Next: nothing, relay 3 is done. Three questions below.
 4. **Relay 4, step 1.4's first pass:** first milestone [#39](https://github.com/Zugzwang-world/hrizzup/pull/39): the readable-text check and the design values package (three candidate directions, nothing on screen yet). Next: the three directions as working boards on preview links, for the founder to choose.
 5. **Relay 5, Sourcing's review of the agreement's first half:** done: the review [#37](https://github.com/Zugzwang-world/hrizzup/pull/37), its changes [#42](https://github.com/Zugzwang-world/hrizzup/pull/42) and [#45](https://github.com/Zugzwang-world/hrizzup/pull/45); the first half awaits the founder's approval. For the founder: approve it; three questions.
@@ -43,7 +43,7 @@ On 9 November 2026, in [#52](https://github.com/Zugzwang-world/hrizzup/pull/52) 
 - **The example markets are placeholder test markets** in every state, both kinds, settled both ways.
 - **Nothing Sourcing writes, reads or checks changed;** the founder's seven decisions stand.
 
-Also on 9 November: relay 2 finished step 1.5 ([#41](https://github.com/Zugzwang-world/hrizzup/pull/41), [#47](https://github.com/Zugzwang-world/hrizzup/pull/47), [#48](https://github.com/Zugzwang-world/hrizzup/pull/48), [#49](https://github.com/Zugzwang-world/hrizzup/pull/49), [#51](https://github.com/Zugzwang-world/hrizzup/pull/51), [#55](https://github.com/Zugzwang-world/hrizzup/pull/55), [#50](https://github.com/Zugzwang-world/hrizzup/pull/50)), and relay 1 added the Doppler names check ([#53](https://github.com/Zugzwang-world/hrizzup/pull/53)); their lines above and `docs/status/product.md` have the detail.
+Also on 9 November: relay 2 finished step 1.5 ([#41](https://github.com/Zugzwang-world/hrizzup/pull/41), [#47](https://github.com/Zugzwang-world/hrizzup/pull/47), [#48](https://github.com/Zugzwang-world/hrizzup/pull/48), [#49](https://github.com/Zugzwang-world/hrizzup/pull/49), [#51](https://github.com/Zugzwang-world/hrizzup/pull/51), [#55](https://github.com/Zugzwang-world/hrizzup/pull/55), [#50](https://github.com/Zugzwang-world/hrizzup/pull/50); the founder installed the app on his phone), and relay 1 added the Doppler names check ([#53](https://github.com/Zugzwang-world/hrizzup/pull/53)); their lines above and `docs/status/product.md` have the detail.
 
 ## Open questions
 
@@ -58,7 +58,6 @@ Also on 9 November: relay 2 finished step 1.5 ([#41](https://github.com/Zugzwang
 
 ## For the founder
 
-- **Install the app** on your Android phone (about 2 minutes, on Wi-Fi: the file is about 90 MB): on the phone, open https://expo.dev/artifacts/eas/_jkiSqG2YisBSi0Xmyt3OrQUObdq271MkTV5Gyl_x44.apk; when Android asks, allow your browser to install unknown apps (if Play Protect offers a scan, either choice is fine); open Hrizzup. It should say "Hrizzup's servers answer: all working, from Mumbai (staging)". Then tell Claude Code "app installed".
 - **Replace the Expo token** (runbook step 4.6, about 5 minutes). It also lets [#54](https://github.com/Zugzwang-world/hrizzup/pull/54) merge.
 - **Approve the agreement's first half** in News Desk's place: its market now follows your model ([#52](https://github.com/Zugzwang-world/hrizzup/pull/52)); Sourcing agreed it before that change, which touches nothing Sourcing writes or reads. **Sourcing's three questions** (F1 to F3), recommended: found takes in English only; takedown requests to a `hrizzup.com` address, answered within 24 hours; a lawyer's check before launch.
 - **Design:** the board and a story page on the Draft's examples now, approved once it's Agreed; the other screens feature by feature in the design chat, just ahead of each contract stage.
