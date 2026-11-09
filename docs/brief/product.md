@@ -28,7 +28,7 @@ One line per relay; each relay keeps only its own line current.
 
 4. **Relay 4, Sourcing's research for step 0.8:** cancelled by the founder (9 November).
 
-5. **Relay 5, step 1.6a, the website's sign-in (wave 2, after 1.8):** [#70](https://github.com/Zugzwang-world/hrizzup/pull/70) adds the access-token hook that refuses password sessions, switched off; the Database check's tests prove both sides (email codes, Google, the test accounts' tokens and refreshes pass; passwords are refused). Next: email codes on the sign-in test page, then the hook switched on for staging. Nothing for the founder yet.
+5. **Relay 5, step 1.6a, the website's sign-in (wave 2, after 1.8):** [#70](https://github.com/Zugzwang-world/hrizzup/pull/70) added the access-token hook that refuses password sessions, switched off; [#71](https://github.com/Zugzwang-world/hrizzup/pull/71) adds email codes beside Google on the sign-in test page, asked for through our own server, which checks the bot check first, within Supabase's email limits. Next: the hook switched on for staging. Nothing for the founder yet.
 
 6. **Relay 6, step 1.7b, the ledger (wave 2):** done: [#69](https://github.com/Zugzwang-world/hrizzup/pull/69) the tables (on staging, empty), [#73](https://github.com/Zugzwang-world/hrizzup/pull/73) the trade, each one transaction through the app's own database role. For the founder: the app's own database login, before launch (below).
 

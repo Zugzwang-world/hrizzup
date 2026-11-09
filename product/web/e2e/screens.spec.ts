@@ -2,8 +2,10 @@ import { existsSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { type BrowserContextOptions, expect, test } from '@playwright/test';
+import { PENDING_COOKIE, pendingCookieValue } from '../lib/email-code.ts';
 import { layoutProblems } from './layout.ts';
 import { pagesIn } from './pages.ts';
+import { asBrowserCookie } from './support/bypass.ts';
 import { signedInState, signedOutState } from './support/states.ts';
 import { views } from './viewports.ts';
 
@@ -14,7 +16,14 @@ import { views } from './viewports.ts';
  * Screenshots for the founder are saved at 360, 768, 1440 and 1920 pixels.
  */
 
-type Check = { name: string; path: string; signedIn?: boolean; status?: number };
+type Check = {
+  name: string;
+  path: string;
+  signedIn?: boolean;
+  /** The sign-in test page's code step: a code has just been emailed to an address. */
+  codeStep?: boolean;
+  status?: number;
+};
 
 function pagesToCheck(): Check[] {
   const checks: Check[] = pagesIn(process.env.SCREEN_CHECK_ENVIRONMENT).map((page) => ({
@@ -24,8 +33,18 @@ function pagesToCheck(): Check[] {
   }));
   if (checks.some((check) => check.name === 'sign-in-test')) {
     checks.push({ name: 'sign-in-test-signed-in', path: '/sign-in-test', signedIn: true });
+    checks.push({ name: 'sign-in-test-code-step', path: '/sign-in-test', codeStep: true });
   }
   return checks;
+}
+
+/** The cookie the website sets once a code is emailed (lib/email-code.ts), for the code step. */
+function codeStepCookie(baseURL: string) {
+  const value = pendingCookieValue({
+    email: 'delivered+a-long-address-for-the-screen-check@resend.dev',
+    next: '/sign-in-test',
+  });
+  return asBrowserCookie(baseURL, PENDING_COOKIE, encodeURIComponent(value));
 }
 
 const LARGE_TEXT = `
@@ -64,6 +83,7 @@ for (const view of views) {
         storageState: check.signedIn ? signedIn : signedOutState(browserName),
       });
       if (view.largeText) await context.addInitScript(LARGE_TEXT);
+      if (check.codeStep) await context.addCookies([codeStepCookie(base.baseURL ?? '')]);
       const page = await context.newPage();
       const response = await page.goto(check.path, { waitUntil: 'load' });
       expect(response?.status(), `${check.path} status`).toBe(check.status ?? 200);
@@ -73,6 +93,9 @@ for (const view of views) {
           page.getByTestId('signed-in-email'),
           'signed in as the test account',
         ).toBeVisible();
+      }
+      if (check.codeStep) {
+        await expect(page.getByTestId('code-sent-to'), 'on the code step').toBeVisible();
       }
       for (const problem of await layoutProblems(page)) failures.push(`${check.name}: ${problem}`);
       if (view.screenshot && !view.largeText) {
