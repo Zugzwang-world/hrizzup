@@ -8,28 +8,30 @@ Last updated: 9 November 2026
 
 ## Round 3's queue (the founder's order, 9 November 2026)
 
-Round 2 closed on 9 November 2026. Round 3 runs in twelve relays, in waves, attached to the GitHub milestone "Round 3"; each relay moves only its own rows here and in the tables below, and keeps only its own line in the Product brief's "Round 3 progress" current (CLAUDE.md, "Unattended sessions"). Each row is **not started**, **in progress**, or **done** with the pull request that finished it.
+Round 2 closed on 9 November 2026. Round 3 runs in relays numbered 1 to 12, with 1b, in waves, attached to the GitHub milestone "Round 3"; each relay moves only its own rows here and in the tables below, and keeps only its own line in the Product brief's "Round 3 progress" current (CLAUDE.md, "Unattended sessions"). Each row is **not started**, **in progress**, **done** with the pull request that finished it, or **cancelled**.
 
 | Relay | When | Step | What | Needs | Status |
 |---|---|---|---|---|---|
 | 1 | Wave 1, now | — | The round's records: the founder's decisions of 9 November 2026 | — | done, [#60](https://github.com/Zugzwang-world/hrizzup/pull/60) |
+| 1b | Wave 1, after relay 1 | — | Correcting the round's records about Sourcing: no xAI API; Sourcing's work runs in its own project; relays 4, 10 and 11 cancelled | Relay 1 | done, [#61](https://github.com/Zugzwang-world/hrizzup/pull/61) |
 | 2 | Wave 1, now | 1.8 | Parallel local development: three sessions run the website, the app's dev server and the local database side by side, and sign in and upload locally; with the database-order check (each pull request's database changes come after the newest one on `main`) | 0.6 | not started |
 | 3 | Wave 1, now | Hardening | The release pipeline refuses to release when production's keys include a name that isn't an app key | [#54](https://github.com/Zugzwang-world/hrizzup/pull/54), merged 9 November 2026 | not started |
 | 3 | Wave 1, now | Hardening | The Screen check loads only the keys its tests use, not the whole preview config | [#54](https://github.com/Zugzwang-world/hrizzup/pull/54), merged 9 November 2026 | not started |
 | 3 | Wave 1, now | Hardening | The three open Dependabot alerts fixed (zod; glob and minimatch) | [#54](https://github.com/Zugzwang-world/hrizzup/pull/54), merged 9 November 2026 | not started |
 | 3 | Wave 1, now | Hardening | The tools the checks download (Maestro, gitleaks and any other) kept in a cache, with retries, after GitHub's 504 errors failed three checks on 9 November 2026 | — | not started |
-| 4 | Wave 1, now | 0.8 | Sourcing's research, working from Sourcing's brief: the Grok product and plan, the route that brings the bots' results to our pipeline, and the background-jobs tool | 0.2 | not started |
+| 4 | — | 0.8 | Sourcing's research for step 0.8 | — | **cancelled** (the founder, 9 November 2026: Sourcing's work runs in its own project) |
 | 5 | Wave 2, after 1.8 | 1.6a | The website's sign-in: Google, then email codes with the bot check, and the access-token hook that refuses passwords; the flows proven on the sign-in test page | 0.6, 1.5c | not started |
 | 6 | Wave 2, after 1.8 | 1.7b | The ledger: double-entry books in exact decimals, with play-money balances, trades and positions; each trade one transaction, one at a time per market, never twice for one request | 0.6, 0.7 (first half, Agreed), 1.7a | not started |
 | 7 | Wave 2, after 1.8; waits for a free slot if the Mac holds only two sessions | 1.9 | The content store's tables: story, update, sourced item, creation and the launch list, with the agreement's rules as database rules; nothing writes or reads them yet | 0.6, 0.7 (first half, Agreed), 1.8 | not started |
 | 8 | After wave 2 | 1.7c | Markets as data, settled by hand in the market console (admins only, every settlement logged), with the admins table and the console's calls in the typed API: create, open, close and settle | 0.7 (first half, Agreed), 1.6a, 1.7b; 1.9 for the categories markets share | not started |
 | 9 | After 1.7c | 1.7d | The engine's other calls in the typed API: list, trade and positions, with the trade call's refusals | 1.5c, 1.7c | not started |
-| 10 | Once the founder has opened the xAI account with a low spending cap | 0.8; 0.7, second half | Sourcing: a test bot run and the second half's draft, working from Sourcing's brief | Relay 4's research; the founder's xAI account | not started |
-| 11 | After relay 10 | 0.7, second half | Product's review of the second half's draft, in a separate session working from Product's brief | Relay 10's draft | not started |
+| 10 | — | 0.8; 0.7, second half | Sourcing: a test bot run and the second half's draft | — | **cancelled** (the founder, 9 November 2026: Sourcing's work runs in its own project) |
+| 11 | — | 0.7, second half | Product's review of the second half's draft | — | **cancelled** (the founder, 9 November 2026); Product reviews the second half once Sourcing's project designs it |
 | 12 | Last | — | The round's closing record | Every other relay | not started |
 
 - **Alongside, in the design chat:** step 1.4 restarts from the founder's references and diagrams; the first feature round (the board first) waits for its three core screens.
-- **No background jobs in Round 3** (founder's decision, 9 November 2026): the choice stays Sourcing's, made in relay 4's research and reviewed by Product before the news pipeline (1.1).
+- **Relays 4, 10 and 11 are cancelled** (founder's decision, 9 November 2026), keeping their numbers so other relays' references stay valid. Hrizzup uses no xAI API: Grok bots source everything, and Sourcing's work, step 0.8 and the second half's design included, runs asynchronously in the Sourcing project, on its own schedule. Product receives what it shows through the content store's tables (1.9), and reviews the second half once Sourcing designs it, as the agreement's rules set out.
+- **No background jobs in Round 3** (founder's decision, 9 November 2026): the choice stays Sourcing's, made in its own project.
 - **After the queue:** the market pages (3.1); the app's sign-in (1.6b); the first feature round, once 1.4's core screens are approved.
 
 ## Before the first feature round
