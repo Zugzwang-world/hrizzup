@@ -12,7 +12,7 @@ Round 2 closed on 9 November 2026. Round 3 runs in relays numbered 1 to 12, with
 
 | Relay | When | Step | What | Needs | Status |
 |---|---|---|---|---|---|
-| 1 | Wave 1, now | — | The round's records: the founder's decisions of 9 November 2026 | — | done, [#60](https://github.com/Zugzwang-world/hrizzup/pull/60) |
+| 1 | Wave 1, now | — | The round's records: the founder's decisions of 9 November 2026; then (1c) how rounds run, and the perp split into its back end and its page | — | done, [#60](https://github.com/Zugzwang-world/hrizzup/pull/60); 1c: [#62](https://github.com/Zugzwang-world/hrizzup/pull/62) |
 | 1b | Wave 1, after relay 1 | — | Correcting the round's records about Sourcing: no xAI API; Sourcing's work runs in its own project; relays 4, 10 and 11 cancelled | Relay 1 | done, [#61](https://github.com/Zugzwang-world/hrizzup/pull/61) |
 | 2 | Wave 1, now | 1.8 | Parallel local development: three sessions run the website, the app's dev server and the local database side by side, and sign in and upload locally; with the database-order check (each pull request's database changes come after the newest one on `main`) | 0.6 | not started |
 | 3 | Wave 1, now | Hardening | The release pipeline refuses to release when production's keys include a name that isn't an app key | [#54](https://github.com/Zugzwang-world/hrizzup/pull/54), merged 9 November 2026 | not started |
@@ -30,9 +30,11 @@ Round 2 closed on 9 November 2026. Round 3 runs in relays numbered 1 to 12, with
 | 12 | Last | — | The round's closing record | Every other relay | not started |
 
 - **Alongside, in the design chat:** step 1.4 restarts from the founder's references and diagrams; the first feature round (the board first) waits for its three core screens.
+- **Side by side only when independent** (settled in the Product chat at the founder's request, 9 November 2026): relays run side by side only when their work is independent; work that builds on other work runs after it (PLAN.md section 3).
+- **Nothing is added to Round 3:** the perp starts the next round (its back end, 3.4a).
 - **Relays 4, 10 and 11 are cancelled** (founder's decision, 9 November 2026), keeping their numbers so other relays' references stay valid. Hrizzup uses no xAI API: Grok bots source everything, and Sourcing's work, step 0.8 and the second half's design included, runs asynchronously in the Sourcing project, on its own schedule. Product receives what it shows through the content store's tables (1.9), and reviews the second half once Sourcing designs it, as the agreement's rules set out.
 - **No background jobs in Round 3** (founder's decision, 9 November 2026): the choice stays Sourcing's, made in its own project.
-- **After the queue:** the market pages (3.1); the app's sign-in (1.6b); the first feature round, once 1.4's core screens are approved.
+- **After the queue:** the next round starts with the perp's back end (3.4a), once its first settings are decided; then the market pages (3.1) and the perp's page (3.4c), each from its approved design; the app's sign-in (1.6b); the first feature round, once 1.4's core screens are approved.
 
 ## Before the first feature round
 
@@ -106,7 +108,8 @@ Website only. The markets product comes first and works the same for any questio
 | 3 | 1.7c | Markets as data, created only by Hrizzup, settled by hand in the market console: admins only (the admins table, which only reviewed migrations write), every settlement logged; the console's calls in the typed API (create, open, close, settle) | 0.7 (first half, Agreed), 1.6a, 1.7b; 1.9 for the categories markets share | not started (Round 3, relay 8) |
 | 4 | 1.7d | The engine's other calls in the typed API: list, trade, positions; the trade call refuses limits outside 1% to 99%, an expiry of zero, and amounts not positive or over the balance | 1.5c, 1.7c | not started (Round 3, relay 9) |
 | 5 | 3.1 | The market pages, on test markets with placeholder questions; a starting balance on signup, from the house account; the reads its design shapes (its price chart) join the typed API at its contract stage | 1.4, 1.5c, 1.7d | not started |
-| Alongside | 3.4a | The Bitcoin perp, built against a stand-in price | 1.7d, 3.1 | not started |
+| After 1.7d | 3.4a | The perp's back end on the stand-in price: Manifold's perps maths with our tests that no play money is created or lost; its books in the ledger; its checks every few seconds on Supabase Cron; its calls in the typed API | 1.7d; the perp's first settings decided, for the maths | not started (it starts the next round) |
+| After 3.1 and 3.4a | 3.4c | The perp's page, built from its approved design | 3.1, 3.4a | not started |
 | Alongside | 3.3 | Markets linked to the website's news through shared categories | 1.5c, 2.1, 3.1 | not started |
 | Then: the topics | 1.2 | Topics and data sources: the topics, many copied from Kalshi's market formats, and the source each settles from | Markets working end to end on staging (3.1) | **parked** until markets work end to end on staging |
 | Then: the topics | 3.2a | Automatic resolvers: each reads the source named in a market's rules at its closing moment | 1.2, 1.7c | not started |
@@ -116,6 +119,7 @@ Website only. The markets product comes first and works the same for any questio
 - **Markets work end to end on staging** once 3.1 is done: a visitor signs in, bets on a test market in a few taps and sees the position, and an admin settles it by hand, with the payouts adding up.
 - **1.7a** is also in "Before the first feature round", since Round 2 ran it; 1.7b, 1.7c and 1.7d are also in "Round 3's queue": a pull request that moves one moves every row it has.
 - **The market console** (founder's decisions, 9 November 2026) comes with 1.7c: admins create, open and close markets there and settle by hand the ones that don't settle automatically; it's a plain internal tool (stock components, no look of its own), and everyone but an admin gets "not found"; the rest of the admin page stays later. **Money rules:** the fee is zero at launch (`TAKER_FEE_RATE`), and a market is cancelled only when it can't be settled fairly. **The books:** double-entry in exact decimals, summing to zero, rounded once with any remainder to the house account; closing times and limit-order expiry are checked inside each trade, so no money waits for a job (PLAN.md section 2, "Markets"; blueprint section 5).
+- **The perp in two steps** (settled in the Product chat at the founder's request, 9 November 2026): its back end (3.4a) needs only the engine's calls (1.7d), not the market pages, and its maths starts once the perp's first settings are decided; its page (3.4c) follows the market pages (3.1), from its approved design. Nothing is added to Round 3: the perp starts the next round. The real price feed (3.4b) is unchanged.
 - **The readiness check's market-data research** (`docs/research/round-2-readiness.md`, D2 to D4) is reference for step 1.2, not decisions.
 
 ## One surface only
@@ -130,4 +134,4 @@ These steps don't split into stages; they are tracked in PLAN.md section 5 and P
 | App | 2.6 | The Android store build and the Google Play closed test |
 | App | 4.3 | The iPhone build: Sign in with Apple and Apple's review |
 | App | 4.5 | Google Play production access |
-| Website | 1.7a to 3.4b | The markets track, tracked step by step in "Markets track", above |
+| Website | 1.7a to 3.4c | The markets track, tracked step by step in "Markets track", above |
