@@ -1,6 +1,7 @@
 import { OpenAPIHandler } from '@orpc/openapi/fetch';
 import { ResponseHeadersPlugin } from '@orpc/server/plugins';
 import { SHARED_CACHE_HEADERS } from '@/lib/api/caching.ts';
+import { consoleAdmin, isConsoleAddress } from '@/lib/api/console.ts';
 import { router } from '@/lib/api/router.ts';
 
 /**
@@ -12,20 +13,29 @@ export const dynamic = 'force-dynamic';
 
 const handler = new OpenAPIHandler(router, { plugins: [new ResponseHeadersPlugin()] });
 
+/**
+ * What the API answers for an address it doesn't have, and to anyone but an admin for every one of
+ * the market console's addresses: one answer, built in one place, so the two can't be told apart
+ * by their body or their headers. Its fields are in oRPC's own order, as its errors write them.
+ */
+function noSuchCall(): Response {
+  return Response.json(
+    { defined: false, code: 'NOT_FOUND', status: 404, message: 'No such call' },
+    { status: 404, headers: { 'Cache-Control': 'private, no-store', 'X-Robots-Tag': 'noindex' } },
+  );
+}
+
 async function handle(request: Request): Promise<Response> {
+  // The market console's calls: anyone but an admin is turned away before the request is read
+  // at all (oRPC decodes a body before any middleware runs, and a body that doesn't decode would
+  // answer differently), with exactly the answer for an address the API doesn't have.
+  const admin = isConsoleAddress(request.url) ? await consoleAdmin(request.headers) : undefined;
+  if (admin === null) return noSuchCall();
   const { matched, response } = await handler.handle(request, {
     prefix: '/api/v1',
-    context: { headers: request.headers },
+    context: { headers: request.headers, ...(admin ? { consoleAdmin: admin } : {}) },
   });
-  if (!matched) {
-    // Written exactly as oRPC writes the same error (its fields in its order), so a call that
-    // answers "No such call" to someone who may not make it (the market console's, to anyone but
-    // an admin) can't be told apart from an address the API doesn't have.
-    return Response.json(
-      { defined: false, code: 'NOT_FOUND', status: 404, message: 'No such call' },
-      { status: 404, headers: { 'Cache-Control': 'private, no-store' } },
-    );
-  }
+  if (!matched) return noSuchCall();
   const headers = new Headers(response.headers);
   // An error (a refused input, nobody signed in, a failure) is never kept by anyone; nor is any
   // answer whose call didn't ask to be.

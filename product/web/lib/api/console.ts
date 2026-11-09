@@ -50,19 +50,46 @@ export async function consoleCall<T>(work: () => Promise<T>): Promise<T> {
   }
 }
 
+/** The admin making a console call: their account, and the database pool to run it on. */
+export type ConsoleAdmin = { account: string; pool: Pick<Pool, 'connect'> };
+
+/**
+ * Whether the request comes from an admin: the console exists here (`consoleEnabled`), someone is
+ * signed in, and the database itself says the account is an admin (`admin.is_admin()`, as the
+ * app's own role, which checks the admins table). Where the database isn't set up, or the check
+ * fails for any reason, the answer is no: a failure must look exactly like "not an admin", or it
+ * would tell a stranger the console's calls exist. (An admin then gets "not found" until the
+ * database answers again.)
+ */
+export async function consoleAdmin(headers: Headers): Promise<ConsoleAdmin | null> {
+  if (!consoleEnabled()) return null;
+  try {
+    const user = await signedIn(headers);
+    if (!user) return null;
+    const pool = database();
+    if (!pool) return null;
+    return (await isAdmin(pool, user.id)) ? { account: user.id, pool } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Whether an address under /api/v1 is one of the console's (`/admin/…`). */
+export function isConsoleAddress(url: string): boolean {
+  const { pathname } = new URL(url);
+  return pathname === '/api/v1/admin' || pathname.startsWith('/api/v1/admin/');
+}
+
 /**
  * The admin check, as oRPC middleware that wraps the console's subtree, so it runs before any
- * input is read. It asks the database itself (`admin.is_admin()`, as the app's own role), which
- * checks the admins table; each call then checks it again inside its own transaction. Where the
- * database isn't set up, nobody is an admin. The calls get the admin's account and the pool.
+ * input is read: for the website's own server code, which calls the API in process
+ * (lib/api/server.ts). Over HTTP, the API's route checks first, before the request is even
+ * decoded, and hands the admin on (`consoleAdmin` in the context), so the database is asked once.
+ * Each call's database function checks the admins table again inside its own transaction.
  */
 export const asAdmin = os.$context<ApiContext>().middleware(async ({ context, next }) => {
-  if (!consoleEnabled()) throw noSuchCall();
-  const user = await signedIn(context.headers);
-  if (!user) throw noSuchCall();
-  const pool: Pool | null = database();
-  if (!pool) throw noSuchCall();
-  const admin = await consoleCall(() => isAdmin(pool, user.id));
+  const admin =
+    context.consoleAdmin === undefined ? await consoleAdmin(context.headers) : context.consoleAdmin;
   if (!admin) throw noSuchCall();
-  return next({ context: { account: user.id, pool } });
+  return next({ context: admin });
 });

@@ -15,15 +15,31 @@ import { ADMIN_TEST_ACCOUNT } from '../support/test-accounts.ts';
 
 const environment = () => process.env.SCREEN_CHECK_ENVIRONMENT;
 
-/** Every call of the console's, with something to send (none of it a valid request). */
-const calls = (id: string): [string, string, unknown?][] => [
+/**
+ * Every call of the console's, with something to send, none of it a valid request: a body that
+ * isn't JSON, the wrong content type, a method the call doesn't take.
+ */
+const calls = (id: string): [string, string, unknown?, Record<string, string>?][] => [
   ['GET', '/api/v1/admin/markets'],
   ['GET', `/api/v1/admin/markets/${id}`],
   ['POST', '/api/v1/admin/markets', { question: 'Not a market at all' }],
+  ['POST', '/api/v1/admin/markets', '{', { 'content-type': 'application/json' }],
+  ['POST', '/api/v1/admin/markets', 'question=x', { 'content-type': 'text/plain' }],
   ['POST', `/api/v1/admin/markets/${id}/open`],
   ['POST', `/api/v1/admin/markets/${id}/close`],
   ['POST', `/api/v1/admin/markets/${id}/settle`, { outcome: 'yes' }],
+  ['DELETE', `/api/v1/admin/markets/${id}`],
 ];
+
+/** Headers that differ from one answer to the next by their nature (the time, the request's ID). */
+const PER_ANSWER = new Set([
+  'date',
+  'age',
+  'x-vercel-id',
+  'x-vercel-cache',
+  'connection',
+  'keep-alive',
+]);
 
 async function call(
   request: APIRequestContext,
@@ -39,7 +55,9 @@ async function call(
     text,
     body: JSON.parse(text) as Record<string, unknown>,
     caching: response.headers()['cache-control'],
-    type: response.headers()['content-type'],
+    headers: Object.fromEntries(
+      Object.entries(response.headers()).filter(([name]) => !PER_ANSWER.has(name)),
+    ),
   };
 }
 
@@ -64,13 +82,14 @@ test("the console's calls answer anyone but an admin as an address the API doesn
     });
   }
   for (const { who, as } of strangers) {
-    for (const [method, path, data] of calls(id)) {
-      const answer = await call(as, method, path, {}, data);
-      expect(answer.status, `${who}: ${method} ${path}`).toBe(404);
-      // Byte for byte the same as an address the API doesn't have.
-      expect(answer.text, `${who}: ${method} ${path}`).toBe(unknown.text);
-      expect(answer.type, `${who}: ${method} ${path}`).toBe(unknown.type);
-      expect(answer.caching, `${who}: ${method} ${path}`).toBe('private, no-store');
+    for (const [method, path, data, headers] of calls(id)) {
+      const answer = await call(as, method, path, headers ?? {}, data);
+      const what = `${who}: ${method} ${path} ${data ? JSON.stringify(data) : ''}`;
+      expect(answer.status, what).toBe(404);
+      // Byte for byte the same as an address the API doesn't have, and the same headers.
+      expect(answer.text, what).toBe(unknown.text);
+      expect(answer.headers, what).toEqual(unknown.headers);
+      expect(answer.caching, what).toBe('private, no-store');
     }
   }
 });

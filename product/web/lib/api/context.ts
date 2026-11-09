@@ -1,9 +1,17 @@
 import { combineChunks, parseCookieHeader, stringFromBase64URL } from '@supabase/ssr';
 import { createClient as createSupabaseClient, type SupabaseClient } from '@supabase/supabase-js';
+import type { Pool } from 'pg';
 import { supabaseConfig } from '@/lib/supabase/config.ts';
 
-/** What every call of the typed API is given: the request's headers (cookie, token). */
-export type ApiContext = { headers: Headers };
+/**
+ * What every call of the typed API is given: the request's headers (cookie, token); and, on the
+ * market console's calls over HTTP, the admin the API's route has already checked (lib/api/
+ * console.ts), so the database is asked once.
+ */
+export type ApiContext = {
+  headers: Headers;
+  consoleAdmin?: { account: string; pool: Pick<Pool, 'connect'> } | null;
+};
 
 export type SignedIn = {
   id: string;
