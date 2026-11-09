@@ -1482,7 +1482,15 @@ No good sign-in failed, so the switch-off kept ready beside it (one setting, `ho
 | Who can open pull requests | everyone | collaborators only |
 | Who can open issues | everyone | collaborators only |
 
-GitHub allows the rest only on a public repository, so it's applied the moment the repository turns public: the interaction limit (collaborators only, six months, the longest GitHub allows, with a reminder to renew it), approval before any workflow runs for an outside contributor's pull request, and secret scanning with push protection.
+**Made public by the founder** at about 03:00 India time (between 21:23 and 21:31 UTC on 9 November); Claude Code checked every 10 minutes until then. GitHub allows the rest only on a public repository, so it was set straight after, through GitHub's API, each read back:
+
+| Setting | After |
+|---|---|
+| Interaction limit | collaborators only, until 9 May 2027, 21:32 UTC (six months, the longest GitHub allows); a reminder in `.github/reminders.json` (due 2 May 2027) to renew it while the repository is public |
+| Approval before workflows run for a pull request from outside | all outside contributors (the strictest choice) |
+| Secret scanning, with push protection | on; no alerts. Its extra checks for generic secrets and for whether a found key still works aren't offered on this plan, and stayed off |
+
+**Proven after the switch:** the Reminders workflow, run from a throwaway branch holding one due test reminder, opened issue #87 as GitHub's workflow bot (`github-actions[bot]`) with both "collaborators only" rules on, so the reminders keep working; the issue was closed and the branch deleted. That run was also the first check to run again since 9 November.
 
 **Workflows, checked one by one:** none runs on `pull_request_target` or `workflow_run`, so no workflow runs a fork's code with our keys; a fork's pull request gets no secrets, a read-only token and no OIDC token, so it can't reach Doppler, the environments or the Remote Cache; every action is pinned to a commit, each a plain JavaScript action with no actions inside it; the checks' caches hold tools and packages, no keys. Every key a job fetches is masked: Doppler's action masks each value unless Doppler marks it "unmasked" (none is in `stg` or `stg_preview`, checked by name and visibility only; Claude Code can't see `prd_release`), the Remote Cache's action masks its two tokens, and `database_url.py` masks the addresses it builds. New: the release workflow's first job, "Only the founder", stops any run that the repository's owner (the founder's account) didn't start, and `.github/scripts/test_public_repo.py` (Quick checks) keeps all of this true.
 

@@ -10,7 +10,7 @@
 
 - **Staging** (`staging.hrizzup.com`, Mumbai) is public, asking search engines to stay out; previews need Vercel's login and share staging's database; production is a quiet twin.
 - **Built:** a holding page, legal drafts, the typed API (health, who am I), a one-screen app on the founder's phone, Manifold's maths (1.7a), the ledger (1.7b) and the content store (1.9), the website's sign-in (1.6a) on its test page (Google and email codes; passwords refused), markets as data with the **market console** (1.7c) at `staging.hrizzup.com/console`, for admins; and **list, trade and positions** in the typed API (1.7d): anyone reads the markets, a signed-in person trades and reads their own positions and orders, with no screens of their own until the market pages (3.1).
-- **Required checks:** Secret, Quick, Database, Screen (with the website's journeys), Speed and App journeys. GitHub's included Actions minutes ran out on 9 November, so no check runs until the repository is public (founder's decision, 10 November: public until launch, since checks are free on public repositories).
+- **Required checks:** Secret, Quick, Database, Screen (with the website's journeys), Speed and App journeys, free again since the repository went public on 10 November (GitHub's included minutes ran out on 9 November).
 - **Design** restarts in the design chat, from the founder's references and diagrams.
 
 ## Round 3 progress
@@ -43,7 +43,7 @@ One line per relay; each relay keeps only its own line current.
 
 12. **Relay 12, the round's closing record (last):** not started.
 
-13. **Relay 13, the repository ready to go public:** [#86](https://github.com/Zugzwang-world/hrizzup/pull/86) (open until the checks run): no key in any ref's history; past check logs and artifacts deleted; workflows safe for it; pull requests and issues for collaborators only. Next: once public, secret scanning with push protection and the checks running again. For the founder: make the repository public (below).
+13. **Relay 13, the repository public until launch:** done, [#86](https://github.com/Zugzwang-world/hrizzup/pull/86): no key in any ref's history; past check logs and artifacts deleted; workflows safe for it; only collaborators open pull requests and issues or comment; secret scanning with push protection on; the checks run again. Nothing for the founder (your personal details: in the session).
 
 ## Decisions in force
 
@@ -64,7 +64,8 @@ On 10 November 2026, relay 13 (the repository ready to go public, [#86](https://
 - **Keys:** none in any branch's, tag's or pull request's history, nor in commits that force-pushes left behind (GitHub shows those by address), nor in pull requests' texts and comments. The only finding was an image token inside Manifold's open-source code comment, not ours.
 - **Past check runs:** scanned (no key), then every log (620 runs) and artifact (154) deleted; the runs stay, for the release pipeline.
 - **Workflows:** none can run a fork's code with our keys; every fetched value is masked; the release workflow's new first job lets only the founder release; the default token is read-only; a new test in Quick checks keeps it all true.
-- **Outsiders:** pull requests and issues for collaborators only (set now); from the switch, an interaction limit for comments and approval before an outsider's workflows run. Vercel's fork protection is on.
+- **Outsiders:** pull requests and issues for collaborators only; an interaction limit for comments (until 9 May 2027, with a reminder to renew it) and approval before an outsider's workflows run. Vercel's fork protection is on.
+- **After the switch** (you made it public at about 03:00 India time): GitHub's secret scanning with push protection on; the Reminders workflow proven to still open issues; the checks run again.
 - **Your personal details** in the repository: listed for you in relay 13's session, not here (this file is public too).
 
 ## Open questions
@@ -88,7 +89,6 @@ On 10 November 2026, relay 13 (the repository ready to go public, [#86](https://
 
 ## For the founder
 
-- **Make the repository public (a minute):** GitHub → the repository → **Settings → General → Danger Zone → Change visibility → Make public**. Claude Code checks every 10 minutes, then switches on secret scanning with push protection and the rest.
 - **Your personal details in the repository:** relay 13 listed them for you in its session; nothing changes unless you ask.
 - **You're an admin on staging (nothing to do):** sign in with Google on the sign-in test page, then open `staging.hrizzup.com/console`.
 - **One Google sign-in on staging (a minute):** `https://staging.hrizzup.com/sign-in-test`, Continue with Google, then sign out. A test can't sign in to Google; this confirms it with the hook on.
