@@ -606,7 +606,7 @@ def run_service(register: Register, service: str, detach: bool) -> int:
             raise Failed(f"Port {port} is in use by another program, so the {name} can't start")
         if service == "web":
             fresh_dev_build(folder)
-        output = open(log, "ab") if log else None
+        output = open(log, "wb") if log else None  # a fresh log for each start
         child = subprocess.Popen(
             command, cwd=folder, env=env, start_new_session=True,
             stdin=subprocess.DEVNULL if detach else None,
