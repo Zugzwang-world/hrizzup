@@ -1,7 +1,7 @@
 {
   "name": "@hrizzup/core",
   "private": true,
-  "description": "Code shared by the website and the app: the brand, the environment names and the Redis key rules.",
+  "description": "Code shared by the website and the app: the brand, the environment names, the Redis key rules and the readable-text check.",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"

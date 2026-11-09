@@ -13,8 +13,6 @@
       "!agreement/src/types.generated.ts",
       "!product/packages/api/src/contract.routes.json",
       "!product/packages/market-engine/src/manifold/calculate-cpmm-arbitrage.ts",
-      "!product/packages/design/tokens.css",
-      "!product/packages/design/src/icons.generated.ts",
       "infra/supabase/package.json",
       "package.json",
       "turbo.json",

@@ -1,4 +1,0 @@
-{
-  "extends": "@hrizzup/tsconfig/library.json",
-  "include": ["src", "scripts"]
-}
