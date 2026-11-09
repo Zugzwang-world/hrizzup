@@ -4,7 +4,7 @@
 >
 > **The changes were made the same day,** in [#42](https://github.com/Zugzwang-world/hrizzup/pull/42): every finding below, R1 to R11, is in the definitions, the examples, the check or the README. R12, found while making them, followed in [#45](https://github.com/Zugzwang-world/hrizzup/pull/45).
 >
-> **The founder answered on 9 November 2026** ([#PRNUM](https://github.com/Zugzwang-world/hrizzup/pull/PRNUM)): he approved the first half in News Desk's place, as it stood after the market change ([#52](https://github.com/Zugzwang-world/hrizzup/pull/52)), and it is Agreed. **F1:** as recommended, the bots keep only found takes in English, matching the English-only launch. **F2 and F3:** takedown handling and legal review belong to the founder's legal team; the product plan adds no legal guardrails, so neither is an open question for Sourcing or Product.
+> **The founder answered on 9 November 2026** ([#59](https://github.com/Zugzwang-world/hrizzup/pull/59)): he approved the first half in News Desk's place, as it stood after the market change ([#52](https://github.com/Zugzwang-world/hrizzup/pull/52)), and it is Agreed. **F1:** as recommended, the bots keep only found takes in English, matching the English-only launch. **F2 and F3:** takedown handling and legal review belong to the founder's legal team; the product plan adds no legal guardrails, so neither is an open question for Sourcing or Product.
 
 ## In short
 
