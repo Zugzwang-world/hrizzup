@@ -1519,7 +1519,7 @@ No good sign-in failed, so the switch-off kept ready beside it (one setting, `ho
 
 - **Google sign-in confirmed with the access-token hook on:** the founder signed in with Google on staging's sign-in test page, the one check a test can't make (the entry of 9 November 2026, above, asked for it). So step 1.6a is done. Nothing was set.
 - **Pre-launch checklist:** P.14 now covers the app's writes to the typed API as well as its reads (settled in the Product chat): staging lets them through from step 1.6b, behind the same per-visitor limit, and production's rule goes out with a release like the rest of P.14. Nothing was set on staging or production by this change; staging's firewall changes in 1.6b's first pull request.
-- **GitHub milestones:** "Round 4" (number 9) opened for Round 4's pull requests, and "Round 3" (number 8) closed once [#PR](https://github.com/Zugzwang-world/hrizzup/pull/PR) merged, holding Round 3's pull requests; none was left open.
+- **GitHub milestones:** "Round 4" (number 9) opened for Round 4's pull requests, and "Round 3" (number 8) closed once [#89](https://github.com/Zugzwang-world/hrizzup/pull/89) merged, holding Round 3's pull requests; none was left open.
 - **Where the founder's decisions of 10 November 2026 went:** market settings follow Manifold's defaults, the perp's first settings and the set-probability rule (PLAN.md section 2 and steps 3.3 and 3.4a; `TRACKER.md`, "Markets track"; blueprint sections 6 and 13); the repository public until launch, now in PLAN.md section 3 as well; 1.6b's shape (PLAN.md step 1.6b); Round 4's queue (`TRACKER.md`, the Product brief).
 
 ---

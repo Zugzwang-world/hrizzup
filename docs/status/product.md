@@ -515,7 +515,7 @@ Last updated: 10 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/bri
     - zod is fixed through its parent, so nothing needs removing later.
     - The overrides name the fixed versions already in the lockfile, not the very newest (glob 14.0.4 and minimatch 11.0.5 cleared the wait only days ago).
 
-- **Round 3's closing record: the founder's decisions of 10 November 2026** ([#PR](https://github.com/Zugzwang-world/hrizzup/pull/PR), Round 3, relay 12, records only):
+- **Round 3's closing record: the founder's decisions of 10 November 2026** ([#89](https://github.com/Zugzwang-world/hrizzup/pull/89), Round 3, relay 12, records only):
   - **market settings follow Manifold's defaults** (PLAN.md section 2, "Markets"): the settings of market mechanics (fees, funding, how often the price updates, and the like) are Manifold's defaults unless the plan already sets them. It's play money, so they shape how the game plays and nobody loses money. Features, and the settings the plan already decides (the yes/no markets' zero fee at launch, the perp's 10 times cap), stay as they are;
   - **the perp's first settings** (PLAN.md section 2, "Perps", and step 3.4a): Manifold's opening fee (10 basis points of the position's size by default, with its cap) and its hourly funding, as its code sets them; a stand-in price every 5 seconds, from a fixed seed so tests repeat; leverage capped at 10 times; every rule change logged. This closes "the perp's first settings" and, for the founder, "the perp's opening fee"; 3.4a can start;
   - **1.6a is done:** the founder signed in with Google on staging's sign-in test page with the access-token hook on, confirming what a test can't (setup log, 10 November 2026);

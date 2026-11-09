@@ -2,7 +2,7 @@
 
 **This brief replaces Claude Code's report:** read it after clicking **Sync now**, instead of asking the founder for a report, and attach the files under "Read for detail" from GitHub when you need more.
 
-> Rewritten 10 November 2026 by Round 3's closing record (relay 12, records only, [#PR](https://github.com/Zugzwang-world/hrizzup/pull/PR)). The Sourcing project's only file from the repository, rewritten at the end of every session that touches its part. PLAN.md wins any disagreement.
+> Rewritten 10 November 2026 by Round 3's closing record (relay 12, records only, [#89](https://github.com/Zugzwang-world/hrizzup/pull/89)). The Sourcing project's only file from the repository, rewritten at the end of every session that touches its part. PLAN.md wins any disagreement.
 
 **Hrizzup** is a news app built around creators, plus a website with play-money prediction markets. Our AI finds news as it breaks on X and turns it into developing stories that readers see through creators' takes. **Sourcing's job:** design and run the Grok bots that find news and creators' takes on X, keep everything they find in the sourced pool, and turn the news into stories and updates. Product shows what Sourcing produces, in the shapes the hand-over agreement (`agreement/README.md`) fixes.
 
@@ -30,7 +30,7 @@
 
 ## What changed in the latest session
 
-On 10 November 2026, in Round 3's closing record ([#PR](https://github.com/Zugzwang-world/hrizzup/pull/PR), relay 12, records only):
+On 10 November 2026, in Round 3's closing record ([#89](https://github.com/Zugzwang-world/hrizzup/pull/89), relay 12, records only):
 
 - **The market gets a second version before Product's step 3.3** (settled in the Product chat): until market/2 exists, a market settled at a set probability stays off Product's public list. Product drafts it; Sourcing agrees it, the founder approving in News Desk's place. Nothing Sourcing writes, reads or checks changes.
 - **The perp's checks run every 5 seconds on Supabase Cron** (the founder's first settings), outside the background-jobs choice.

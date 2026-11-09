@@ -8,7 +8,7 @@
 
 ## Where things stand
 
-- **Round 3 closed on 10 November 2026** ([#PR](https://github.com/Zugzwang-world/hrizzup/pull/PR)): relays 1 (with 1c), 1b, 2, 3, 5 to 9 and 13 done, 4, 10 and 11 cancelled, every row final in `TRACKER.md`. Round 4's queue is set.
+- **Round 3 closed on 10 November 2026** ([#89](https://github.com/Zugzwang-world/hrizzup/pull/89)): relays 1 (with 1c), 1b, 2, 3, 5 to 9 and 13 done, 4, 10 and 11 cancelled, every row final in `TRACKER.md`. Round 4's queue is set.
 - **Staging** (`staging.hrizzup.com`, Mumbai) is public, asking search engines to stay out; previews need Vercel's login and share staging's database; production is a quiet twin.
 - **Built:** the typed API, a one-screen app on the founder's phone, Manifold's maths (1.7a), the ledger (1.7b), the content store (1.9), the website's sign-in on its test page (1.6a: Google, confirmed by the founder with the access-token hook on, and email codes), the admins' **market console** (1.7c, `staging.hrizzup.com/console`) and **list, trade and positions** in the typed API (1.7d), with no screens until 3.1.
 - **Checks:** Secret, Quick, Database, Screen (with the website's journeys), Speed and App journeys, all required and free again since the repository went public (relay 13). Their tools are pinned and cached, each job gets only the keys it uses, and the release pipeline refuses production keys that aren't app keys (relay 3).
@@ -35,7 +35,7 @@ Round 4 progress: not started. Round 4's own records relay sets its relays' line
 
 ## What changed in the latest session
 
-On 10 November 2026, Round 3's closing record ([#PR](https://github.com/Zugzwang-world/hrizzup/pull/PR), relay 12, records only):
+On 10 November 2026, Round 3's closing record ([#89](https://github.com/Zugzwang-world/hrizzup/pull/89), relay 12, records only):
 
 - **The founder's decisions, in PLAN.md:** market settings follow Manifold's defaults; the perp's first settings, so 3.4a starts; 1.6a done; the repository public until launch.
 - **The Product chat's settlements:** the app's writes through staging's firewall (1.6b; production's in P.14); the app's bot check in a small web view; set-probability markets off the list until market/2, now a need of 3.3; the console's create page fixed to its budget.
