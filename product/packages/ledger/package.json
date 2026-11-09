@@ -1,0 +1,27 @@
+{
+  "name": "@hrizzup/ledger",
+  "private": true,
+  "description": "The markets' books (PLAN.md step 1.7b): each trade one database transaction, running Manifold's maths (@hrizzup/market-engine) on the market as it stands, with the time passed in, and writing the trade, its fills, the positions, the pool and the double-entry moves together, in exact decimals. Server only.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:db": "node scripts/test-db.ts"
+  },
+  "dependencies": {
+    "@hrizzup/db": "workspace:*",
+    "@hrizzup/market-engine": "workspace:*"
+  },
+  "devDependencies": {
+    "@hrizzup/database": "workspace:*",
+    "@hrizzup/tsconfig": "workspace:*",
+    "@types/node": "^24.10.0",
+    "@types/pg": "^8.15.0",
+    "pg": "^8.20.0",
+    "typescript": "6.0.3",
+    "vitest": "^5.0.0"
+  }
+}

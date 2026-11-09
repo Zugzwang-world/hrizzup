@@ -1,0 +1,12 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "test:db": {
+      "dependsOn": ["^test:db"],
+      "inputs": ["$TURBO_DEFAULT$"],
+      "outputs": [],
+      "passThroughEnv": ["GITHUB_ACTIONS"]
+    }
+  }
+}

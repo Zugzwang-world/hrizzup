@@ -1,6 +1,6 @@
 # @hrizzup/market-engine
 
-The maths behind Hrizzup's play-money yes/no markets (PLAN.md step 1.7a): a market's price, buying, limit orders, selling, Yes and No cancelling out, fees, and settlement. It is plain calculation, with no database, network or screens. The rest of step 1.7 (our tables, trades inside database transactions, the ledger) builds on it.
+The maths behind Hrizzup's play-money yes/no markets (PLAN.md step 1.7a): a market's price, buying, limit orders, selling, Yes and No cancelling out, fees, and settlement. It is plain calculation, with no database, network or screens. The ledger (`@hrizzup/ledger`, step 1.7b) runs it inside each trade's database transaction, and the rest of step 1.7 builds on that.
 
 The maths is [Manifold's](https://github.com/manifoldmarkets/manifold), copied with its tests and kept close to Manifold's own code, so the two stay easy to compare. Which files to take was settled in [docs/research/round-2-readiness.md](../../../docs/research/round-2-readiness.md) (section C9) and [docs/research/manifold.md](../../../docs/research/manifold.md).
 
@@ -13,6 +13,7 @@ The maths is [Manifold's](https://github.com/manifoldmarkets/manifold), copied w
 
 - **[src/index.ts](src/index.ts):** the package's front door, naming the parts a yes/no market uses.
 - **[src/manifold/](src/manifold/):** Manifold's files, at the same paths they have under Manifold's `common/src/`, with Manifold's tests beside the files they test.
+- **[types/](types/):** the type declarations other packages read, written from `src/` (below, "Type declarations for other packages").
 
 | Kind                                         | Files                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -61,6 +62,10 @@ The front door no longer offers `computeFills` and `computeCpmmBet`, whose time 
 They cover a yes/no buy, a limit order (filled in full, partly filled then withdrawn, expired, and stopped when its owner's money runs out), a sale (part, all, and into a resting order), Yes and No cancelling out, and settlement by Yes, by No, at a set probability (MKT) and by cancel, each case under all four settlements; then 40 random markets of 150 trades each and one of 2,000, every one settled.
 
 **What they found:** a cancel pays each trader what they put in less what they took out, so a trader who sold at a profit gets a negative payout: the profit is taken back. Within one market that returns everyone to where they started, but a trader who spent the profit elsewhere would go below zero. The question is in the Product brief.
+
+## Type declarations for other packages
+
+Other packages (the ledger, `@hrizzup/ledger`, and through it the website) read this package's types from [types/](types/), not from `src/` (`package.json`, "exports"); the code they run is still `src/`. A package importing TypeScript source checks it again under its own settings, where `noUncheckedIndexedAccess` is on, and Manifold's code fails that (see "Checks"). `types/` is written from `src/index.ts` with this package's own settings (`pnpm --filter @hrizzup/market-engine types`, [scripts/types.ts](scripts/types.ts)), never edited by hand, and `src/types.test.ts` fails when it differs from what the source gives now. Biome skips it, as it skips the agreement's generated types.
 
 ## Checks
 

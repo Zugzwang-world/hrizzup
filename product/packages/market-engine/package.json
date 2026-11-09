@@ -4,12 +4,16 @@
   "description": "The market maths: Manifold's yes/no market engine (pool prices, limit orders, selling, Yes and No cancelling out, fees and settlement), copied with its tests from Manifold at commit 79997aa (MIT licence, src/manifold/LICENSE.md).",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./types/index.d.ts",
+      "default": "./src/index.ts"
+    }
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "compare": "node scripts/compare-with-manifold.ts"
+    "compare": "node scripts/compare-with-manifold.ts",
+    "types": "node scripts/types.ts --write"
   },
   "dependencies": {
     "lodash-es": "^4.18.1"
