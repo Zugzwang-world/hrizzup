@@ -43,7 +43,7 @@ One line per relay; each relay keeps only its own line current.
 
 12. **Relay 12, the round's closing record (last):** not started.
 
-13. **Relay 13, the repository public until launch:** done, [#86](https://github.com/Zugzwang-world/hrizzup/pull/86): no key in any ref's history; past check logs and artifacts deleted; workflows safe for it; only collaborators open pull requests and issues or comment; secret scanning with push protection on; the checks run again. Nothing for the founder (your personal details: in the session).
+13. **Relay 13, the repository public until launch:** done, [#86](https://github.com/Zugzwang-world/hrizzup/pull/86) and [#88](https://github.com/Zugzwang-world/hrizzup/pull/88) (what the switch turned up): no key in any ref's history; past check logs and artifacts deleted; workflows safe for it; only collaborators open pull requests and issues or comment; secret scanning with push protection on; the checks run again. Nothing for the founder (your personal details: in the session).
 
 ## Decisions in force
 
@@ -59,19 +59,19 @@ One line per relay; each relay keeps only its own line current.
 
 ## What changed in the latest session
 
-On 10 November 2026, relay 13 (the repository ready to go public, [#86](https://github.com/Zugzwang-world/hrizzup/pull/86)):
+On 10 November 2026, relay 13 made the repository public until launch ([#86](https://github.com/Zugzwang-world/hrizzup/pull/86)):
 
-- **Keys:** none in any branch's, tag's or pull request's history, nor in commits that force-pushes left behind (GitHub shows those by address), nor in pull requests' texts and comments. The only finding was an image token inside Manifold's open-source code comment, not ours.
+- **Keys:** none in any ref's history, in commits force-pushes left behind, or in pull requests' texts.
 - **Past check runs:** scanned (no key), then every log (620 runs) and artifact (154) deleted; the runs stay, for the release pipeline.
-- **Workflows:** none can run a fork's code with our keys; every fetched value is masked; the release workflow's new first job lets only the founder release; the default token is read-only; a new test in Quick checks keeps it all true.
-- **Outsiders:** pull requests and issues for collaborators only; an interaction limit for comments (until 9 May 2027, with a reminder to renew it) and approval before an outsider's workflows run. Vercel's fork protection is on.
-- **After the switch** (you made it public at about 03:00 India time): GitHub's secret scanning with push protection on; the Reminders workflow proven to still open issues; the checks run again.
-- **Your personal details** in the repository: listed for you in relay 13's session, not here (this file is public too).
+- **Workflows:** no fork's code runs with our keys; every fetched value masked; only the founder can release; a test in Quick checks keeps it so.
+- **Outsiders:** only collaborators open pull requests and issues or comment (the comment limit runs to 9 May 2027, with a reminder); an outsider's workflows wait for approval; Vercel's fork protection is on.
+- **After the switch:** secret scanning with push protection on; the Reminders workflow still opens issues; the checks run again.
 
 ## Open questions
 
-- **Staging's and the release's keys masked whatever Doppler says** (relay 13): both load whole configs with Doppler's action, which shows a value Doppler marks "unmasked" (none is, today). Recommendation: once relay 3's #65 and #84 merge, move both to named keys, as the Screen check does from #84.
-- **Dependabot under "collaborators only"** (relay 13): GitHub doesn't say whether it may still open pull requests; it never has here. Recommendation: leave it; if one is ever refused, open pull requests to everyone again and rely on the interaction limit.
+- **Staging's and the release's keys masked whatever Doppler says** (relay 13): both load whole configs with Doppler's action, which shows a key Doppler marks "unmasked" (none is). Recommendation: once #84 merges, move both to named keys, as the Screen check does.
+- **Two Screen checks at once share the test accounts' play money** (relay 13): the trading journeys fail when two pull requests' runs overlap (four did on 10 November; each passed alone). Recommendation: each run trades with a fresh test account of its own; until then, re-run a failed one alone.
+- **Dependabot under "collaborators only"** (relay 13): GitHub doesn't say whether it may still open pull requests; it never has here. Recommendation: leave it; reopen pull requests to everyone if one is refused.
 - **The app's writes** (when the app first writes): staging's firewall lets only browsers write; 1.7d needed nothing. Recommendation: then let writes skip it on staging behind the per-visitor limit, as reads do.
 - **A market settled at a set probability** (1.7c): market/1 can't describe it, so the list leaves it out. Recommendation: a market/2 with `result_probability` before anything hands markets over; meanwhile only when a market's rules say so.
 - **The ledger's next steps.** Recommendations: an admin's "cancel a resting order" when a market first needs it (people cancel their own); yes/no only for now; lock fewer accounts per trade as markets grow.
@@ -90,6 +90,7 @@ On 10 November 2026, relay 13 (the repository ready to go public, [#86](https://
 ## For the founder
 
 - **Your personal details in the repository:** relay 13 listed them for you in its session; nothing changes unless you ask.
+- **Relay 3 stopped half-way when the minutes ran out:** #65 merged; #84 and #85 wait for its session (#84's code conflicts with #65's). Recommendation: open relay 3's session and tell it to carry on.
 - **You're an admin on staging (nothing to do):** sign in with Google on the sign-in test page, then open `staging.hrizzup.com/console`.
 - **One Google sign-in on staging (a minute):** `https://staging.hrizzup.com/sign-in-test`, Continue with Google, then sign out. A test can't sign in to Google; this confirms it with the hook on.
 - **The perp's opening fee,** before the next round. Recommendation: 0.1% on opening, closing free.
