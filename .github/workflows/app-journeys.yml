@@ -5,13 +5,19 @@
 #
 # The app is built as a release build, with its code inside (like the preview build people
 # install), from Expo's generated Android project (`expo prebuild`) with Gradle, for the
-# emulator's processor only. Three caches keep most runs short, each saved as soon as it's ready:
+# emulator's processor only. Caches keep most runs short, each saved as soon as it's ready:
 #   - Gradle's downloads and build cache (gradle/actions/setup-gradle);
 #   - the built app itself, keyed by the app's files, so a re-run skips the build;
-#   - the emulator, booted once and saved as a snapshot (android-emulator-runner's own pattern).
+#   - Maestro, the emulator and its system image, each at the version .github/scripts/tools.py
+#     pins, kept by that pin (the Tool cache workflow fills these from main); a run that must
+#     download one gets it through tools.py: from GitHub signed in with the job's token,
+#     retried after a pause, its checksum checked;
+#   - the emulator, booted once and saved as a snapshot, keyed by those pins
+#     (product/app/journeys/emulator.sh, which boots the pinned emulator).
 # GitHub lets every pull request read what main saved, but not what another pull request
 # saved, so the job also runs on main after a merge that changes the app: that keeps the
-# caches warm for the next pull request (and checks main itself).
+# caches warm for the next pull request (and checks main itself). A pull request that changes
+# the checks themselves (.github/workflows or .github/scripts) runs the journeys too.
 #
 # The job name is meant to become a required check in the "main" ruleset once it is steady.
 
@@ -26,6 +32,7 @@ on:
       - product/packages/**
       - pnpm-lock.yaml
       - .github/workflows/app-journeys.yml
+      - .github/scripts/tools.py
   workflow_dispatch:
 
 permissions:
@@ -147,19 +154,44 @@ jobs:
           path: product/app/journeys-build/app.apk
           key: app-release-x86_64-${{ steps.key.outputs.files }}
 
-      # Maestro and the emulator.
-      - name: Maestro (pinned version, checksum checked)
+      # Maestro and the emulator, at the versions .github/scripts/tools.py pins.
+      - name: The pinned versions of Maestro, the emulator and its system image
+        id: pins
+        if: steps.run.outputs.app == 'true'
+        run: python3 .github/scripts/tools.py key maestro android-emulator android-system-image >> "$GITHUB_OUTPUT"
+      - name: Maestro, from GitHub's cache
+        if: steps.run.outputs.app == 'true'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.pins.outputs.maestro_file }}
+          key: ${{ steps.pins.outputs.maestro_key }}
+      - name: The emulator, from GitHub's cache
+        if: steps.run.outputs.app == 'true'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.pins.outputs.android_emulator_file }}
+          key: ${{ steps.pins.outputs.android_emulator_key }}
+      - name: Its system image, from GitHub's cache
+        if: steps.run.outputs.app == 'true'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.pins.outputs.android_system_image_file }}
+          key: ${{ steps.pins.outputs.android_system_image_key }}
+      - name: Maestro, the emulator and its system image (pinned versions, checksums checked)
         if: steps.run.outputs.app == 'true'
         env:
-          MAESTRO_VERSION: 2.12.1
-          MAESTRO_SHA256: 54dbb0716425626604973cbb374c585ca30272375d9ce15177a1152765ddd9d7
+          GITHUB_TOKEN: ${{ github.token }} # signed-in downloads from GitHub; read-only
+          MAESTRO: ${{ steps.pins.outputs.maestro_path }}
+          EMULATOR: ${{ steps.pins.outputs.android_emulator_path }}
+          IMAGE: ${{ steps.pins.outputs.android_system_image_path }}
         run: |
           set -euo pipefail
-          curl -sSfL -o "$RUNNER_TEMP/maestro.zip" \
-            "https://github.com/mobile-dev-inc/maestro/releases/download/cli-${MAESTRO_VERSION}/maestro.zip"
-          echo "${MAESTRO_SHA256}  $RUNNER_TEMP/maestro.zip" | sha256sum --check --strict
-          unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP"
+          python3 .github/scripts/tools.py fetch maestro android-emulator android-system-image
+          unzip -q "$MAESTRO" -d "$RUNNER_TEMP"
           echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
+          bash product/app/journeys/emulator.sh install "$EMULATOR" "$IMAGE"
+          rm -f "$MAESTRO" "$EMULATOR" "$IMAGE" # unpacked; the disk is needed for the emulator
+          df -h / | tail -1
       - name: Let the emulator use the processor's virtualisation (KVM)
         if: steps.run.outputs.app == 'true'
         run: |
@@ -174,19 +206,10 @@ jobs:
           path: |
             ~/.android/avd/*
             ~/.android/adb*
-          key: emulator-${{ env.API_LEVEL }}-${{ env.TARGET }}-x86_64-${{ env.PROFILE }}-v1
+          key: emulator-snapshot-${{ env.PROFILE }}-${{ steps.pins.outputs.android_emulator_version }}-${{ steps.pins.outputs.android_system_image_version }}-v2
       - name: Boot the emulator once and save its snapshot (first run only)
         if: steps.run.outputs.app == 'true' && steps.emulator.outputs.cache-hit != 'true'
-        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
-        with:
-          api-level: ${{ env.API_LEVEL }}
-          target: ${{ env.TARGET }}
-          arch: x86_64
-          profile: ${{ env.PROFILE }}
-          force-avd-creation: false
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          disable-animations: false
-          script: echo "The emulator's snapshot is saved."
+        run: bash product/app/journeys/emulator.sh snapshot
       - name: Keep the emulator's snapshot for later runs
         if: steps.run.outputs.app == 'true' && steps.emulator.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -194,7 +217,7 @@ jobs:
           path: |
             ~/.android/avd/*
             ~/.android/adb*
-          key: emulator-${{ env.API_LEVEL }}-${{ env.TARGET }}-x86_64-${{ env.PROFILE }}-v1
+          key: emulator-snapshot-${{ env.PROFILE }}-${{ steps.pins.outputs.android_emulator_version }}-${{ steps.pins.outputs.android_system_image_version }}-v2
       - name: Main's cold start, to compare with (pull requests)
         if: steps.run.outputs.app == 'true' && github.event_name == 'pull_request'
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -204,18 +227,9 @@ jobs:
           restore-keys: app-startup-main-
       - name: The app's journeys, at a phone size and a tablet size, then its cold start
         if: steps.run.outputs.app == 'true'
-        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         env:
           STARTUP_BASELINE: ${{ runner.temp }}/startup-main/startup.json
-        with:
-          api-level: ${{ env.API_LEVEL }}
-          target: ${{ env.TARGET }}
-          arch: x86_64
-          profile: ${{ env.PROFILE }}
-          force-avd-creation: false
-          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          disable-animations: true
-          script: bash product/app/journeys/run.sh product/app/journeys-build/app.apk "$RUNNER_TEMP/journeys"
+        run: bash product/app/journeys/emulator.sh run bash product/app/journeys/run.sh product/app/journeys-build/app.apk "$RUNNER_TEMP/journeys"
       - name: Keep main's cold start for the next pull requests (main only)
         if: steps.run.outputs.app == 'true' && github.ref == 'refs/heads/main'
         run: |

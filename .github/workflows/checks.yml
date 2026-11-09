@@ -2,7 +2,8 @@
 #
 #   Quick checks    formatting and lint (Biome), type checks and unit tests (Turborepo),
 #                   including the hand-over agreement's check (agreement/src/agreement.test.ts),
-#                   and the infrastructure tools' own tests (infra/vercel, infra/doppler)
+#                   the infrastructure tools' own tests (infra/vercel, infra/doppler) and the
+#                   checks' own scripts' tests (.github/scripts: tool downloads, affected parts)
 #   Database check  builds a fresh database from infra/supabase/migrations and runs its
 #                   tests, including "every table is locked" (row-level security)
 #   Screen check    checks by name that Doppler stg_preview holds only the app's keys
@@ -19,6 +20,10 @@
 # The job names are required checks in the "main" ruleset. Keep them in step.
 # Turborepo's Remote Cache (Vercel) skips work already done for the same inputs. It signs
 # in with GitHub's short-lived OIDC token, so no Vercel token is stored in GitHub.
+# The tools these jobs download are pinned and read from GitHub's cache by that pin (the Tool
+# cache workflow fills it from main): Playwright's browsers by Playwright's version, and the
+# database's Docker images by the Supabase CLI's version (.github/scripts/tools.py). A
+# download that's still needed is retried after a pause; a test never is.
 
 name: Checks
 
@@ -64,6 +69,7 @@ jobs:
         run: |
           python3 -m unittest discover -s infra/vercel
           python3 -m unittest discover -s infra/doppler
+          python3 -m unittest discover -s .github/scripts
 
   database:
     name: Database check
@@ -87,6 +93,31 @@ jobs:
         with:
           team: ${{ vars.TURBO_TEAM }}
       - run: pnpm install --frozen-lockfile
+      # The database's images (Postgres and the services that set up its schema) come from
+      # GitHub's cache, by the Supabase CLI's version, when the tests will really run here
+      # rather than come from the Remote Cache. Without them, the CLI pulls them itself, retrying.
+      - name: Will the database tests run here?
+        id: db
+        run: python3 .github/scripts/tools.py database will-run >> "$GITHUB_OUTPUT"
+      - name: The database's images, by the Supabase CLI's version
+        id: images-key
+        if: steps.db.outputs.run == 'true'
+        run: python3 .github/scripts/tools.py key database-images >> "$GITHUB_OUTPUT"
+      - name: The database's images, from GitHub's cache
+        id: images
+        if: steps.db.outputs.run == 'true'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.images-key.outputs.database_images_file }}
+          key: ${{ steps.images-key.outputs.database_images_key }}
+      - name: Load them into Docker
+        if: steps.images.outputs.cache-hit == 'true'
+        env:
+          IMAGES: ${{ steps.images-key.outputs.database_images_path }}
+        # Only a shortcut: if the copy won't load, the CLI pulls the images as before.
+        run: |
+          docker load -i "$IMAGES" || echo "::warning::The cached images didn't load; the Supabase CLI pulls them instead."
+          rm -f "$IMAGES"
       - name: Fresh database from the migrations, then its tests
         run: pnpm exec turbo run test:db
 
@@ -125,6 +156,29 @@ jobs:
           COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
         run: python3 .github/scripts/wait_for_preview.py "$COMMIT"
 
+      # The browsers, before any key is loaded: Playwright's Chromium and WebKit, at the builds
+      # its version (from the lockfile) names, from GitHub's cache. Playwright skips any it
+      # already has; a download it still needs is retried after a pause (tools.py retry, which
+      # refuses anything but this download). The system libraries come from Ubuntu's mirrors
+      # through apt, which retries on its own.
+      - name: The browsers' cache key (Playwright's version)
+        id: browsers-key
+        if: steps.affected.outputs.website == 'true'
+        run: python3 .github/scripts/tools.py key browsers >> "$GITHUB_OUTPUT"
+      - name: The browsers, from GitHub's cache
+        if: steps.affected.outputs.website == 'true'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.browsers-key.outputs.browsers_file }}
+          key: ${{ steps.browsers-key.outputs.browsers_key }}
+      - name: Browsers (Chromium and WebKit)
+        if: steps.affected.outputs.website == 'true'
+        working-directory: product/web
+        run: |
+          set -euo pipefail
+          python3 ../../.github/scripts/tools.py retry -- pnpm exec playwright install chromium webkit
+          pnpm exec playwright install-deps chromium webkit
+
       # Before any key is loaded: every name in stg_preview must be one of the app's keys
       # (infra/doppler/app-keys.txt), so a tool token there stops this job before it sits
       # beside the pull request's code (runbook Part 4, "Where each kind of key lives").
@@ -141,11 +195,6 @@ jobs:
         with:
           doppler-token: ${{ secrets.DOPPLER_TOKEN_PREVIEW }}
           inject-env-vars: true
-
-      - name: Browsers (Chromium and WebKit)
-        if: steps.affected.outputs.website == 'true'
-        working-directory: product/web
-        run: pnpm exec playwright install --with-deps chromium webkit
 
       - name: Screen check and journeys on the preview
         if: steps.affected.outputs.website == 'true'

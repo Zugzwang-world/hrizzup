@@ -64,7 +64,18 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
-          cache: pnpm
+      # The packages come from main's whole store in GitHub's cache (the key setup-node uses,
+      # filled by full installs: the Tool cache workflow and App journeys), read only: this job
+      # installs one package's few dependencies, and a store saved from here would hold only
+      # those under the key every pull request reads. Anything missing comes from npm, retried.
+      - name: Where pnpm keeps its packages
+        id: store
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      - name: The packages, from GitHub's cache (read only)
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.store.outputs.path }}
+          key: node-cache-${{ runner.os }}-x64-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
       - run: pnpm install --frozen-lockfile --filter @hrizzup/database
 
       - name: Staging's keys (Doppler stg, masked)
