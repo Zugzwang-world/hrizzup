@@ -572,13 +572,15 @@ set search_path = ''
 as $$
 declare
   who uuid := private.signed_in_admin();
-  opened timestamptz := date_trunc('milliseconds', clock_timestamp());
+  opened timestamptz;
   m markets.markets;
   d markets.details;
   house uuid;
 begin
   select * into m from markets.markets x where x.id = open_market.market for update;
   select * into d from markets.details x where x.market_id = open_market.market;
+  -- The moment it opens: read once the market's lock is held.
+  opened := date_trunc('milliseconds', clock_timestamp());
   if m.id is null or d.market_id is null then
     raise exception 'No such market' using errcode = 'no_data_found';
   end if;
@@ -610,7 +612,8 @@ end;
 $$;
 
 -- Closes an open market: betting stops at once (its closing time becomes this moment, if that's
--- earlier). Resting orders stay until it's settled, which cancels them.
+-- earlier). It waits for any trade in flight on the market, and its closing moment always comes
+-- after the market's last trade. Resting orders stay until it's settled, which cancels them.
 create function admin.close_market(market uuid)
 returns jsonb
 language plpgsql
@@ -619,9 +622,10 @@ set search_path = ''
 as $$
 declare
   who uuid := private.signed_in_admin();
-  closed timestamptz := date_trunc('milliseconds', clock_timestamp());
+  closed timestamptz;
   m markets.markets;
 begin
+  -- The market's lock first: a trade in flight finishes before it closes, and none starts after.
   select * into m from markets.markets x where x.id = close_market.market for update;
   if m.id is null or not exists (select 1 from markets.details x where x.market_id = m.id) then
     raise exception 'No such market' using errcode = 'no_data_found';
@@ -630,6 +634,11 @@ begin
     raise exception 'Only an open market closes: this market is %', m.state
       using errcode = 'object_not_in_prerequisite_state';
   end if;
+  -- The moment it closes: read once the lock is held, and always after its last trade (a trade
+  -- counts only before the closing time), so every trade it took is before it closed.
+  closed := greatest(
+    date_trunc('milliseconds', clock_timestamp()),
+    m.last_trade_at + interval '1 millisecond');
   update markets.markets x
   set state = 'closed', closes_at = least(x.closes_at, closed), updated_at = closed
   where x.id = m.id;

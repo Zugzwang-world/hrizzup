@@ -11,7 +11,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(118);
+select plan(119);
 
 -- Runs one query as the app's own role, signed in as `account` (null: nobody), and gives back its
 -- one value as text. The role lasts only for the query, so pgTAP's own functions (which the app's
@@ -433,6 +433,11 @@ select ok(
   (select closes_at <= clock_timestamp() from markets.markets
    where id = '019a6b3c-0001-7000-8000-000000000001'),
   'its closing time becomes the moment it closed'
+);
+select ok(
+  (select closes_at > now() - interval '1 minute' from markets.markets
+   where id = '019a6b3c-0001-7000-8000-000000000001'),
+  '... read as it closed, not before'
 );
 
 -- Settling: the outcome, the evidence, a cancel's reason ----------------------------------------------
