@@ -12,7 +12,7 @@
 | Website, staging | `staging.hrizzup.com`: Vercel project `hrizzup` (Pro team), functions in Mumbai (`bom1`) | Built once per merge, after that merge's migrations (Staging workflow); behind a Vercel login |
 | Website, previews | A Vercel preview link on every pull request | Complete working copies: staging's data and keys (`stg_preview`), Turnstile's test keys, Google sign-in through staging's relay |
 | Website, production | `hrizzup.com` (`www` redirects to it) | The holding page with draft privacy and terms, promoted once (3 November 2026). Every merge makes a hidden production build; only the release pipeline changes what's live |
-| Database and sign-in, staging | Supabase `hrizzup-staging` (`mlccgqxtqmllwbyjfzzm`), Mumbai, Micro, Postgres 17, Pro organisation | Data API off, every table locked by row-level security, encrypted connections only, legacy keys off; Google sign-in and 8-digit email codes; settings in `infra/supabase/` |
+| Database and sign-in, staging | Supabase `hrizzup-staging` (`mlccgqxtqmllwbyjfzzm`), Mumbai, Micro, Postgres 17, Pro organisation | Data API off, every table locked by row-level security, encrypted connections only, legacy keys off; Google sign-in and 8-digit email codes; sessions made with a password refused by the access-token hook (since 9 November 2026); settings in `infra/supabase/` |
 | Redis, staging | Upstash `hrizzup-staging`, AWS Mumbai, Fixed 1GB | Eviction on, auto-upgrade off, encrypted connections only (`infra/upstash/check.py`) |
 | Storage | Cloudflare R2, Asia-Pacific: `hrizzup-staging-uploads` and `hrizzup-staging-media` (`media-staging.hrizzup.com`); production's `hrizzup-uploads` and `hrizzup-media` (`media.hrizzup.com`) | `r2.dev` off; CORS and lifecycle rules in `infra/cloudflare/r2/`; image transformations for our own images only |
 | Domain, DNS, bot protection | Cloudflare zone `hrizzup.com`, Free plan, DNSSEC end to end | Full (strict), TLS 1.2 minimum; Turnstile widget "Hrizzup staging" |
@@ -1433,6 +1433,33 @@ Not a problem: the worry that Claude Code could run the script on production. It
 **Checked:**
 - Locally against `main`: no new migrations, `20261103120000_lock_every_table.sql` the newest; a migration dated 1 November failed with "doesn't come after the newest migration on main … rename it to a later timestamp, for example …".
 - **On GitHub:** a throwaway draft pull request, never merged, added `20261101000000_out_of_order_proof.sql` ([#67](https://github.com/Zugzwang-world/hrizzup/pull/67)): its Database check failed at "The database-order check (rename your migration if main has moved past it)" and skipped the rest; then it was closed and its branch deleted.
+
+### Sign-in: email codes, and the access-token hook switched on for staging (PLAN.md step 1.6a; Round 3, relay 5; Claude Code)
+
+**The hook's function** reached staging's database with [#70](https://github.com/Zugzwang-world/hrizzup/pull/70) (the Staging workflow; checked afterwards through Supabase's API, read-only: `auth_hooks.refuse_password_sessions(jsonb)` exists and Supabase Auth's role may run it). **Email codes** reached staging with [#71](https://github.com/Zugzwang-world/hrizzup/pull/71) (staging served `ed8e449`).
+
+**Switched on at 20:16 India time (14:46 UTC),** with Claude Code's own keys (`infra/doppler/run tools stg -- python3 infra/supabase/auth/apply.py staging`), from [#74](https://github.com/Zugzwang-world/hrizzup/pull/74)'s branch before it merged: previews share staging's Supabase, so that pull request's own checks could prove the hook only once staging had it. `--check` beforehand showed only the two differences below, and `apply.py`'s new safeguard found the function ready before sending anything. Afterwards: "matches the repo (34 settings, 4 secrets by fingerprint; sign-in methods on: external_email_enabled, external_google_enabled)". Production is unchanged; it gets the same two settings from the release pipeline, after that release's migrations.
+
+| Setting (Supabase Auth, `hrizzup-staging`) | Before | After |
+|---|---|---|
+| `hook_custom_access_token_enabled` | `false` | `true` |
+| `hook_custom_access_token_uri` | none | `pg-functions://postgres/auth_hooks/refuse_password_sessions` |
+
+**Checked straight away, 30 seconds later:** every sign-in journey against `staging.hrizzup.com` itself, from this Mac, in Chromium and WebKit, 16 of 16 passed:
+- the test account signed in and out (its one-time token arrives as `otp`);
+- an email code signed a reader in and out through staging's own code step: a new reader in Chromium, a returning one in WebKit. Staging's email step has the real bot check, which is for people, so the journey asked for the code as our server does once a person has passed it;
+- Continue with Google led to Google's door, and Supabase allowed the way back;
+- a password sign-in was refused: from the public key, by the bot check (400); past it with the server key, by the hook (403, "Passwords aren't accepted. Sign in with an email code or with Google.");
+- a session made without a password refreshed (`token_refresh`), and its new token answered who-am-I;
+- the typed API's journeys passed.
+
+No good sign-in failed, so the switch-off kept ready beside it (one setting, `hook_custom_access_token_enabled: false`) wasn't needed. Staging is public now, so Vercel gives no protection-bypass cookie for it: the journeys ran against it with staging's keys alone.
+
+**What each sign-in arrives as, found before building:** from Supabase Auth's source, then on a real Supabase Auth on this Mac (the CLI's stack under a scratch name and ports, with a logging copy of the hook): email codes, a new reader's first code and the test accounts' one-time tokens as `otp`; refreshes as `token_refresh`; Google as `oauth` (from the source); a password as `password`, refused, leaving nothing behind (the refusal rolls back Supabase Auth's whole transaction).
+
+**Found:** Supabase gives every account it creates without a password a random one it never shows (the test accounts, made with the server key, have one), so "no password" in these records now reads "no password anyone knows".
+
+**For the founder (about a minute):** sign in once with Google on `https://staging.hrizzup.com/sign-in-test`, then sign out. A test can't sign in to Google; the hook passes Google (its tests, and Supabase Auth's source), and this confirms it with the hook on.
 
 ---
 

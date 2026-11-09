@@ -2,17 +2,16 @@
 
 **This brief replaces Claude Code's report:** read it after **Sync now** instead of asking the founder for one, and attach the files under "Read for detail" from GitHub for more.
 
-> Rewritten 9 November 2026 with relay 7's content store tables (1.9). PLAN.md wins any disagreement.
+> Rewritten 9 November 2026 with relay 5's sign-in (1.6a). PLAN.md wins any disagreement.
 
 **Hrizzup** is a news app built around creators, plus a website with play-money prediction markets: our AI finds news as it breaks on X and turns it into developing stories seen through creators' takes. **Product builds** the website and the app in parallel (the website a stage ahead; Android, then iPhone from the same code) and the markets. It shows the content it receives through the content store's tables, in the shapes of the hand-over agreement (`agreement/README.md`), whose first half is Agreed.
 
 ## Where things stand
 
 - **Staging** (`staging.hrizzup.com`, Mumbai) is public, asking search engines to stay out; previews need Vercel's login and share staging's database; production is a quiet twin.
-- **Built:** a holding page, legal drafts, a sign-in test page, the typed API (health, who am I), a one-screen app on the founder's phone, Manifold's maths (1.7a), the ledger (1.7b; its tables on staging, empty), the hook that will refuse passwords, switched off (1.6a), and **the content store's tables** (1.9), empty.
+- **Built:** a holding page, legal drafts, the typed API (health, who am I), a one-screen app on the founder's phone, Manifold's maths (1.7a), the ledger (1.7b) and the content store (1.9), both empty, and the website's sign-in (1.6a) on its test page: Google and email codes; passwords refused.
 - **Required checks:** Secret, Quick, Database, Screen (with the website's journeys), Speed and App journeys.
-- **Design** restarts in the design chat, from the founder's references and diagrams; no design values exist yet.
-- **Round 3 has started** (the milestone "Round 3"): relays 1 to 12, with 1b, in waves; relays 4, 10 and 11 are cancelled (`TRACKER.md`).
+- **Design** restarts in the design chat, from the founder's references and diagrams.
 
 ## Round 3 progress
 
@@ -28,7 +27,7 @@ One line per relay; each relay keeps only its own line current.
 
 4. **Relay 4, Sourcing's research for step 0.8:** cancelled by the founder (9 November).
 
-5. **Relay 5, step 1.6a, the website's sign-in (wave 2, after 1.8):** [#70](https://github.com/Zugzwang-world/hrizzup/pull/70) added the access-token hook that refuses password sessions, switched off; [#71](https://github.com/Zugzwang-world/hrizzup/pull/71) adds email codes beside Google on the sign-in test page, asked for through our own server, which checks the bot check first, within Supabase's email limits. Next: the hook switched on for staging. Nothing for the founder yet.
+5. **Relay 5, step 1.6a, the website's sign-in (wave 2):** done: the hook that refuses password sessions ([#70](https://github.com/Zugzwang-world/hrizzup/pull/70)), email codes beside Google on the sign-in test page ([#71](https://github.com/Zugzwang-world/hrizzup/pull/71)), and the hook switched on for staging ([#74](https://github.com/Zugzwang-world/hrizzup/pull/74); production at its next release). For the founder: one Google sign-in on staging (below).
 
 6. **Relay 6, step 1.7b, the ledger (wave 2):** done: [#69](https://github.com/Zugzwang-world/hrizzup/pull/69) the tables (on staging, empty), [#73](https://github.com/Zugzwang-world/hrizzup/pull/73) the trade, each one transaction through the app's own database role. For the founder: the app's own database login, before launch (below).
 
@@ -46,53 +45,53 @@ One line per relay; each relay keeps only its own line current.
 
 ## Decisions in force
 
-- **Two surfaces, one account,** built in parallel, the website a stage ahead (`TRACKER.md`): the app (news and social), the website (news and play-money markets); English; India first. **Two tracks:** design in the founder's design chat, engineering in each round's chat, meeting at each feature's contract. Relays run side by side only when independent.
-- **Design (1.4):** only from the founder's references and diagrams, the real sign-in screen included (1.6a proves the flows on the test page); admin-only tools (the market console) use stock components, with no look of their own.
-- **Database changes land first,** each in its own pull request, adding only, in order (1.8's check); previews share staging's database.
-- **The content store (1.9):** the agreement's shapes as tables, its rules as database rules; unused until the pipeline (1.1) and each feature's back end. A change to the agreement's shapes, lists or limits takes its migration in the same pull request.
-- **No xAI API;** Sourcing works in its own project. **Product never uses xAI's or X's API:** content arrives through 1.9's tables; X's own embed (2.3) is display. Product reviews the second half once Sourcing designs it.
-- **Markets:** data, created only by Hrizzup, settled by hand or by our resolver at the close. **The books (1.7b):** double-entry play money in exact decimals, summing to zero, remainders to a house account; one transaction per trade, one at a time per market, a request ID each; never below zero but through a cancel. **Admins (1.7c):** a table only reviewed migrations write, checked by the database on every create, open, close and settle; others get "not found". **1.7d:** list, trade and positions, with the trade call's refusals. **The perp,** on a stand-in price: its back end (3.4a) needs only 1.7d and its first settings; its page (3.4c) follows 3.1. **Money:** no fee at launch; cancelled only when it can't be settled fairly. **Order:** 1.7a and 1.7b (done), 1.7c, 1.7d, then 3.4a and 3.1, then 3.4c; then 1.2 (parked), 3.2a, 3.2b, 3.4b.
-- **Sign-in:** 1.6a the website's, passwordless; 1.6b the app's; Apple with the iPhone (4.3). **Background jobs:** none in Round 3; Sourcing's choice.
-- **Content:** three credited routes; found takes in English only; no money in ranking. **Legal** is the founder's legal team's. Production only through the release pipeline.
+- **Two surfaces, one account,** in parallel, the website a stage ahead: the app (news and social), the website (news and play-money markets); English; India first. Design in the founder's design chat, engineering in each round's chat, meeting at each feature's contract; relays side by side only when independent.
+- **Design (1.4):** only from the founder's references and diagrams, the real sign-in screen included; admin-only tools use stock components.
+- **Database changes land first,** each in its own pull request, adding only, in order (1.8's check).
+- **The content store (1.9):** the agreement's shapes as tables, its rules as database rules; a change to them brings its migration with it.
+- **No xAI or X API in Product:** content arrives through 1.9's tables; X's own embed (2.3) is display. Sourcing works in its own project.
+- **Markets:** created only by Hrizzup, settled by hand or by our resolver; double-entry play money in exact decimals, one transaction per trade (1.7b); admins in a table only reviewed migrations write, everyone else getting "not found" (1.7c); list, trade, positions (1.7d); no fee at launch; cancelled only when it can't be settled fairly. **Order:** 1.7c, 1.7d, then 3.4a and 3.1, then 3.4c; then 1.2 (parked), 3.2a, 3.2b, 3.4b.
+- **Sign-in:** no passwords anywhere; the access-token hook refuses any session made with one. Email codes go through our server, which checks the bot check first. Next, the app's (1.6b); Apple with the iPhone (4.3).
+- **Content:** three credited routes; no money in ranking. **Legal** is the founder's legal team's. No background jobs in Round 3. Production only through the release pipeline.
 
 ## What changed in the latest session
 
-On 9 November 2026, in [#72](https://github.com/Zugzwang-world/hrizzup/pull/72) (relay 7, step 1.9; database changes and tests only):
+On 9 November 2026, relay 5 (1.6a, sign-in):
 
-- **The content store's tables:** stories, updates, sourced items and creations, one row per record and one column per field, so records read back exactly as written; locations, categories and routes as types holding only their codes, shared with the markets (1.7c).
-- **Every agreement rule a database can hold:** one item per post; nothing kept of a post that's gone; merges never chain; up to three locations and categories, the main first; a creation's route follows its author; every field's limits, hidden characters and web addresses' characters included. Rules across records are checked at commit, so a merge can be made in any order; writes only in read committed, Postgres's default.
-- **Tests:** every agreement example reads back unchanged; the database's copies stay in step with the agreement; it and `validate()` agree on every rule. An independent AI review's findings are fixed.
+- **[#70](https://github.com/Zugzwang-world/hrizzup/pull/70), the hook, switched off:** a tiny database function refusing any session made with a password. Found first: email codes, sign-ups and the test accounts' tokens arrive as `otp`, Google as `oauth`, refreshes as `token_refresh`.
+- **[#71](https://github.com/Zugzwang-world/hrizzup/pull/71), email codes:** our server checks the bot check, then asks Supabase for the code, within its email limits; journeys on every preview.
+- **[#74](https://github.com/Zugzwang-world/hrizzup/pull/74), switched on for staging:** at once, 16 of 16 sign-in journeys passed against staging itself, a password refused. `apply.py` now refuses a hook the database can't run.
 
 ## Open questions
 
-- **The ledger's next steps** (1.7b, 1.7c). Recommendations: an admin "cancel a resting order" in 1.7c's console, for a stuck order; yes/no markets only until a topic needs Manifold's multi-answer maths; lock fewer accounts per trade once markets grow.
-- **The pipeline's write access** (1.1; found in 1.9): only its credentials may write the content store. Recommendation: a role of its own, like the app's `hrizzup_app`, that inserts and updates stories, updates and sourced items, never deletes.
-- **A post's address and its handle** (the agreement; found in 1.9): `validate()` doesn't check that they name the same account; the agreement's examples and the database do. Recommendation: add it to `validate()`, with Sourcing's agreement.
-- **A deleted account's posts** (2.4; found in 1.9): for now the database refuses removing an account that has posted. Recommendation: a person's posts go with their account; Hrizzup's own are never deleted.
-- **Creators' X accounts** (2.4; N13): linking needs the creator's opt-in. Recommendation: the link comes with the invitation, which News Desk checks.
-- **The perp's first settings** (3.4a). Recommendation, from Manifold: a price every 5 seconds; 0.1% to open, closing free; hourly funding; a seeded stand-in price; a log of rule changes.
-- **Embedding found posts** (2.3): an X embed is about 330 KB. Recommendation: load each as it nears the screen, behind a placeholder.
-- **In the status file:** the Hermes rewrite; shared code; Turnstile in a web view.
+- **The ledger's next steps** (1.7b, 1.7c). Recommendations: an admin "cancel a resting order"; yes/no markets only for now; lock fewer accounts per trade as markets grow.
+- **The pipeline's write access** (1.1). Recommendation: a role of its own that inserts and updates content, never deletes.
+- **A post's address and handle** (the agreement): `validate()` doesn't check they match. Recommendation: add it, with Sourcing's agreement.
+- **A deleted account's posts** (2.4). Recommendation: they go with the account; Hrizzup's own never do.
+- **Supabase's per-visitor limits count our servers** (1.6a). Recommendation, before launch: pass each visitor's address to Supabase (`Sb-Forwarded-For`), once confirmed safe; meanwhile the firewall limits each visitor.
+- **The app's bot check** (1.6b). Recommendation: the website's server path, the widget in a small web view.
+- **Creators' X accounts** (2.4). Recommendation: the link comes with News Desk's invitation.
+- **The perp's first settings** (3.4a). Recommendation, from Manifold: a price every 5 seconds; 0.1% to open; hourly funding; a seeded stand-in price; a log of rule changes.
+- **Embedding found posts** (2.3): an X embed is about 330 KB. Recommendation: load each near the screen, behind a placeholder.
+- **In the status file:** the Hermes rewrite; shared code.
 
 ## For the founder
 
-- **The perp's opening fee** (a money rule), before the next round. Recommendation: 0.1% of the position on opening, closing free (Manifold's base rate).
-- **Design:** give your references and diagrams in the design chat. Recommendation: the board and a story page first, then the rest feature by feature (the sign-in screen and the perp's page among them).
-- **Spending, not now:** a speed check from India (Calibre, $75 a month) once the board exists; Expo's Maestro job (about $60 a month) only if the emulator proves flaky; a database per pull request only if database-first slows features.
-- **Three decisions, recommended:** posting on the website (2.4): both surfaces; the closed test (2.6): start without News Desk's content; free and paid (2.7): reading and betting free, play money never sold. **Alongside:** the developer accounts (0.4), 12 Google Play testers, News Desk.
-- **A database login of the app's own, before launch:** the app's role stops mistakes, not injected SQL, while the login is `postgres`. Recommendation: its own login, with a password you make in Supabase and keep in Doppler; Claude Code then switches to it.
-- **Parked until launch:** the runbook's pre-launch checklist, with P.16 (your admin row on production).
+- **One Google sign-in on staging (a minute):** `https://staging.hrizzup.com/sign-in-test`, Continue with Google, then sign out. A test can't sign in to Google; this confirms it with the hook on.
+- **The perp's opening fee,** before the next round. Recommendation: 0.1% on opening, closing free.
+- **Design:** your references and diagrams in the design chat; the board and a story page first.
+- **The app's own database login, before launch.** Recommendation: you make its password in Supabase and keep it in Doppler; Claude Code switches to it.
+- **Three decisions, recommended:** posting on both surfaces (2.4); the closed test without News Desk's content (2.6); reading and betting free, play money never sold (2.7). **Alongside:** the developer accounts (0.4), 12 Google Play testers, News Desk.
+- **Spending, not now:** Calibre ($75 a month) once the board exists; Expo's Maestro job (about $60 a month) only if the emulator proves flaky; a database per pull request only if needed.
+- **Parked until launch:** the runbook's pre-launch checklist, with P.16.
 
 ## What's next
 
-Round 3's queue, with nothing added (`TRACKER.md`): relay 3's hardening and relay 5's sign-in still running, relays 6 and 7 done; then 1.7c (8), 1.7d (9) and the closing record (12). The next round starts with the perp's back end (3.4a); then 3.1 and 3.4c, the app's sign-in (1.6b), and the board once 1.4's core screens are approved. Product reviews the second half whenever Sourcing designs it.
+Round 3's queue (`TRACKER.md`): relay 3's hardening; then 1.7c (relay 8), 1.7d (9) and the closing record (12). The next round starts with the perp's back end (3.4a); then 3.1 and 3.4c, the app's sign-in (1.6b), and the board once 1.4's core screens are approved.
 
 ## Read for detail
 
-- `PLAN.md` (sections 2 to 5, 7), `TRACKER.md` (Round 3's queue), `CLAUDE.md` ("Unattended sessions", "Database changes", "Design", "The hand-over agreement").
-- `docs/setup/BLUEPRINT.md` (database, content store, books, admins 5; staging 6; sign-in 9; typed API, console 13; budgets 14), `docs/setup/RUNBOOK.md` (pre-launch checklist).
-- `infra/supabase/content-store.md`: the content store's rules, where each is enforced, and how to write to it.
-- `product/packages/api` (the contract), `product/README.md` (the app's builds).
-- `agreement/README.md`; `agreement/reviews/sourcing-first-half.md` (N12 to N14 are Product's).
-- `product/packages/ledger/README.md` (a trade, the books' rules and their tests); `product/packages/db/README.md` (the server's one way into the database); `product/packages/market-engine/README.md` (the maths); `docs/research/manifold.md` (Manifold's engine and perps).
+- `PLAN.md`, `TRACKER.md`, `CLAUDE.md`; `docs/setup/BLUEPRINT.md` (database 5, staging 6, sign-in 9, typed API 13, budgets 14), `docs/setup/RUNBOOK.md` (pre-launch checklist), `docs/setup.md` (9 November: the hook switched on).
+- `infra/supabase/auth/README.md` (sign-in settings and the hook); `infra/supabase/content-store.md`.
+- `product/packages/` (the contract, ledger, db and market-engine READMEs); `docs/research/manifold.md`; `agreement/README.md`.
 - `docs/status/product.md`: Product's status in full.

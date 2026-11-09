@@ -351,7 +351,7 @@ Production is a twin of staging: the same services, versions, region and setting
     - no Team plan ($599 a month): it would add nothing the hook doesn't;
     - the strict password rules stay on as a fallback (at least 12 characters, leaked passwords refused).
 
-    Built in PLAN.md step 1.6a: the function first, switched off; it is switched on in `infra/supabase/auth/settings.json` (staging by Claude Code, production by the release pipeline, after that release's migrations).
+    Built in PLAN.md step 1.6a: the function first, switched off ([#70](https://github.com/Zugzwang-world/hrizzup/pull/70)), then switched on in `infra/supabase/auth/settings.json` ([#74](https://github.com/Zugzwang-world/hrizzup/pull/74)): on staging since 9 November 2026, on production at its next release, by the release pipeline after that release's migrations. `apply.py` refuses to switch on a hook whose function the environment's database lacks or Supabase Auth can't run, and reports one left on that the repo doesn't switch on. Journeys on every preview prove a password sign-in refused and a session refreshing.
 - **Apple:** Sign in with Apple wherever Google sign-in appears on iPhone.
 - **Turnstile:**
   - one widget per environment: "Hrizzup staging" (Managed mode, `staging.hrizzup.com` and `localhost`) and "Hrizzup production" (`hrizzup.com` and `www`, no `localhost`);
