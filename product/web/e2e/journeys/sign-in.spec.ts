@@ -111,8 +111,13 @@ test('Continue with Google goes to Google for our app, and Supabase allows the w
   verify.searchParams.set('redirect_to', wayBack);
   const answer = await page.request.get(verify.href, { maxRedirects: 0 });
   expect(answer.status()).toBe(303);
+  // Compared as addresses (place, then each parameter), so a re-encoded character can't matter.
+  const address = (href: string) => {
+    const url = new URL(href);
+    return { at: url.origin + url.pathname, with: [...url.searchParams].sort() };
+  };
   expect(
-    answer.headers().location?.split('#')[0],
+    address(answer.headers().location ?? 'about:blank'),
     "Supabase's redirect list allows this site's way back",
-  ).toBe(wayBack);
+  ).toEqual(address(wayBack));
 });
