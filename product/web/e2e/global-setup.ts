@@ -2,6 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import type { FullConfig } from '@playwright/test';
 import { CONSOLE_FIXTURE_MARKET } from './pages.ts';
 import { asBrowserCookie, BYPASS_COOKIE, bypassCookieValue } from './support/bypass.ts';
+import { ensurePlayMoney } from './support/play-money.ts';
 import { adminState, signedInState, signedOutState, statesFolder } from './support/states.ts';
 import {
   ADMIN_TEST_ACCOUNT,
@@ -24,9 +25,10 @@ import {
  *   a run is over long before the session's hour is up), for the console's screen check and
  *   journeys.
  * Outside production it also deletes any account a sign-in journey made for itself that a
- * broken run left behind (support/test-accounts.ts, `sweepJourneyAccounts`), and makes sure the
+ * broken run left behind (support/test-accounts.ts, `sweepJourneyAccounts`), makes sure the
  * console's fixture market exists, settled, for the screen check of a market's page
- * (`ensureFixtureMarket`).
+ * (`ensureFixtureMarket`), and keeps play money on the engines' test accounts for the trading
+ * journeys (support/play-money.ts, `ensurePlayMoney`).
  * The states go in a temporary folder outside the repository (support/states.ts), never
  * uploaded, and deleted when the run ends (global-teardown.ts).
  */
@@ -68,6 +70,8 @@ export default async function globalSetup(config: FullConfig) {
     // The same session, as the website's own cookies, for the console's calls.
     const cookie = admin.map(({ name, value }) => `${name}=${value}`).join('; ');
     await ensureFixtureMarket(baseURL, { ...headers, cookie });
+    // Play money for the engines' test accounts (made above), for the trading journeys.
+    await ensurePlayMoney(Object.values(TEST_ACCOUNTS));
   }
 }
 

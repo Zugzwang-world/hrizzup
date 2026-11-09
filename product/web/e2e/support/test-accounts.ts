@@ -101,10 +101,11 @@ export async function ensureTestAccount(keys: Keys, email: string): Promise<stri
 const JOURNEY = 'delivered+journey-';
 
 /**
- * What a journey's account is for: a reader who signs in with an email code, or the trial of
- * a password sign-in, which must be refused.
+ * What a journey's account is for: a reader who signs in with an email code, the trial of a
+ * password sign-in, which must be refused, or the trial of the trades-a-minute limit, which uses
+ * up a minute of an account's trading.
  */
-export type JourneyPurpose = 'code' | 'password';
+export type JourneyPurpose = 'code' | 'password' | 'trade';
 
 export function journeyAddress(purpose: JourneyPurpose, engine: Engine): string {
   return `${JOURNEY}${purpose}-${engine}-${randomUUID().slice(0, 8)}@resend.dev`;

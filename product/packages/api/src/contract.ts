@@ -8,6 +8,18 @@ import {
   marketPageInput,
   settleMarketInput,
 } from './console.ts';
+import {
+  cancelOrderInput,
+  cancelOrderResult,
+  marketList,
+  ordersPage,
+  ordersPageInput,
+  positionsPage,
+  positionsPageInput,
+  tradeInput,
+  tradeResult,
+  tradingErrors,
+} from './trading.ts';
 
 /**
  * The typed API's contract (PLAN.md step 1.5c; blueprint section 13): every call the website
@@ -101,6 +113,80 @@ export const contract = {
     .errors({ UNAUTHORIZED: { status: 401, message: 'Not signed in' } })
     .input(noInput)
     .output(me),
+
+  /**
+   * The markets, for everyone (PLAN.md step 1.7d; trading.ts). The list is public, kept at Vercel's
+   * edge and cleared by its tag the moment a market changes (a trade moves its price; an admin opens,
+   * closes or settles it). Trading is personal, never kept: a signed-in person buys, sells and places
+   * limit orders, each with a request ID of their own so a retry never trades twice, and cancels a
+   * resting order; at most 30 trading calls a minute each.
+   */
+  markets: {
+    /** The markets anyone may see, newest first, a page at a time, each with its probability now. */
+    list: call
+      .route({
+        method: 'GET',
+        path: '/markets',
+        summary: 'The markets, newest first, with their probabilities',
+        tags: ['public'],
+      })
+      .meta({
+        caching: { kind: 'public', edgeSeconds: 60, staleSeconds: 300, tags: ['markets'] },
+      })
+      .input(marketPageInput)
+      .output(marketList),
+
+    /** Buys or sells, now or as a limit order. Refused before touching the books when it can't trade. */
+    trade: call
+      .route({
+        method: 'POST',
+        path: '/trades',
+        summary: 'Buy or sell in a market, now or as a limit order',
+        tags: ['personal'],
+      })
+      .errors(tradingErrors)
+      .input(tradeInput)
+      .output(tradeResult),
+
+    /** Cancels one of the person's own resting limit orders. */
+    cancelOrder: call
+      .route({
+        method: 'POST',
+        path: '/orders/cancel',
+        summary: 'Cancel a resting limit order',
+        tags: ['personal'],
+      })
+      .errors(tradingErrors)
+      .input(cancelOrderInput)
+      .output(cancelOrderResult),
+  },
+
+  /** The signed-in person's own play money (PLAN.md step 1.7d; trading.ts). Personal, never kept. */
+  portfolio: {
+    /** Their balance, and their positions in markets still open or waiting to be settled. */
+    positions: call
+      .route({
+        method: 'GET',
+        path: '/me/positions',
+        summary: 'Your balance and positions',
+        tags: ['personal'],
+      })
+      .errors({ UNAUTHORIZED: tradingErrors.UNAUTHORIZED })
+      .input(positionsPageInput)
+      .output(positionsPage),
+
+    /** Their resting limit orders, newest first. */
+    orders: call
+      .route({
+        method: 'GET',
+        path: '/me/orders',
+        summary: 'Your open limit orders',
+        tags: ['personal'],
+      })
+      .errors({ UNAUTHORIZED: tradingErrors.UNAUTHORIZED })
+      .input(ordersPageInput)
+      .output(ordersPage),
+  },
 
   /**
    * The market console's calls (PLAN.md step 1.7c; console.ts): admins only, so every market

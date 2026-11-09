@@ -26,6 +26,8 @@ const config: NextConfig = {
     '@hrizzup/api',
     '@hrizzup/agreement',
     '@hrizzup/db',
+    '@hrizzup/ledger',
+    '@hrizzup/market-engine',
     '@hrizzup/markets',
   ],
   poweredByHeader: false,

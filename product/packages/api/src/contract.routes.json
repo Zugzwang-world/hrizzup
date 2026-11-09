@@ -40,6 +40,105 @@
       }
     }
   },
+  "markets": {
+    "list": {
+      "~orpc": {
+        "errorMap": {},
+        "meta": {
+          "caching": {
+            "kind": "public",
+            "edgeSeconds": 60,
+            "staleSeconds": 300,
+            "tags": [
+              "markets"
+            ]
+          }
+        },
+        "route": {
+          "method": "GET",
+          "path": "/markets",
+          "summary": "The markets, newest first, with their probabilities",
+          "tags": [
+            "public"
+          ]
+        }
+      }
+    },
+    "trade": {
+      "~orpc": {
+        "errorMap": {},
+        "meta": {
+          "caching": {
+            "kind": "personal"
+          }
+        },
+        "route": {
+          "method": "POST",
+          "path": "/trades",
+          "summary": "Buy or sell in a market, now or as a limit order",
+          "tags": [
+            "personal"
+          ]
+        }
+      }
+    },
+    "cancelOrder": {
+      "~orpc": {
+        "errorMap": {},
+        "meta": {
+          "caching": {
+            "kind": "personal"
+          }
+        },
+        "route": {
+          "method": "POST",
+          "path": "/orders/cancel",
+          "summary": "Cancel a resting limit order",
+          "tags": [
+            "personal"
+          ]
+        }
+      }
+    }
+  },
+  "portfolio": {
+    "positions": {
+      "~orpc": {
+        "errorMap": {},
+        "meta": {
+          "caching": {
+            "kind": "personal"
+          }
+        },
+        "route": {
+          "method": "GET",
+          "path": "/me/positions",
+          "summary": "Your balance and positions",
+          "tags": [
+            "personal"
+          ]
+        }
+      }
+    },
+    "orders": {
+      "~orpc": {
+        "errorMap": {},
+        "meta": {
+          "caching": {
+            "kind": "personal"
+          }
+        },
+        "route": {
+          "method": "GET",
+          "path": "/me/orders",
+          "summary": "Your open limit orders",
+          "tags": [
+            "personal"
+          ]
+        }
+      }
+    }
+  },
   "admin": {
     "markets": {
       "list": {
