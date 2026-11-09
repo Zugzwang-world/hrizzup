@@ -77,6 +77,7 @@ jobs:
           python3 -m unittest discover -s .github/scripts
           python3 -m unittest discover -s infra/slots
           python3 -m unittest discover -s infra/supabase
+          python3 -m unittest discover -s infra/supabase/auth
 
   database:
     name: Database check

@@ -21,6 +21,12 @@ Turnstile secret is one of Cloudflare's published test keys.
 It prints setting names and non-secret values only. Supabase returns secrets as a keyed
 fingerprint (HMAC-SHA256 with the project ref as the key); they are compared that way in
 memory and never printed, and Supabase's answers are never printed whole.
+
+Before switching on any hook (a database function Supabase Auth calls, such as the one that
+refuses password sessions), it asks the environment's own database, read-only, whether that
+function exists and Supabase Auth may run it, and refuses if not: a hook that can't run stops
+every sign-in. The migrations create hook functions, so they come first (the release pipeline
+applies them before these settings).
 """
 import hashlib
 import hmac
@@ -34,6 +40,9 @@ import urllib.request
 HERE = os.path.dirname(os.path.abspath(__file__))
 PROJECTS = os.path.join(HERE, "..", "project", "settings.json")  # each environment's project
 API = "https://api.supabase.com/v1/projects/{ref}/config/auth"
+QUERY = "https://api.supabase.com/v1/projects/{ref}/database/query"
+# A hook kept in the database: pg-functions://postgres/<schema>/<function>.
+POSTGRES_HOOK = re.compile(r"pg-functions://postgres/([a-z_][a-z0-9_]*)/([a-z_][a-z0-9_]*)")
 # Switches that turn on a way to sign in. Besides these, every external_*_enabled is one.
 SIGN_IN_SWITCHES = {"saml_enabled", "passkey_enabled", "custom_oauth_enabled", "oauth_server_enabled"}
 TURNSTILE_TEST_SECRETS = {
@@ -93,9 +102,9 @@ def guard(ref, env, plain, secrets):
                  "which is what mailer_otp_exp sets")
 
 
-def call(method, ref, body=None, secrets=()):
+def call(method, ref, body=None, secrets=(), url=API):
     data = json.dumps(body).encode() if body is not None else None
-    req = urllib.request.Request(API.format(ref=ref), data=data, method=method, headers={
+    req = urllib.request.Request(url.format(ref=ref), data=data, method=method, headers={
         "Authorization": "Bearer " + os.environ.get("SUPABASE_ACCESS_TOKEN", ""),
         "Content-Type": "application/json",
         "User-Agent": "hrizzup-infra-auth-apply",
@@ -111,7 +120,47 @@ def call(method, ref, body=None, secrets=()):
             message = ""
         if any(s and (s in text or s in message) for s in secrets):
             message = "(Supabase's message quoted a secret, so it isn't shown)"
-        fail(f"{method} auth config: HTTP {err.code} {message[:200]}")
+        what = "auth config" if url == API else "database query"
+        fail(f"{method} {what}: HTTP {err.code} {message[:200]}")
+
+
+def hooks_switched_on(plain):
+    """The hooks settings.json switches on, by name (hook_<name>_enabled: true)."""
+    return sorted(field[len("hook_"):-len("_enabled")] for field, value in plain.items()
+                  if field.startswith("hook_") and field.endswith("_enabled") and value is True)
+
+
+def hook_function(uri):
+    """(schema, function) for a hook kept in the database, or None for any other address."""
+    match = POSTGRES_HOOK.fullmatch(uri or "")
+    return (match.group(1), match.group(2)) if match else None
+
+
+def hook_ready_sql(schema, function):
+    """A read-only question: does schema.function(jsonb) exist, and may Supabase Auth reach its
+    schema and run it? The names are checked against POSTGRES_HOOK first, so nothing else can
+    reach the SQL."""
+    return ("select coalesce((select has_schema_privilege('supabase_auth_admin', "
+            f"'{schema}', 'usage') and has_function_privilege('supabase_auth_admin', f.p, 'execute') "
+            f"from (select to_regprocedure('{schema}.{function}(jsonb)') as p) f "
+            "where f.p is not null), false) as ready")
+
+
+def hook_problems(env, plain, ask):
+    """What stops the switched-on hooks from running in env's database, if anything.
+    `ask(sql)` runs one read-only query there and returns its rows."""
+    problems = []
+    for hook in hooks_switched_on(plain):
+        target = hook_function(plain.get(f"hook_{hook}_uri"))
+        if target is None:
+            problems.append(f"hook_{hook}_uri must be pg-functions://postgres/<schema>/<function>")
+            continue
+        rows = ask(hook_ready_sql(*target))
+        if not (rows and rows[0].get("ready") is True):
+            problems.append(f"hook {hook}: {target[0]}.{target[1]}(jsonb) is missing from {env}'s "
+                            "database, or Supabase Auth may not run it; switched on, it would stop "
+                            "every sign-in (apply the migrations first)")
+    return problems
 
 
 def secret_matches(ref, live, value):
@@ -121,6 +170,11 @@ def secret_matches(ref, live, value):
     live = (live or "").encode()
     keyed = hmac.new(ref.encode(), value.encode(), hashlib.sha256).hexdigest().encode()
     return hmac.compare_digest(live, keyed) or hmac.compare_digest(live, value.encode())
+
+
+def hook_switch(field):
+    """A switch that turns on one of Supabase Auth's hooks (hook_<name>_enabled)."""
+    return field.startswith("hook_") and field.endswith("_enabled")
 
 
 def sign_in_switch(field):
@@ -141,6 +195,10 @@ def compare(ref, live, plain, secrets):
     for field in sorted(k for k, v in live.items() if sign_in_switch(k) and v is True):
         if plain.get(field) is not True:
             problems.append(f"{field}: a sign-in method that is on in Supabase but not in the repo")
+    for field in sorted(k for k, v in live.items() if hook_switch(k) and v is True):
+        if plain.get(field) is not True:
+            problems.append(f"{field}: a hook that is on in Supabase but not in the repo "
+                            "(to switch one off, set it to false here; leaving it out changes nothing)")
     return problems
 
 
@@ -157,6 +215,10 @@ def main():
         fail("SUPABASE_ACCESS_TOKEN is not set")
     guard(ref, env, plain, secrets)
     hidden = list(secrets.values()) + [os.environ["SUPABASE_ACCESS_TOKEN"]]
+    blocked = hook_problems(
+        env, plain, lambda sql: call("POST", ref, {"query": sql}, hidden, url=QUERY))
+    if blocked:
+        fail("; ".join(blocked))
     if not check_only:
         call("PATCH", ref, {**plain, **secrets}, hidden)
         print(f"{env}: sent {len(plain)} settings and {len(secrets)} secrets to project {ref}")
