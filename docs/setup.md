@@ -19,7 +19,7 @@
 | Email | Proton on `hrizzup.com` (`hrishikesh@hrizzup.com`; DMARC reports to Cloudflare's DMARC Management); Resend's sending domain `mail.hrizzup.com`, Tokyo region | Sign-in codes come from `no-reply@mail.hrizzup.com` |
 | Google sign-in | Google Cloud project `hrizzup` (`hrizzup-513610`), owned by the Hrizzup Google account; consent screen in Testing; client "Hrizzup staging" | Production's own project comes with P.0 |
 | Secrets | Doppler, free Developer plan: project `hrizzup` (`dev`, `stg`, `stg_preview`, `prd`) and `hrizzup-tools` (`claude`) | `stg` syncs to Vercel's staging, `stg_preview` to previews. Claude Code uses four service tokens kept in this Mac's keychain, none of which can open `prd`; no personal login is saved on this Mac |
-| Automation | GitHub Actions: Checks, Secret check, Staging, Release (started by hand), Reminders (daily). Environments `hrizzup-staging` and `hrizzup-production` (`main` only) | The release pipeline's environment holds no token yet (P.0) |
+| Automation | GitHub Actions: Checks, Secret check, App journeys, Staging, Release (started by hand), Reminders (daily), Tool cache (after a merge that can change a pin, Mondays, by hand). Environments `hrizzup-staging` and `hrizzup-production` (`main` only) | The release pipeline's environment holds no token yet (P.0) |
 | Codebase | `product/web` (Next.js website), `product/app` (empty Expo app), `product/packages` (shared code), `infra/` (migrations and service settings) | pnpm 11, Turborepo with Vercel's Remote Cache, Biome, TypeScript 6, Vitest, Playwright, Supabase CLI |
 | Plan and rules | `PLAN.md`, `CLAUDE.md`, `docs/setup/` (blueprint, runbook, retirement list), `docs/status/`, `docs/brief/` | The three briefs are the thinking projects' only knowledge from the repo, rewritten at the end of every session. A daily routine to catch a missed one is ready in `infra/claude/` but off (founder's decision) |
 
@@ -1350,6 +1350,13 @@ Not a problem: the worry that Claude Code could run the script on production. It
 - **Pre-launch checklist:** one item joined it, P.16 (the founder's admin row on production, after his first sign-in there). Nothing was set on production or on any service.
 - **GitHub:** [#60](https://github.com/Zugzwang-world/hrizzup/pull/60) is in the milestone "Round 3" (number 8), which existed already.
 - **Where the decisions went:** database changes first, admins' migrations and the console's place in the design rule (CLAUDE.md); the order of work, with new step 1.9 and the changed steps 0.8, 1.1, 1.6a, 1.7b to 1.7d, 1.8 and 3.1 (PLAN.md); the markets' books, admins, the content store's tables, the console and background jobs (blueprint sections 5, 6, 9 and 13); Round 3's queue (`TRACKER.md`, the Product brief).
+
+### The checks' downloads: pinned, cached and retried (Round 3, relay 3, Claude Code)
+
+- **Why:** GitHub's incident on 9 November 2026, "Increased timeouts due to surge in anonymous users" (05:59 to 09:09 UTC), answered anonymous release downloads with 504 errors; signed-in requests were unaffected. Five check attempts failed downloading gitleaks or Maestro anonymously between 07:40 and 08:14 UTC ([#63](https://github.com/Zugzwang-world/hrizzup/pull/63) lists them).
+- **Set:** `.github/scripts/tools.py` pins every downloaded file (gitleaks 8.30.1, Maestro 2.12.1, the Android emulator 37.2.13 build 16740729, its system image API 34 Google APIs x86_64 r14), each with its SHA-256; the Android files' SHA-1 sums match Google's published ones, gitleaks' and Maestro's SHA-256 their publishers' checksum files. New workflow **Tool cache** (`.github/workflows/tools.yml`) keeps them, Playwright's browsers, the database's Docker images and pnpm's store in GitHub's Actions cache from `main`; the checks only read it. Downloads go through GitHub's API with the job's own token and are retried after a pause.
+- **Changed in App journeys:** the `android-emulator-runner` action is gone; `product/app/journeys/emulator.sh` boots the pinned emulator. Its snapshot cache key is now `emulator-snapshot-pixel_7-<emulator>-<system image>-v2`.
+- **Checked:** [#63](https://github.com/Zugzwang-world/hrizzup/pull/63)'s own checks, and the Tool cache workflow's first run on `main`.
 
 ---
 

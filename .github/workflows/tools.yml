@@ -1,0 +1,165 @@
+# Hrizzup: keeps every tool the checks download in GitHub's cache, from main.
+#
+# GitHub lets every pull request read the caches main saved, but not those another pull request
+# saved, and the checks only read them (so pull requests never fill GitHub's 10 GB with copies).
+# This workflow is what fills them, each under a key made from the tool's pin
+# (.github/scripts/tools.py):
+#   - the packages: pnpm's whole store, by the lockfile (the key setup-node's cache uses);
+#   - the pinned files: gitleaks (the Secret check), Maestro, the Android emulator and its
+#     system image (App journeys), each by its version and checksum;
+#   - Playwright's browsers (the Screen check), by Playwright's version;
+#   - the database's Docker images (the Database check), by the Supabase CLI's version.
+# Each job first asks the cache whether its key is there, without downloading it, and does
+# nothing more if it is. Otherwise it downloads the tool the way the checks would (from GitHub
+# signed in with the job's token, retried after a pause, checksums checked) and saves it.
+#
+# It runs after a merge that can change a pin, every Monday (GitHub drops a cache nobody has
+# read for a week, and the oldest ones first when the repository's 10 GB are full), and by hand.
+
+name: Tool cache
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/**
+      - .github/scripts/tools.py
+      - pnpm-lock.yaml
+      - infra/supabase/config.toml
+  schedule:
+    - cron: "30 3 * * 1" # Mondays, 09:00 India time
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tool-cache-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  packages:
+    name: The packages (pnpm's store, by the lockfile)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      # setup-node saves pnpm's store at the end of the job when its key isn't cached yet. This
+      # install is a whole one, so the store it saves holds every package the checks need.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+  pinned:
+    name: ${{ matrix.tool }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        tool: [gitleaks, maestro, android-emulator, android-system-image]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: The pin
+        id: pin
+        env:
+          TOOL: ${{ matrix.tool }}
+        run: python3 .github/scripts/tools.py key --plain "$TOOL" >> "$GITHUB_OUTPUT"
+      - name: Already in GitHub's cache?
+        id: cached
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.pin.outputs.file }}
+          key: ${{ steps.pin.outputs.key }}
+          lookup-only: true
+      - name: Download it (signed in from GitHub, retried after a pause, checksum checked)
+        if: steps.cached.outputs.cache-hit != 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TOOL: ${{ matrix.tool }}
+        run: python3 .github/scripts/tools.py fetch "$TOOL"
+      - name: Keep it in GitHub's cache
+        if: steps.cached.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.pin.outputs.file }}
+          key: ${{ steps.pin.outputs.key }}
+
+  browsers:
+    name: Playwright's browsers (by its version)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+      - run: pnpm install --frozen-lockfile --filter @hrizzup/web
+      - name: The cache key (Playwright's version)
+        id: pin
+        run: python3 .github/scripts/tools.py key browsers >> "$GITHUB_OUTPUT"
+      - name: Already in GitHub's cache?
+        id: cached
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.pin.outputs.browsers_file }}
+          key: ${{ steps.pin.outputs.browsers_key }}
+          lookup-only: true
+      - name: Download Chromium and WebKit (retried after a pause)
+        if: steps.cached.outputs.cache-hit != 'true'
+        working-directory: product/web
+        run: python3 ../../.github/scripts/tools.py retry -- pnpm exec playwright install chromium webkit
+      - name: Keep them in GitHub's cache
+        if: steps.cached.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.pin.outputs.browsers_file }}
+          key: ${{ steps.pin.outputs.browsers_key }}
+
+  database-images:
+    name: The database's images (by the Supabase CLI's version)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+      - run: pnpm install --frozen-lockfile --filter @hrizzup/database
+      - name: The cache key (the Supabase CLI's version)
+        id: pin
+        run: python3 .github/scripts/tools.py key database-images >> "$GITHUB_OUTPUT"
+      - name: Already in GitHub's cache?
+        id: cached
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.pin.outputs.database_images_file }}
+          key: ${{ steps.pin.outputs.database_images_key }}
+          lookup-only: true
+      # The Database check's own command, so the CLI pulls exactly the images that check uses
+      # (it retries a pull, and tries another registry); the tests run along the way.
+      - name: Start the database and run its tests, pulling the images
+        if: steps.cached.outputs.cache-hit != 'true'
+        run: pnpm --filter @hrizzup/database run test:db
+      - name: Keep the images for the cache
+        if: steps.cached.outputs.cache-hit != 'true'
+        run: python3 .github/scripts/tools.py database save
+      - name: Keep them in GitHub's cache
+        if: steps.cached.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.pin.outputs.database_images_file }}
+          key: ${{ steps.pin.outputs.database_images_key }}
