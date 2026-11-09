@@ -492,7 +492,7 @@ Last updated: 10 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/bri
     - "Only the founder" is a job in the release workflow, not a required reviewer on `hrizzup-production`: only the founder has write access, GitHub offers reviewers on Pro only while public, and it would add a click to every release.
     - Pinning every action to a commit is kept by the new test, not by GitHub's repository setting, which could hold Dependabot's own workflows to it too.
     - An outside contributor's pull request waits for approval whoever they are ("all outside contributors"), the strictest choice.
-    - After the switch, the open pull requests' failed checks were re-run; when #86 then made relay 3's #65 conflict in the records, relay 13 merged `main` into it (both sides kept; relay 3's session was idle) and re-ran its Speed check once (the console's create page at its budget's edge), and #65 merged. #84 and #85 wait for relay 3: #84's code conflicts with #65's merged version.
+    - After the switch ([#88](https://github.com/Zugzwang-world/hrizzup/pull/88)), the open pull requests' failed checks were re-run; when #86 then made relay 3's #65 conflict in the records, relay 13 merged `main` into it (both sides kept; relay 3's session was idle) and re-ran its Speed check once (the console's create page at its budget's edge), and #65 merged. #84 and #85 wait for relay 3: #84's code conflicts with #65's merged version.
 
 ## Next
 

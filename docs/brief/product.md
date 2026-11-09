@@ -43,7 +43,7 @@ One line per relay; each relay keeps only its own line current.
 
 12. **Relay 12, the round's closing record (last):** not started.
 
-13. **Relay 13, the repository public until launch:** done, [#86](https://github.com/Zugzwang-world/hrizzup/pull/86): no key in any ref's history; past check logs and artifacts deleted; workflows safe for it; only collaborators open pull requests and issues or comment; secret scanning with push protection on; the checks run again. Nothing for the founder (your personal details: in the session).
+13. **Relay 13, the repository public until launch:** done, [#86](https://github.com/Zugzwang-world/hrizzup/pull/86) and [#88](https://github.com/Zugzwang-world/hrizzup/pull/88) (what the switch turned up): no key in any ref's history; past check logs and artifacts deleted; workflows safe for it; only collaborators open pull requests and issues or comment; secret scanning with push protection on; the checks run again. Nothing for the founder (your personal details: in the session).
 
 ## Decisions in force
 
