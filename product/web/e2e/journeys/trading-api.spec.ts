@@ -179,11 +179,12 @@ test.describe('the markets for everyone', () => {
       return item?.probability === probAfter ? item : undefined;
     });
     expect(refreshed, "the list shows the trade's price").toBeTruthy();
+    const refreshedAfter = (Date.now() - tradedAt) / 1000;
     if (onVercel()) {
-      const waited = (Date.now() - tradedAt) / 1000;
-      expect(waited + ageAtHit, 'refreshed before the old copy would have expired').toBeLessThan(
-        EDGE_SECONDS,
-      );
+      expect(
+        refreshedAfter + ageAtHit,
+        'refreshed before the old copy would have expired',
+      ).toBeLessThan(EDGE_SECONDS);
     }
 
     // The same request again answers the same, and trades nothing more.
@@ -341,6 +342,9 @@ test.describe('the markets for everyone', () => {
       return item?.market.state === 'settled' ? item : undefined;
     });
     expect(done).toMatchObject({ market: { result: 'yes' }, probability: null });
+    console.log(
+      `DONE-TEST (${browserName}, ${environment()}): market ${id}: listed; bought Ṁ10 of Yes (50% to ${(Number(probAfter) * 100).toFixed(2)}%), retried, sold half, a limit order rested and was cancelled; bad inputs refused; the list ${onVercel() ? `was served from the edge (copy ${ageAtHit} s old) and refreshed ${refreshedAfter.toFixed(1)} s after the trade` : 'read (no edge here)'}; settled Yes: ${decimal(kept)} to the trader, ${decimal(heldAtClose - kept)} to the house, all ${decimal(heldAtClose)} it held`,
+    );
     await admin.dispose();
     await trader.dispose();
   });
