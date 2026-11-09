@@ -8,7 +8,7 @@ Hrizzup is a news app built around creators, plus a website with play-money pred
 
 **Codebase (decided 3 November 2026, PLAN.md step 1.5):** pnpm 11 workspaces with Turborepo (Vercel Remote Cache), Biome for formatting and lint, TypeScript 6, Vitest for unit tests, Playwright for screens, and the Supabase CLI for migrations. `pnpm check` runs the quick checks on this Mac. New packages wait 3 days after release before they can be installed (`pnpm-workspace.yaml`).
 
-**Repository:** [github.com/Zugzwang-world/hrizzup](https://github.com/Zugzwang-world/hrizzup), private, in the founder's personal GitHub account on GitHub Pro.
+**Repository:** [github.com/Zugzwang-world/hrizzup](https://github.com/Zugzwang-world/hrizzup), in the founder's personal GitHub account on GitHub Pro, **public until launch** (founder's decision, 10 November 2026; see "While the repository is public", below), then private again (runbook, pre-launch checklist, P.17).
 
 ## Working with the founder
 
@@ -82,6 +82,16 @@ In that session's pull request:
 - **After changing a definition, a list or an example,** run `pnpm --filter @hrizzup/agreement readme` and `pnpm --filter @hrizzup/agreement types`: the README's tables and the TypeScript types are written from the definitions, and the check (in Quick checks) fails when either differs.
 - **The content store's tables follow the agreement** (PLAN.md step 1.9; `infra/supabase/content-store.md` lists each rule and where it's enforced). A change to a shape's fields, a list's codes, a pattern, a value list or a limit takes its migration in the same pull request, adding only, like every database change: the Database check fails until the database holds exactly what the agreement says.
 
+## While the repository is public (founder's decision, 10 November 2026)
+
+The repository is public until launch, because GitHub's checks are free on public repositories; it goes private again before launch (runbook, pre-launch checklist, P.17).
+
+- **Every file, pull request, comment and check log is public, so nothing secret or personal goes into any of them.** Keys stay in Doppler, as always. That covers commit messages, branch names, issues, check logs, job summaries and artifacts too: a report for the founder that must name something personal goes to him in the session itself, never into the repository.
+- **Every value a job fetches is masked before anything can print it.** Doppler's action masks each key except one marked "unmasked" in Doppler, so no key is ever marked that way; `infra/doppler/named_keys.py` and `infra/supabase/database_url.py` mask what they fetch or build.
+- **Outsiders can read and fork, nothing more:** only collaborators can open pull requests and issues, an interaction limit keeps everyone else from commenting (six months at a time, renewed from a reminder in `.github/reminders.json`), a fork's pull request runs no workflow until the founder approves it and never gets a key (GitHub's rule for forks; Vercel's fork protection for previews).
+- **The workflows stay safe for it** (`.github/scripts/test_public_repo.py`, in Quick checks): no `pull_request_target` or `workflow_run`, every action pinned to a commit, every workflow's token rights written down, outside text reaching scripts only through `env:`, GitHub's own machines only, and only the founder can release. The repository's default token is read-only.
+- **GitHub's secret scanning with push protection is on** while the repository is public, on top of the secret check: a push holding a known kind of key is refused. If either ever fires on a real key, the key is replaced at its service (the founder's to do), not just deleted.
+
 ## How changes land (from now on, including staging)
 
 - **Every change goes on its own branch and pull request.** Never commit to `main` directly; GitHub refuses it anyway.
@@ -105,7 +115,7 @@ Label every change with its size at the start of the commit message and the pull
 ## Production is off-limits to Claude Code
 
 - **Claude Code never reads, holds or uses production keys.** It never opens Doppler `prd`, never connects to production's database or services, and never creates, copies or moves a production key, not even "without showing it".
-- **Production is changed only by the release pipeline,** which gets its own production credentials in runbook Part 10. Claude Code builds and tests the pipeline in the repo and on staging. The founder starts each release; Claude Code starts the pipeline only when the founder says "release".
+- **Production is changed only by the release pipeline,** which gets its own production credentials in runbook Part 10. Claude Code builds and tests the pipeline in the repo and on staging. The founder starts each release; Claude Code starts the pipeline only when the founder says "release". Only the founder can: the pipeline's first job stops any run not started by the repository's owner, his own account (founder's decision, 10 November 2026).
 - **Tools that also reach production are never used on it:** the Cloudflare key (it covers the whole `hrizzup.com` zone and every R2 bucket), the Vercel token and login (one project for all environments) and the founder's own logins on this Mac. Claude Code checks production only from the outside (public addresses) and through the pipeline's reports.
 - **Project-wide Vercel settings also cover production** (`infra/vercel/`: the project, its domains and the firewall). Claude Code applied them in Part 9, before production had keys or data, together with the one-time promotion of the holding page. From Part 10 on, a change there that touches production goes through the release pipeline; `apply.py --check` stays safe to run at any time.
 - **Production's storage was the last such exception:** on the founder's instruction, Claude Code created production's R2 buckets (`hrizzup-uploads`, `hrizzup-media`), `media.hrizzup.com` and their rules on 3 November 2026, before production had keys or data. From then on, production's storage settings are applied only by the release pipeline (`infra/cloudflare/r2/apply.py production`), and Claude Code's Cloudflare key is never used on production names or buckets.

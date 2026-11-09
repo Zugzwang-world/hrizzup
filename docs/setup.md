@@ -8,7 +8,7 @@
 
 | What | Where | Notes |
 |---|---|---|
-| Code, settings and records | [github.com/Zugzwang-world/hrizzup](https://github.com/Zugzwang-world/hrizzup), private, in the founder's account (GitHub Pro) | Ruleset `main`: four required checks (Secret check, Quick checks, Database check, Screen check), squash merges only, no force-push or deletion. Ruleset `staging`: only the Staging workflow moves `staging`. Milestones for Phases 0 (closed) to 5 |
+| Code, settings and records | [github.com/Zugzwang-world/hrizzup](https://github.com/Zugzwang-world/hrizzup), in the founder's account (GitHub Pro); public until launch since 10 November 2026, then private again (runbook P.17) | Ruleset `main`: four required checks (Secret check, Quick checks, Database check, Screen check), squash merges only, no force-push or deletion. Ruleset `staging`: only the Staging workflow moves `staging`. Milestones for Phases 0 (closed) to 5 |
 | Website, staging | `staging.hrizzup.com`: Vercel project `hrizzup` (Pro team), functions in Mumbai (`bom1`) | Built once per merge, after that merge's migrations (Staging workflow); behind a Vercel login |
 | Website, previews | A Vercel preview link on every pull request | Complete working copies: staging's data and keys (`stg_preview`), Turnstile's test keys, Google sign-in through staging's relay |
 | Website, production | `hrizzup.com` (`www` redirects to it) | The holding page with draft privacy and terms, promoted once (3 November 2026). Every merge makes a hidden production build; only the release pipeline changes what's live |
@@ -1460,6 +1460,39 @@ No good sign-in failed, so the switch-off kept ready beside it (one setting, `ho
 **Found:** Supabase gives every account it creates without a password a random one it never shows (the test accounts, made with the server key, have one), so "no password" in these records now reads "no password anyone knows".
 
 **For the founder (about a minute):** sign in once with Google on `https://staging.hrizzup.com/sign-in-test`, then sign out. A test can't sign in to Google; the hook passes Google (its tests, and Supabase Auth's source), and this confirms it with the hook on.
+
+---
+
+## 10 November 2026
+
+### The repository made ready to go public (Round 3, relay 13; the founder's decision of 10 November 2026; Claude Code)
+
+**Why:** GitHub's included Actions minutes ran out on 9 November 2026 (from 19:41 UTC every job was refused before it started), and checks are free on public repositories. So the repository is public until launch, then private again with the checks' minutes decided (runbook, pre-launch checklist, P.17). The founder changes the visibility himself; Claude Code never does.
+
+**Keys in the history: none.** gitleaks 8.30.1 with the Secret check's settings (its default rules, `--redact`) on a mirror of every ref on GitHub: 5 branches, no tags, 85 pull requests' heads and 3 merge refs (288 commits): no leaks. Then the 83 commits that force-pushes left behind, which GitHub still shows to anyone with their address (found through the pull requests' timelines, the repository's push events and their parents, read through GitHub's API): two findings, both the same Firebase image token inside a code comment that Manifold's open-source code carries (an avatar's address on Manifold's own development project, in a market example in `calculate-cpmm-arbitrage.ts`), dropped when that branch was rewritten on 8 November 2026. Not a Hrizzup key: nothing to replace. Pull requests' titles and descriptions, every comment and every commit message: no leaks.
+
+**Past check runs, scanned, then deleted:** gitleaks over every run's logs first (620 runs, 2,247 log files): no leaks. Every app key showed as `***` wherever a step listed it; the only fetched values shown were Doppler's own three labels (the project's and config's names, which this repository names anyway). One artifact of each kind (screenshots, Lighthouse's reports, the app's journeys) held no token either. Then, through GitHub's API: every run's logs deleted (620 of 620) and every artifact (154 of 154, about 1 GB). The runs themselves stay, so the release pipeline still sees which commits passed staging.
+
+**Set through GitHub's API, each read back:**
+
+| Setting | Before | After |
+|---|---|---|
+| The workflows' default token | read and write | read only (every workflow already sets its own) |
+| Actions may approve pull requests | yes | no |
+| Who can open pull requests | everyone | collaborators only |
+| Who can open issues | everyone | collaborators only |
+
+GitHub allows the rest only on a public repository, so it's applied the moment the repository turns public: the interaction limit (collaborators only, six months, the longest GitHub allows, with a reminder to renew it), approval before any workflow runs for an outside contributor's pull request, and secret scanning with push protection.
+
+**Workflows, checked one by one:** none runs on `pull_request_target` or `workflow_run`, so no workflow runs a fork's code with our keys; a fork's pull request gets no secrets, a read-only token and no OIDC token, so it can't reach Doppler, the environments or the Remote Cache; every action is pinned to a commit, each a plain JavaScript action with no actions inside it; the checks' caches hold tools and packages, no keys. Every key a job fetches is masked: Doppler's action masks each value unless Doppler marks it "unmasked" (none is in `stg` or `stg_preview`, checked by name and visibility only; Claude Code can't see `prd_release`), the Remote Cache's action masks its two tokens, and `database_url.py` masks the addresses it builds. New: the release workflow's first job, "Only the founder", stops any run that the repository's owner (the founder's account) didn't start, and `.github/scripts/test_public_repo.py` (Quick checks) keeps all of this true.
+
+**Vercel:** fork protection is on (`gitForkProtection`, checked with `infra/vercel/apply.py --check`, read only): a fork's pull request gets a preview only after a team member authorises it.
+
+**Who can write:** only the founder. The three helpers' invitations of 2 November 2026 expired unaccepted.
+
+**Dependabot:** alerts on, unaffected. Its security updates have failed on every run so far (at `update_files`, on the pnpm workspace), so it has never opened a pull request here; GitHub's documentation doesn't say whether "collaborators only" lets it open one.
+
+**Personal details:** listed for the founder in the session, not here, since this log is public.
 
 ---
 
