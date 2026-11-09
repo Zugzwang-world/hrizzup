@@ -35,7 +35,7 @@ One line per relay; each relay keeps only its own line current.
 
 8. **Relay 8, step 1.7c, markets as data and the console:** done ([#75](https://github.com/Zugzwang-world/hrizzup/pull/75), [#76](https://github.com/Zugzwang-world/hrizzup/pull/76), [#77](https://github.com/Zugzwang-world/hrizzup/pull/77), [#78](https://github.com/Zugzwang-world/hrizzup/pull/78); the done-test on staging, [#79](https://github.com/Zugzwang-world/hrizzup/pull/79)). Nothing for the founder: you're an admin on staging (below).
 
-9. **Relay 9, step 1.7d, list, trade and positions (after 1.7c):** not started.
+9. **Relay 9, step 1.7d, list, trade and positions (after 1.7c):** in progress: [#80](https://github.com/Zugzwang-world/hrizzup/pull/80), the database's reads (the market list anyone may see; a signed-in person's holdings, positions and open orders). Next: the typed API's calls, with the trade call's refusals, a per-person trade limit and the list kept at the edge; then the done-test on a preview. Nothing for the founder.
 
 10. **Relay 10, Sourcing's test bot run and the second half's draft:** cancelled by the founder (9 November).
 
