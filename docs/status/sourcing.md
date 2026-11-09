@@ -1,6 +1,6 @@
 # Sourcing: status
 
-Last updated: 9 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/brief/sourcing.md](../brief/sourcing.md). Code: [sourcing/](../../sourcing/). Hand-over agreement: [agreement/README.md](../../agreement/README.md).
+Last updated: 10 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/brief/sourcing.md](../brief/sourcing.md). Code: [sourcing/](../../sourcing/). Hand-over agreement: [agreement/README.md](../../agreement/README.md).
 
 ## Done
 
@@ -57,12 +57,17 @@ Last updated: 9 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/brie
   - **background jobs:** none in Round 3; the choice stays Sourcing's, made in this project;
   - **Product has nothing to do with xAI's API or X's API:** it receives what goes on the product, in the agreement's shapes, through the content store's tables (1.9); showing a found post as X's own embed (2.3) is display;
   - **unchanged:** the agreement's rules, including how its second half is agreed: Sourcing designs it, Product reviews and agrees it, and it's Agreed only after a real test result, with news and takes, passes the agreement's checks.
+- **Round 3's close: the founder's decisions of 10 November 2026** ([#89](https://github.com/Zugzwang-world/hrizzup/pull/89), Round 3, relay 12, records only). For Sourcing:
+  - **the agreement's market gets a second version before step 3.3** (settled in the Product chat): market/1 can't describe a market settled at a set probability, so such a market stays off Product's public list until market/2, which step 3.3 (linking markets and news) now needs. Product drafts it; as a new format version of the first half, Sourcing agrees it, with the founder approving in News Desk's place. Nothing Sourcing writes, reads or checks changes;
+  - **the perp's checks run every 5 seconds on Supabase Cron** (step 3.4a, now in Round 4's queue), so the background-jobs choice still needn't cover them; nothing in Round 4's queue needs that choice;
+  - **for Product only:** market settings follow Manifold's defaults unless the plan sets them, and the perp's first settings; the website's sign-in done (1.6a); the app's sign-in and its writes through staging's firewall (1.6b); Round 3 closed, and Round 4's queue (the perp, the app's sign-in, the console's speed fix; then the market page, the perp's page and the board, once their designs are approved).
 
 ## Next
 
 1. **Grok and the route (step 0.8), in this project, on its own schedule:** choose the Grok product and plan that run the bots, and the route that brings their results to our pipeline, with no xAI API; the founder sets them up, with Claude Code. Done when a test bot's result arrives by that route.
 2. **Design the agreement's second half:** the bots' result format, carrying news and creators' takes, with what the pipeline needs to keep each find as a sourced item; the proof that a result came from our own bot by that route; and when alerts fire. Product reviews it. Agreed only after a real result from the test bot, with news and takes, passes the agreement's own checks, and only through a change the founder asks for.
 3. **News pipeline, first version (step 1.1):** the bots read X on a schedule and send results in the agreed format; the pipeline receives them automatically, by 0.8's route, keeps what passes its checks in the sourced pool, writes updates from the news, groups them into stories with timelines, tags locations and categories, and saves them to the content store's tables (step 1.9). Needs both halves, 0.8 and 1.9. Done when stories appear and update on their own on staging, and the takes the bots find wait in the sourced pool, each linked to its story.
+4. **When Product drafts it, agree the agreement's market/2** (before step 3.3): a new format version of the first half's market, so a market settled at a set probability can be described. It changes nothing Sourcing writes, reads or checks.
 
 ## Open questions
 
