@@ -1335,7 +1335,7 @@ Not a problem: the worry that Claude Code could run the script on production. It
 - **The names check passes:** `python3 infra/doppler/dev_follows_staging.py check` reports `stg`, `stg_preview` and `dev` holding only the 21 app keys and none of `hrizzup-tools`' names, and `dev` following staging (20 references, 1 override).
 - **Not checked by Claude Code:** step 5, the old token deleted in Expo, since the old value is gone from Doppler. Staging and preview builds made between 22:28 on 8 November and this morning still carry the old value in their settings; once Expo has deleted it, those copies no longer work.
 - **Changed:** the app's build command reads the token from `hrizzup-tools` (`infra/doppler/run tools`, `product/README.md`). The runbook's step 4.6 now names Doppler's rows as the dashboard shows them ("Claude Code" in `hrizzup-tools`, "Staging" in `hrizzup`).
-- **Next:** the Doppler names check in the Staging workflow and the Screen check ([#54](https://github.com/Zugzwang-world/hrizzup/pull/54)) can merge, since `stg` now holds only the app's keys.
+- **Then:** the Doppler names check went into the Staging workflow (its step 0) and the Screen check, which now run it before they load `stg` or `stg_preview` ([#54](https://github.com/Zugzwang-world/hrizzup/pull/54)), since `stg` holds only the app's keys.
 
 ---
 
