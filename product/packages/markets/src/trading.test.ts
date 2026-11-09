@@ -85,6 +85,12 @@ describe('the whole check before the books', () => {
     expect(checkBefore(limit('2026-11-10T00:00:00.001Z'), held, NOW)).toBeUndefined();
   });
 
+  it("checks in the books' own order: a closed market is refused as such, whatever its expiry", () => {
+    expect(
+      checkBefore(limit('1970-01-01T00:00:00Z'), { ...held, state: 'closed' }, NOW),
+    ).toMatchObject({ kind: 'refused', reason: 'market_not_open' });
+  });
+
   it("refuses what the books would, with the books' reason", () => {
     expect(checkBefore(buy('100.5'), held, NOW)).toMatchObject({
       kind: 'refused',

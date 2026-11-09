@@ -226,13 +226,15 @@ export function checkBefore(
   now: number = Date.now(),
 ): TradingError | undefined {
   if (held.answered) return undefined;
+  // In the books' own order: their refusals first, then the order's expiry.
+  const reason = refusalBefore(input, held, now);
+  if (reason) return refused(reason);
   if (input.action === 'buy' && input.expiresAt !== undefined) {
     if (Date.parse(input.expiresAt) <= now) {
       return new TradingError('invalid', 'An expiry must be in the future');
     }
   }
-  const reason = refusalBefore(input, held, now);
-  return reason ? refused(reason) : undefined;
+  return undefined;
 }
 
 /** The trade as the ledger takes it. */
