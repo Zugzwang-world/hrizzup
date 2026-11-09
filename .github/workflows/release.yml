@@ -4,6 +4,10 @@
 # Actions tab (Release, "Run workflow"), or Claude Code runs it when he says so:
 #   gh workflow run release.yml                    # the newest commit that passed staging
 #   gh workflow run release.yml -f commit=<sha>    # a chosen commit that passed staging
+# Only the founder can (founder's decision, 10 November 2026): the first job stops any run
+# that wasn't started, and any re-run that wasn't made, by the repository's owner, his own
+# account (Claude Code works through it), before the release job reaches production's
+# environment. So no collaborator, and no app with the right to run workflows, can release.
 #
 # Production's keys come only from Doppler `prd_release` (a branch of `prd` holding the
 # pipeline's own credentials as well, so those never reach Vercel), through a read-only
@@ -68,7 +72,32 @@ concurrency:
   cancel-in-progress: false # one release at a time, in order
 
 jobs:
+  # Only the founder releases or rolls back: the run must be started, and any re-run made, by
+  # the repository's owner (the founder's personal account owns it). Anyone else is stopped
+  # here, with no keys and no token rights. If the repository ever moves to an organisation,
+  # the owner becomes the organisation and this refuses everyone until it names the founder.
+  # .github/scripts/test_public_repo.py keeps the release job behind it.
+  founder:
+    name: Only the founder
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Started by the founder?
+        env:
+          STARTED_BY: ${{ github.actor }}
+          RUN_BY: ${{ github.triggering_actor }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          if [ "$STARTED_BY" = "$OWNER" ] && [ "$RUN_BY" = "$OWNER" ]; then
+            echo "Started by $OWNER, the repository's owner: the founder."
+          else
+            echo "::error::Only the founder ($OWNER, the repository's owner) can release or roll back; this run was started by $STARTED_BY and run by $RUN_BY."
+            exit 1
+          fi
+
   release:
+    needs: founder
     name: ${{ inputs.action == 'rollback' && 'Roll back production' || 'Release to production' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30

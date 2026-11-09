@@ -8,7 +8,7 @@
 
 | What | Where | Notes |
 |---|---|---|
-| Code, settings and records | [github.com/Zugzwang-world/hrizzup](https://github.com/Zugzwang-world/hrizzup), private, in the founder's account (GitHub Pro) | Ruleset `main`: four required checks (Secret check, Quick checks, Database check, Screen check), squash merges only, no force-push or deletion. Ruleset `staging`: only the Staging workflow moves `staging`. Milestones for Phases 0 (closed) to 5 |
+| Code, settings and records | [github.com/Zugzwang-world/hrizzup](https://github.com/Zugzwang-world/hrizzup), in the founder's account (GitHub Pro); public until launch since 10 November 2026, then private again (runbook P.17) | Ruleset `main`: four required checks (Secret check, Quick checks, Database check, Screen check), squash merges only, no force-push or deletion. Ruleset `staging`: only the Staging workflow moves `staging`. Milestones for Phases 0 (closed) to 5 |
 | Website, staging | `staging.hrizzup.com`: Vercel project `hrizzup` (Pro team), functions in Mumbai (`bom1`) | Built once per merge, after that merge's migrations (Staging workflow); behind a Vercel login |
 | Website, previews | A Vercel preview link on every pull request | Complete working copies: staging's data and keys (`stg_preview`), Turnstile's test keys, Google sign-in through staging's relay |
 | Website, production | `hrizzup.com` (`www` redirects to it) | The holding page with draft privacy and terms, promoted once (3 November 2026). Every merge makes a hidden production build; only the release pipeline changes what's live |
@@ -1467,6 +1467,43 @@ No good sign-in failed, so the switch-off kept ready beside it (one setting, `ho
 
 - **Set:** `infra/doppler/release-keys.txt` lists the release pipeline's own credentials by name (`CLOUDFLARE_API_TOKEN`, `SUPABASE_ACCESS_TOKEN`, `VERCEL_TOKEN`). The release pipeline (`.github/workflows/release.yml`) now reads `prd_release`'s names before loading it (step 1a) and the names in Vercel's production settings before changing production (step 2), and stops on any name production mustn't hold ([#65](https://github.com/Zugzwang-world/hrizzup/pull/65)). Nothing was set on production, and no production key or name was read.
 - **Checked:** with fixtures, and live against staging's names through Claude Code's own staging tokens (Doppler `stg`, 21 names; Vercel's staging settings, the same 21 plus Doppler's three labels, read with Vercel's staging filter).
+
+### The repository made ready to go public (Round 3, relay 13; the founder's decision of 10 November 2026; Claude Code)
+
+**Why:** GitHub's included Actions minutes ran out on 9 November 2026 (from 19:41 UTC every job was refused before it started), and checks are free on public repositories. So the repository is public until launch, then private again with the checks' minutes decided (runbook, pre-launch checklist, P.17). The founder changes the visibility himself; Claude Code never does.
+
+**Keys in the history: none.** gitleaks 8.30.1 with the Secret check's settings (its default rules, `--redact`) on a mirror of every ref on GitHub: 5 branches, no tags, 85 pull requests' heads and 3 merge refs (288 commits): no leaks. Then the 83 commits that force-pushes left behind, which GitHub still shows to anyone with their address (found through the pull requests' timelines, the repository's push events and their parents, read through GitHub's API): two findings, both the same Firebase image token inside a code comment that Manifold's open-source code carries (an avatar's address on Manifold's own development project, in a market example in `calculate-cpmm-arbitrage.ts`), dropped when that branch was rewritten on 8 November 2026. Not a Hrizzup key: nothing to replace. Pull requests' titles and descriptions, every comment and every commit message: no leaks.
+
+**Past check runs, scanned, then deleted:** gitleaks over every run's logs first (620 runs, 2,247 log files): no leaks. Every app key showed as `***` wherever a step listed it; the only fetched values shown were Doppler's own three labels (the project's and config's names, which this repository names anyway). One artifact of each kind (screenshots, Lighthouse's reports, the app's journeys) held no token either. Then, through GitHub's API: every run's logs deleted (620 of 620) and every artifact (154 of 154, about 1 GB). The runs themselves stay, so the release pipeline still sees which commits passed staging.
+
+**Set through GitHub's API, each read back:**
+
+| Setting | Before | After |
+|---|---|---|
+| The workflows' default token | read and write | read only (every workflow already sets its own) |
+| Actions may approve pull requests | yes | no |
+| Who can open pull requests | everyone | collaborators only |
+| Who can open issues | everyone | collaborators only |
+
+**Made public by the founder** at about 03:00 India time (between 21:23 and 21:31 UTC on 9 November); Claude Code checked every 10 minutes until then. GitHub allows the rest only on a public repository, so it was set straight after, through GitHub's API, each read back:
+
+| Setting | After |
+|---|---|
+| Interaction limit | collaborators only, until 9 May 2027, 21:32 UTC (six months, the longest GitHub allows); a reminder in `.github/reminders.json` (due 2 May 2027) to renew it while the repository is public |
+| Approval before workflows run for a pull request from outside | all outside contributors (the strictest choice) |
+| Secret scanning, with push protection | on; no alerts. Its extra checks for generic secrets and for whether a found key still works aren't offered on this plan, and stayed off |
+
+**Proven after the switch:** the Reminders workflow, run from a throwaway branch holding one due test reminder, opened issue #87 as GitHub's workflow bot (`github-actions[bot]`) with both "collaborators only" rules on, so the reminders keep working; the issue was closed and the branch deleted. That run was also the first check to run again since 9 November.
+
+**Workflows, checked one by one:** none runs on `pull_request_target` or `workflow_run`, so no workflow runs a fork's code with our keys; a fork's pull request gets no secrets, a read-only token and no OIDC token, so it can't reach Doppler, the environments or the Remote Cache; every action is pinned to a commit, each a plain JavaScript action with no actions inside it; the checks' caches hold tools and packages, no keys. Every key a job fetches is masked: Doppler's action masks each value unless Doppler marks it "unmasked" (none is in `stg` or `stg_preview`, checked by name and visibility only; Claude Code can't see `prd_release`), the Remote Cache's action masks its two tokens, and `database_url.py` masks the addresses it builds. New: the release workflow's first job, "Only the founder", stops any run that the repository's owner (the founder's account) didn't start, and `.github/scripts/test_public_repo.py` (Quick checks) keeps all of this true.
+
+**Vercel:** fork protection is on (`gitForkProtection`, checked with `infra/vercel/apply.py --check`, read only): a fork's pull request gets a preview only after a team member authorises it.
+
+**Who can write:** only the founder. The three helpers' invitations of 2 November 2026 expired unaccepted.
+
+**Dependabot:** alerts on, unaffected. Its security updates have failed on every run so far (at `update_files`, on the pnpm workspace), so it has never opened a pull request here; GitHub's documentation doesn't say whether "collaborators only" lets it open one.
+
+**Personal details:** listed for the founder in the session, not here, since this log is public.
 
 ---
 
