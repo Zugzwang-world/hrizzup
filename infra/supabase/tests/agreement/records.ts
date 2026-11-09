@@ -28,7 +28,8 @@ export const isStored = (format: unknown): format is Format =>
 
 /** The agreement's other shapes, each held by the store its own step builds. */
 export const HELD_ELSEWHERE: Record<string, string> = {
-  'market/1': 'the markets (PLAN.md step 1.7c)',
+  'market/1':
+    "the markets (PLAN.md step 1.7c): markets.details beside the ledger's markets.markets, read back by markets.market_record() (tests/agreement/markets.test.ts)",
 };
 
 /** Every definition by its file name, the way `$ref`s name them. */

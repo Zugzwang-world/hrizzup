@@ -33,7 +33,7 @@ One line per relay; each relay keeps only its own line current.
 
 7. **Relay 7, step 1.9, the content store's tables (wave 2):** done: [#72](https://github.com/Zugzwang-world/hrizzup/pull/72), the tables (on staging, empty), every agreement rule a database can hold as a database rule (`infra/supabase/content-store.md`), and 249 tests in the Database check. Nothing for the founder.
 
-8. **Relay 8, step 1.7c, markets as data and the console (after wave 2):** not started.
+8. **Relay 8, step 1.7c, markets as data and the console:** in progress. [#75](https://github.com/Zugzwang-world/hrizzup/pull/75), the database change: the admins table, markets as data beside the ledger's markets, the market log and the console's calls, each checking the admins table first. Next: the admins' rows (the founder's staging account and one test account), the typed API's calls, the console. Nothing for the founder yet.
 
 9. **Relay 9, step 1.7d, list, trade and positions (after 1.7c):** not started.
 
