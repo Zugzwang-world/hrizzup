@@ -1,0 +1,22 @@
+# Doppler `prd_release`: the release pipeline's own credentials, by name only, never a value.
+#
+# prd_release is a branch of prd (runbook Part 10): it sees every production key and adds the
+# release pipeline's own credentials, listed here. It is never synced, so they never reach a
+# build: a production function can't promote, roll back or reconfigure anything. They are
+# never in prd, which Doppler syncs to Vercel's production settings.
+#
+# Checked by the release pipeline (.github/workflows/release.yml), with infra/doppler/app_keys.py:
+#   - before it loads prd_release, it reads prd_release's names, never a value, and stops on any
+#     name that is neither one of the app's keys production holds (app-keys.txt) nor listed here;
+#   - before it changes production, it reads the names in Vercel's production settings (what
+#     prd syncs there) with its own Vercel token, and stops on any that isn't one of the app's
+#     keys, so none of these can have gone into prd by mistake.
+#
+# A new credential for the pipeline: its name goes in here first, in a pull request that merges
+# before the founder adds it to prd_release.
+#
+# One name per line, then what uses it after a #.
+
+CLOUDFLARE_API_TOKEN   # applies production's storage settings (infra/cloudflare/r2/apply.py); runbook Part 10, step H2
+SUPABASE_ACCESS_TOKEN  # applies production's Supabase project and sign-in settings (infra/supabase/project, infra/supabase/auth); step B
+VERCEL_TOKEN           # finds, promotes or rolls back a build and checks the Vercel project (.github/scripts, infra/vercel); step H1
