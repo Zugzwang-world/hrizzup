@@ -9,6 +9,7 @@ for the design chat.
 """
 import contextlib
 import io
+import json
 import os
 import socket
 import tempfile
@@ -19,6 +20,9 @@ from unittest import mock
 import slots
 
 CONFIG_TOML = os.path.join(slots.ROOT, "infra", "supabase", "config.toml")
+AUTH_SETTINGS = os.path.join(slots.ROOT, "infra", "supabase", "auth", "settings.json")
+R2_RULES = os.path.join(slots.ROOT, "infra", "cloudflare", "r2")
+LOCAL = ("localhost", "127.0.0.1", "[::1]")
 
 
 def register():
@@ -89,6 +93,34 @@ class TheSlots(unittest.TestCase):
             environment, _, rest = slot.redis_prefix.partition(":")
             self.assertEqual(environment, "dev")
             self.assertRegex(rest, r"^[a-z0-9][a-z0-9_-]*$")
+
+
+class StagingAllowsEverySlot(unittest.TestCase):
+    """Every slot's website can sign in and upload against staging, and nothing else local can:
+    staging's sign-in redirect list and both staging buckets' browser rules name exactly the
+    slots' addresses (plus the unslotted default, http://localhost:3000). Production's never
+    name a local address."""
+
+    expected = {"http://localhost:3000"} | {slot.website for slot in slots.all_slots()}
+
+    def test_staging_sign_in_returns_to_every_slot_and_production_to_none(self):
+        with open(AUTH_SETTINGS, encoding="utf-8") as f:
+            environments = json.load(f)["environments"]
+        staging = environments["staging"]["settings"]["uri_allow_list"].split(",")
+        local = {a[: -len("/**")] for a in staging if any(h in a for h in LOCAL)}
+        self.assertEqual(local, self.expected)
+        self.assertTrue(all(a.endswith("/**") for a in staging if any(h in a for h in LOCAL)))
+        production = environments["production"]["settings"]["uri_allow_list"]
+        self.assertFalse(any(h in production for h in LOCAL), production)
+
+    def test_staging_buckets_take_uploads_and_reads_from_every_slot_and_production_none(self):
+        for kind in ("uploads", "media"):
+            with open(os.path.join(R2_RULES, f"{kind}.cors.staging.json"), encoding="utf-8") as f:
+                origins = {o for rule in json.load(f)["rules"] for o in rule["allowed"]["origins"]}
+            self.assertEqual({o for o in origins if any(h in o for h in LOCAL)}, self.expected, kind)
+            with open(os.path.join(R2_RULES, f"{kind}.cors.production.json"), encoding="utf-8") as f:
+                production = json.dumps(json.load(f))
+            self.assertFalse(any(h in production for h in LOCAL), kind)
 
 
 class Claiming(unittest.TestCase):

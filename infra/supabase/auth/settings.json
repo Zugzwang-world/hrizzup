@@ -4,7 +4,7 @@
     "staging": {
       "settings": {
         "site_url": "https://staging.hrizzup.com",
-        "uri_allow_list": "https://staging.hrizzup.com/**,http://localhost:3000/**",
+        "uri_allow_list": "https://staging.hrizzup.com/**,http://localhost:3000/**,http://localhost:3101/**,http://localhost:3102/**,http://localhost:3103/**,http://localhost:3104/**",
         "rate_limit_email_sent": 30
       }
     },
