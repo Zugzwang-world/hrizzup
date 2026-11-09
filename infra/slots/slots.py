@@ -338,8 +338,8 @@ def stop_tree(entry, grace: float = 30, *, folder: str = "") -> bool:
 
     Next.js and Expo each put their server in a process group of its own, so the whole tree
     is found from the first process, and each process and each of their groups is stopped:
-    first as Ctrl-C would (SIGINT), so Next.js can finish writing its build cache, and only
-    after `grace` seconds by force.
+    first as Ctrl-C would (SIGINT), so each server shuts down cleanly, and only after `grace`
+    seconds by force.
     If that first process is already gone but the service still answers on its port, the
     listener is stopped only when its own command line, or its parent's, names the
     worktree the slot belonged to (`folder`), so another program on that port is never touched.
