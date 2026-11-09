@@ -48,7 +48,7 @@ Default to paid tiers. The exceptions are Cloudflare and Doppler, which stay on 
 | Apple Developer | Individual account | The iPhone app and Sign in with Apple |
 | Google Play | Personal account | The Android app |
 | Expo (EAS) | The founder's own Expo account owns the app (founder's decision, 8 November 2026). Claude Code uses a **robot user's token with the Developer role** (`EXPO_TOKEN`, a tool token: Doppler `hrizzup-tools`, section 7), never his personal token; the account is `hrizzups-team`, and on 9 November 2026 Expo's API confirmed the token is a robot's, not a person's. The **free** plan until build waits hold up work, then **Starter** ($19 a month plus usage), the founder's call because it costs money | Building the app in Expo's cloud (EAS Build), test builds installed from a link, later code-only updates (EAS Update) |
-| Grok | SuperGrok (existing). Which Grok product and plan run the bots is chosen in the Sourcing project (PLAN.md step 0.8) | The Grok bots that find news |
+| Grok | SuperGrok (existing). Which Grok product and plan run the bots is chosen in the Sourcing project (PLAN.md step 0.8). Hrizzup uses no xAI API (founder's decision, 9 November 2026) | The Grok bots that find news |
 | AWS | Not the production plan. Later, only if a concrete need appears, as its own project (section 12) | — |
 
 ---
@@ -175,6 +175,7 @@ Production is a twin of staging: the same services, versions, region and setting
   - **Locked like every table** (row-level security on, no policy until a step needs one).
   - **Tests** in the Database check load every example in `agreement/examples/` and read it back unchanged, and fail when the database's lists drift from `agreement/definitions/`.
   - **Nothing writes to them, reads them or fills them** until the steps that use them: the news pipeline (1.1) writes stories, updates and sourced items; each news feature's back end reads them; the markets share their categories (1.7c).
+  - **They're how content reaches the product:** Product receives the content that goes on the product through these tables, in the agreement's shapes, and never calls xAI's API or X's API; showing a found post as X's own embed (step 2.3) is display (founder's decision, 9 November 2026).
 - **The markets' books** (PLAN.md steps 1.7b and 1.7c; founder's decisions, 9 November 2026): our own tables, not Manifold's database design.
   - **Double-entry:** every move of play money is two matching lines, out of one account and into another. The accounts are each person's, each market's pool, and a house account that gives out starting balances and seeds new markets, so the books always sum to zero. Lines are never edited or deleted; a correction is a new line.
   - **Exact decimals, never floating point.** Manifold's maths works in floating point, so the engine's results are rounded once, any remainder going to the house account, and every trade and settlement balances exactly.
@@ -427,7 +428,7 @@ AWS is not the production plan. Production runs on the same platforms as staging
   - **Staging and production kept apart (rule 1):** one Stream library in the account, but separate API tokens per environment, and every video is tagged with its environment.
 - **Paid tier (version one, PLAN.md step 2.7):** subscriptions are built together with the app: RevenueCat in the app, Razorpay (with UPI) on the website. RevenueCat's own web payments run on Stripe and have no Razorpay connection, so our server passes Razorpay payments to RevenueCat, and the app and the website agree on who has paid. What's free and what's paid is decided before the paywall is built.
 - **Decided later:**
-  - **Background jobs** (founder's decision, 9 November 2026): none in Round 3. The choice stays the Sourcing project's, made in its research for step 0.8 and reviewed by Product before its first user, the news pipeline (step 1.1). The perp's job every few seconds (step 3.4a) stays on Supabase Cron, and no market's money waits for a job (section 5, "The markets' books").
+  - **Background jobs** (founder's decision, 9 November 2026): none in Round 3. The choice stays the Sourcing project's, made in its own project. The perp's job every few seconds (step 3.4a) stays on Supabase Cron, and no market's money waits for a job (section 5, "The markets' books").
   - **PostHog and the admin page:** later, apart from the market console, built with step 1.7c: a small, admin-only console to create, open and close markets and to settle by hand the ones that don't settle automatically, with every settlement logged. It's a plain internal tool: stock components (on the website, shadcn/ui's), with no colours, type or layout of its own, picking up the design values once they exist; everyone but an admin gets "not found" (founder's decisions, 9 November 2026).
   - **Language:** English only.
 
