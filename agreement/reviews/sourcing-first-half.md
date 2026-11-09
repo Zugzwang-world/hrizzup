@@ -3,6 +3,8 @@
 > Written 8 November 2026 by Claude Code, reviewing as the Sourcing project: the project whose pipeline must write stories, updates and sourced items in these shapes (Round 2, relay 5). Product drafted the first half. Every finding is marked **blocking**, **change** or **note**, with the change proposed. The changes are made under the agreement's own rules in a second pull request; the founder then approves the first half in News Desk's place, through the Product chat. If anything here disagrees with PLAN.md, PLAN.md wins.
 >
 > **The changes were made the same day,** in [#42](https://github.com/Zugzwang-world/hrizzup/pull/42): every finding below, R1 to R11, is in the definitions, the examples, the check or the README. R12, found while making them, followed in [#45](https://github.com/Zugzwang-world/hrizzup/pull/45).
+>
+> **The founder answered on 9 November 2026** ([#PRNUM](https://github.com/Zugzwang-world/hrizzup/pull/PRNUM)): he approved the first half in News Desk's place, as it stood after the market change ([#52](https://github.com/Zugzwang-world/hrizzup/pull/52)), and it is Agreed. **F1:** as recommended, the bots keep only found takes in English, matching the English-only launch. **F2 and F3:** takedown handling and legal review belong to the founder's legal team; the product plan adds no legal guardrails, so neither is an open question for Sourcing or Product.
 
 ## In short
 

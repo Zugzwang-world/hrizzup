@@ -12,7 +12,7 @@
 
 ## Rules
 
-- What passes to Product is defined by the hand-over agreement, [agreement/README.md](../agreement/README.md): a creation (text, one image or one video) with its route, and the shared lists of locations and categories. News Desk reads sourced items, in the agreement's shape, from the sourced pool. No content is written before its first half is agreed (step 0.7).
+- What passes to Product is defined by the hand-over agreement, [agreement/README.md](../agreement/README.md): a creation (text, one image or one video) with its route, and the shared lists of locations and categories. News Desk reads sourced items, in the agreement's shape, from the sourced pool. Its first half was Agreed on 9 November 2026 (step 0.7), with the founder approving it in News Desk's place; News Desk reviews it once it's set up, and any change it asks for follows the agreement's change rules.
 - Our own content never copies a found post's words, pictures or video; it links and credits them.
 - Projects never copy code between each other; this shared repository is the only route.
 - Frameworks and dependencies aren't chosen yet.

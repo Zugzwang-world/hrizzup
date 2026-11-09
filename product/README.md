@@ -9,9 +9,9 @@
 - **The news app:** Android first, then iPhone. The board, story pages, feed, posting and notifications. Product only displays content: the board shows stories, and the feed shows takes from all three routes (found, made and posted), each credited by its route.
 - **The website:** news and play-money markets, designed for phones first.
 - **Accounts and login:** one account shared by the app and the website.
-- **The market engine:** Manifold's maths copied with its tests (PLAN.md step 1.7a), then, in the founder's build order, the ledger (1.7b), markets as data settled by hand (1.7c) and the engine's calls in the typed API (1.7d), before the market pages (3.1). Its licence notice is kept with the code and listed in [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md).
+- **The market engine:** Manifold's maths copied with its tests (PLAN.md step 1.7a), then, in the founder's build order, the ledger (1.7b), markets as data settled by hand through a small admin-only market console (1.7c) and the engine's calls in the typed API (1.7d), before the market pages (3.1). Its licence notice is kept with the code and listed in [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md).
 - **The markets' topics and data sources:** chosen once markets work end to end on staging (step 1.2, parked until then), with the automatic resolvers that settle markets from the source each names (step 3.2a).
-- **The hand-over agreement:** Product drafts its first half and reviews its second, which Sourcing designs, and makes any changes the first half's reviewers ask for (step 0.7 names who signs off each half). It lives in [agreement/](../agreement/README.md), outside any one project, and Product's code uses its definitions through `@hrizzup/agreement`.
+- **The hand-over agreement:** Product drafts its first half and reviews its second, which Sourcing designs, and makes any changes the first half's reviewers ask for (step 0.7 names who signs off each half). It lives in [agreement/](../agreement/README.md), outside any one project, and Product's code uses its definitions through `@hrizzup/agreement`. The first half was Agreed on 9 November 2026, so Product may build tables and content for its shapes.
 
 ## Rules
 
