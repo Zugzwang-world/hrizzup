@@ -1505,6 +1505,11 @@ No good sign-in failed, so the switch-off kept ready beside it (one setting, `ho
 
 **Personal details:** listed for the founder in the session, not here, since this log is public.
 
+### The Screen check's keys, by name (Round 3, relay 3, Claude Code)
+
+- **Set:** the Screen check no longer loads Doppler `stg_preview` whole. `infra/doppler/named_keys.py` asks it for the eight keys the tests read (`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`, `TURNSTILE_SITE_KEY`, `R2_ENDPOINT`, `R2_BUCKET_UPLOADS`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`), by name, with the job's read-only token, and gives them to the tests' process alone ([#84](https://github.com/Zugzwang-world/hrizzup/pull/84)).
+- **Checked:** live with Claude Code's read-only `stg_preview` token, names only: the command received exactly those eight and not the token.
+
 ---
 
 ## Rules for this log
