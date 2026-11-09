@@ -35,9 +35,23 @@ install() {
   mkdir -p "$images"
   unzip -q "$emulator_zip" -d "$ANDROID_HOME"
   unzip -q "$image_zip" -d "$images"
-  echo "Emulator $(grep -m1 '^Pkg.Revision=' "$ANDROID_HOME/emulator/source.properties" | cut -d= -f2)," \
-    "system image android-$API_LEVEL $TARGET $ARCH revision" \
-    "$(grep -m1 '^Pkg.Revision=' "$images/$ARCH/source.properties" | cut -d= -f2)."
+  # The SDK's own tools (avdmanager) know an installed package by its package.xml, which
+  # Google's archive leaves for the SDK manager to write. The system image's older
+  # source.properties is enough for them; the emulator needs this record, written as the SDK
+  # manager writes it, from the archive's own version.
+  local revision major minor micro
+  revision="$(grep -m1 '^Pkg.Revision=' "$ANDROID_HOME/emulator/source.properties" | cut -d= -f2 | tr -d '\r')"
+  IFS=. read -r major minor micro <<< "$revision"
+  printf '%s' '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' \
+    '<ns2:repository xmlns:ns2="http://schemas.android.com/repository/android/common/02"' \
+    ' xmlns:ns5="http://schemas.android.com/repository/android/generic/02">' \
+    '<localPackage path="emulator" obsolete="false">' \
+    '<type-details xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="ns5:genericDetailsType"/>' \
+    "<revision><major>${major}</major><minor>${minor:-0}</minor><micro>${micro:-0}</micro></revision>" \
+    '<display-name>Android Emulator</display-name></localPackage></ns2:repository>' \
+    > "$ANDROID_HOME/emulator/package.xml"
+  echo "Emulator $revision, system image android-$API_LEVEL $TARGET $ARCH revision" \
+    "$(grep -m1 '^Pkg.Revision=' "$images/$ARCH/source.properties" | cut -d= -f2 | tr -d '\r')."
 }
 
 create_avd() {
