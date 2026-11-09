@@ -1344,6 +1344,13 @@ Not a problem: the worry that Claude Code could run the script on production. It
 - **Pre-launch checklist:** two items from Round 2 joined it, P.14 (production's firewall rules for the app's API, through the release pipeline) and P.15 (the app's cold start timed on a real phone). Nothing was set on production.
 - **Where the founder's decisions of 9 November 2026 went:** the agreement's status (`agreement/README.md`, its review's opening note); found takes in English only, and legal with the founder's legal team (PLAN.md sections 2 and 4); the market console, admins, the fee, cancels and the trade call's limits (PLAN.md section 2, steps 1.7b to 1.7d; blueprint section 13); the board's sign-in and who builds screens (PLAN.md sections 3 and 5, `TRACKER.md`); Round 3's queue (`TRACKER.md`, the Product brief).
 
+### Round 3 opens: the founder's decisions of 9 November 2026 (Claude Code, records only)
+
+- **Previews share staging's database, checked:** Supabase branching is off (`infra/supabase/project/settings.json` expects no branches, and `apply.py` checks it), and Doppler `stg_preview` overrides only the Turnstile keys and `REDIS_KEY_PREFIX`, so every preview reads and writes staging's database. So the founder's rule that database changes land first, each in its own pull request, applies as written (CLAUDE.md, "Database changes").
+- **Pre-launch checklist:** one item joined it, P.16 (the founder's admin row on production, after his first sign-in there). Nothing was set on production or on any service.
+- **GitHub:** the pull request is in the milestone "Round 3" (number 8), which existed already.
+- **Where the decisions went:** database changes first, admins' migrations and the console's place in the design rule (CLAUDE.md); the order of work, with new step 1.9 and the changed steps 0.8, 1.1, 1.6a, 1.7b to 1.7d, 1.8 and 3.1 (PLAN.md); the markets' books, admins, the content store's tables, the console and background jobs (blueprint sections 5, 6, 9 and 13); Round 3's queue (`TRACKER.md`, the Product brief).
+
 ---
 
 ## Rules for this log

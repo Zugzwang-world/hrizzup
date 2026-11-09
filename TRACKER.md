@@ -8,20 +8,29 @@ Last updated: 9 November 2026
 
 ## Round 3's queue (the founder's order, 9 November 2026)
 
-Round 2 closed on 9 November 2026. Round 3 runs in relays, like Round 2, attached to the GitHub milestone "Round 3"; each relay moves its own rows here and in the tables below (CLAUDE.md, "Unattended sessions"). Each row is **not started**, **in progress**, or **done** with the pull request that finished it.
+Round 2 closed on 9 November 2026. Round 3 runs in twelve relays, in waves, attached to the GitHub milestone "Round 3"; each relay moves only its own rows here and in the tables below, and keeps only its own line in the Product brief's "Round 3 progress" current (CLAUDE.md, "Unattended sessions"). Each row is **not started**, **in progress**, or **done** with the pull request that finished it.
 
-| Order | Step | What | Needs | Status |
-|---|---|---|---|---|
-| 1 | 1.8 | Parallel local development: three sessions run the website, the app's dev server and the local database side by side, and sign in and upload locally | 0.6 | not started |
-| 2, side by side | 1.6a | The website's sign-in: Google, then email codes with the bot check, and the access-token hook that refuses passwords | 0.6, 1.5c | not started |
-| 2, side by side | 1.7b | The ledger: play-money balances, trades and positions; each trade one database step; money in always equals money out | 0.6, 0.7 (first half, Agreed), 1.7a | not started |
-| 3 | 1.7c | Markets as data, settled by hand, with the market console (admins only, every settlement logged) | 0.7 (first half, Agreed), 1.6a, 1.7b | not started |
-| Hardening | — | The release pipeline refuses to release when production's keys include a name that isn't an app key | [#54](https://github.com/Zugzwang-world/hrizzup/pull/54), merged 9 November 2026 | not started |
-| Hardening | — | The Screen check loads only the keys its tests use, not the whole preview config | [#54](https://github.com/Zugzwang-world/hrizzup/pull/54), merged 9 November 2026 | not started |
-| Hardening | — | The three open Dependabot alerts fixed (zod; glob and minimatch) | [#54](https://github.com/Zugzwang-world/hrizzup/pull/54), merged 9 November 2026 | not started |
+| Relay | When | Step | What | Needs | Status |
+|---|---|---|---|---|---|
+| 1 | Wave 1, now | — | The round's records: the founder's decisions of 9 November 2026 | — | in progress |
+| 2 | Wave 1, now | 1.8 | Parallel local development: three sessions run the website, the app's dev server and the local database side by side, and sign in and upload locally; with the database-order check (each pull request's database changes come after the newest one on `main`) | 0.6 | not started |
+| 3 | Wave 1, now | Hardening | The release pipeline refuses to release when production's keys include a name that isn't an app key | [#54](https://github.com/Zugzwang-world/hrizzup/pull/54), merged 9 November 2026 | not started |
+| 3 | Wave 1, now | Hardening | The Screen check loads only the keys its tests use, not the whole preview config | [#54](https://github.com/Zugzwang-world/hrizzup/pull/54), merged 9 November 2026 | not started |
+| 3 | Wave 1, now | Hardening | The three open Dependabot alerts fixed (zod; glob and minimatch) | [#54](https://github.com/Zugzwang-world/hrizzup/pull/54), merged 9 November 2026 | not started |
+| 3 | Wave 1, now | Hardening | The tools the checks download (Maestro, gitleaks and any other) kept in a cache, with retries, after GitHub's 504 errors failed three checks on 9 November 2026 | — | not started |
+| 4 | Wave 1, now | 0.8 | Sourcing's research, working from Sourcing's brief: the Grok product and plan, the route that brings the bots' results to our pipeline, and the background-jobs tool | 0.2 | not started |
+| 5 | Wave 2, after 1.8 | 1.6a | The website's sign-in: Google, then email codes with the bot check, and the access-token hook that refuses passwords; the flows proven on the sign-in test page | 0.6, 1.5c | not started |
+| 6 | Wave 2, after 1.8 | 1.7b | The ledger: double-entry books in exact decimals, with play-money balances, trades and positions; each trade one transaction, one at a time per market, never twice for one request | 0.6, 0.7 (first half, Agreed), 1.7a | not started |
+| 7 | Wave 2, after 1.8; waits for a free slot if the Mac holds only two sessions | 1.9 | The content store's tables: story, update, sourced item, creation and the launch list, with the agreement's rules as database rules; nothing writes or reads them yet | 0.6, 0.7 (first half, Agreed), 1.8 | not started |
+| 8 | After wave 2 | 1.7c | Markets as data, settled by hand in the market console (admins only, every settlement logged), with the admins table and the console's calls in the typed API: create, open, close and settle | 0.7 (first half, Agreed), 1.6a, 1.7b; 1.9 for the categories markets share | not started |
+| 9 | After 1.7c | 1.7d | The engine's other calls in the typed API: list, trade and positions, with the trade call's refusals | 1.5c, 1.7c | not started |
+| 10 | Once the founder has opened the xAI account with a low spending cap | 0.8; 0.7, second half | Sourcing: a test bot run and the second half's draft, working from Sourcing's brief | Relay 4's research; the founder's xAI account | not started |
+| 11 | After relay 10 | 0.7, second half | Product's review of the second half's draft, in a separate session working from Product's brief | Relay 10's draft | not started |
+| 12 | Last | — | The round's closing record | Every other relay | not started |
 
 - **Alongside, in the design chat:** step 1.4 restarts from the founder's references and diagrams; the first feature round (the board first) waits for its three core screens.
-- **After the queue:** 1.7d (the engine's calls in the typed API), then the market pages (3.1); the app's sign-in (1.6b).
+- **No background jobs in Round 3** (founder's decision, 9 November 2026): the choice stays Sourcing's, made in relay 4's research and reviewed by Product before the news pipeline (1.1).
+- **After the queue:** the market pages (3.1); the app's sign-in (1.6b); the first feature round, once 1.4's core screens are approved.
 
 ## Before the first feature round
 
@@ -37,8 +46,9 @@ Everything PLAN.md lists as a need of the first news feature (the board, step 2.
 | 1.4, first pass | The design values, plus the board and a story page at phone size, on preview links, built only from the founder's references and diagrams | The founder's references and diagrams, given in the design chat; 0.7 (first half, Agreed), for the board and the story page | The design chat (the founder, with Claude Code). Relay 4's pass, built from Claude Code's own picks, was retired on 9 November 2026: [#46](https://github.com/Zugzwang-world/hrizzup/pull/46) closed, its values removed in [#58](https://github.com/Zugzwang-world/hrizzup/pull/58) | not started |
 | 0.7, first half: Sourcing's review | Run by a Claude Code session in the repository, working from Sourcing's brief | — | Round 2, relay 5 | done: the review [#37](https://github.com/Zugzwang-world/hrizzup/pull/37), its changes [#42](https://github.com/Zugzwang-world/hrizzup/pull/42) and [#45](https://github.com/Zugzwang-world/hrizzup/pull/45) |
 | 0.7, first half: the founder's approval | In News Desk's place; then Agreed, in a change he asks for | Sourcing's review; the agreement's market following the market model (done: [#52](https://github.com/Zugzwang-world/hrizzup/pull/52), Round 2, relay 6) | The founder | done: approved on 9 November 2026, and marked Agreed at his request in [#59](https://github.com/Zugzwang-world/hrizzup/pull/59) (Round 2, relay 7) |
-| 1.8 | Parallel local development: three sessions run the website, the app's dev server and the local database side by side, and sign in and upload locally | 0.6 | Round 3, first | not started |
-| 1.6a | The website's sign-in: Google (working on staging), then email codes with the bot check; passwords refused by the access-token hook. The board needs it for favourites and bookmarks (founder's decision, 9 November 2026) | 0.6, 1.5c | Round 3, beside 1.7b | not started |
+| 1.8 | Parallel local development: three sessions run the website, the app's dev server and the local database side by side, and sign in and upload locally; with the database-order check | 0.6 | Round 3, relay 2 | not started |
+| 1.6a | The website's sign-in: Google (working on staging), then email codes with the bot check; passwords refused by the access-token hook; the flows proven on the sign-in test page, the real sign-in screen coming from the design chat. The board needs it for favourites and bookmarks (founder's decision, 9 November 2026) | 0.6, 1.5c | Round 3, relay 5 | not started |
+| 1.9 | The content store's tables: story, update, sourced item, creation and the launch list, with the agreement's rules as database rules. Every news feature's back end builds on them (founder's decision, 9 November 2026) | 0.6, 0.7 (first half, Agreed), 1.8 | Round 3, relay 7 | not started |
 
 - **Not needed before the first feature:** the rest of the markets track (below), which runs alongside Phase 2; the app's sign-in (1.6b), which the board's and posting's app joins and the paid tier (2.7) need.
 - **1.4 restarts in the design chat** (founder's decision, 9 November 2026): design starts only from the founder's references and diagrams, given there, and no session builds design directions, values or screens of its own choosing. The readable-text check (`@hrizzup/core`) is ready for the values when they arrive.
@@ -52,7 +62,7 @@ The website and the app are built in parallel, with the website one stage ahead 
 |---|---|---|
 | 1. Design | One phone-first design for both surfaces, built by Claude Code in the design chat, only from the founder's references and diagrams, on preview links | The design values and 1.4's three core screens are approved (step 1.4) |
 | 2. Contract | The feature's part of the one typed API that both surfaces use, with example data drawn from the hand-over agreement. The design and engineering tracks meet here | The design is done, and the typed API exists (step 1.5c) |
-| 3. Back end | The tables, rules and server code behind the contract, on staging | The contract is done (the agreement's first half is Agreed since 9 November 2026, so the tables for its shapes may be built) |
+| 3. Back end | The tables, rules and server code behind the contract, on staging; its database changes merge first, in their own pull request, and the code follows | The contract is done, and the content store's tables exist (step 1.9) |
 | 4a. Website screen | The website's screens, built by the round's relays from the design chat's approved design, against the contract and its example data | The contract is done, and the website's checks exist (steps 1.5a and 1.5b) |
 | 4b. App screen | The app's screens, built by the round's relays at the same time as 4a, in a separate worktree | The contract is done, and the app's checks exist (step 1.5b's Maestro test, step 1.5d's budget) |
 | 5. Website join | The website's screens wired to the real back end, checked on the pull request's preview | The back end and the website screen are done |
@@ -62,6 +72,7 @@ The website and the app are built in parallel, with the website one stage ahead 
 - **Who builds the screens** (founder's decision, 9 November 2026): the round's relays, from the design chat's approved design.
 - **Separate worktrees:** stages 4a and 4b each run in their own Claude Code session, branch and pull request, and never touch the same files. Code both need goes into `product/packages/` in the contract stage, before they split.
 - **Website first:** the website joins first, so any change the real data forces on the contract is found there and the app joins a settled contract.
+- **Database changes land first** (founder's decision, 9 November 2026): each merges in its own pull request and only adds things, so whatever is on staging keeps working, and the code and screens that use it follow in the next one. Previews use staging's database, which gets a change only when its pull request merges (CLAUDE.md, "Database changes").
 - **Done** means stage 6 is done: the feature works on the website and in the app, each passing its checks (performance budget, core-journey tests, every screen size).
 - **The iPhone** comes from the same app code, so it needs no stages of its own; it adds only Sign in with Apple and Apple's review (step 4.3).
 
@@ -79,7 +90,7 @@ Each cell is **not started**, **in progress**, or **done** with the pull request
 
 - **The board (2.1)** needs the website's sign-in (1.6a) for favourites and bookmarks, and joins the app only once the app's sign-in (1.6b) is done (founder's decision, 9 November 2026).
 - **Posting (2.4)** joins the app only once the app's sign-in (1.6b) is done.
-- **Every feature's back end** (stage 3) no longer waits for the agreement: its first half was Agreed on 9 November 2026.
+- **Every feature's back end** (stage 3) builds on the content store's tables (step 1.9; founder's decision, 9 November 2026), which follow the agreement's first half, Agreed on 9 November 2026.
 - **The paid tier (2.7)** starts with deciding what's free and what's paid, before its design.
 
 ## Markets track (founder's decision, 8 November 2026)
@@ -89,10 +100,10 @@ Website only. The markets product comes first and works the same for any questio
 | Order | Step | What | Needs | Status |
 |---|---|---|---|---|
 | 1 | 1.7a | The engine maths: Manifold's maths with its tests, plus our own tests that money in equals money out | 0.6 | done (Round 2, relay 3: [#38](https://github.com/Zugzwang-world/hrizzup/pull/38), [#43](https://github.com/Zugzwang-world/hrizzup/pull/43), [#44](https://github.com/Zugzwang-world/hrizzup/pull/44)) |
-| 2 | 1.7b | The ledger: play-money balances, trades and positions; each trade one database step; money in always equals money out; a cancel takes back sale profits, the balance showing what's owed | 0.6, 0.7 (first half, Agreed), 1.7a | not started (Round 3, beside 1.6a) |
-| 3 | 1.7c | Markets as data, created only by Hrizzup, with settlement by hand in the market console: admins only (a flag only a reviewed migration sets), every settlement logged | 0.7 (first half, Agreed), 1.6a, 1.7b | not started (Round 3, after 1.6a and 1.7b) |
-| 4 | 1.7d | The engine's calls in the typed API: create, list, trade, positions, settle; the trade call refuses limits outside 1% to 99%, an expiry of zero, and amounts not positive or over the balance | 1.5c, 1.7c | not started |
-| 5 | 3.1 | The market pages, on test markets with placeholder questions; a starting balance on signup | 1.4, 1.5c, 1.7d | not started |
+| 2 | 1.7b | The ledger: double-entry books in exact decimals (each person, each market's pool and a house account), with play-money balances, trades and positions; each trade one transaction, one at a time per market, with its own request ID; never below zero but for a cancel, which takes back sale profits, the balance showing what's owed | 0.6, 0.7 (first half, Agreed), 1.7a | not started (Round 3, relay 6) |
+| 3 | 1.7c | Markets as data, created only by Hrizzup, settled by hand in the market console: admins only (the admins table, which only reviewed migrations write), every settlement logged; the console's calls in the typed API (create, open, close, settle) | 0.7 (first half, Agreed), 1.6a, 1.7b; 1.9 for the categories markets share | not started (Round 3, relay 8) |
+| 4 | 1.7d | The engine's other calls in the typed API: list, trade, positions; the trade call refuses limits outside 1% to 99%, an expiry of zero, and amounts not positive or over the balance | 1.5c, 1.7c | not started (Round 3, relay 9) |
+| 5 | 3.1 | The market pages, on test markets with placeholder questions; a starting balance on signup, from the house account; the reads its design shapes (its price chart) join the typed API at its contract stage | 1.4, 1.5c, 1.7d | not started |
 | Alongside | 3.4a | The Bitcoin perp, built against a stand-in price | 1.7d, 3.1 | not started |
 | Alongside | 3.3 | Markets linked to the website's news through shared categories | 1.5c, 2.1, 3.1 | not started |
 | Then: the topics | 1.2 | Topics and data sources: the topics, many copied from Kalshi's market formats, and the source each settles from | Markets working end to end on staging (3.1) | **parked** until markets work end to end on staging |
@@ -101,8 +112,8 @@ Website only. The markets product comes first and works the same for any questio
 | Then: the topics | 3.4b | The perp's real price feed, replacing the stand-in | 1.2, 3.4a | not started |
 
 - **Markets work end to end on staging** once 3.1 is done: a visitor signs in, bets on a test market in a few taps and sees the position, and an admin settles it by hand, with the payouts adding up.
-- **1.7a** is also in "Before the first feature round", since Round 2 ran it; 1.7b and 1.7c are also in "Round 3's queue": a pull request that moves one moves every row it has.
-- **The market console** (founder's decision, 9 November 2026) comes with 1.7c: admins create markets there and settle by hand the ones that don't settle automatically; the rest of the admin page stays later. **Money rules:** the fee is zero at launch (`TAKER_FEE_RATE`), and a market is cancelled only when it can't be settled fairly (PLAN.md section 2, "Markets").
+- **1.7a** is also in "Before the first feature round", since Round 2 ran it; 1.7b, 1.7c and 1.7d are also in "Round 3's queue": a pull request that moves one moves every row it has.
+- **The market console** (founder's decisions, 9 November 2026) comes with 1.7c: admins create, open and close markets there and settle by hand the ones that don't settle automatically; it's a plain internal tool (stock components, no look of its own), and everyone but an admin gets "not found"; the rest of the admin page stays later. **Money rules:** the fee is zero at launch (`TAKER_FEE_RATE`), and a market is cancelled only when it can't be settled fairly. **The books:** double-entry in exact decimals, summing to zero, rounded once with any remainder to the house account; closing times and limit-order expiry are checked inside each trade, so no money waits for a job (PLAN.md section 2, "Markets"; blueprint section 5).
 - **The readiness check's market-data research** (`docs/research/round-2-readiness.md`, D2 to D4) is reference for step 1.2, not decisions.
 
 ## One surface only
@@ -111,7 +122,7 @@ These steps don't split into stages; they are tracked in PLAN.md section 5 and P
 
 | Surface | Step | What |
 |---|---|---|
-| Website | 1.6a | The website's sign-in: Google (working on staging), then email codes; passwords refused. The board (2.1) and the market console (1.7c) need it, so it's also in "Round 3's queue" |
+| Website | 1.6a | The website's sign-in: Google (working on staging), then email codes; passwords refused; proven on the sign-in test page, the real sign-in screen coming from the design chat. The board (2.1) and the market console (1.7c) need it, so it's also in "Round 3's queue" |
 | App | 1.6b | The app's sign-in: native Google sign-in and email codes, on the same accounts |
 | App | 2.5 | Notifications for breaking and developing stories |
 | App | 2.6 | The Android store build and the Google Play closed test |
