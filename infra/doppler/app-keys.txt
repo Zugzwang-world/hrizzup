@@ -9,7 +9,8 @@
 #
 # Checked on this Mac by `python3 infra/doppler/dev_follows_staging.py check`, which also
 # refuses any name `hrizzup-tools` holds, and by `infra/doppler/app_keys.py` in the GitHub
-# jobs that load a config whole, before they load it.
+# jobs that read a config, before they read a key. A job that needs only some keys asks for
+# them by name (`infra/doppler/named_keys.py`), which only names listed here can be.
 #
 # A new app key: its name goes in here first, in a pull request that merges before the key
 # is added to `stg`, since every check that reads `stg` fails on a name not listed here.

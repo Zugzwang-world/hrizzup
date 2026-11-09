@@ -10,7 +10,7 @@
 `app-keys.txt`, next to this file, lists the app's keys by name: whatever the website, its
 server code or the database needs to run. Every name in hrizzup's `stg`, `stg_preview` and
 `dev` must be one of them, besides Doppler's own three labels. `stg` and `stg_preview` are
-synced into Vercel's staging and previews, and GitHub jobs load them whole, so anything else
+synced into Vercel's staging and previews, and GitHub jobs read them, so anything else
 there, such as a tool token, reaches every staging and preview build and those jobs (runbook
 Part 4, "Where each kind of key lives"). It happened twice: `VERCEL_TOKEN` on 3 November 2026
 and `EXPO_TOKEN` on 8 November 2026.
