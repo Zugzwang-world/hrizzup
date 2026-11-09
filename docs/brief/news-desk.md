@@ -41,7 +41,7 @@ On 9 November 2026, in [#52](https://github.com/Zugzwang-world/hrizzup/pull/52),
 - **The market subjects list left the first half,** with data readings, until the markets' topics are chosen (step 1.2), so content on market subjects waits for them.
 - **The creation shape didn't change.**
 
-Also on 9 November, in PR_LINK: PLAN.md step 1.4 now says design starts only from the founder's references and diagrams, given in the design chat, and no session builds design directions, values or screens of its own choosing; Product's first design pass was retired. Nothing changes for News Desk.
+Also on 9 November, in [#58](https://github.com/Zugzwang-world/hrizzup/pull/58): PLAN.md step 1.4 now says design starts only from the founder's references and diagrams, given in the design chat, and no session builds design directions, values or screens of its own choosing; Product's first design pass was retired. Nothing changes for News Desk.
 
 ## Open questions
 
