@@ -1,5 +1,6 @@
 import { parts, validate } from '@hrizzup/agreement';
 import { z } from 'zod';
+import { nextCursor, pageInput } from './paging.ts';
 
 /**
  * The market console's part of the contract (PLAN.md step 1.7c; blueprint section 13): what an
@@ -124,9 +125,9 @@ export const consoleLogLine = z.object({
 export const consoleMarketWithLog = consoleMarket.extend({ log: z.array(consoleLogLine) });
 
 /** A page of markets, newest first, and where the next page starts (null on the last). */
-export const marketPage = z.object({ markets: z.array(consoleMarket), next: recordId.nullable() });
+export const marketPage = z.object({ markets: z.array(consoleMarket), next: nextCursor });
 
-export const marketPageInput = z.strictObject({ after: recordId.optional() }).optional();
+export const marketPageInput = pageInput;
 
 export const marketIdInput = z.strictObject({ id: recordId });
 

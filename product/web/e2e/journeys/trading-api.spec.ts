@@ -63,7 +63,7 @@ type Listed = { market: { id: string } };
 async function onTheList(as: APIRequestContext, id: string): Promise<boolean> {
   let after: string | null = null;
   for (let page = 0; page < 20; page++) {
-    const answer = await call(as, 'GET', `/api/v1/markets${after ? `?after=${after}` : ''}`);
+    const answer = await call(as, 'GET', `/api/v1/markets${after ? `?cursor=${after}` : ''}`);
     expect(answer.status, 'the public list answers').toBe(200);
     if ((answer.body.markets as Listed[]).some((item) => item.market.id === id)) return true;
     after = (answer.body.next as string | null) ?? null;

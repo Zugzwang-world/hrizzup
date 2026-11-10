@@ -40,6 +40,7 @@ import { cacheHeaders } from './caching.ts';
 import { asAdmin, consoleCall } from './console.ts';
 import type { ApiContext } from './context.ts';
 import { MARKETS_TAG, refreshEdge } from './edge-cache.ts';
+import { inOneFormat, pageOf } from './ground-rules.ts';
 import { createKey, keysSetUp, listKeys, revokeKey } from './keys.ts';
 import { PERPS_TAG, perpCall, perpSource } from './perps.ts';
 import {
@@ -53,19 +54,30 @@ import {
 
 /**
  * The typed API's real implementation (the contract is in product/packages/api). Every call
- * gets the caching headers its contract entry asks for, set in one place below.
+ * gets the caching headers its contract entry asks for, set in one place below, and answers a
+ * refused input in the one format (ground-rules.ts), whoever refused it.
  */
 const api = implement(contract)
   .$context<ApiContext & ResponseHeadersPluginContext>()
   .use(async ({ context, procedure, next }) => {
-    const result = await next();
-    for (const [name, value] of Object.entries(cacheHeaders(procedure['~orpc'].meta.caching))) {
-      context.resHeaders?.set(name, value);
+    try {
+      const result = await next();
+      for (const [name, value] of Object.entries(cacheHeaders(procedure['~orpc'].meta.caching))) {
+        context.resHeaders?.set(name, value);
+      }
+      return result;
+    } catch (error) {
+      throw inOneFormat(error);
     }
-    return result;
   });
 
 const state = (result: ServiceResult) => result.status;
+
+/** A console list's page, as the console's reads take it (they call the page size `max`). */
+function consolePage(input: Parameters<typeof pageOf>[0]) {
+  const { after, limit } = pageOf(input);
+  return { after, ...(limit === undefined ? {} : { max: limit }) };
+}
 
 /**
  * The market console's calls (console.ts): admins only. The admin check wraps the whole subtree,
@@ -147,7 +159,7 @@ export const router = api.router({
 
   markets: {
     list: api.markets.list.handler(({ input }) =>
-      tradingCall(() => marketList(tradingPool(), { after: input?.after })),
+      tradingCall(() => marketList(tradingPool(), pageOf(input))),
     ),
     trade: api.markets.trade.handler(async ({ context, input }) => {
       const user = await person(context.headers, 'trade');
@@ -192,19 +204,17 @@ export const router = api.router({
     positions: api.portfolio.positions.handler(async ({ context, input }) => {
       const user = await person(context.headers, 'read');
       await withinReadLimit(user, context.resHeaders);
-      return tradingCall(() => positions(tradingPool(), user.id, { after: input?.after }));
+      return tradingCall(() => positions(tradingPool(), user.id, pageOf(input)));
     }),
     orders: api.portfolio.orders.handler(async ({ context, input }) => {
       const user = await person(context.headers, 'read');
       await withinReadLimit(user, context.resHeaders);
-      return tradingCall(() => openOrders(tradingPool(), user.id, { after: input?.after }));
+      return tradingCall(() => openOrders(tradingPool(), user.id, pageOf(input)));
     }),
     perps: api.portfolio.perps.handler(async ({ context, input }) => {
       const user = await person(context.headers, 'read');
       await withinReadLimit(user, context.resHeaders);
-      return perpCall(() =>
-        perpPositions(tradingPool(), user.id, { after: input?.after }, perpSource()),
-      );
+      return perpCall(() => perpPositions(tradingPool(), user.id, pageOf(input), perpSource()));
     }),
   },
 
@@ -230,7 +240,7 @@ export const router = api.router({
   admin: {
     markets: {
       list: admin.markets.list.handler(({ context, input }) =>
-        consoleCall(() => listMarkets(context.pool, context.account, { after: input?.after })),
+        consoleCall(() => listMarkets(context.pool, context.account, consolePage(input))),
       ),
       get: admin.markets.get.handler(({ context, input }) =>
         consoleCall(() => getMarket(context.pool, context.account, input.id)),
@@ -250,7 +260,7 @@ export const router = api.router({
     },
     perps: {
       list: admin.perps.list.handler(({ context, input }) =>
-        consoleCall(() => listPerps(context.pool, context.account, { after: input?.after })),
+        consoleCall(() => listPerps(context.pool, context.account, consolePage(input))),
       ),
       get: admin.perps.get.handler(({ context, input }) =>
         consoleCall(() => getPerp(context.pool, context.account, input.id)),
