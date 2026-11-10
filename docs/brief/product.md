@@ -40,6 +40,7 @@ On 10 November 2026, Round 3's closing record ([#89](https://github.com/Zugzwang
 - **The founder's decisions, in PLAN.md:** market settings follow Manifold's defaults; the perp's first settings, so 3.4a starts; 1.6a done; the repository public until launch.
 - **The Product chat's settlements:** the app's writes through staging's firewall (1.6b; production's in P.14); the app's bot check in a small web view; set-probability markets off the list until market/2, now a need of 3.3; the console's create page fixed to its budget.
 - **Round 3 closed:** every row final in `TRACKER.md`, relay 13's included; the milestone "Round 3" closed and "Round 4" opened; Round 4's queue leads `TRACKER.md`. Sourcing's and News Desk's briefs say market/2 is coming.
+- **Afterwards, relay 13:** commits from this Mac carry the founder's GitHub no-reply address instead of his personal email (his choice), merges too (`--author-email`).
 
 ## Open questions
 
@@ -60,7 +61,7 @@ One line each; the detail, and the rest, are in the status file.
 - **Coming in Round 4:** a new build of the app for your phone (1.6b); its relay sends the link.
 - **Design:** your references and diagrams in the design chat: the board and a story page, then the market page and the perp's page.
 - **You're an admin on staging (nothing to do):** sign in with Google on the sign-in test page, then open `staging.hrizzup.com/console`.
-- **Your personal details in the repository:** relay 13 listed them for you in its session; nothing changes unless you ask.
+- **Keep your email private on GitHub (a minute):** Settings → Emails → tick **Keep my email addresses private**; leave "Block command line pushes" unticked. Commits from this Mac already carry your GitHub no-reply address (your choice); this makes GitHub's own merges and edits carry it too.
 - **The app's own database login, before launch.** Recommendation: you make its password in Supabase and keep it in Doppler; Claude Code switches to it.
 - **Three decisions, recommended:** posting on both surfaces (2.4); the closed test without News Desk's content (2.6); reading and betting free, play money never sold (2.7). **Alongside:** the developer accounts (0.4), 12 Google Play testers, News Desk.
 - **Spending, not now:** Calibre ($75 a month) once the board exists; Expo's Maestro job (about $60 a month) only if the emulator proves flaky; a database per pull request only if needed.

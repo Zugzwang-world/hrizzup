@@ -1522,6 +1522,16 @@ No good sign-in failed, so the switch-off kept ready beside it (one setting, `ho
 - **GitHub milestones:** "Round 4" (number 9) opened for Round 4's pull requests, and "Round 3" (number 8) closed once [#89](https://github.com/Zugzwang-world/hrizzup/pull/89) merged, holding Round 3's pull requests; none was left open.
 - **Where the founder's decisions of 10 November 2026 went:** market settings follow Manifold's defaults, the perp's first settings and the set-probability rule (PLAN.md section 2 and steps 3.3 and 3.4a; `TRACKER.md`, "Markets track"; blueprint sections 6 and 13); the repository public until launch, now in PLAN.md section 3 as well; 1.6b's shape (PLAN.md step 1.6b); Round 4's queue (`TRACKER.md`, the Product brief).
 
+### Commits carry the founder's GitHub no-reply address (the founder's decision, 10 November 2026; Claude Code)
+
+**Why:** the repository is public, and every commit until now carried the founder's personal email as its author, readable by anyone from the commits. He chose his GitHub no-reply address for every commit from now on.
+
+**Set:** `user.email` = `273130081+Zugzwang-world@users.noreply.github.com` (his account's no-reply address, built from its ID and name as GitHub documents) in this repository's own git settings on the Mac (`.git/config`, which every worktree shares). The Mac's global git setting, which other projects use, is unchanged. Merges get the same address through `gh pr merge --auto --squash --author-email …` (CLAUDE.md, "How changes land").
+
+**Checked:** all 12 of the repository's worktrees on this Mac report the no-reply address; this record's own commit and its squash merge carry it, and GitHub credits both to the founder's account. Commits made before keep the old address: rewriting the history isn't worth it (pull requests' own refs keep the old commits anyway).
+
+**For the founder (a minute):** GitHub → your picture → **Settings → Emails** → tick **Keep my email addresses private**, so anything GitHub writes for you (a merge from the website, an edit in the browser) uses the no-reply address too. Leave **Block command line pushes that expose my email** unticked: older branches' commits still carry the old address, and a push of one would be refused.
+
 ---
 
 ## Rules for this log
