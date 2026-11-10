@@ -16,7 +16,9 @@
 
 ## Round 4 progress
 
-Round 4 progress: not started. Round 4's own records relay sets its relays' lines here.
+Round 4 progress: Round 4's own records relay sets its relays' lines here.
+
+- **R4, the app's sign-in (1.6b):** first, staging's firewall lets the app's writes through ([#94](https://github.com/Zugzwang-world/hrizzup/pull/94)); next, our server's half of email codes, then Google through the phone's browser, email codes in the app, the test screen, the App journeys and a new build for your phone.
 
 ## Decisions in force
 

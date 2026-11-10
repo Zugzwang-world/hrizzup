@@ -1,5 +1,5 @@
 {
-  "_about": "The Vercel firewall for the project hrizzup (all environments), applied and read back by apply.py. Rules run top to bottom. Rate limits count per visitor IP address over 60 seconds and answer 429 when exceeded. Blueprint section 9: every route that signs in or sends email is rate-limited. Our routes that sign in live under /auth/, and any route of ours that sends email must live under /auth/email/ or /api/email/ so these rules cover it. (Email codes requested straight from Supabase Auth are limited by Supabase itself and by Turnstile: infra/supabase/auth/settings.json.) A rule whose every condition group names one of staging's own domains as the host (staging.hrizzup.com) reaches only staging; apply.py --staging-only applies a firewall change only when every rule it adds, changes or removes is such a rule and its action stays with the request it matches (no persistent action, no bypass of the DDoS mitigations).",
+  "_about": "The Vercel firewall for the project hrizzup (all environments), applied and read back by apply.py. Rules run top to bottom. Rate limits count per visitor IP address over 60 seconds and answer 429 when exceeded. Blueprint section 9: every route that signs in or sends email is rate-limited. Our routes that sign in live under /auth/, and any route of ours that sends email must live under /auth/email/ or /api/email/ so these rules cover it; the typed API's calls that send email live under /api/v1/auth/email/, which staging's own rule limits the same way (production's waits for the pre-launch checklist, P.14). (Email codes requested straight from Supabase Auth are limited by Supabase itself and by Turnstile: infra/supabase/auth/settings.json.) A rule whose every condition group names one of staging's own domains as the host (staging.hrizzup.com) reaches only staging; apply.py --staging-only applies a firewall change only when every rule it adds, changes or removes is such a rule and its action stays with the request it matches (no persistent action, no bypass of the DDoS mitigations).",
   "firewallEnabled": true,
   "managedRules": {
     "bot_protection": { "active": true, "action": "challenge" },
@@ -71,6 +71,31 @@
       "action": { "mitigate": { "action": "bypass" } }
     },
     {
+      "name": "Rate limit: staging's typed API calls that send email",
+      "description": "At most 5 requests a minute per IP to staging's typed API calls that send email (/api/v1/auth/email/ on staging.hrizzup.com), as for every route that sends email. Staging only.",
+      "active": true,
+      "conditionGroup": [
+        {
+          "conditions": [
+            { "type": "host", "op": "eq", "value": "staging.hrizzup.com" },
+            { "type": "path", "op": "pre", "value": "/api/v1/auth/email/" }
+          ]
+        }
+      ],
+      "action": {
+        "mitigate": {
+          "action": "rate_limit",
+          "rateLimit": {
+            "algo": "fixed_window",
+            "window": 60,
+            "limit": 5,
+            "keys": ["ip"],
+            "action": "rate_limit"
+          }
+        }
+      }
+    },
+    {
       "name": "Rate limit: staging's typed API",
       "description": "At most 60 requests a minute per IP to staging's typed API (/api/v1/ on staging.hrizzup.com). Staging only.",
       "active": true,
@@ -97,7 +122,7 @@
     },
     {
       "name": "Staging's typed API: no bot challenge",
-      "description": "The app reads staging's typed API without a browser, so it can't pass the bot challenge (PLAN.md step 1.5d). Reads only, rate-limited by the rule above; writes get their own decision. Staging only. Keep bypasses last.",
+      "description": "The app reads staging's typed API without a browser, so it can't pass the bot challenge (PLAN.md step 1.5d). Reads only (GET), rate-limited by the rules above; the app's writes have the rule below. Staging only. Keep bypasses last.",
       "active": true,
       "conditionGroup": [
         {
@@ -105,6 +130,21 @@
             { "type": "host", "op": "eq", "value": "staging.hrizzup.com" },
             { "type": "path", "op": "pre", "value": "/api/v1/" },
             { "type": "method", "op": "eq", "value": "GET" }
+          ]
+        }
+      ],
+      "action": { "mitigate": { "action": "bypass" } }
+    },
+    {
+      "name": "Staging's typed API: the app's writes, no bot challenge",
+      "description": "The app writes to staging's typed API without a browser (PLAN.md step 1.6b: it asks for email codes there), so it can't pass the bot challenge. POST only, rate-limited by the rules above. Staging only. Keep bypasses last.",
+      "active": true,
+      "conditionGroup": [
+        {
+          "conditions": [
+            { "type": "host", "op": "eq", "value": "staging.hrizzup.com" },
+            { "type": "path", "op": "pre", "value": "/api/v1/" },
+            { "type": "method", "op": "eq", "value": "POST" }
           ]
         }
       ],
