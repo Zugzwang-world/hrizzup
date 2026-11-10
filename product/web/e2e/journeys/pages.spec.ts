@@ -91,6 +91,7 @@ for (const sitePage of pages) {
 }
 
 test('a visitor moves between the pages through their links', async ({ page }) => {
+  const settled = watchLoading(page);
   await page.goto('/');
   await expect(page.locator('[data-page="holding"]')).toBeVisible();
 
@@ -112,6 +113,10 @@ test('a visitor moves between the pages through their links', async ({ page }) =
   await expect(page).toHaveURL(/\/$/);
   await expect(page.locator('[data-page="holding"]')).toBeVisible();
 
+  // As a visitor would, let the page finish loading before going to another address: Next.js
+  // turns a page fetch cut off by leaving (one still in flight from an earlier click) into a full
+  // load of that page, which would take over this one (seen in WebKit on GitHub's slower runners).
+  await settled();
   const missing = await page.goto('/this-page-does-not-exist');
   expect(missing?.status()).toBe(404);
   await page.getByRole('link', { name: 'Back to the home page' }).click();
