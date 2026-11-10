@@ -17,6 +17,11 @@ Hrizzup is a news app built around creators, plus a website with play-money pred
 - Start every reply with a short plain-English summary, and explain anything he must do in plain English, step by step.
 - Ask only when a real decision is needed. Otherwise choose the sensible default and say what you chose. In an unattended session, never ask: see "Unattended sessions", below.
 
+## Product first, nothing paid (founder's decisions, 10 November 2026)
+
+- **Product first until launch:** work goes to the product. No new privacy, security or production work unless it blocks the product; what's already planned for launch stays in the runbook's pre-launch checklist. Existing checks, budgets and rules stay exactly as they are; nothing gets looser.
+- **Nothing paid for now:** free versions and free tiers only. No new paid tool, plan or licence until the founder says so; a paid option waits, parked, under "For the founder" in the Product brief.
+
 ## Unattended sessions (founder's decision, 8 November 2026)
 
 From Round 2 on, work runs in rounds of parallel Claude Code sessions ("relays"), each in its own worktree, unattended and with bypass permissions. Every other rule in this file still applies in full; these add to them.
@@ -87,7 +92,7 @@ In that session's pull request:
 The repository is public until launch, because GitHub's checks are free on public repositories; it goes private again before launch (runbook, pre-launch checklist, P.17).
 
 - **Every file, pull request, comment and check log is public, so nothing secret or personal goes into any of them.** Keys stay in Doppler, as always. That covers commit messages, branch names, issues, check logs, job summaries and artifacts too: a report for the founder that must name something personal goes to him in the session itself, never into the repository.
-- **Commits carry the founder's GitHub no-reply address, never his personal email** (founder's decision, 10 November 2026): `273130081+Zugzwang-world@users.noreply.github.com`, set in this repository's own git settings on the Mac (`.git/config`, which every worktree shares; the Mac's global setting, for other projects, stays as it is). A new clone sets it the same way. The squash commits GitHub makes when a pull request merges carry it too, since the founder's account keeps its email private ("Keep my email addresses private", ticked 10 November 2026), so merges need nothing extra (`--author-email` with this address fails: GitHub refuses it there). Commits made before keep the old address; rewriting history isn't worth it.
+- **Commits carry the founder's GitHub no-reply address under his GitHub username, never his personal email or another name** (founder's decisions, 10 November 2026): `Zugzwang-world <273130081+Zugzwang-world@users.noreply.github.com>`, the address built from his public profile's ID and username as GitHub documents. Both are set in this repository's own git settings on the Mac (`user.name` and `user.email` in `.git/config`, which every worktree shares; the Mac's global setting, for other projects, stays as it is), and `git var GIT_AUTHOR_IDENT` shows both. A new clone sets them the same way. The squash commits GitHub makes when a pull request merges carry the address too, since the founder's account keeps its email private ("Keep my email addresses private", ticked 10 November 2026), so merges need nothing extra (`--author-email` with this address fails: GitHub refuses it there); GitHub signs them with his profile's display name, which only he can change. Earlier commits stay as they are; rewriting history isn't worth it.
 - **Every value a job fetches is masked before anything can print it.** Doppler's action masks each key except one marked "unmasked" in Doppler, so no key is ever marked that way; `infra/doppler/named_keys.py` and `infra/supabase/database_url.py` mask what they fetch or build.
 - **Outsiders can read and fork, nothing more:** only collaborators can open pull requests and issues, an interaction limit keeps everyone else from commenting (six months at a time, renewed from a reminder in `.github/reminders.json`), a fork's pull request runs no workflow until the founder approves it and never gets a key (GitHub's rule for forks; Vercel's fork protection for previews).
 - **The workflows stay safe for it** (`.github/scripts/test_public_repo.py`, in Quick checks): no `pull_request_target` or `workflow_run`, every action pinned to a commit, every workflow's token rights written down, outside text reaching scripts only through `env:`, GitHub's own machines only, and only the founder can release. The repository's default token is read-only.
@@ -112,6 +117,12 @@ Label every change with its size at the start of the commit message and the pull
 - **Normal:** quick checks, plus the tests for the parts the change touches.
 - **Risky** (market maths, play money, login, database structure, the core of the news engine, payments): the full test suite plus AI review.
 - **Production release:** everything, once.
+
+## How checks behave (founder's decisions, 10 November 2026; blueprint section 11)
+
+- **Each check run owns everything it changes:** its own fresh staging accounts, made by the run itself, their play money, its own test markets and anything it stores. Shared things are only read, and a run's markets stay off staging's public list. Every journey that trades ends by checking that its market's books add up, to the exact decimal.
+- **A test that passes only on its retry fails its check,** in every check that retries, and **a failed check is re-run only for an outage outside our code** (GitHub, Vercel, Supabase or Cloudflare), noted in its pull request. Both switch on once every check run owns what it changes (Round 4, R2). Until their fixes land, two re-runs stay: a Screen check failed by another run's trades, re-run alone; and a Speed check that fails only on `/console/markets/new`, that job alone.
+- **The Speed check also warns when any single run of a page crosses a budget.** The session whose pull request shows a warning adds it to Product's status file, under "Next", unless it's already there, so its fix gets queued. Budgets never move.
 
 ## Production is off-limits to Claude Code
 
@@ -149,6 +160,7 @@ Label every change with its size at the start of the commit message and the pull
 - **A database per pull request** (Supabase branching) comes only if that rule starts slowing features: it's a paid extra, so it's the founder's call then.
 - **The admins table** (founder's decision, 9 November 2026) is written only by reviewed migrations naming the account's ID: each is sized `[risky]`, so it waits for the AI review, and adds its row only where that account exists, since every migration also runs on production. No role the app uses can write it.
 - **Production's database is changed only by the release pipeline,** which applies the same migration files with its own credentials. Claude Code never connects to it.
+- **Scheduled jobs are defined in migrations, like any database change** (founder's decision, 10 November 2026): the perp's checks every 5 seconds and its hourly funding are Supabase Cron jobs that migration files create, so every environment gets them the same way and in the same order.
 - Every table has row-level security on: the first migration switches it on for every new table and refuses any attempt to switch it off, and the Database check (every pull request) and the Staging workflow (every merge) fail if any table lacks it. To let people read or change rows, write a policy.
 - The app connects through `DATABASE_URL` (pooler, transaction mode, port 6543) and migrations through `DATABASE_URL_SESSION` (session mode, port 5432). Both are Supabase's own shared-pooler strings, copied as they are from its Connect dialog with the `[YOUR-PASSWORD]` placeholder; the code fills in `SUPABASE_DB_PASSWORD` (`product/web/lib/db.ts`; workflows and scripts use `infra/supabase/database_url.py run session -- …`). Pool and timeout settings: blueprint section 5.
 
