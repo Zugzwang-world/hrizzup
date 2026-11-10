@@ -20,7 +20,7 @@ One line per relay; each relay keeps only its own line current.
 
 - **R1, the round's records:** done, [#95](https://github.com/Zugzwang-world/hrizzup/pull/95): the founder's decisions of 10 November recorded, the relays numbered. For the founder: one optional click (below).
 - **R2, checks you can trust** (the console page's speed fix and the slowest-run warning; play money on signup; every check run on its own; retry-passes fail): not started.
-- **R3, the perp's maths (3.4a):** not started.
+- **R3, the perp's maths (3.4a):** Manifold's perps maths and its 274 tests copied in, [#92](https://github.com/Zugzwang-world/hrizzup/pull/92) (1 of 3). Next: our settings (Manifold's defaults, the 10 times cap), the time passed in and the seeded stand-in price (2 of 3); then our tests that no play money is created or lost, with a long simulation (3 of 3). Nothing for the founder.
 - **R4, the app's sign-in (1.6b):** first, staging's firewall lets the app's writes through ([#94](https://github.com/Zugzwang-world/hrizzup/pull/94)); next, our server's half of email codes, then Google through the phone's browser, email codes in the app, the test screen, the App journeys and a new build for your phone.
 - **R5, the perp's back end (3.4a),** after R3: not started.
 - **Later** (3.1, 3.4c and 2.1 once their designs are approved, then the closing record): numbered when written.

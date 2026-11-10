@@ -22,7 +22,7 @@ const ourDir = join(packageDir, 'src', 'manifold');
 const repoRoot = join(packageDir, '..', '..', '..');
 
 // Files in src/manifold that are ours, not Manifold's, and the one trimmed copy.
-const ours = new Set(['contract.ts', 'api/utils.ts']);
+const ours = new Set(['contract.ts', 'api/utils.ts', 'perps/oracle.ts', 'perps/adjacent-msry.ts']);
 const trimmed = new Set(['new-contract.ts']);
 // Kept exactly as Manifold wrote it apart from its import lines, so Biome skips it.
 const unformatted = new Set(['calculate-cpmm-arbitrage.ts']);
@@ -58,8 +58,9 @@ const rewriteImports = (rel: string, text: string) => {
     return `${from}${q1}${path}${q2}`;
   });
   if (rel.endsWith('.test.ts')) {
-    const used = ['describe', 'expect', 'it'].filter((name) =>
-      new RegExp(`\\b${name}(\\.each)?\\(`).test(out),
+    // Not after a dot or a letter, so a call such as `/x/.test(s)` isn't taken for Vitest's `test`.
+    const used = ['describe', 'expect', 'it', 'test'].filter((name) =>
+      new RegExp(`(?<![.\\w])${name}(\\.each)?\\(`).test(out),
     );
     out = `import { ${used.join(', ')} } from 'vitest'\n${out}`;
   }

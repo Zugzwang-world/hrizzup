@@ -1,7 +1,7 @@
 {
   "name": "@hrizzup/market-engine",
   "private": true,
-  "description": "The market maths: Manifold's yes/no market engine (pool prices, limit orders, selling, Yes and No cancelling out, fees and settlement), copied with its tests from Manifold at commit 79997aa (MIT licence, src/manifold/LICENSE.md).",
+  "description": "The market maths: Manifold's yes/no market engine (pool prices, limit orders, selling, Yes and No cancelling out, fees and settlement) and its perps maths (leverage, liquidation, funding, the opening fee), copied with their tests from Manifold at commit 79997aa (MIT licence, src/manifold/LICENSE.md).",
   "type": "module",
   "exports": {
     ".": {
