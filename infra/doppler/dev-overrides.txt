@@ -5,3 +5,5 @@
 #   SITE_URL   # local runs answer on http://localhost:3000, not staging's address
 
 REDIS_KEY_PREFIX   # local runs share staging's Redis database; "dev" keeps their keys apart from staging's "stg" (blueprint section 14, Redis)
+PERP_JOBS_SECRET   # local runs use the slot's own database, whose schedule never calls staging: their own secret, never staging's
+PERP_STAND_IN_SEED # local runs use the slot's own database and its own copy of the Bitcoin perp: their own seed, so staging's prices stay on staging

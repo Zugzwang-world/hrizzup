@@ -154,6 +154,11 @@ export type PerpFundingApplied = {
     book: PerpBook;
     fundingRate: number;
     moves: PerpMove[];
+    /**
+     * The pools and positions as the funding alone left them, before any winner was scaled down
+     * after it (R5: the books record the funding and the scaling as separate events).
+     */
+    funded: PerpState;
 }
 /** Not due, paused, or (`reason`) the funded book couldn't be made solvent: nothing changes. */
  | {

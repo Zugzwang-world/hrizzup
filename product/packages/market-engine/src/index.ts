@@ -47,8 +47,10 @@ export { type BetInfo, type CandidateBet, getBinaryCpmmBetInfo } from './manifol
 export { getNewContract } from './manifold/new-contract.ts';
 // Settlement: Yes, No, a set probability (MKT) or cancel.
 export { getPayouts, type Payout, type PayoutInfo } from './manifold/payouts.ts';
-// Manifold's perps maths the books and screens read: positions, the pools, value and profit.
+// Manifold's perps maths the books and screens read: positions, the pools, value and profit, and
+// the solvency check the books run on a step's rounded result before writing it (R5).
 export {
+  assertPerpStateSolvent,
   getPerpOpenInterest,
   getPositionValue,
   liquidationPrice,
@@ -57,6 +59,8 @@ export {
 } from './manifold/perps/amm.ts';
 // The cash-backing check: the money the perp holds equals its two pools.
 export { isPerpEscrowBalanced } from './manifold/perps/escrow.ts';
+// The funding rate a perp is accruing now, for its details.
+export { getPerpFundingRate } from './manifold/perps/funding.ts';
 // A price point.
 export type { OraclePoint } from './manifold/perps/oracle.ts';
 // Profit and loss as a trader sees it.
@@ -102,4 +106,9 @@ export {
   type PerpSettings,
 } from './perp/settings.ts';
 // Its stand-in price: a new one every 5 seconds, from a secret seed.
-export { STAND_IN_PRICE, STAND_IN_SEED_PATTERN, standInPrice } from './perp/stand-in-price.ts';
+export {
+  STAND_IN_PRICE,
+  STAND_IN_SEED_PATTERN,
+  type StandInWalk,
+  standInPrice,
+} from './perp/stand-in-price.ts';

@@ -5,7 +5,16 @@ import { authSettings, emailCodeInput, emailCodeSent } from './auth.ts';
 import { consoleMarketWithLog, createMarketInput, settleMarketInput } from './console.ts';
 import { contract } from './contract.ts';
 import * as examples from './examples.ts';
-import { consolePerpWithLog, setPerpModeInput, setPerpSettingsInput } from './perps.ts';
+import {
+  closePerpInput,
+  consolePerpWithLog,
+  openPerpInput,
+  perpDetails,
+  perpPositionsPage,
+  perpTradeResult,
+  setPerpModeInput,
+  setPerpSettingsInput,
+} from './perps.ts';
 import { procedures as callsOf } from './procedures.ts';
 import { standIn } from './stand-in.ts';
 import { marketList, tradeInput } from './trading.ts';
@@ -398,8 +407,10 @@ describe("the stand-in's market console", () => {
 });
 
 describe('the markets, for everyone', () => {
+  // The perp's own call in the portfolio (portfolio.perps) is checked with the perp's, below.
   const calls = procedures.filter(
-    ([name]) => name.startsWith('markets.') || name.startsWith('portfolio.'),
+    ([name]) =>
+      name.startsWith('markets.') || (name.startsWith('portfolio.') && name !== 'portfolio.perps'),
   );
 
   it('are the list, trading, cancelling an order, positions and open orders', () => {
@@ -439,6 +450,130 @@ describe('the markets, for everyone', () => {
     expect(errors.NOT_FOUND?.status).toBe(404);
     expect(errors.CONFLICT?.status).toBe(409);
     expect(errors.SERVICE_UNAVAILABLE?.status).toBe(503);
+  });
+});
+
+describe('the perp, for everyone (step 3.4a)', () => {
+  const calls = procedures.filter(
+    ([name]) => name.startsWith('perps.') || name === 'portfolio.perps',
+  );
+
+  it('are its price and details, opening, closing and the positions', () => {
+    expect(calls.map(([name]) => name).sort()).toEqual([
+      'perps.close',
+      'perps.get',
+      'perps.list',
+      'perps.open',
+      'portfolio.perps',
+    ]);
+  });
+
+  it('keep the price and details at the edge a few seconds, tagged; trading is never kept', () => {
+    for (const name of ['list', 'get'] as const) {
+      expect(contract.perps[name]['~orpc'].meta.caching).toEqual({
+        kind: 'public',
+        edgeSeconds: 5,
+        staleSeconds: 10,
+        tags: ['perps'],
+      });
+      expect(contract.perps[name]['~orpc'].route.method).toBe('GET');
+    }
+    for (const name of ['perps.open', 'perps.close', 'portfolio.perps']) {
+      const procedure = calls.find(([call]) => call === name)?.[1];
+      expect(procedure?.['~orpc'].meta.caching, name).toEqual({ kind: 'personal' });
+    }
+    expect(contract.perps.open['~orpc'].route).toMatchObject({
+      method: 'POST',
+      path: '/perps/open',
+    });
+    expect(contract.perps.close['~orpc'].route).toMatchObject({
+      method: 'POST',
+      path: '/perps/close',
+    });
+  });
+
+  it("say what a refused trade answers: the engine's reason, a limit to wait out, or try again", () => {
+    for (const name of ['open', 'close'] as const) {
+      const errors = contract.perps[name]['~orpc'].errorMap;
+      expect(errors.REFUSED?.status).toBe(422);
+      expect(errors.TOO_MANY_REQUESTS?.status).toBe(429);
+      expect(errors.UNAUTHORIZED?.status).toBe(401);
+      expect(errors.NOT_FOUND?.status).toBe(404);
+      expect(errors.CONFLICT?.status).toBe(409);
+      expect(errors.SERVICE_UNAVAILABLE?.status).toBe(503);
+    }
+  });
+
+  it('take an open as text: a margin to the millionth, a leverage of at least 1, an optional most fee', () => {
+    const base = {
+      perpId: examples.perpDetails.id,
+      requestId: '01a1c600-1a00-7a10-9c3d-1f2e3d4c5b6a',
+      direction: 'long',
+    };
+    const takes = (input: Record<string, unknown>) => openPerpInput.safeParse(input).success;
+    expect(takes({ ...base, margin: '100', leverage: '10' })).toBe(true);
+    expect(takes({ ...base, margin: '0.000001', leverage: '1', maxFee: '0.5' })).toBe(true);
+    // More than 10 times is the engine's refusal (422, leverage_too_high), not the contract's.
+    expect(takes({ ...base, margin: '100', leverage: '11' })).toBe(true);
+    for (const bad of [
+      { margin: '0', leverage: '10' },
+      { margin: '-1', leverage: '10' },
+      { margin: '1.0000001', leverage: '10' },
+      { margin: 100, leverage: '10' },
+      { margin: '100', leverage: '0.5' },
+      { margin: '100', leverage: 10 },
+      { margin: '100', leverage: '10', direction: 'sideways' },
+      { margin: '100', leverage: '10', extra: true },
+    ]) {
+      expect(takes({ ...base, ...bad }), JSON.stringify(bad)).toBe(false);
+    }
+  });
+
+  it('take a close as all of it or a share, more than 0 and at most 1', () => {
+    const base = {
+      perpId: examples.perpDetails.id,
+      requestId: '01a1c601-2b00-7b20-8e4f-3a2b1c0d9e8f',
+    };
+    const takes = (input: Record<string, unknown>) => closePerpInput.safeParse(input).success;
+    expect(takes({ ...base, fraction: '1' })).toBe(true);
+    expect(takes({ ...base, fraction: '0.5', expectedSize: '1000', direction: 'long' })).toBe(true);
+    // A part-close carries the size it was sized on.
+    expect(takes({ ...base, fraction: '0.5' })).toBe(false);
+    expect(takes({ ...base, fraction: '1.000000' })).toBe(true);
+    for (const fraction of ['0', '1.5', '-0.5', '.5', '0.1234567', 1]) {
+      expect(takes({ ...base, fraction }), String(fraction)).toBe(false);
+    }
+    expect(takes({ ...base })).toBe(false);
+  });
+
+  it("answer with the story's examples, each passing the contract", () => {
+    expect(perpDetails.parse(examples.perpDetails)).toEqual(examples.perpDetails);
+    expect(perpTradeResult.parse(examples.perpOpened)).toEqual(examples.perpOpened);
+    expect(perpTradeResult.parse(examples.perpClosed)).toEqual(examples.perpClosed);
+    expect(perpPositionsPage.parse(examples.perpPositionsPage)).toEqual(examples.perpPositionsPage);
+    // Ṁ1,000, less the margin and fee, plus the payout: the close leaves exactly this.
+    expect(examples.perpClosed.balance).toBe('1006.561054');
+  });
+
+  it("are the stand-in's too: the price, an open, a close, and a refusal past 10 times", async () => {
+    const api = createRouterClient(standIn());
+    await expect(api.perps.list()).resolves.toEqual({ perps: [examples.perpDetails] });
+    const request = {
+      perpId: examples.perpDetails.id,
+      requestId: '01a1c602-3c00-7c30-a15e-4b3c2d1e0f9a',
+      direction: 'long' as const,
+      margin: '100',
+      leverage: '10',
+    };
+    await expect(api.perps.open(request)).resolves.toMatchObject({ status: 'opened' });
+    await expect(api.perps.open({ ...request, leverage: '11' })).rejects.toMatchObject({
+      code: 'REFUSED',
+    });
+    const signedOut = createRouterClient(standIn({ signedIn: false }));
+    await expect(signedOut.perps.open(request)).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+    await expect(signedOut.perps.get({ id: examples.perpDetails.id })).resolves.toEqual(
+      examples.perpDetails,
+    );
   });
 });
 

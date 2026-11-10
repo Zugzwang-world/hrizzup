@@ -39,6 +39,17 @@ export declare const STAND_IN_PRICE: {
 /** A seed: 16 hexadecimal digits, the 64-bit key of the hash. */
 export declare const STAND_IN_SEED_PATTERN: RegExp;
 /**
+ * Where a walk starts, at what price, and how much it moves in a year. The Bitcoin perp walks
+ * `STAND_IN_PRICE`'s; a check run's test perp walks one of its own (R5: a later start, so its steps
+ * stay few, and a far higher volatility, so a run can see a liquidation within a minute). Its 5-second
+ * steps start at its origin.
+ */
+export type StandInWalk = {
+    origin: number;
+    startPrice: number;
+    annualVolatility: number;
+};
+/**
  * HalfSipHash-2-4 (Aumasson and Bernstein's keyed hash, 32-bit output) of whole 32-bit words,
  * written from its specification; it gives the reference's first test vector (see the tests).
  * Written with plain local variables and the rounds inline, since a price takes 48 of these.
@@ -47,5 +58,6 @@ export declare const halfSipHash: (key: readonly [number, number], words: readon
 /**
  * The stand-in price at a moment: the price of the 5-second step the moment falls in, and the
  * step's start (`ts`), when that price was published. Rounded to the cent, as Bitcoin is quoted.
+ * Without `along`, the Bitcoin perp's walk (`STAND_IN_PRICE`); a test perp passes its own.
  */
-export declare const standInPrice: (seed: string, moment: number) => OraclePoint;
+export declare const standInPrice: (seed: string, moment: number, along?: StandInWalk) => OraclePoint;

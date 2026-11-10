@@ -327,6 +327,9 @@ importers:
       '@hrizzup/db':
         specifier: workspace:*
         version: link:../db
+      '@hrizzup/ledger':
+        specifier: workspace:*
+        version: link:../ledger
       '@hrizzup/market-engine':
         specifier: workspace:*
         version: link:../market-engine

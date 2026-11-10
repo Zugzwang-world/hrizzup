@@ -7,7 +7,14 @@ import updates from '@hrizzup/agreement/examples/updates.json' with { type: 'jso
 import type { AuthSettings, EmailCodeSent } from './auth.ts';
 import type { ConsoleMarket, ConsoleMarketWithLog } from './console.ts';
 import type { Health, Me } from './contract.ts';
-import type { ConsolePerp, ConsolePerpWithLog, RuleChange } from './perps.ts';
+import type {
+  ConsolePerp,
+  ConsolePerpWithLog,
+  PerpDetails,
+  PerpPositionsPage,
+  PerpTradeResult,
+  RuleChange,
+} from './perps.ts';
 import type {
   CancelOrderResult,
   MarketList,
@@ -300,3 +307,91 @@ export const consolePerpWithLog: ConsolePerpWithLog = {
 
 /** The same perp as a list shows it, without its log. */
 export const consolePerp: ConsolePerp = (({ log: _log, ...rest }) => rest)(consolePerpWithLog);
+
+/**
+ * The Bitcoin perp for everyone (PLAN.md step 3.4a), told as one small story: the perp switched on,
+ * the example person (`me`, Ṁ1,000 of play money) opens a 10-times long with Ṁ100 of margin at
+ * $101,234.56 (Ṁ1,000 of size, an opening fee of 10 basis points of it, Ṁ1), and a minute later
+ * closes it at $102,000: their margin back from the long pool and 765.44 / 101,234.56 of their size
+ * in profit from the short pool, Ṁ107.561054 in all (rounded down to the millionth).
+ */
+export const perpOpened: PerpTradeResult = {
+  status: 'opened',
+  requestId: '01a1c600-1a00-7a10-9c3d-1f2e3d4c5b6a',
+  perpId: consolePerpWithLog.id,
+  placedAt: '2026-11-10T10:59:57.512Z',
+  at: '2026-11-10T11:00:00.120Z',
+  price: '101234.56',
+  priceAt: '2026-11-10T11:00:00Z',
+  margin: '100.000000',
+  fee: '1.000000',
+  payout: '0.000000',
+  position: {
+    id: '0b1c2d3e-4f50-4a61-8b72-93a4b5c6d7e8',
+    perpId: consolePerpWithLog.id,
+    direction: 'long',
+    size: '1000',
+    margin: '100',
+    entryPrice: '101234.56',
+    leverage: '10',
+    liquidationPrice: '91111.104',
+    feesPaid: '1',
+    openedAt: '2026-11-10T11:00:00.12Z',
+    updatedAt: '2026-11-10T11:00:00.12Z',
+  },
+  balance: '899.000000',
+};
+
+export const perpClosed: PerpTradeResult = {
+  status: 'closed',
+  requestId: '01a1c601-2b00-7b20-8e4f-3a2b1c0d9e8f',
+  perpId: consolePerpWithLog.id,
+  placedAt: '2026-11-10T10:59:59.003Z',
+  at: '2026-11-10T11:01:00.150Z',
+  price: '102000',
+  priceAt: '2026-11-10T11:01:00Z',
+  margin: '0.000000',
+  fee: '0.000000',
+  payout: '107.561054',
+  position: null,
+  balance: '1006.561054',
+};
+
+/** The perp's details while the position is open, at $101,500. */
+export const perpDetails: PerpDetails = {
+  id: consolePerpWithLog.id,
+  name: consolePerpWithLog.name,
+  listed: true,
+  state: 'live',
+  tradingMode: 'enabled',
+  feed: consolePerpWithLog.feed,
+  settings: consolePerpWithLog.settings,
+  price: '101500',
+  priceAt: '2026-11-10T11:00:30Z',
+  nextPriceAt: '2026-11-10T11:00:35Z',
+  bookPrice: '101500',
+  bookPriceAt: '2026-11-10T11:00:30Z',
+  pausedReason: null,
+  pools: { long: '25101.000000', short: '25000.000000' },
+  openInterest: { long: '1000', short: '0' },
+  openPositions: 1,
+  fundingRate: '0',
+  lastFundingAt: null,
+  nextFundingAt: '2026-11-10T11:30:00Z',
+};
+
+/** The example person's position then, worth Ṁ102.622029 at $101,500. */
+export const perpPositionsPage: PerpPositionsPage = {
+  balance: perpOpened.balance,
+  positions: [
+    {
+      ...(perpOpened.position as NonNullable<PerpTradeResult['position']>),
+      perpName: consolePerpWithLog.name,
+      tradingMode: 'enabled',
+      price: '101500',
+      value: '102.622029',
+      profit: '1.622029',
+    },
+  ],
+  next: null,
+};

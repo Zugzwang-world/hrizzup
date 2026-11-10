@@ -145,6 +145,90 @@
       }
     }
   },
+  "perps": {
+    "list": {
+      "~orpc": {
+        "errorMap": {},
+        "meta": {
+          "caching": {
+            "kind": "public",
+            "edgeSeconds": 5,
+            "staleSeconds": 10,
+            "tags": [
+              "perps"
+            ]
+          }
+        },
+        "route": {
+          "method": "GET",
+          "path": "/perps",
+          "summary": "The perps, with their prices now",
+          "tags": [
+            "public"
+          ]
+        }
+      }
+    },
+    "get": {
+      "~orpc": {
+        "errorMap": {},
+        "meta": {
+          "caching": {
+            "kind": "public",
+            "edgeSeconds": 5,
+            "staleSeconds": 10,
+            "tags": [
+              "perps"
+            ]
+          }
+        },
+        "route": {
+          "method": "GET",
+          "path": "/perps/{id}",
+          "summary": "One perp, with its price now",
+          "tags": [
+            "public"
+          ]
+        }
+      }
+    },
+    "open": {
+      "~orpc": {
+        "errorMap": {},
+        "meta": {
+          "caching": {
+            "kind": "personal"
+          }
+        },
+        "route": {
+          "method": "POST",
+          "path": "/perps/open",
+          "summary": "Open a perp position, or add to one, at the next price",
+          "tags": [
+            "personal"
+          ]
+        }
+      }
+    },
+    "close": {
+      "~orpc": {
+        "errorMap": {},
+        "meta": {
+          "caching": {
+            "kind": "personal"
+          }
+        },
+        "route": {
+          "method": "POST",
+          "path": "/perps/close",
+          "summary": "Close a perp position, all or part, at the next price",
+          "tags": [
+            "personal"
+          ]
+        }
+      }
+    }
+  },
   "portfolio": {
     "positions": {
       "~orpc": {
@@ -158,6 +242,24 @@
           "method": "GET",
           "path": "/me/positions",
           "summary": "Your balance and positions",
+          "tags": [
+            "personal"
+          ]
+        }
+      }
+    },
+    "perps": {
+      "~orpc": {
+        "errorMap": {},
+        "meta": {
+          "caching": {
+            "kind": "personal"
+          }
+        },
+        "route": {
+          "method": "GET",
+          "path": "/me/perps",
+          "summary": "Your balance and perp positions",
           "tags": [
             "personal"
           ]

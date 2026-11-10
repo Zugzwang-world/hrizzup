@@ -451,7 +451,17 @@ export const applyPerpPrice = (args: {
 };
 
 export type PerpFundingApplied =
-  | { ok: true; book: PerpBook; fundingRate: number; moves: PerpMove[] }
+  | {
+      ok: true;
+      book: PerpBook;
+      fundingRate: number;
+      moves: PerpMove[];
+      /**
+       * The pools and positions as the funding alone left them, before any winner was scaled down
+       * after it (R5: the books record the funding and the scaling as separate events).
+       */
+      funded: PerpState;
+    }
   /** Not due, paused, or (`reason`) the funded book couldn't be made solvent: nothing changes. */
   | { ok: false; reason: 'not_due' | 'paused' | 'stale_price' | 'insolvent' };
 
@@ -498,6 +508,7 @@ export const applyPerpFunding = (args: {
     ok: true,
     book: { ...book, state: withoutClosed(funded.state), lastFundingTime: now },
     fundingRate,
+    funded: funded.fundedState,
     moves: funded.settled
       .filter((s) => s.payout > 0)
       .map((s): PerpMove => ({ userId: s.position.userId, kind: 'payout', amount: s.payout })),
