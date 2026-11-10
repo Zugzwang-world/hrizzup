@@ -33,6 +33,9 @@ import {
 } from './fees.ts';
 import type { PerpPosition } from './position.ts';
 
+// Hrizzup: the maths takes the time from its caller instead of reading the clock.
+const NOW = 1_800_000_000_000;
+
 describe('getPerpTakerFeeBps', () => {
   it('defaults when the field is missing (pre-fee contracts)', () => {
     expect(getPerpTakerFeeBps({})).toBe(PERP_TAKER_FEE_BPS_DEFAULT);
@@ -866,7 +869,7 @@ describe('perpOpenFeeQuote own-contribution is marked to market', () => {
     // The mark falls and B realizes. closePosition debits the LOSER's pool by
     // the winner's profit, so part of W's posted margin physically leaves.
     const b = state.positions.find((p) => p.userId === 'B') as PerpPosition;
-    state = closePosition(state, b, markAfter).state;
+    state = closePosition(state, b, markAfter, 1, NOW).state;
     const w = state.positions.find((p) => p.userId === 'W') as PerpPosition;
     return { state, w };
   };
@@ -1193,7 +1196,7 @@ describe('perpOpenFeeQuote own-contribution is marked to market', () => {
     // would understate the depth and overcharge the new leg.
     const { state } = buildDrawdown(60);
     const w = state.positions.find((p) => p.userId === 'W') as PerpPosition;
-    const afterClose = closePosition(state, w, 60);
+    const afterClose = closePosition(state, w, 60, 1, NOW);
     const grossAfterClose = afterClose.state.pool.L + afterClose.state.pool.S;
     // The payout that leaves the pool IS getPositionValue — the same quantity
     // the panel subtracts for a flip preview.
