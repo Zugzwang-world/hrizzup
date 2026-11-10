@@ -285,6 +285,63 @@
       }
     }
   },
+  "keys": {
+    "list": {
+      "~orpc": {
+        "errorMap": {},
+        "meta": {
+          "caching": {
+            "kind": "personal"
+          }
+        },
+        "route": {
+          "method": "GET",
+          "path": "/me/keys",
+          "summary": "Your API keys",
+          "tags": [
+            "keys"
+          ]
+        }
+      }
+    },
+    "create": {
+      "~orpc": {
+        "errorMap": {},
+        "meta": {
+          "caching": {
+            "kind": "personal"
+          }
+        },
+        "route": {
+          "method": "POST",
+          "path": "/me/keys",
+          "successStatus": 201,
+          "summary": "Make an API key, shown once",
+          "tags": [
+            "keys"
+          ]
+        }
+      }
+    },
+    "revoke": {
+      "~orpc": {
+        "errorMap": {},
+        "meta": {
+          "caching": {
+            "kind": "personal"
+          }
+        },
+        "route": {
+          "method": "POST",
+          "path": "/me/keys/{id}/revoke",
+          "summary": "Revoke an API key",
+          "tags": [
+            "keys"
+          ]
+        }
+      }
+    }
+  },
   "admin": {
     "markets": {
       "list": {

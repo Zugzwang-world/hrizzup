@@ -136,6 +136,26 @@ export function standIn(options: { signedIn?: boolean; admin?: boolean } = {}) {
         return { ...examples.perpClosed, requestId: input.requestId };
       }),
     },
+    keys: {
+      list: api.keys.list.handler(() => {
+        asPerson();
+        return examples.keyList;
+      }),
+      create: api.keys.create.handler(({ input }) => {
+        asPerson();
+        return {
+          ...examples.createdKey,
+          key: { ...examples.createdKey.key, name: input.name, scope: input.scope },
+        };
+      }),
+      revoke: api.keys.revoke.handler(({ input }) => {
+        asPerson();
+        if (input.id !== examples.apiKey.id) {
+          throw new ORPCError('NOT_FOUND', { message: 'No such live key of yours' });
+        }
+        return examples.revokedKey;
+      }),
+    },
     portfolio: {
       positions: api.portfolio.positions.handler(() => {
         asPerson();

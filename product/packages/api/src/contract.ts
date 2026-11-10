@@ -10,6 +10,14 @@ import {
   settleMarketInput,
 } from './console.ts';
 import {
+  createdKey,
+  createKeyInput,
+  keyErrors,
+  keyList,
+  revokedKey,
+  revokeKeyInput,
+} from './keys.ts';
+import {
   closePerpInput,
   consolePerpWithLog,
   createTestPerpInput,
@@ -34,6 +42,7 @@ import {
   marketList,
   ordersPage,
   ordersPageInput,
+  personalReadErrors,
   positionsPage,
   positionsPageInput,
   tradeInput,
@@ -113,8 +122,8 @@ export const me = z.object({
   id: z.uuid(),
   email: z.email().nullable(),
   name: z.string().max(200).nullable(),
-  /** How this session was signed in. */
-  signedInWith: z.enum(['google', 'email', 'test_account', 'other']),
+  /** How this session was signed in, or `api_key` for a request a bot's API key signed. */
+  signedInWith: z.enum(['google', 'email', 'test_account', 'other', 'api_key']),
 });
 
 export const contract = {
@@ -130,7 +139,10 @@ export const contract = {
     .input(noInput)
     .output(health),
 
-  /** Who is signed in: the website's session cookie, or the app's token. Personal. */
+  /**
+   * Who is signed in: the website's session cookie, the app's token, or a bot's API key (whose
+   * answer has no email or name). Personal.
+   */
   me: call
     .route({
       method: 'GET',
@@ -138,7 +150,7 @@ export const contract = {
       summary: 'Who is signed in',
       tags: ['personal'],
     })
-    .errors({ UNAUTHORIZED: { status: 401, message: 'Not signed in' } })
+    .errors(personalReadErrors)
     .input(noInput)
     .output(me),
 
@@ -298,7 +310,7 @@ export const contract = {
         summary: 'Your balance and positions',
         tags: ['personal'],
       })
-      .errors({ UNAUTHORIZED: tradingErrors.UNAUTHORIZED })
+      .errors(personalReadErrors)
       .input(positionsPageInput)
       .output(positionsPage),
 
@@ -310,7 +322,7 @@ export const contract = {
         summary: 'Your balance and perp positions',
         tags: ['personal'],
       })
-      .errors({ UNAUTHORIZED: perpTradingErrors.UNAUTHORIZED })
+      .errors(personalReadErrors)
       .input(perpPositionsPageInput)
       .output(perpPositionsPage),
 
@@ -322,9 +334,55 @@ export const contract = {
         summary: 'Your open limit orders',
         tags: ['personal'],
       })
-      .errors({ UNAUTHORIZED: tradingErrors.UNAUTHORIZED })
+      .errors(personalReadErrors)
       .input(ordersPageInput)
       .output(ordersPage),
+  },
+
+  /**
+   * The person's API keys for bots (PLAN.md step 3.5a; keys.ts), made, listed and revoked only by
+   * the person signed in on the website or in the app, never with a key: a request a key signed is
+   * refused (403), so a leaked key can't make another or hide itself. A key is shown once, when it's
+   * made. At most five live keys each and ten new ones an hour. Keys work on staging until launch;
+   * on production these answer "not set up here" (503). Personal, never kept.
+   */
+  keys: {
+    /** The person's live keys, newest first. */
+    list: call
+      .route({
+        method: 'GET',
+        path: '/me/keys',
+        summary: 'Your API keys',
+        tags: ['keys'],
+      })
+      .errors(keyErrors)
+      .input(noInput)
+      .output(keyList),
+
+    /** A new key, read-only or trading, shown this once. */
+    create: call
+      .route({
+        method: 'POST',
+        path: '/me/keys',
+        successStatus: 201,
+        summary: 'Make an API key, shown once',
+        tags: ['keys'],
+      })
+      .errors(keyErrors)
+      .input(createKeyInput)
+      .output(createdKey),
+
+    /** Revokes one of the person's live keys: it stops working at once. */
+    revoke: call
+      .route({
+        method: 'POST',
+        path: '/me/keys/{id}/revoke',
+        summary: 'Revoke an API key',
+        tags: ['keys'],
+      })
+      .errors(keyErrors)
+      .input(revokeKeyInput)
+      .output(revokedKey),
   },
 
   /**

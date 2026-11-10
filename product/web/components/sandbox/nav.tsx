@@ -14,9 +14,14 @@ const LINKS = [
     text: 'Perps',
     on: (path: string) => path.startsWith('/sandbox/perps'),
   },
+  {
+    href: '/sandbox/keys',
+    text: 'Keys',
+    on: (path: string) => path.startsWith('/sandbox/keys'),
+  },
 ];
 
-/** The sandbox's two sections, the one you are in marked. */
+/** The sandbox's sections, the one you are in marked. */
 export function SandboxNav() {
   const path = usePathname();
   return (

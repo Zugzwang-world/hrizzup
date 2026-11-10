@@ -7,6 +7,7 @@ import updates from '@hrizzup/agreement/examples/updates.json' with { type: 'jso
 import type { AuthSettings, EmailCodeSent } from './auth.ts';
 import type { ConsoleMarket, ConsoleMarketWithLog } from './console.ts';
 import type { Health, Me } from './contract.ts';
+import type { ApiKey, CreatedKey, KeyList, RevokedKey } from './keys.ts';
 import type {
   ConsolePerp,
   ConsolePerpWithLog,
@@ -51,6 +52,25 @@ export const emailCodeSent: EmailCodeSent = {
   codeLength: 8,
   minutes: 10,
 };
+
+/** A trading key, as the keys page shows it. Its text below is made up, never a real key's. */
+export const apiKey: ApiKey = {
+  id: '019a7b10-4c2d-7e3f-8a4b-5c6d7e8f9a0b',
+  name: 'My trading bot',
+  scope: 'trade',
+  shown: 'hz_demo_Exam',
+  createdAt: '2026-11-11T09:30:00Z',
+  lastUsedAt: null,
+};
+
+export const keyList: KeyList = { keys: [apiKey] };
+
+export const createdKey: CreatedKey = {
+  key: apiKey,
+  secret: `hz_demo_Exam${'0'.repeat(39)}`,
+};
+
+export const revokedKey: RevokedKey = { key: apiKey, revokedAt: '2026-11-11T09:45:00Z' };
 
 export const me: Me = {
   id: '0196f1c8-7a2b-7c3d-8e4f-5a6b7c8d9e0f',
