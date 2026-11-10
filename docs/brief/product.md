@@ -18,7 +18,7 @@
 - **R1, the markets sandbox:** done, [#121](https://github.com/Zugzwang-world/hrizzup/pull/121). Next: nothing; the founder tries it. For the founder: the sandbox steps below.
 - **R2, the public API's research and design:** done, [#122](https://github.com/Zugzwang-world/hrizzup/pull/122) (research only). Next: nothing; 3.5a and 3.4b build on it. For the founder: the exchanges' terms, before launch (below).
 - **R3, the public API's ground rules, keys and docs (3.5a):** first milestone, the keys' database change, [#123](https://github.com/Zugzwang-world/hrizzup/pull/123). Next: keys in the API with the keys page in the sandbox; then paging, errors and limits across every call; then the OpenAPI file with its check, the docs page and llms.txt. For the founder: nothing.
-- **R4, the perp's own price (3.4b):** in progress: its database, [#124](https://github.com/Zugzwang-world/hrizzup/pull/124) (1 of 3); the website on it, [#126](https://github.com/Zugzwang-world/hrizzup/pull/126) (2 of 3). Next: staging's Bitcoin perp moved onto our median (3 of 3), when the fetch starts. For the founder: nothing new (the exchanges' terms before launch, below).
+- **R4, the perp's own price (3.4b):** in progress: its database, [#124](https://github.com/Zugzwang-world/hrizzup/pull/124) (1 of 3); the website on it, [#126](https://github.com/Zugzwang-world/hrizzup/pull/126) (2 of 3); staging's perp moved onto it, [#130](https://github.com/Zugzwang-world/hrizzup/pull/130) (3 of 3). Next: 3.4b's price reads and its day on staging, after 3.5a. For the founder: nothing new (the exchanges' terms before launch, below).
 
 ## Decisions in force
 
