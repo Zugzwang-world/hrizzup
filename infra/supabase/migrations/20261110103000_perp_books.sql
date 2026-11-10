@@ -1267,6 +1267,7 @@ declare
   margin_now numeric;
   closed_by text;
   added boolean;
+  funded_once boolean;
   change_size numeric;
   change_margin numeric;
   factor numeric;
@@ -1540,6 +1541,7 @@ begin
     entry := coalesce(prior.entry_price, book_price);
     closed_by := null;
     added := false;
+    funded_once := false;
     if not exists (select 1 from jsonb_array_elements(events_in) e
                    where (e ->> 'positionId')::uuid = (item ->> 'id')::uuid) then
       raise exception 'Position % changed with no event to say how', item ->> 'id'
@@ -1572,8 +1574,9 @@ begin
           liquidations := liquidations + 1;
         when 'settle' then
           -- A winner scaled down to nothing when the pools ran short: all of it, its margin paid back
-          -- (less, at most, a hair of the pool's own rounding).
-          if prior.id is null
+          -- (less, at most, a hair of the pool's own rounding). In the funding phase, only after the
+          -- funding scaled it.
+          if prior.id is null or (ev ->> 'phase' = 'funding' and not funded_once)
              or not (case prior.direction when 'long' then book_price > prior.entry_price
                                           else book_price < prior.entry_price end)
              or not perps.agree(change_size, -size_now) or not perps.agree(change_margin, -margin_now)
@@ -1586,8 +1589,8 @@ begin
         when 'adl' then
           -- A winner scaled down: its size shrinks, its margin doesn't change. Only a winner: a
           -- position the price went against is liquidated, never scaled out of reach of its
-          -- liquidation price.
-          if prior.id is null
+          -- liquidation price. In the funding phase, only after the funding scaled it.
+          if prior.id is null or (ev ->> 'phase' = 'funding' and not funded_once)
              or not (case prior.direction when 'long' then book_price > prior.entry_price
                                           else book_price < prior.entry_price end)
              or change_size > 0 or -change_size >= size_now
@@ -1601,10 +1604,11 @@ begin
           -- Size and margin scaled alike: the crowded side's by exactly one less the rate, the other's
           -- up by no more than what its pool received.
           if prior.id is null or ev ->> 'phase' <> 'funding' or size_now <= 0 or margin_now <= 0
-             or transfer = 0 then
-            raise exception 'Funding scales an open position, and only when it moves money'
+             or transfer = 0 or funded_once then
+            raise exception 'Funding scales an open position once, and only when it moves money'
               using errcode = 'check_violation';
           end if;
+          funded_once := true;
           factor := (size_now + change_size) / size_now;
           if not perps.agree((margin_now + change_margin) / margin_now, factor)
              or (case when (prior.direction = 'long') = (rate > 0)

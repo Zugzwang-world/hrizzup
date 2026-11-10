@@ -11,7 +11,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(176);
+select plan(177);
 
 -- People, perps and positions, by name -------------------------------------------------------------
 
@@ -1228,6 +1228,20 @@ select throws_ok(
         'events', jsonb_build_array(pg_temp.ev('funding', 'funding', 'zoe', '-0.08', '-0.008')))))$$,
   '23514', 'Funding scales every open position',
   'and scales every open position, the receiving side''s too'
+);
+select throws_ok(
+  $$select pg_temp.step(null, 't2', 'funding', null, null, pg_temp.funding_plan('0.00008', '1000', '200',
+      jsonb_build_object(
+        'positions', jsonb_build_array(
+          pg_temp.pos('zoe', 'long', '999.92', '99.992', '100', '1', '100', '10', '90', null,
+                      (select markets.utc(opened_at) from perps.positions where id = pg_temp.position('zoe'))),
+          pg_temp.pos('sid', 'short', '200.032024550000', '100.016012275000', '100', '0.2', '100', '2', '150', null, (select markets.utc(opened_at) from perps.positions where id = pg_temp.position('sid')))),
+        'events', jsonb_build_array(
+          pg_temp.ev('funding', 'funding', 'zoe', '-0.08', '-0.008'),
+          pg_temp.ev('funding', 'funding', 'sid', '0.016011634248', '0.008005817124'),
+          pg_temp.ev('funding', 'funding', 'sid', '0.016012916302', '0.008006458151')))))$$,
+  '23514', null,
+  'funding scales each position once: never twice in one step'
 );
 select is(
   pg_temp.step(null, 't2', 'funding', null, null, pg_temp.funding_plan('0.00008', '1000', '200')) ->> 'funded',
