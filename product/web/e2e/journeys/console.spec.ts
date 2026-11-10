@@ -134,6 +134,12 @@ test("the console's pages answer anyone but an admin exactly as an address the s
         const got = await answer(as, method, path);
         expect(got.status, what).toBe(unknown.status);
         expect(got.text, what).toBe(unknown.text);
+        if (process.env.SCREEN_CHECK_ENVIRONMENT === 'development') {
+          // Next.js's own server on this Mac says the proxy handed the request on (Vercel, where
+          // the checks run, doesn't): only that, naming nothing but the address with no page.
+          expect(got.headers['x-middleware-rewrite'], what).toBe('/_no-such-page');
+          delete got.headers['x-middleware-rewrite'];
+        }
         expect(got.headers, what).toEqual(unknown.headers);
       }
     }
