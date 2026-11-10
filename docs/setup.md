@@ -1548,7 +1548,7 @@ No good sign-in failed, so the switch-off kept ready beside it (one setting, `ho
 - scheduled jobs defined in migrations: CLAUDE.md ("Database changes"), PLAN.md (sections 2 and 7, step 3.4a), blueprint sections 5, 6 and 13;
 - the commit identity: CLAUDE.md ("While the repository is public") and this entry.
 
-**Found:** GitHub's squash merges into `main` carry the no-reply address (above) but sign it with the founder's profile display name, "Zugzwang/world", not his username; GitHub's merge has no author-name option, so only his profile's **Name** setting can change it (his click, in the Product brief's "For the founder").
+**Found:** GitHub's squash merges into `main` carry the no-reply address (above) but sign it with the founder's profile display name, "Zugzwang/world", not his username; GitHub's merge has no author-name option, so only his profile's **Name** setting could change it. **Skipped by the founder, 10 November 2026:** he keeps his display name, so GitHub's merges carry it with the no-reply address, and the commits made on this Mac carry his username. Nothing was set.
 
 **Pre-launch checklist:** two of Claude Code's recommendations for before launch joined "Also before launch", held there by "product first": the app's own database login, and visitors' addresses for Supabase's limits.
 
