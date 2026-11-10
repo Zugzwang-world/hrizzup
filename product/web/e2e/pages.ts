@@ -164,6 +164,31 @@ export const pages: readonly Page[] = [
     budget: 'standard',
     absentOn: ['production'],
   },
+  // The public API's docs (PLAN.md step 3.5a): they describe staging, the demo, so production has
+  // none until its API opens at launch.
+  {
+    route: '/docs',
+    name: 'api-docs',
+    path: '/docs',
+    budget: 'standard',
+    absentOn: ['production'],
+  },
+  // Each guide's own page; the ground rules, the longest, is the one the checks open.
+  {
+    route: '/docs/[guide]',
+    name: 'api-docs-guide',
+    path: '/docs/rules',
+    budget: 'standard',
+    absentOn: ['production'],
+  },
+  // Each call's own page; the trade's is the one the checks open.
+  {
+    route: '/docs/calls/[id]',
+    name: 'api-docs-call',
+    path: '/docs/calls/markets.trade',
+    budget: 'standard',
+    absentOn: ['production'],
+  },
   // API keys for bots (PLAN.md step 3.5a), in the sandbox; the screen check opens it signed in too.
   {
     route: '/sandbox/keys',

@@ -10,14 +10,14 @@
 
 - **Round 5 is open** (milestone "Round 5"). The public API needs no design, so it runs now: R3 is building 3.5a (keys, ground rules, docs); R4 put **staging's Bitcoin perp on our own price** (3.4b). The real market page (3.1), the perp's page (3.4c) and the board (2.1) wait for the design chat's designs.
 - **Staging** (`staging.hrizzup.com`, Mumbai) is public, asking search engines to stay out; previews need Vercel's login and share staging's database; production is a quiet twin.
-- **Built:** the typed API at `/api/v1`, with bots' keys; the app with its sign-in test (1.6b: the founder's email-code and close-and-reopen tries are still open); the market engine, ledger and console (1.7a to 1.7d); play money on signup; the content store (1.9); the website's sign-in test page (1.6a); the Bitcoin perp (3.4a), now on our own price; the markets sandbox (R1).
+- **Built:** the typed API at `/api/v1`, with bots' keys, its OpenAPI file and its docs (`/docs`, `/llms.txt`); the app with its sign-in test (1.6b: the founder's email-code and close-and-reopen tries are still open); the market engine, ledger and console (1.7a to 1.7d); play money on signup; the content store (1.9); the website's sign-in test page (1.6a); the Bitcoin perp (3.4a), now on our own price; the markets sandbox (R1).
 - **Checks:** Secret, Quick, Database, Screen, Speed and App journeys, all required. **Design** restarts in the design chat.
 
 ## Round 5 progress
 
 - **R1, the markets sandbox:** done, [#121](https://github.com/Zugzwang-world/hrizzup/pull/121). Next: nothing; the founder tries it. For the founder: the sandbox steps below.
 - **R2, the public API's research and design:** done, [#122](https://github.com/Zugzwang-world/hrizzup/pull/122) (research only). Next: nothing; 3.5a and 3.4b build on it. For the founder: the exchanges' terms, before launch (below).
-- **R3, the public API's ground rules, keys and docs (3.5a):** latest milestone, the OpenAPI file and the check that fails a breaking change, [#128](https://github.com/Zugzwang-world/hrizzup/pull/128) (before it the keys, [#123](https://github.com/Zugzwang-world/hrizzup/pull/123) and [#125](https://github.com/Zugzwang-world/hrizzup/pull/125), and the ground rules, [#127](https://github.com/Zugzwang-world/hrizzup/pull/127)). Next: the docs page and llms.txt; the done-test on staging. For the founder: nothing.
+- **R3, the public API's ground rules, keys and docs (3.5a):** latest milestone, the docs page, llms.txt and llms-full.txt, [#129](https://github.com/Zugzwang-world/hrizzup/pull/129) (before it: keys [#123](https://github.com/Zugzwang-world/hrizzup/pull/123), [#125](https://github.com/Zugzwang-world/hrizzup/pull/125); ground rules [#127](https://github.com/Zugzwang-world/hrizzup/pull/127); the OpenAPI file [#128](https://github.com/Zugzwang-world/hrizzup/pull/128)). Next: the done-test on staging. For the founder: nothing.
 - **R4, the perp's own price (3.4b):** staging's perp on it: its database, [#124](https://github.com/Zugzwang-world/hrizzup/pull/124); the website on it, [#126](https://github.com/Zugzwang-world/hrizzup/pull/126); the perp moved onto it, [#130](https://github.com/Zugzwang-world/hrizzup/pull/130); checked on staging, [#133](https://github.com/Zugzwang-world/hrizzup/pull/133). Next (a later relay): 3.4b's public price reads and its done-test, a day on staging, after 3.5a. For the founder: nothing new (the exchanges' terms before launch, below).
 
 ## Decisions in force
@@ -46,6 +46,7 @@ One line each; the detail, and the rest, are in the status file.
 
 - **Orders fill at a held price for up to 30 seconds** (decision 8 as settled; the automated security check flags it). Recommendation: keep it for the demo; before production's perp opens (P.18), fill only at a real price and keep the held one for display and liquidations.
 - **The perp's ticks share pg_net with the price,** so a slow website can delay a price. Recommendation: watch it during 3.4b's day; if prices are missed, shorten the tick's call.
+- **The docs page's look** (decision 13 said Scalar's stock page): Scalar's script is about 1 MB of code against the 200 KB budget, so the page is server-rendered from the OpenAPI file in the site's stock look. Recommendation: keep it server-rendered; the design chat designs its look before launch; a "try it" panel, if wanted, loads only when asked.
 - **The agreement's market/2** (before 3.3). Recommendation: an optional `result_probability`, with the address-and-handle check, so the first half changes once.
 - **The pipeline's write access** (1.1). Recommendation: a role that inserts and updates, never deletes.
 - **pg_net is open to every database role** (Supabase's grants). Recommendation: leave it until launch; the Data API is off, and an answer written twice counts as failed.

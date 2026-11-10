@@ -32,6 +32,15 @@ export function apiKeysEnabled(env: Env = process.env): boolean {
   return currentEnvironment(env) !== 'production';
 }
 
+/**
+ * The public API's docs page, its OpenAPI file and llms.txt (PLAN.md step 3.5a) describe staging,
+ * the demo: they're on staging, its previews and this Mac, and not on production until its API
+ * opens at launch.
+ */
+export function apiDocsEnabled(env: Env = process.env): boolean {
+  return currentEnvironment(env) !== 'production';
+}
+
 /** The sign-in test page and Google sign-in run everywhere except production, until launch. */
 export function signInTestEnabled(env: Env = process.env): boolean {
   return currentEnvironment(env) !== 'production';
