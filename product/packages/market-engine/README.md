@@ -16,7 +16,8 @@ The maths is [Manifold's](https://github.com/manifoldmarkets/manifold), copied w
 
 ## Layout
 
-- **[src/index.ts](src/index.ts):** the package's front door, naming the parts a yes/no market uses.
+- **[src/index.ts](src/index.ts):** the package's front door, naming the parts a yes/no market and the perp use.
+- **[src/perp/](src/perp/):** ours: the perp's engine steps, its settings and its stand-in price (below, "The perp: Hrizzup's changes and our engine").
 - **[src/manifold/](src/manifold/):** Manifold's files, at the same paths they have under Manifold's `common/src/`, with Manifold's tests beside the files they test.
 - **[types/](types/):** the type declarations other packages read, written from `src/` (below, "Type declarations for other packages").
 
@@ -65,6 +66,17 @@ Our changes to what the maths does (milestone 2), each pinned by a test in [src/
 - **Fees: one setting, at zero.** `TAKER_FEE_RATE` in `fees.ts` (Manifold's unexported `TAKER_FEE_CONSTANT`, renamed and exported) sets every yes/no trade's fee, `rate × p × (1 − p) × shares`. It stays 0 until the Product chat decides the rate.
 
 The front door no longer offers `computeFills` and `computeCpmmBet`, whose time is optional; buying and selling cover them.
+
+## The perp: Hrizzup's changes and our engine
+
+Milestone 2 of the perp's maths, each part pinned by a test in [src/perp/changes.test.ts](src/perp/changes.test.ts), with the clock throwing throughout.
+
+- **The time is passed in.** Manifold's `openPosition` and `closePosition` (`perps/amm.ts`) take the time as a required `now` instead of defaulting to the clock, and `closePosition`'s share to close has no default either (a required argument can't follow one): pass 1 for all of it. Manifold's tests pass a fixed time (`NOW`); otherwise they are unchanged. `getPerpOpenInterestCapacityForOpen` closes a whole position, which stamps no time, so it passes that position's own time.
+- **The settings** ([src/perp/settings.ts](src/perp/settings.ts)): Manifold's defaults, the founder's decision of 10 November 2026, with leverage capped at 10 times (`PERP_LEVERAGE_CAP`). The opening fee is `PERP_TAKER_FEE_BPS_DEFAULT` (10 basis points of the size, under its cap of 100) with no size extra (`PERP_TAKER_FEE_IMPACT_DEFAULT`, 0); funding is hourly (`FUNDING_PERIOD_MS`). What Manifold leaves to whoever creates a perp comes from its own recommendation for its Bitcoin perp (`launch-manifest.ts`): funding sensitivity 1, a yearly funding cap of 100% (so 1/8,760 an hour), prices no older than 2 minutes, and Ṁ25,000 from the house in each pool. Manifold recommends 5 times leverage there; the founder set 10. `assertPerpSettings` refuses anything past the cap or past the bounds Manifold's engine enforces. Every change to them goes in the rule-change log, which comes with the perp's books.
+- **The engine** ([src/perp/engine.ts](src/perp/engine.ts)): Manifold's server combines the maths inside each database transaction (`backend/shared/src/perps/engine.ts`, not copied); this is that combination with the database left out, step for step: `openPerpPosition` (a flip first closes the other side; then the fee, the cash check, the exposure cap and solvency), `closePerpPosition` (all or part), `applyPerpPrice` (liquidations, then winners scaled down if the pools run short; if even that leaves them short, the price moves on, nothing else does, and trading pauses until a price applies cleanly) and `applyPerpFunding` (hourly, the crowded side paying the other). Each returns the new book and the play money to move (`PerpMove`: margin and fee into the pools, payouts out), or a refusal with its reason. The ledger writes the moves as double-entry lines.
+- **The starting rules** (PLAN.md, "Perps"): leverage above the settings' cap is refused (`leverage_too_high`); an order fills only at a price published after it was placed (`not_next_price`, Manifold's `orders.ts`); the opening fee goes into the trader's own side of the pool, closing is free; the off switch is Manifold's trading mode: closing-only refuses opens, halted refuses closes too, while liquidations and funding always run. A price over 2 minutes old pauses trading.
+- **Manifold-only features stay off:** no fee channel for trading by API key (the engine never asks for it), no bans, unique-trader bonuses or events (the books keep their own), none of Manifold's other price feeds. There is no logging in the perps maths.
+- **The stand-in price** ([src/perp/stand-in-price.ts](src/perp/stand-in-price.ts)): a new price every 5 seconds, the same for the same seed and moment, a random walk of the price's logarithm with Bitcoin's typical volatility (about 55% a year: 0.6% an hour, 3% a day), starting at $100,000 on 1 January 2026. Any moment's price is worked out directly (a Brownian bridge, 24 halvings), in about a microsecond. **The seed is a secret key** (16 hexadecimal digits): this code is public, so every draw is a keyed hash of the seed (HalfSipHash-2-4, written from its specification and checked against its reference test vector), and nobody without the seed can tell a future price. Tests use their own fixed seeds; staging's is kept with its other keys, never in the repository.
 
 ## Our money tests
 

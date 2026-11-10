@@ -542,8 +542,9 @@ export const openPosition = (
   mana: number,
   leverage: number,
   oraclePrice: number,
-  existing?: PerpPosition,
-  now = Date.now(),
+  existing: PerpPosition | undefined,
+  // Hrizzup: the time is passed in, never read from the clock (README, "Hrizzup's changes").
+  now: number,
 ): OpenResult => {
   const newSize = mana * leverage;
   const newCostBasis = mana;
@@ -710,8 +711,10 @@ export const closePosition = (
   /** Fraction of the position to close; 1 (the default) closes all of it.
    * A fraction whose remainder would be dust is promoted to a full close, so
    * read `fraction` off the result for what actually happened. */
-  requestedFraction = 1,
-  now = Date.now(),
+  // Hrizzup: no default here, since the time after it is required: pass 1 for all of it.
+  requestedFraction: number,
+  // Hrizzup: the time is passed in, never read from the clock (README, "Hrizzup's changes").
+  now: number,
 ): CloseResult => {
   const fraction = resolvePerpCloseFraction(position, requestedFraction);
   const isFull = fraction === 1;
@@ -1023,7 +1026,9 @@ export const getPerpOpenInterestCapacityForOpen = (
   if (positionToClose?.direction === side)
     throw new Error('capacity preview may only close the opposite side');
   const stateBeforeOpen = positionToClose
-    ? closePosition(state, positionToClose, price).state
+    ? // Hrizzup: a whole close stamps no time (only a part-close's remainder is stamped), so
+      // the position's own time stands in for the clock Manifold's default read.
+      closePosition(state, positionToClose, price, 1, positionToClose.updatedTime).state
     : state;
   return getPerpOpenInterestCapacity(side, stateBeforeOpen, price);
 };

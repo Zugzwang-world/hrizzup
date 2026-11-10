@@ -37,6 +37,9 @@ import {
 } from './amm.ts';
 import type { PerpDirection, PerpPosition } from './position.ts';
 
+// Hrizzup: the maths takes the time from its caller instead of reading the clock.
+const NOW = 1_800_000_000_000;
+
 describe('getPerpBackingPool', () => {
   it('adds the current long and short backing pools', () => {
     expect(getPerpBackingPool(125, 75)).toBe(200);
@@ -293,7 +296,9 @@ describe('funding', () => {
     // 1010, so an immediate close would overdraw L by 15 mana.
     const fundedOnly = applyFunding(state, 0.005);
     expect(solvencyFactor('short', fundedOnly, 100)).toBeLessThan(1);
-    expect(closePosition(fundedOnly, fundedOnly.positions[0], 100).state.pool.L).toBeLessThan(0);
+    expect(
+      closePosition(fundedOnly, fundedOnly.positions[0], 100, 1, NOW).state.pool.L,
+    ).toBeLessThan(0);
 
     const corrected = applyFundingWithSolvency(state, 0.005, 100);
     expect(corrected.adlFactorLong).toBe(1);
@@ -307,7 +312,7 @@ describe('funding', () => {
     expect(correctedShort.costBasis).toBeCloseTo(101, 12);
     expect(correctedShort.size).toBeCloseTo(1990, 12);
 
-    const closed = closePosition(corrected.state, correctedShort, 100);
+    const closed = closePosition(corrected.state, correctedShort, 100, 1, NOW);
     expect(closed.state.pool.L).toBeCloseTo(0, 10);
     expect(closed.state.pool.S).toBeCloseTo(404, 10);
     expect(closed.payout + closed.state.pool.L + closed.state.pool.S).toBeCloseTo(1500, 10);
@@ -459,7 +464,7 @@ describe('funding', () => {
         let closingState = corrected.state;
         let totalPayout = 0;
         for (const position of positions) {
-          const closed = closePosition(closingState, position, price);
+          const closed = closePosition(closingState, position, price, 1, NOW);
           closingState = closed.state;
           totalPayout += closed.payout;
           expect(closingState.pool.L).toBeGreaterThanOrEqual(0);
@@ -515,7 +520,7 @@ describe('funding', () => {
     expect(() => assertPerpStateSolvent(state, price)).not.toThrow();
 
     for (const winner of winners) {
-      state = closePosition(state, winner, price).state;
+      state = closePosition(state, winner, price, 1, NOW).state;
     }
 
     // Straight IEEE-754 subtraction leaves L=-1.19e-12 here. Persisting that
@@ -798,7 +803,7 @@ describe('open / close accounting', () => {
       entryPrice: 50,
     });
     const state: PerpState = { pool: { L: 100, S: 1200 }, positions: [winner] };
-    const { state: next, payout, pnl } = closePosition(state, winner, 100);
+    const { state: next, payout, pnl } = closePosition(state, winner, 100, 1, NOW);
 
     expect(pnl).toBe(1000);
     expect(payout).toBe(1100); // costBasis + π
@@ -815,7 +820,7 @@ describe('open / close accounting', () => {
       entryPrice: 100,
     });
     const state: PerpState = { pool: { L: 100, S: 50 }, positions: [loser] };
-    const { state: next, payout, pnl } = closePosition(state, loser, 90);
+    const { state: next, payout, pnl } = closePosition(state, loser, 90, 1, NOW);
 
     expect(pnl).toBeCloseTo(-40, 10);
     expect(payout).toBeCloseTo(60, 10);
@@ -831,7 +836,7 @@ describe('open / close accounting', () => {
       entryPrice: 100,
     });
     const state: PerpState = { pool: { L: 100, S: 50 }, positions: [loser] };
-    const { payout, state: next } = closePosition(state, loser, 60); // π = -160
+    const { payout, state: next } = closePosition(state, loser, 60, 1, NOW); // π = -160
 
     expect(payout).toBe(0);
     expect(next.pool.L).toBeCloseTo(100, 10);
@@ -839,8 +844,8 @@ describe('open / close accounting', () => {
 
   it('open + immediate close round-trips the margin exactly', () => {
     const state: PerpState = { pool: { L: 10, S: 10 }, positions: [] };
-    const opened = openPosition(state, 'u1', 'c1', 'short', 100, 5, 80);
-    const closed = closePosition(opened.state, opened.position, 80);
+    const opened = openPosition(state, 'u1', 'c1', 'short', 100, 5, 80, undefined, NOW);
+    const closed = closePosition(opened.state, opened.position, 80, 1, NOW);
     expect(closed.pnl).toBe(0);
     expect(closed.payout).toBe(100);
     expect(closed.state.pool).toEqual({ L: 10, S: 10 });
@@ -1239,7 +1244,7 @@ describe('assertPerpPositionNumbers', () => {
     // Same position, corrupt entry price: worth its full basis at any mark.
     expect(getPositionValue(corrupt, 20)).toBe(200_000);
 
-    const closed = closePosition(state, corrupt, 20);
+    const closed = closePosition(state, corrupt, 20, 1, NOW);
     expect(closed.payout).toBe(200_000);
     expect(closed.state.positions).toHaveLength(0);
     // The post-close state is "solvent" precisely because the corrupt row is
@@ -1420,7 +1425,7 @@ describe('partial close', () => {
 
   it('leaves the full close bit-for-bit what it was', () => {
     const { position, state } = profitableLong();
-    const full = closePosition(state, position, 150);
+    const full = closePosition(state, position, 150, 1, NOW);
 
     // π = (150-100)/100 · 400 = 200, paid out of the short pool; the M$100
     // margin comes back out of the long pool.
@@ -1438,8 +1443,8 @@ describe('partial close', () => {
 
   it('pays exactly its fraction of the full close, out of the same pools', () => {
     const { position, state } = profitableLong();
-    const full = closePosition(state, position, 150);
-    const quarter = closePosition(state, position, 150, 0.25);
+    const full = closePosition(state, position, 150, 1, NOW);
+    const quarter = closePosition(state, position, 150, 0.25, NOW);
 
     expect(quarter.payout).toBeCloseTo(0.25 * full.payout, 9);
     expect(quarter.pnl).toBeCloseTo(0.25 * full.pnl, 9);
@@ -1450,7 +1455,7 @@ describe('partial close', () => {
 
   it('leaves a survivor at the same entry, leverage and liquidation price', () => {
     const { position, state } = profitableLong();
-    const { remainingPosition } = closePosition(state, position, 150, 0.25);
+    const { remainingPosition } = closePosition(state, position, 150, 0.25, NOW);
     if (!remainingPosition) throw new Error('expected a surviving position');
 
     // The whole point: reducing exposure must not move the price at which
@@ -1473,7 +1478,7 @@ describe('partial close', () => {
     // adding this event's deltas back onto the survivor, and any drift here
     // is drift in every historical P&L that replays through it.
     for (const fraction of [0.01, 0.25, 1 / 3, 0.5, 0.9]) {
-      const res = closePosition(state, position, 150, fraction);
+      const res = closePosition(state, position, 150, fraction, NOW);
       const survivor = res.remainingPosition;
       if (!survivor) throw new Error('expected a surviving position');
       expect(res.closedSize + survivor.size).toBe(position.size);
@@ -1489,12 +1494,12 @@ describe('partial close', () => {
 
   it('pays the same in two steps as in one', () => {
     const { position, state } = profitableLong();
-    const full = closePosition(state, position, 150);
+    const full = closePosition(state, position, 150, 1, NOW);
 
-    const first = closePosition(state, position, 150, 0.4);
+    const first = closePosition(state, position, 150, 0.4, NOW);
     const survivor = first.remainingPosition;
     if (!survivor) throw new Error('expected a surviving position');
-    const second = closePosition(first.state, survivor, 150);
+    const second = closePosition(first.state, survivor, 150, 1, NOW);
 
     expect(first.payout + second.payout).toBeCloseTo(full.payout, 9);
     expect(second.state.pool.L).toBeCloseTo(full.state.pool.L, 9);
@@ -1504,7 +1509,7 @@ describe('partial close', () => {
 
   it('is the state a smaller position would have been in all along', () => {
     const { position, state } = profitableLong();
-    const partial = closePosition(state, position, 150, 0.25);
+    const partial = closePosition(state, position, 150, 0.25, NOW);
 
     // Same book, but the trader only ever opened 75% of the position.
     const smaller = makePosition({
@@ -1519,12 +1524,14 @@ describe('partial close', () => {
       { pool: { L: 100, S: 500 }, positions: [smaller] },
       smaller,
       150,
+      1,
+      NOW,
     );
     // Closing the survivor next must land exactly where closing the
     // never-larger position would.
     const survivor = partial.remainingPosition;
     if (!survivor) throw new Error('expected a surviving position');
-    const closeOut = closePosition(partial.state, survivor, 150);
+    const closeOut = closePosition(partial.state, survivor, 150, 1, NOW);
     expect(closeOut.payout).toBeCloseTo(reference.payout, 9);
   });
 
@@ -1537,7 +1544,7 @@ describe('partial close', () => {
     });
     const state: PerpState = { pool: { L: 100, S: 500 }, positions: [position] };
     // π = (90-100)/100 · 100 = -10 on a quarter of the notional.
-    const res = closePosition(state, position, 90, 0.25);
+    const res = closePosition(state, position, 90, 0.25, NOW);
     expect(res.pnl).toBeCloseTo(-10, 9);
     expect(res.payout).toBeCloseTo(15, 9);
     expect(res.poolLongDelta).toBeCloseTo(-15, 9);
@@ -1554,7 +1561,7 @@ describe('partial close', () => {
     });
     const state: PerpState = { pool: { L: 100, S: 500 }, positions: [position] };
     // A 50% move against a 4x long wipes the margin out entirely.
-    const res = closePosition(state, position, 50, 0.5);
+    const res = closePosition(state, position, 50, 0.5, NOW);
     expect(res.payout).toBe(0);
     // toBeCloseTo, not toBe: a zero payout debits the pool by -0, exactly as
     // a full close of the same position always has. Both read as no debit.
@@ -1564,7 +1571,7 @@ describe('partial close', () => {
 
   it('leaves a survivor the state validators accept, and a solvent book', () => {
     const { position, state } = profitableLong();
-    const res = closePosition(state, position, 150, 0.25);
+    const res = closePosition(state, position, 150, 0.25, NOW);
     expect(() => assertPerpPositionNumbers(res.remainingPosition as PerpPosition)).not.toThrow();
     expect(() => assertPerpStateSolvent(res.state, 150)).not.toThrow();
   });
@@ -1582,7 +1589,7 @@ describe('partial close', () => {
       pool: { L: 100, S: 500 },
       positions: [position, other],
     };
-    const res = closePosition(state, position, 150, 0.5);
+    const res = closePosition(state, position, 150, 0.5, NOW);
     expect(res.state.positions).toHaveLength(2);
     expect(res.state.positions[0].userId).toBe('u1');
     expect(res.state.positions[1]).toBe(other);
@@ -1596,7 +1603,7 @@ describe('partial close', () => {
       entryPrice: 100,
     });
     const state: PerpState = { pool: { L: 100, S: 500 }, positions: [position] };
-    const res = closePosition(state, position, 150, 1 - 1e-5);
+    const res = closePosition(state, position, 150, 1 - 1e-5, NOW);
     expect(res.fraction).toBe(1);
     expect(res.remainingPosition).toBeNull();
     expect(res.payout).toBe(300);
@@ -1612,7 +1619,7 @@ describe('partial close', () => {
     });
     const state: PerpState = { pool: { L: 100, S: 500 }, positions: [position] };
     // 1% of M$100 is M$1 left open — well above the dust bound.
-    const res = closePosition(state, position, 150, 0.99);
+    const res = closePosition(state, position, 150, 0.99, NOW);
     expect(res.fraction).toBe(0.99);
     expect(res.remainingPosition?.costBasis).toBeGreaterThan(PERP_MIN_REMAINDER_COST_BASIS);
   });
@@ -1626,7 +1633,7 @@ describe('partial close', () => {
     });
     const state: PerpState = { pool: { L: 500, S: 100 }, positions: [position] };
     // π = (100-80)/100 · 200 = 40 in profit; half of that is 20.
-    const res = closePosition(state, position, 80, 0.5);
+    const res = closePosition(state, position, 80, 0.5, NOW);
     expect(res.pnl).toBeCloseTo(20, 9);
     expect(res.payout).toBeCloseTo(70, 9);
     expect(res.poolShortDelta).toBeCloseTo(-50, 9);
@@ -1847,7 +1854,7 @@ describe('solvency dust after ADL', () => {
 
     // The close pays what the pool can give and leaves it holding exactly the
     // reserve: one ulp of 51,000 less than the bare profit.
-    const closed = closePosition(adl.state, winner, price);
+    const closed = closePosition(adl.state, winner, price, 1, NOW);
     expect(closed.state.pool).toEqual({ L: 0, S: 1 });
     expect(closed.pnl).toBe(profit);
     expect(closed.payout).toBeLessThan(1000 + profit);
@@ -1859,9 +1866,15 @@ describe('solvency dust after ADL', () => {
 
   it('lets the opposing side then drain that pool to exactly zero', () => {
     const adl = drainedBook();
-    const afterWinner = closePosition(adl.state, adl.state.positions[0], price);
+    const afterWinner = closePosition(adl.state, adl.state.positions[0], price, 1, NOW);
 
-    const afterShort = closePosition(afterWinner.state, afterWinner.state.positions[0], price);
+    const afterShort = closePosition(
+      afterWinner.state,
+      afterWinner.state.positions[0],
+      price,
+      1,
+      NOW,
+    );
     expect(afterShort.payout).toBe(1);
     expect(afterShort.state.pool).toEqual({ L: 0, S: 0 });
     // Everything paid out came out of the escrow the book started with.
@@ -1908,7 +1921,7 @@ describe('solvency dust after ADL', () => {
     expect(adl.state.pool).toEqual({ L: 1.1, S: 0 });
     expect(() => assertPerpStateSolvent(adl.state, price)).not.toThrow();
 
-    const closed = closePosition(adl.state, adl.state.positions[0], price);
+    const closed = closePosition(adl.state, adl.state.positions[0], price, 1, NOW);
     expect(closed.payout).toBe(1.1);
     expect(closed.state.pool).toEqual({ L: 0, S: 0 });
   });
@@ -2127,7 +2140,7 @@ describe('solvency dust after ADL', () => {
 
     // The close instead lands the pool exactly on the reserve, so funding has
     // nothing to grow, period after period.
-    let state = closePosition(adl.state, winner, price).state;
+    let state = closePosition(adl.state, winner, price, 1, NOW).state;
     expect(state.pool.S).toBe(0.01);
     for (let i = 0; i < 8; i++) {
       const oi = getPerpOpenInterest(state.positions);
@@ -2158,7 +2171,7 @@ describe('solvency dust after ADL', () => {
 
     // ...and closing the long must not then drive the pool negative: the
     // payout falls short of the bare 10,100 by exactly that 1.5e-8.
-    const closed = closePosition(state, state.positions[0], price);
+    const closed = closePosition(state, state.positions[0], price, 1, NOW);
     expect(closed.state.pool).toEqual({ L: 0, S: 0 });
     expect(closed.payout).toBe(10_099.999999985);
     expect(closed.pnl).toBe(10_000);
@@ -2180,7 +2193,7 @@ describe('solvency dust after ADL', () => {
       ],
     };
     expect(() => assertPerpStateSolvent(state, price)).toThrow(/long solvency factor .* is below/);
-    const closed = closePosition(state, state.positions[0], price);
+    const closed = closePosition(state, state.positions[0], price, 1, NOW);
     expect(closed.payout).toBe(10_100);
     expect(closed.state.pool.S).toBeCloseTo(-0.01, 9);
     expect(() => assertPerpStateSolvent(closed.state, price)).toThrow(
@@ -2206,7 +2219,7 @@ describe('solvency dust after ADL', () => {
     expect(() => assertPerpStateNumbers(state, price)).not.toThrow();
     expect(getUnrealizedEquity(long, price)).toBe(Infinity);
 
-    const closed = closePosition(state, long, price);
+    const closed = closePosition(state, long, price, 1, NOW);
     expect(closed.state.pool.S).toBe(-Infinity);
     expect(() => assertPerpStateSolvent(closed.state, price)).toThrow('short pool must be finite');
   });
@@ -2240,7 +2253,7 @@ describe('solvency dust after ADL', () => {
     // 100-mana pool, finer than that pool's own ulp can express: the factor
     // reads 1 - 7e-10, far past the relative tolerance, on a shortfall of
     // under one ulp.
-    const closed = closePosition(adl.state, adl.state.positions[0], price, 0.9999999);
+    const closed = closePosition(adl.state, adl.state.positions[0], price, 0.9999999, NOW);
     expect(closed.fraction).toBe(0.9999999);
     expect(solvencyFactor('long', closed.state, price)).toBeLessThan(
       1 - PERP_SOLVENCY_FACTOR_TOLERANCE,
@@ -2390,7 +2403,7 @@ describe('solvency dust after ADL', () => {
       let paid = adl.settled.reduce((sum, s) => sum + s.payout, 0);
       for (const position of adl.state.positions) {
         if (position.size <= 0) continue;
-        const closed = closePosition(state, position, price);
+        const closed = closePosition(state, position, price, 1, NOW);
         assertPerpStateSolvent(closed.state, price);
         expectNoNewRejection(closed.state);
         state = closed.state;
@@ -2416,7 +2429,7 @@ describe('solvency dust after ADL', () => {
           (p) => p.userId === position.userId && p.direction === position.direction,
         );
         if (!live) return;
-        state = closePosition(state, live, price, j % 4 === 0 ? 1 : 0.5).state;
+        state = closePosition(state, live, price, j % 4 === 0 ? 1 : 0.5, NOW).state;
         assertPerpStateSolvent(state, price);
       });
       for (let i = 0; i < 10; i++) {
