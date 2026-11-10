@@ -17,6 +17,7 @@
 
 - **R1, the markets sandbox:** done, [#121](https://github.com/Zugzwang-world/hrizzup/pull/121). Next: nothing; the founder tries it. For the founder: the sandbox steps below.
 - **R2, the public API's research and design:** done, [#122](https://github.com/Zugzwang-world/hrizzup/pull/122) (research only). Next: the first wave, 3.5a (ground rules and docs) beside 3.4b (the perp's own price). For the founder: the exchanges' terms, before launch (below).
+- **R4, the perp's own price (3.4b):** in progress: its database, [#124](https://github.com/Zugzwang-world/hrizzup/pull/124) (1 of 3). Next: the website and the perp's trades on the stored price (2 of 3), then staging's perp moved onto it (3 of 3); nothing fetches until then. For the founder: nothing new (the exchanges' terms before launch, below).
 
 ## Decisions in force
 
