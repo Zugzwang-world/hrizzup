@@ -18,7 +18,7 @@
 
 One line per relay; each relay keeps only its own line current.
 
-- **R1, the round's records:** done, [#R1PR](https://github.com/Zugzwang-world/hrizzup/pull/R1PR): the founder's decisions of 10 November recorded, the relays numbered. Nothing for the founder.
+- **R1, the round's records:** done, [#95](https://github.com/Zugzwang-world/hrizzup/pull/95): the founder's decisions of 10 November recorded, the relays numbered. Nothing for the founder.
 - **R2, checks you can trust** (the console page's speed fix and the slowest-run warning; play money on signup; every check run on its own; retry-passes fail): not started.
 - **R3, the perp's maths (3.4a):** not started.
 - **R4, the app's sign-in (1.6b):** first, staging's firewall lets the app's writes through ([#94](https://github.com/Zugzwang-world/hrizzup/pull/94)); next, our server's half of email codes, then Google through the phone's browser, email codes in the app, the test screen, the App journeys and a new build for your phone.
@@ -41,7 +41,7 @@ One line per relay; each relay keeps only its own line current.
 
 ## What changed in the latest session
 
-On 10 November 2026, Round 4's records ([#R1PR](https://github.com/Zugzwang-world/hrizzup/pull/R1PR), R1, records only):
+On 10 November 2026, Round 4's records ([#95](https://github.com/Zugzwang-world/hrizzup/pull/95), R1, records only):
 
 - **The founder's decisions, recorded** in PLAN.md, CLAUDE.md and the blueprint: product first; nothing paid (no more "default to paid tiers"); how checks behave; signup's play money moved from 3.1 to R2; the app's Google sign-in through the phone's browser; scheduled jobs in migrations; commits under his GitHub username, set on this Mac.
 - **Closed:** the Screen check's retry, shared play money, and the journeys' test markets and top-ups (all R2's now); whole-config keys and Dependabot's setting (no new security work). **Held until launch** (the runbook's "Also before launch"): the app's own database login; visitors' addresses for Supabase's limits.

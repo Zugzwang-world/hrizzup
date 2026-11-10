@@ -540,7 +540,7 @@ Last updated: 10 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/bri
     - The founder's Speed check instruction is recorded in Round 4's queue for every relay until the fix lands, since the page fails whatever a pull request changes.
     - "Round 4" was opened before this record merged, so CLAUDE.md's new milestone name was valid from the start; "Round 3" closed once it had.
 
-- **Round 4's records: the founder's decisions of 10 November 2026** ([#R1PR](https://github.com/Zugzwang-world/hrizzup/pull/R1PR), Round 4, R1, records only):
+- **Round 4's records: the founder's decisions of 10 November 2026** ([#95](https://github.com/Zugzwang-world/hrizzup/pull/95), Round 4, R1, records only):
   - **product first until launch** (PLAN.md section 5; CLAUDE.md): work goes to the product. No new privacy, security or production work unless it blocks the product; existing checks, budgets and rules stay exactly as they are, and nothing gets looser;
   - **nothing paid for now** (PLAN.md sections 3 and 6; CLAUDE.md; blueprint section 2, which no longer defaults to paid tiers): free versions and free tiers only, no new paid tool, plan or licence until the founder says so. The Product brief's spending items stay parked under it;
   - **each check run owns everything it changes** (blueprint section 11; CLAUDE.md, "How checks behave"): its own fresh staging accounts, their play money, its own test markets and anything it stores. Shared things are only read, a run's markets stay off staging's public list, and every journey that trades ends by checking that its market's books add up, to the exact decimal;
