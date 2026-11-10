@@ -61,10 +61,15 @@ test('anyone but an admin, signed in or not, finds no console', async ({
   await context.close();
 });
 
-/** Headers that differ from one answer to the next by their nature (the time, the request's ID). */
+/**
+ * Headers that differ from one answer to the next by their nature: the time, the request's ID, and
+ * which of Vercel's edge copies of the file answered (each keeps its own `last-modified`; the
+ * content's own `etag` is the same, and is compared).
+ */
 const PER_ANSWER = new Set([
   'date',
   'age',
+  'last-modified',
   'x-vercel-id',
   'x-vercel-cache',
   'connection',
