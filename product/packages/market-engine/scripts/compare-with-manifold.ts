@@ -58,8 +58,9 @@ const rewriteImports = (rel: string, text: string) => {
     return `${from}${q1}${path}${q2}`;
   });
   if (rel.endsWith('.test.ts')) {
+    // Not after a dot or a letter, so a call such as `/x/.test(s)` isn't taken for Vitest's `test`.
     const used = ['describe', 'expect', 'it', 'test'].filter((name) =>
-      new RegExp(`\\b${name}(\\.each)?\\(`).test(out),
+      new RegExp(`(?<![.\\w])${name}(\\.each)?\\(`).test(out),
     );
     out = `import { ${used.join(', ')} } from 'vitest'\n${out}`;
   }
