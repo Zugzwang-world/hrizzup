@@ -6,7 +6,8 @@ import { consoleAdmin as adminOf, type ConsoleAdmin } from '@/lib/api/console.ts
  * says it's an admin. The same check as the console's calls in the typed API, from the same
  * place (lib/api/console.ts), so the two can't drift apart: null for anyone else, signed in or
  * not, for everyone on production until launch, and whenever the check itself fails, so a
- * failure looks exactly like a refusal. The console's pages and forms then answer "not found".
+ * failure looks exactly like a refusal. The proxy asks it first and gives anyone else the site's
+ * own "not found" page (proxy.ts); the console's pages and forms ask again and answer "not found".
  */
 export async function consoleAdmin(): Promise<ConsoleAdmin | null> {
   return adminOf(new Headers(await headers()));
