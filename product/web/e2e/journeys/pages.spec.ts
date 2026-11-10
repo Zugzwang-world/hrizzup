@@ -11,6 +11,24 @@ import { phone } from './phone.ts';
 test.use(phone);
 
 /**
+ * Vercel's preview toolbar: Vercel's build of every preview adds its script to each page, loaded
+ * from Vercel's own servers; production's builds never have it. A failure to load it isn't the
+ * page's: Vercel's servers dropping the connection had failed WebKit's journeys here twice on 10
+ * November 2026 (each passing on its retry). Only its own address is left out; every error of
+ * the site's still counts.
+ */
+const PREVIEW_TOOLBAR_HOST = 'vercel.live';
+
+/** The host of an address, or nothing when there isn't one (a message from the page itself). */
+const hostOf = (url: string) => {
+  try {
+    return new URL(url).host;
+  } catch {
+    return '';
+  }
+};
+
+/**
  * Collects what goes wrong while a page is open: script errors, console errors, and requests to
  * our own site that fail or answer with an error. `expected` is the one address allowed to
  * answer with an error: the 404 page's own document.
@@ -21,6 +39,7 @@ function watch(page: Page, site: string, expected?: string) {
   page.on('pageerror', (error) => problems.push(`script error: ${error.message}`));
   page.on('console', (message) => {
     if (message.type() !== 'error' || message.location().url === expected) return;
+    if (hostOf(message.location().url) === PREVIEW_TOOLBAR_HOST) return;
     problems.push(`console error: ${message.text()}`);
   });
   page.on('requestfailed', (request) => {
@@ -91,6 +110,7 @@ for (const sitePage of pages) {
 }
 
 test('a visitor moves between the pages through their links', async ({ page }) => {
+  const settled = watchLoading(page);
   await page.goto('/');
   await expect(page.locator('[data-page="holding"]')).toBeVisible();
 
@@ -112,6 +132,10 @@ test('a visitor moves between the pages through their links', async ({ page }) =
   await expect(page).toHaveURL(/\/$/);
   await expect(page.locator('[data-page="holding"]')).toBeVisible();
 
+  // As a visitor would, let the page finish loading before going to another address: Next.js
+  // turns a page fetch cut off by leaving (one still in flight from an earlier click) into a full
+  // load of that page, which would take over this one (seen in WebKit on GitHub's slower runners).
+  await settled();
   const missing = await page.goto('/this-page-does-not-exist');
   expect(missing?.status()).toBe(404);
   await page.getByRole('link', { name: 'Back to the home page' }).click();

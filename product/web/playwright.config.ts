@@ -19,7 +19,11 @@ export default defineConfig({
   testMatch: '**/*.spec.ts',
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
+  // One retry in GitHub, so a test that fails for a reason outside our code (a network blip)
+  // shows it; but a test that passes only on its retry fails the check (CLAUDE.md, "How checks
+  // behave"), so flakiness is never hidden: it's found, and fixed (e2e/config.test.ts keeps both).
   retries: process.env.CI ? 1 : 0,
+  failOnFlakyTests: Boolean(process.env.CI),
   timeout: 120_000,
   reporter: process.env.CI ? [['github'], ['list']] : [['list']],
   globalSetup: './e2e/global-setup.ts',
