@@ -30,7 +30,8 @@ CHECK = re.compile(r"python3 \"?(?:\$RUNNER_TEMP/key-checks/)?infra/doppler/app_
 LOAD_TOKEN = re.compile(r"doppler-token:\s*\$\{\{\s*secrets\.(\w+)\s*\}\}")
 CHECK_TOKEN = re.compile(r"DOPPLER_TOKEN:\s*\$\{\{\s*secrets\.(\w+)\s*\}\}")
 CONDITION = re.compile(r"^\s+if:\s*(.+?)\s*$", re.M)
-KNOWN = {"staging.yml": {"stg"}, "checks.yml": {"stg_preview"}, "release.yml": {"prd_release"}}  # loads today
+KNOWN = {"staging.yml": {"stg"}, "checks.yml": {"stg_preview"}, "release.yml": {"prd_release"},
+         "app-journeys.yml": {"stg_preview"}}  # loads today
 WEBSITE_TESTS = [os.path.join(ROOT, "product", "web", "e2e"), os.path.join(ROOT, "product", "web", "playwright.config.ts")]
 IMPORT = re.compile(r"""(?:from|import)\s*\(?\s*['"](\.{1,2}/[^'"]+)['"]""")
 ENV_READ = re.compile(r"""\benv\.([A-Z][A-Z0-9_]*)|\benv\[\s*['"]([A-Z][A-Z0-9_]*)['"]\s*\]""")
@@ -93,7 +94,10 @@ class EveryJobChecksNamesBeforeLoading(unittest.TestCase):
                 text = f.read()
             for job, steps in jobs(text).items():
                 for i, step in enumerate(steps):
-                    if LOADS not in step and not NAMED.search(step):
+                    # A load: Doppler's action, a named request, or any other step given a Doppler
+                    # token (a script it runs may ask for keys: App journeys' run.sh does).
+                    given = first(CHECK_TOKEN, step) is not None and not CHECK.search(step)
+                    if LOADS not in step and not NAMED.search(step) and not given:
                         continue
                     with self.subTest(workflow=file, job=job, step=i):
                         token = first(LOAD_TOKEN, step) if LOADS in step else first(CHECK_TOKEN, step)

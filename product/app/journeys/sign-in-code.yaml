@@ -1,0 +1,85 @@
+# The sign-in test, signed in (PLAN.md step 1.6b): a fresh account of this run's signs in with an
+# email code typed into the app, as a person does, sees who it is from the typed API, is still
+# signed in after the app is closed and opened again, and signs out. The account and its code
+# come from run.sh (EMAIL and CODE), made with staging's admin access: no email is sent, the bot
+# check is never passed by a test (a person asks for a code; here the code is typed straight
+# away, through "I already have a code"), and the app holds no secret. Run by journeys/run.sh at
+# a phone size and a tablet size (SIZE says which); it needs staging's keys, so it carries the tag
+# that run.sh leaves out where there are none.
+appId: com.hrizzup.app
+name: A fresh account signs in with an email code, stays signed in, and signs out
+tags:
+  - signed-in
+---
+- runFlow: steps/start-fresh.yaml
+- scrollUntilVisible:
+    element:
+      id: email-code-button
+    timeout: 30000
+- tapOn:
+    id: email-code-button
+- extendedWaitUntil:
+    visible:
+      id: email-input
+    timeout: 10000
+- tapOn:
+    id: email-input
+- inputText: ${EMAIL}
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: have-code-button
+- tapOn:
+    id: have-code-button
+- extendedWaitUntil:
+    visible:
+      id: code-input
+    timeout: 10000
+- tapOn:
+    id: code-input
+- inputText: ${CODE}
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: verify-code-button
+- tapOn:
+    id: verify-code-button
+# Signed in: who it is, from the typed API (its token sent with that personal call).
+- extendedWaitUntil:
+    visible:
+      id: who-am-i
+    timeout: 30000
+- assertVisible:
+    id: signed-in-email
+    text: ${EMAIL_PATTERN}
+- assertVisible:
+    id: signed-in-with
+    text: "Test account \\(staging only\\)"
+- takeScreenshot: ${SIZE}-signed-in
+# Closed and opened again (its data kept): still signed in, from the session kept on the phone.
+- stopApp
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible:
+      id: home
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      id: signed-in-email
+    timeout: 30000
+- assertVisible:
+    id: signed-in-email
+    text: ${EMAIL_PATTERN}
+- takeScreenshot: ${SIZE}-still-signed-in
+- scrollUntilVisible:
+    element:
+      id: sign-out-button
+- tapOn:
+    id: sign-out-button
+- extendedWaitUntil:
+    visible:
+      id: signed-out
+    timeout: 30000
+- assertVisible:
+    id: google-button
