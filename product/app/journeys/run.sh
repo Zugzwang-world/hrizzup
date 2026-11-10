@@ -12,7 +12,48 @@ set -euo pipefail
 apk="$1"
 out="$2"
 flows="$(cd "$(dirname "$0")" && pwd)"
+root="$(cd "$flows/../../.." && pwd)"
 mkdir -p "$out"
+
+# The signed-in journey's own account (sign-in-code.yaml), made for this run, and a fresh sign-in
+# code for it just before each size's journeys (a new code cancels the last), by
+# product/web/scripts/app-journey-account.ts, the only command given staging's keys, asked of
+# Doppler by name (infra/doppler/named_keys.py; the job's names check comes first). No email is
+# sent and the app holds no secret. Without a Doppler token (this Mac, by default) the signed-in
+# journey is left out; the App journeys check always has one.
+# The token itself goes only to named_keys.py, which gives the command the keys and not the
+# token: it leaves this script's environment at once, so Maestro, adb and startup.sh never hold it.
+doppler_token="${DOPPLER_TOKEN:-}"
+unset DOPPLER_TOKEN
+# The step's own log, which a command substitution doesn't capture.
+exec 3>&1
+# In GitHub's runners named_keys.py first prints a line telling the runner to hide each key's
+# value (`::add-mask::…`): those go to the log itself, and only the command's own answer, its
+# last line, comes back to the caller.
+account() {
+  local raw
+  raw="$(DOPPLER_TOKEN="$doppler_token" python3 "$root/infra/doppler/named_keys.py" \
+    SUPABASE_URL SUPABASE_PUBLISHABLE_KEY SUPABASE_SECRET_KEY \
+    -- pnpm --silent --dir "$root/product/web" exec node scripts/app-journey-account.ts "$@")" \
+    || return $? # set -e doesn't reach inside a command substitution, so a failure is passed on here
+  { printf '%s\n' "$raw" | grep '^::add-mask::' || true; } >&3
+  printf '%s\n' "$raw" | { grep -v '^::add-mask::' || true; } | tail -n 1
+}
+signed_in=false
+if [ -n "$doppler_token" ]; then
+  email="$(account create)"
+  case "$email" in
+    delivered+run-*@resend.dev) ;;
+    *) echo "No account was made for the signed-in journey." >&2; exit 1 ;;
+  esac
+  signed_in=true
+  echo "The signed-in journey's account for this run: $email"
+elif [ -n "${GITHUB_ACTIONS:-}" ]; then
+  echo "No Doppler token, so the signed-in journey can't run here." >&2
+  exit 1
+else
+  echo "No Doppler token: the signed-in journey is left out."
+fi
 
 # A just-booted emulator on a small CI machine is slow, and Android's own apps (the launcher)
 # can stop responding for a while; their "isn't responding" dialog would cover the app under
@@ -53,8 +94,27 @@ settle_play_services() {
 settle_play_services
 
 journeys() {
-  maestro test --format junit --output "$out/$1.xml" --test-output-dir "$out/$1" \
-    -e SIZE="$1" "$flows"
+  local status=0 code=""
+  if [ "$signed_in" = true ]; then
+    code="$(account code "$email")"
+    if ! [[ "$code" =~ ^[0-9]{6,10}$ ]]; then echo "No sign-in code was made." >&2; return 1; fi
+    if [ -n "${GITHUB_ACTIONS:-}" ]; then echo "::add-mask::$code"; fi
+    maestro test --format junit --output "$out/$1.xml" --test-output-dir "$out/$1" \
+      -e SIZE="$1" -e EMAIL="$email" -e CODE="$code" \
+      -e EMAIL_PATTERN="$(printf '%s' "$email" | sed 's/[.+]/\\&/g')" "$flows" || status=$?
+    # The code was typed, so it's in the run's text files, which are kept as a public artifact:
+    # it's wiped from them. A screenshot Maestro takes when a step fails may still show it in the
+    # code field, so it's also cancelled (a new code is asked for and thrown away) before the
+    # artifact is uploaded, whatever happened: what's left can't sign anyone in.
+    { grep -rlIF "$code" "$out" 2>/dev/null || true; } | while read -r file; do
+      sed -i.bak "s/$code/[code]/g" "$file" && rm -f "$file.bak" || true
+    done
+    account code "$email" > /dev/null || echo "The last code couldn't be cancelled; it runs out in 10 minutes." >&2
+  else
+    maestro test --format junit --output "$out/$1.xml" --test-output-dir "$out/$1" \
+      -e SIZE="$1" --exclude-tags signed-in "$flows" || status=$?
+  fi
+  return "$status"
 }
 
 trap 'adb shell wm size reset; adb shell wm density reset' EXIT
