@@ -12,6 +12,14 @@ import {
   positions,
   settleMarket,
 } from '@hrizzup/markets';
+import {
+  createTestPerp,
+  getPerp,
+  listPerps,
+  retireTestPerp,
+  setPerpMode,
+  setPerpSettings,
+} from '@hrizzup/perps';
 import { implement, ORPCError } from '@orpc/server';
 import type { ResponseHeadersPluginContext } from '@orpc/server/plugins';
 import { currentCommit, currentEnvironment, currentRegion } from '@/lib/env.ts';
@@ -159,6 +167,26 @@ export const router = api.router({
       ),
       settle: admin.markets.settle.handler(({ context, input }) =>
         changesTheList(() => settleMarket(context.pool, context.account, input)),
+      ),
+    },
+    perps: {
+      list: admin.perps.list.handler(({ context, input }) =>
+        consoleCall(() => listPerps(context.pool, context.account, { after: input?.after })),
+      ),
+      get: admin.perps.get.handler(({ context, input }) =>
+        consoleCall(() => getPerp(context.pool, context.account, input.id)),
+      ),
+      setMode: admin.perps.setMode.handler(({ context, input }) =>
+        consoleCall(() => setPerpMode(context.pool, context.account, input)),
+      ),
+      setSettings: admin.perps.setSettings.handler(({ context, input }) =>
+        consoleCall(() => setPerpSettings(context.pool, context.account, input)),
+      ),
+      createTest: admin.perps.createTest.handler(({ context, input }) =>
+        consoleCall(() => createTestPerp(context.pool, context.account, input)),
+      ),
+      retireTest: admin.perps.retireTest.handler(({ context, input }) =>
+        consoleCall(() => retireTestPerp(context.pool, context.account, input)),
       ),
     },
   },

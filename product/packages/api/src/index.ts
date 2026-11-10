@@ -32,6 +32,24 @@ export {
   noInput,
 } from './contract.ts';
 export {
+  type ConsolePerp,
+  type ConsolePerpWithLog,
+  type CreateTestPerpInput,
+  createTestPerpInput,
+  type PerpPage,
+  type PerpSettings,
+  type PerpState,
+  type RetireTestPerpInput,
+  type RuleChange,
+  type SetPerpModeInput,
+  type SetPerpSettingsInput,
+  type SettingName,
+  setPerpSettingsInput,
+  settingName,
+  type TradingMode,
+  tradingMode,
+} from './perps.ts';
+export {
   type CancelOrderInput,
   type CancelOrderResult,
   type ListedMarket,

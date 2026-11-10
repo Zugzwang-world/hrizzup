@@ -10,6 +10,16 @@ import {
   settleMarketInput,
 } from './console.ts';
 import {
+  consolePerpWithLog,
+  createTestPerpInput,
+  perpIdInput,
+  perpPage,
+  perpPageInput,
+  retireTestPerpInput,
+  setPerpModeInput,
+  setPerpSettingsInput,
+} from './perps.ts';
+import {
   cancelOrderInput,
   cancelOrderResult,
   marketList,
@@ -238,10 +248,11 @@ export const contract = {
   },
 
   /**
-   * The market console's calls (PLAN.md step 1.7c; console.ts): admins only, so every market
-   * write has one path, and the database checks the admins table on each. Personal, never kept.
-   * To anyone but an admin, signed in or not, each answers exactly as an address the API doesn't
-   * have: "No such call" (404). Only yes-or-no markets are made for now.
+   * The market console's calls (PLAN.md step 1.7c; console.ts), and the perp's (step 3.4a;
+   * perps.ts): admins only, so every market and perp write has one path, and the database checks
+   * the admins table on each. Personal, never kept. To anyone but an admin, signed in or not, each
+   * answers exactly as an address the API doesn't have: "No such call" (404). Only yes-or-no
+   * markets are made for now.
    */
   admin: {
     markets: {
@@ -311,6 +322,80 @@ export const contract = {
         })
         .input(settleMarketInput)
         .output(consoleMarketWithLog),
+    },
+
+    /**
+     * The perp's console (PLAN.md step 3.4a; perps.ts): its off switch and settings, each change in
+     * its rule-change log with its reason, and a check run's own unlisted test perps, made and
+     * retired. The database checks the admins table on each, as for markets.
+     */
+    perps: {
+      /** Perps, newest first, a page at a time: the Bitcoin perp and the check runs' test perps. */
+      list: call
+        .route({
+          method: 'GET',
+          path: '/admin/perps',
+          summary: 'Perps, newest first (admins only)',
+          tags: ['admin'],
+        })
+        .input(perpPageInput)
+        .output(perpPage),
+
+      /** One perp, with its rule-change log. */
+      get: call
+        .route({
+          method: 'GET',
+          path: '/admin/perps/{id}',
+          summary: 'One perp, with its rule-change log (admins only)',
+          tags: ['admin'],
+        })
+        .input(perpIdInput)
+        .output(consolePerpWithLog),
+
+      /** The off switch: on, closing only or halted, at once, with the reason in the log. */
+      setMode: call
+        .route({
+          method: 'POST',
+          path: '/admin/perps/{id}/mode',
+          summary: 'Switch a perp on, to closing only, or off (admins only)',
+          tags: ['admin'],
+        })
+        .input(setPerpModeInput)
+        .output(consolePerpWithLog),
+
+      /** Changes some of a perp's settings, each change in the log with the reason. */
+      setSettings: call
+        .route({
+          method: 'POST',
+          path: '/admin/perps/{id}/settings',
+          summary: "Change a perp's settings (admins only)",
+          tags: ['admin'],
+        })
+        .input(setPerpSettingsInput)
+        .output(consolePerpWithLog),
+
+      /** A check run's own unlisted test perp, switched off, its pools seeded by the house. */
+      createTest: call
+        .route({
+          method: 'POST',
+          path: '/admin/perps',
+          successStatus: 201,
+          summary: "Make a check run's own test perp (admins only)",
+          tags: ['admin'],
+        })
+        .input(createTestPerpInput)
+        .output(consolePerpWithLog),
+
+      /** Retires a test perp once every position on it is closed: its pools back to the house. */
+      retireTest: call
+        .route({
+          method: 'POST',
+          path: '/admin/perps/{id}/retire',
+          summary: 'Retire a test perp (admins only)',
+          tags: ['admin'],
+        })
+        .input(retireTestPerpInput)
+        .output(consolePerpWithLog),
     },
   },
 };

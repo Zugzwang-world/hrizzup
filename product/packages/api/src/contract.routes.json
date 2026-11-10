@@ -294,6 +294,117 @@
           }
         }
       }
+    },
+    "perps": {
+      "list": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "personal"
+            }
+          },
+          "route": {
+            "method": "GET",
+            "path": "/admin/perps",
+            "summary": "Perps, newest first (admins only)",
+            "tags": [
+              "admin"
+            ]
+          }
+        }
+      },
+      "get": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "personal"
+            }
+          },
+          "route": {
+            "method": "GET",
+            "path": "/admin/perps/{id}",
+            "summary": "One perp, with its rule-change log (admins only)",
+            "tags": [
+              "admin"
+            ]
+          }
+        }
+      },
+      "setMode": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "personal"
+            }
+          },
+          "route": {
+            "method": "POST",
+            "path": "/admin/perps/{id}/mode",
+            "summary": "Switch a perp on, to closing only, or off (admins only)",
+            "tags": [
+              "admin"
+            ]
+          }
+        }
+      },
+      "setSettings": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "personal"
+            }
+          },
+          "route": {
+            "method": "POST",
+            "path": "/admin/perps/{id}/settings",
+            "summary": "Change a perp's settings (admins only)",
+            "tags": [
+              "admin"
+            ]
+          }
+        }
+      },
+      "createTest": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "personal"
+            }
+          },
+          "route": {
+            "method": "POST",
+            "path": "/admin/perps",
+            "successStatus": 201,
+            "summary": "Make a check run's own test perp (admins only)",
+            "tags": [
+              "admin"
+            ]
+          }
+        }
+      },
+      "retireTest": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "personal"
+            }
+          },
+          "route": {
+            "method": "POST",
+            "path": "/admin/perps/{id}/retire",
+            "summary": "Retire a test perp (admins only)",
+            "tags": [
+              "admin"
+            ]
+          }
+        }
+      }
     }
   }
 }

@@ -5,6 +5,7 @@ import { authSettings, emailCodeInput, emailCodeSent } from './auth.ts';
 import { consoleMarketWithLog, createMarketInput, settleMarketInput } from './console.ts';
 import { contract } from './contract.ts';
 import * as examples from './examples.ts';
+import { consolePerpWithLog, setPerpModeInput, setPerpSettingsInput } from './perps.ts';
 import { procedures as callsOf } from './procedures.ts';
 import { standIn } from './stand-in.ts';
 import { marketList, tradeInput } from './trading.ts';
@@ -141,10 +142,10 @@ describe('the example content', () => {
   });
 });
 
-describe("the market console's calls", () => {
+describe("the console's calls", () => {
   const admin = procedures.filter(([name]) => name.startsWith('admin.'));
 
-  it('are create, open, close and settle, with the two reads the console shows', () => {
+  it("are the markets' create, open, close and settle and the perp's off switch, settings and test perps, with the reads each shows", () => {
     expect(admin.map(([name]) => name).sort()).toEqual([
       'admin.markets.close',
       'admin.markets.create',
@@ -152,6 +153,12 @@ describe("the market console's calls", () => {
       'admin.markets.list',
       'admin.markets.open',
       'admin.markets.settle',
+      'admin.perps.createTest',
+      'admin.perps.get',
+      'admin.perps.list',
+      'admin.perps.retireTest',
+      'admin.perps.setMode',
+      'admin.perps.setSettings',
     ]);
   });
 
@@ -163,6 +170,123 @@ describe("the market console's calls", () => {
       const reads = name.endsWith('.list') || name.endsWith('.get');
       expect(route.method, name).toBe(reads ? 'GET' : 'POST');
     }
+  });
+});
+
+describe("the perp's console calls (step 3.4a)", () => {
+  const admin = procedures.filter(([name]) => name.startsWith('admin.perps.'));
+
+  it('are the off switch, the settings, and making and retiring a test perp, with the two reads', () => {
+    expect(admin.map(([name]) => name).sort()).toEqual([
+      'admin.perps.createTest',
+      'admin.perps.get',
+      'admin.perps.list',
+      'admin.perps.retireTest',
+      'admin.perps.setMode',
+      'admin.perps.setSettings',
+    ]);
+  });
+
+  it('are personal, never kept, under /admin/, and every write is a POST', () => {
+    for (const [name, procedure] of admin) {
+      const { route, meta } = procedure['~orpc'];
+      expect(meta.caching, name).toEqual({ kind: 'personal' });
+      expect(route.path, name).toMatch(/^\/admin\/perps/);
+      const reads = name.endsWith('.list') || name.endsWith('.get');
+      expect(route.method, name).toBe(reads ? 'GET' : 'POST');
+    }
+  });
+
+  it('answer with the Bitcoin perp as made: switched off, its first rules in its log', () => {
+    expect(consolePerpWithLog.parse(examples.consolePerpWithLog)).toEqual(
+      examples.consolePerpWithLog,
+    );
+    expect(examples.consolePerpWithLog.tradingMode).toBe('halted');
+    expect(examples.consolePerpWithLog.log).toHaveLength(13);
+  });
+
+  it('take the off switch only as a mode Manifold has, always with a reason', () => {
+    const id = examples.consolePerpWithLog.id;
+    expect(setPerpModeInput.safeParse({ id, mode: 'enabled', reason: 'Testing' }).success).toBe(
+      true,
+    );
+    expect(setPerpModeInput.safeParse({ id, mode: 'off', reason: 'x' }).success).toBe(false);
+    expect(setPerpModeInput.safeParse({ id, mode: 'halted', reason: '  ' }).success).toBe(false);
+    expect(setPerpModeInput.safeParse({ id, mode: 'halted' }).success).toBe(false);
+  });
+
+  it("take each setting only within the engine's own bounds, as the engine reads it", () => {
+    const id = examples.consolePerpWithLog.id;
+    const takes = (settings: Record<string, string>) =>
+      setPerpSettingsInput.safeParse({ id, settings, reason: 'Testing' }).success;
+    const within: Record<string, string>[] = [
+      { maxLeverage: '1' },
+      { maxLeverage: '10' },
+      { takerFeeBps: '0' },
+      { takerFeeBps: '100' },
+      { takerFeeImpact: '100' },
+      { fundingPeriodMs: '3600000' },
+      { fundingSensitivity: '0.000001' },
+      { maxFundingRate: '0.00011415525114155251' },
+      { maxFundingRate: '0.999' },
+      { maxPriceAgeMs: '1' },
+    ];
+    for (const settings of within) expect(takes(settings), JSON.stringify(settings)).toBe(true);
+    const past: Record<string, string>[] = [
+      { maxLeverage: '0.5' },
+      { maxLeverage: '10.000001' },
+      { takerFeeBps: '100.5' },
+      { takerFeeImpact: '101' },
+      { fundingPeriodMs: '3599999' },
+      { fundingPeriodMs: '3600000.5' },
+      { fundingSensitivity: '0' },
+      { maxFundingRate: '0' },
+      { maxFundingRate: '1' },
+      // Exact below 1 as a decimal, 1 as the engine reads it: refused.
+      { maxFundingRate: '0.99999999999999999999' },
+      { maxPriceAgeMs: '0' },
+      { maxPriceAgeMs: '1.5' },
+    ];
+    for (const settings of past) expect(takes(settings), JSON.stringify(settings)).toBe(false);
+  });
+
+  it('take settings as text, at least one, never the subsidies', () => {
+    const id = examples.consolePerpWithLog.id;
+    const ok = { id, settings: { maxLeverage: '5' }, reason: 'Gentler' };
+    expect(setPerpSettingsInput.safeParse(ok).success).toBe(true);
+    expect(setPerpSettingsInput.safeParse({ ...ok, settings: {} }).success).toBe(false);
+    expect(setPerpSettingsInput.safeParse({ ...ok, settings: { maxLeverage: 5 } }).success).toBe(
+      false,
+    );
+    expect(setPerpSettingsInput.safeParse({ ...ok, settings: { subsidyLong: '1' } }).success).toBe(
+      false,
+    );
+    expect(
+      setPerpSettingsInput.safeParse({ ...ok, settings: { maxLeverage: 'NaN' } }).success,
+    ).toBe(false);
+  });
+
+  it('answer anyone but an admin as an address the API does not have, in the stand-in too', async () => {
+    const stranger = createRouterClient(standIn({ admin: false }));
+    const id = examples.consolePerpWithLog.id;
+    for (const call of [
+      () => stranger.admin.perps.list(),
+      () => stranger.admin.perps.get({ id }),
+      () => stranger.admin.perps.setMode({ id, mode: 'enabled', reason: 'Mine now' }),
+      () =>
+        stranger.admin.perps.setSettings({ id, settings: { maxLeverage: '5' }, reason: 'Mine' }),
+      () => stranger.admin.perps.retireTest({ id, reason: 'Mine' }),
+    ]) {
+      await expect(call()).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    }
+    const admin = createRouterClient(standIn());
+    await expect(
+      admin.admin.perps.setMode({
+        id: examples.consolePerpWithLog.id,
+        mode: 'enabled',
+        reason: 'Switching it on',
+      }),
+    ).resolves.toMatchObject({ tradingMode: 'enabled' });
   });
 });
 
