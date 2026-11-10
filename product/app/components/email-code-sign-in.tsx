@@ -29,6 +29,8 @@ export function EmailCodeSignIn({ colors, onCancel }: { colors: Colors; onCancel
   const botCheck = useRef<BotCheckHandle>(null);
   const answer = useRef<string | null>(null);
   const sendWhenReady = useRef(false);
+  // Set at once, before the screen catches up, so a quick second tap can't start a second request.
+  const working = useRef(false);
   const [step, setStep] = useState<Step>({ kind: 'address' });
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
@@ -38,11 +40,14 @@ export function EmailCodeSignIn({ colors, onCancel }: { colors: Colors; onCancel
 
   async function send(address: string) {
     const botAnswer = answer.current;
-    if (!botAnswer) return;
+    if (!botAnswer || working.current) return;
     answer.current = null; // it works once, whatever happens next
+    sendWhenReady.current = false;
+    working.current = true;
     setBusy(true);
     setMessage('Sending your code…');
     const result = await requestCode(address, botAnswer);
+    working.current = false;
     setBusy(false);
     if (result.outcome === 'sent') {
       setMessage(null);
@@ -66,7 +71,7 @@ export function EmailCodeSignIn({ colors, onCancel }: { colors: Colors; onCancel
       setMessage(SEND_MESSAGES['invalid-email']);
       return;
     }
-    if (busy) return;
+    if (working.current) return;
     if (answer.current) {
       void send(address);
       return;
@@ -98,9 +103,12 @@ export function EmailCodeSignIn({ colors, onCancel }: { colors: Colors; onCancel
       setMessage(codeFormatMessage(codeLength));
       return;
     }
+    if (working.current) return;
+    working.current = true;
     setBusy(true);
     setMessage('Checking your code…');
     const outcome = await checkCode(email, typed);
+    working.current = false;
     setBusy(false);
     // Signed in, the sign-in test shows who's signed in in place of this.
     setMessage(outcome === 'signed-in' ? null : VERIFY_MESSAGES[outcome]);
