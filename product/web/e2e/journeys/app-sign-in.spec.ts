@@ -17,6 +17,7 @@ import { phone } from './phone.ts';
  * - That answer and an address, sent to the typed API, get an email code; the code, checked with
  *   Supabase as the app checks it, gives a session whose token answers who-am-I.
  * - Where the bot check is real (staging), an answer it didn't give is refused and nothing is sent.
+ * - Supabase sends the phone's browser back from Google to the app's own address, and to no other.
  */
 
 test.use(phone);
@@ -161,4 +162,28 @@ test("where the bot check is real, an answer it didn't give is refused and nothi
   });
   expect(refused.status()).toBe(403);
   expect(await refused.json()).toMatchObject({ code: 'BOT_CHECK_FAILED' });
+});
+
+test("Supabase sends the phone's browser back from Google to the app's own address, and no other", async ({
+  request,
+}) => {
+  skipOnProduction();
+  const keys = stagingKeys();
+  if (!keys) throw new Error("Staging's Supabase keys are missing");
+  // As the website's Google journey does: Supabase's verify step, given a code that's no good,
+  // sends the browser to the address asked for if its allow-list has it, and to staging's home
+  // otherwise, so this asks without signing anyone in (infra/supabase/auth/settings.json).
+  const wayBack = async (to: string) => {
+    const verify = new URL('/auth/v1/verify', keys.url);
+    verify.searchParams.set('token', 'not-a-real-code');
+    verify.searchParams.set('type', 'magiclink');
+    verify.searchParams.set('redirect_to', to);
+    const answer = await request.get(verify.href, { maxRedirects: 0 });
+    expect(answer.status()).toBe(303);
+    return answer.headers().location ?? '';
+  };
+  expect(await wayBack('hrizzup://auth/callback')).toMatch(/^hrizzup:\/\/auth\/callback[#?]/);
+  for (const other of ['hrizzup://auth/elsewhere', 'hrizzup://evil', 'otherapp://auth/callback']) {
+    expect(await wayBack(other), other).toMatch(/^https:\/\/staging\.hrizzup\.com[/#?]/);
+  }
 });

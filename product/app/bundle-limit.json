@@ -1,5 +1,5 @@
 {
   "_about": "The most the app's Android code bundle (Hermes bytecode, exactly as the app ships it) may weigh, in KB of 1,024 bytes. The Speed check measures it on every pull request that touches the app and compares it with main's (blueprint section 14: the app's code size checked for unexplained growth). A pull request that needs more raises the limit here and writes why in `reason`; that is what makes growth explained.",
-  "androidKB": 3050,
-  "reason": "Step 1.5c, 8 November 2026: the typed API's client (oRPC, about 70 KB of code) and TanStack Query (about 70 KB), 2,777 KB in all as Hermes bytecode, up from 2,424 KB; the contract's validators (Zod, about 500 KB) stay out of the app, which uses the contract's addresses only. The limit leaves about 10% room."
+  "androidKB": 3470,
+  "reason": "Step 1.6b, 10 November 2026: the app's sign-in. Supabase's own sign-in client (@supabase/auth-js, about 120 KB of code, with tslib) and Expo's secure storage, browser and crypto modules, which the standard way to sign in from an app needs; about 3,150 KB in all as Hermes bytecode, up from 2,780 KB. Only Supabase's sign-in part, not its whole client: the app reads everything else through the typed API. Hermes maps bytecode and loads it as it runs, so the cold start (journeys/startup.sh) is what's watched; the limit leaves about 10% room."
 }
