@@ -21,9 +21,7 @@ import { phone } from './phone.ts';
  *   one-time token, set as the very cookies the website sets after a real sign-in
  *   (support/test-accounts.ts). Signing out then goes through the page's own button.
  * - A reader signs in with a code sent by email, through the page itself: the address, the
- *   bot check, the code, and signing out (Chromium, a new reader; WebKit signs a returning reader
- *   in from the code step, with no email sent, so a run sends only one of the 30 emails an hour
- *   staging and every preview share). Where the bot check is real (staging), it is for
+ *   bot check, the code, and signing out. Where the bot check is real (staging), it is for
  *   people, so the test asks for the code the way our server does once a person has passed it,
  *   and carries on from the page's code step.
  * - Google can't be signed into by a test, so Google sign-in is followed up to Google's door,
@@ -98,27 +96,15 @@ test('an email code signs a reader in, and out again', async ({
   const keys = stagingKeys();
   if (!keys) throw new Error("Staging's Supabase keys are missing, so no code can be read");
 
-  // Chromium signs up a new reader, through the page's own steps and a real email; WebKit signs in
-  // one who already has an account, from the code step on. Supabase sends 30 emails an hour for
-  // staging and every preview together, which every check run shares, so each run sends one email
-  // here (as the app's journey sends one: app-sign-in.spec.ts), and WebKit's code comes from
-  // staging's admin access with no email sent, as it does for every code. Each run, and each retry,
-  // uses fresh addresses at Resend's test inbox (support/run.ts), kept like every run's account.
+  // Chromium signs up a new reader; WebKit signs in one who already has an account. Each run,
+  // and each retry, uses fresh addresses at Resend's test inbox (support/run.ts), kept like every
+  // run's account.
   const email = runAddress(`code-${randomUUID().slice(0, 4)}`, browserName as Engine);
-  const sendsAnEmail = browserName === 'chromium';
-  if (!sendsAnEmail) await createRunAccount(keys, email);
+  if (browserName === 'webkit') await createRunAccount(keys, email);
   const tooMany =
     '(Supabase sends at most one email a minute to an address, and 30 an hour for staging ' +
     'and every preview together)';
-  if (!sendsAnEmail) {
-    // The code step, as our server shows it once it has sent a code: the address remembered in
-    // the cookie it sets.
-    const remembered = pendingCookieValue({ email, next: '/sign-in-test' });
-    await context.addCookies([
-      asBrowserCookie(baseURL ?? '', PENDING_COOKIE, encodeURIComponent(remembered)),
-    ]);
-    await page.goto('/sign-in-test');
-  } else if (botCheckIsATest()) {
+  if (botCheckIsATest()) {
     await page.goto('/sign-in-test');
     await page.getByLabel('Email address').fill(email);
     await page.getByRole('button', { name: 'Email me a code' }).click();
