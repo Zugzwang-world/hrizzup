@@ -1,6 +1,6 @@
 # The sign-in test, signed out (PLAN.md step 1.6b): it offers "Continue with Google", which opens
-# Google's sign-in in the phone's browser (never a web view inside the app) through Supabase, and
-# coming back without signing in leaves the app signed out, saying so. A test can't sign in to
+# Google's own sign-in page in the phone's browser (never a web view inside the app) through
+# Supabase, and coming back without signing in leaves the app signed out, saying so. A test can't sign in to
 # Google itself (the founder does, on his phone). Run by journeys/run.sh at a phone size and a
 # tablet size (SIZE says which).
 appId: com.hrizzup.app
@@ -28,6 +28,27 @@ name: The sign-in test offers Google, through the phone's browser
     notVisible:
       id: sign-in-test
     timeout: 30000
+# A new phone's Chrome first shows its own welcome (and may ask about notifications): past it,
+# without an account, as anyone would.
+- runFlow:
+    when:
+      visible: "Use without an account"
+    commands:
+      - tapOn: "Use without an account"
+- runFlow:
+    when:
+      visible: "No thanks"
+    commands:
+      - tapOn: "No thanks"
+- runFlow:
+    when:
+      visible: "Don.t allow"
+    commands:
+      - tapOn: "Don.t allow"
+# Google's own sign-in page, reached from the app's request through Supabase.
+- extendedWaitUntil:
+    visible: ".*(Sign in|Email or phone|to continue to).*"
+    timeout: 45000
 - takeScreenshot: ${SIZE}-google
 # Back to the app without signing in (Chrome may first show its own welcome on a new phone).
 - repeat:
