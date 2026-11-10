@@ -775,6 +775,7 @@ Last updated: 11 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/bri
     - The trade's key is stamped by a trigger on the requests tables from a setting the server's database helper sets, so the books' own functions didn't change.
     - A request's key is a plain ID, with no link to the keys table, so it stays when its key's account is deleted (requests are never changed).
     - The ten-an-hour limit counts revoked keys, so making and revoking can't get round it.
+    - The perp's funding journey (`perp-jobs.spec.ts`) passed only on its retry on #123's first Screen check: its test perp's first funding was already due, so the every-minute funding run could fund it between the two opening trades and the reading before. Its first funding now falls due a minute after the start; every assertion stays.
 
 ## Next
 
