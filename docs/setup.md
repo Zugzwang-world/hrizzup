@@ -1570,6 +1570,14 @@ No good sign-in failed, so the switch-off kept ready beside it (one setting, `ho
 
 **Checked from outside**, the way the website's Google journey asks without signing anyone in (Supabase's verify step, given a code that's no good, sends the browser to the address asked for if its list has it): `hrizzup://auth/callback` is where Supabase sends it; `hrizzup://auth/elsewhere`, `hrizzup://evil` and another app's `otherapp://auth/callback` all go to staging's own home instead.
 
+### The app's sign-in build for the founder's phone (Round 4, relay R4; PLAN.md step 1.6b; Claude Code)
+
+**Built:** Expo's cloud (EAS Build, free plan), profile `preview` (internal distribution, an APK that opens on its own, calling staging's typed API), from `main` at `7d7ac87` ([#102](https://github.com/Zugzwang-world/hrizzup/pull/102) merged), with the robot's token (`infra/doppler/run tools`, never shown): build `5a489227-4661-459e-a619-ecbf0bc7a2b2`, https://expo.dev/accounts/hrizzups-team/projects/hrizzup/builds/5a489227-4661-459e-a619-ecbf0bc7a2b2. Started from `product/app` itself (`pnpm dlx eas-cli@27.4.1 build --platform android --profile preview --non-interactive --no-wait`): run from the repository's root, as the README had it, Expo's tool left a stray `app.json` there (removed; the README now says to start it from `product/app`). Expo signed it with the app's own key, kept on Expo's servers since 1.5d, so it updates the app the founder installed then.
+
+**What's in it:** the sign-in test under the home screen: "Continue with Google" through Chrome's tab and back to the app; "Email me a code", the bot check in a small web view, the code typed in the app; who's signed in, from the typed API; "Sign out". Its new native modules: `expo-secure-store`, `expo-web-browser`, `expo-crypto` and `react-native-webview`, Expo SDK 58's own versions. The same code passed App journeys on the CI emulator at a phone size and a tablet size, Google's own sign-in page included.
+
+**For the founder:** install it from the link and try both ways in (the Product brief, "For the founder"). Step 1.6b is done once he has signed in both ways and is still signed in after reopening the app.
+
 ---
 
 ## Rules for this log
