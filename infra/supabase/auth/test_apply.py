@@ -102,5 +102,37 @@ class RepoSettings(unittest.TestCase):
             self.assertRegex(sql, rf"grant execute on function {qualified}\(jsonb\) to supabase_auth_admin;")
 
 
+
+class Addresses(unittest.TestCase):
+    """Where Supabase may send a visitor back to: only our own addresses, never a pattern anyone
+    else could match (blueprint section 9)."""
+
+    def lists(self):
+        environments = settings()["environments"]
+        return {name: env["settings"]["uri_allow_list"].split(",") for name, env in environments.items()}
+
+    def test_no_vercel_app_address_anywhere(self):
+        for name, addresses in self.lists().items():
+            self.assertFalse([a for a in addresses if "vercel.app" in a], name)
+
+    def test_the_apps_way_back_from_google_is_exactly_its_own_address_on_staging(self):
+        # PLAN.md step 1.6b: the phone's browser comes back to the app's own address, exactly; a
+        # pattern on the app's scheme would let any address under it carry a sign-in.
+        staging = self.lists()["staging"]
+        self.assertIn("hrizzup://auth/callback", staging)
+        apps = [a for a in staging if not a.startswith(("https://", "http://localhost:"))]
+        self.assertEqual(apps, ["hrizzup://auth/callback"])
+
+    def test_every_web_address_is_ours_and_secure_or_this_macs(self):
+        for name, addresses in self.lists().items():
+            for address in addresses:
+                if address.startswith("hrizzup://"):
+                    continue
+                self.assertRegex(
+                    address,
+                    r"^(https://([a-z]+\.)?hrizzup\.com/\*\*|http://localhost:(3000|310[1-9])/\*\*)$",
+                    f"{name}: {address}",
+                )
+
 if __name__ == "__main__":
     unittest.main()

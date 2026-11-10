@@ -1,15 +1,15 @@
 {
-  "_about": "Supabase Auth settings, applied by apply.py (README.md). Names and non-secret values only: each secret is named by the environment variable that supplies it at run time, from Doppler. Staging and production share every setting except the addresses and the hourly email limit; each environment's project is in infra/supabase/project/settings.json. No `vercel.app` address is ever allowed, because anyone can create one: previews sign in through staging's signed relay (`/auth/relay`, product/web/lib/auth-relay.ts). The sign-in methods that are on are exactly the *_enabled switches set to true here; apply.py fails if any other is on.",
+  "_about": "Supabase Auth settings, applied by apply.py (README.md). Names and non-secret values only: each secret is named by the environment variable that supplies it at run time, from Doppler. Staging and production share every setting except the addresses and the hourly email limit; each environment's project is in infra/supabase/project/settings.json. No `vercel.app` address is ever allowed, because anyone can create one: previews sign in through staging's signed relay (`/auth/relay`, product/web/lib/auth-relay.ts). The app's way back from Google is its own exact address (`hrizzup://auth/callback`, never a pattern), which only the app opens; the sign-in it carries is useless without the verifier only the app holds (PKCE). The sign-in methods that are on are exactly the *_enabled switches set to true here; apply.py fails if any other is on.",
   "environments": {
     "staging": {
       "settings": {
         "site_url": "https://staging.hrizzup.com",
-        "uri_allow_list": "https://staging.hrizzup.com/**,http://localhost:3000/**,http://localhost:3101/**,http://localhost:3102/**,http://localhost:3103/**,http://localhost:3104/**",
+        "uri_allow_list": "https://staging.hrizzup.com/**,http://localhost:3000/**,http://localhost:3101/**,http://localhost:3102/**,http://localhost:3103/**,http://localhost:3104/**,hrizzup://auth/callback",
         "rate_limit_email_sent": 30
       }
     },
     "production": {
-      "_note": "rate_limit_email_sent (emails an hour, whole project) is raised before launch to fit expected sign-ups. Native app redirects join uri_allow_list with the app builds.",
+      "_note": "rate_limit_email_sent (emails an hour, whole project) is raised before launch to fit expected sign-ups. The app's way back from Google (hrizzup://auth/callback, staging's since step 1.6b) joins uri_allow_list when the app first uses production (runbook, pre-launch checklist, P.14).",
       "settings": {
         "site_url": "https://hrizzup.com",
         "uri_allow_list": "https://hrizzup.com/**,https://www.hrizzup.com/**",
