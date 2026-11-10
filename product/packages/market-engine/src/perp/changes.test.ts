@@ -405,17 +405,25 @@ describe('the stand-in price', () => {
   });
 
   it('moves the way Bitcoin does: about 55% a year, enough to liquidate 10 times leverage', () => {
-    const steps = 4 * 7 * 17_280; // four weeks of 5-second steps
-    const prices: number[] = [];
-    for (let i = 0; i < steps; i++) prices.push(standInPrice(SEED, START + i * 5_000).price);
+    // A day of 5-second prices for the step-to-step spread, four weeks of hourly ones for the
+    // rest: the same statistics from 17,952 prices instead of 483,840, so the test stays light
+    // beside the rest of the suite.
     const sd = (xs: number[]) => {
       const mean = xs.reduce((s, x) => s + x, 0) / xs.length;
       return Math.sqrt(xs.reduce((s, x) => s + (x - mean) ** 2, 0) / (xs.length - 1));
     };
-    const perStep = prices.slice(1).map((p, i) => Math.log(p / (prices[i] as number)));
-    const hourly: number[] = [];
-    for (let i = 720; i < steps; i += 720)
-      hourly.push(Math.log((prices[i] as number) / (prices[i - 720] as number)));
+    const changes = (every: number, count: number) => {
+      const prices = Array.from(
+        { length: count + 1 },
+        (_, i) => standInPrice(SEED, START + i * every).price,
+      );
+      return {
+        prices,
+        logs: prices.slice(1).map((p, i) => Math.log(p / (prices[i] as number))),
+      };
+    };
+    const perStep = changes(5_000, 17_280).logs;
+    const { prices, logs: hourly } = changes(HOUR_MS, 4 * 7 * 24);
     expect(sd(perStep) * Math.sqrt(365 * 17_280)).toBeGreaterThan(0.45);
     expect(sd(perStep) * Math.sqrt(365 * 17_280)).toBeLessThan(0.65);
     expect(sd(hourly) * Math.sqrt(365 * 24)).toBeGreaterThan(0.4);
