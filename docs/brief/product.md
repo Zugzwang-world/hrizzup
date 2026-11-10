@@ -17,7 +17,7 @@
 
 One line per relay; each relay keeps only its own line current.
 
-- **R1, the round's records:** done, [#95](https://github.com/Zugzwang-world/hrizzup/pull/95): the founder's decisions of 10 November recorded, the relays numbered. For the founder: one optional click (below).
+- **R1, the round's records:** done, [#95](https://github.com/Zugzwang-world/hrizzup/pull/95): the founder's decisions of 10 November recorded, the relays numbered. Nothing for the founder: you keep your GitHub display name on merges (your choice).
 - **R2, checks you can trust:** the console page's speed fix, [#93](https://github.com/Zugzwang-world/hrizzup/pull/93): strangers get the site's own "not found" page from the server, so its busy time, measured 20 times on GitHub's runner, was 35 to 168 ms (budget 200; before, 114 to 292); and the Speed check warns on any single run over a budget (three so far, queued in the status file). Play money on signup, [#97](https://github.com/Zugzwang-world/hrizzup/pull/97): Ṁ1,000 from the house for every sign-in account, once. Unlisted markets, [#103](https://github.com/Zugzwang-world/hrizzup/pull/103): a run's markets stay off the public list. Next: every check run on its own (its accounts, markets and journeys), then retry-passes fail. Nothing for the founder.
 - **R3, the perp's maths (3.4a):** Manifold's perps maths and its 274 tests copied in, [#92](https://github.com/Zugzwang-world/hrizzup/pull/92) (1 of 3). Next: our settings (Manifold's defaults, the 10 times cap), the time passed in and the seeded stand-in price (2 of 3); then our tests that no play money is created or lost, with a long simulation (3 of 3). Nothing for the founder.
 - **R4, the app's sign-in (1.6b):** built and merged: staging's firewall for the app's writes ([#94](https://github.com/Zugzwang-world/hrizzup/pull/94)), our server's half ([#96](https://github.com/Zugzwang-world/hrizzup/pull/96)), Google through the phone's browser ([#100](https://github.com/Zugzwang-world/hrizzup/pull/100)), email codes in the app ([#101](https://github.com/Zugzwang-world/hrizzup/pull/101)) and the test screen ([#102](https://github.com/Zugzwang-world/hrizzup/pull/102)); **a new build for your phone is ready** (below). Next: the App journey that signs a run's own fresh account in, once R2's accounts merge ([#105](https://github.com/Zugzwang-world/hrizzup/pull/105)). For you: try the build.
@@ -64,7 +64,7 @@ One line each; the detail, and the rest, are in the status file.
   5. **Email me a code**: type your email, let the bot check pass (tap its box if it asks), tap **Email me a code**, then type the 8-digit code from the email and tap **Sign in**;
   6. close the app (swipe it away) and open it again: you're still signed in.
   If it says "Too many codes were asked for", wait two minutes and try again (staging's email limit). Tell the Product chat how it went; once you're signed in both ways and still signed in after reopening, 1.6b is done.
-- **Design:** your references and diagrams in the design chat. **Optional:** GitHub → Settings → Public profile → **Name** `Zugzwang-world`.
+- **Design:** your references and diagrams in the design chat.
 - **Three decisions, recommended:** posting on both surfaces (2.4); the closed test without News Desk's content (2.6); reading and betting free (2.7). **When you choose:** the developer accounts (0.4), 12 testers, News Desk. **Spending, parked;** **launch items** in the runbook's pre-launch checklist.
 
 ## What's next
