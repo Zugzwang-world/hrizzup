@@ -2,7 +2,7 @@
 
 **This brief replaces Claude Code's report:** read it after clicking **Sync now**, instead of asking the founder for a report, and attach the files under "Read for detail" from GitHub when you need more.
 
-> Rewritten 10 November 2026 by Round 3's closing record (relay 12, records only, [#89](https://github.com/Zugzwang-world/hrizzup/pull/89)). The News Desk project's only file from the repository, rewritten at the end of every session that touches its part. PLAN.md wins any disagreement.
+> Rewritten 10 November 2026 by Round 5's relay R2 (the public API's research and design, research only, [#PR_NUMBER](https://github.com/Zugzwang-world/hrizzup/pull/PR_NUMBER)), whose change to PLAN.md rewrites every brief. The News Desk project's only file from the repository, rewritten at the end of every session that touches its part. PLAN.md wins any disagreement.
 
 **Hrizzup** is a news app built around creators, plus a website with play-money prediction markets. Our AI finds news as it breaks on X and turns it into developing stories that readers see through creators' takes. **News Desk's job:** make our own content from the sourced pool and onboard creators. It produces text, images and video, which Product shows in the app and on the website, in the shape the hand-over agreement (`agreement/README.md`) fixes. **News Desk is on hold until the founder sets it up.**
 
@@ -38,15 +38,16 @@
 
 ## What changed in the latest session
 
-On 10 November 2026, in Round 3's closing record ([#89](https://github.com/Zugzwang-world/hrizzup/pull/89), relay 12, records only):
+On 10 November 2026, Round 5's relay R2 ([#PR_NUMBER](https://github.com/Zugzwang-world/hrizzup/pull/PR_NUMBER), research only) recorded the founder's decisions on Product's public API in PLAN.md (section 2, "The public API"). **The creation shape, the sourced item and the agreement don't change.**
 
-- **The market News Desk reads gets a second version, market/2, before Product's step 3.3** (linking markets and news; settled in the Product chat): market/1 can't describe a market settled at a set probability, so until then such a market stays off Product's public list. Product drafts it, Sourcing agrees it, and the founder approves it in News Desk's place. The creation shape and the sourced item don't change.
-- **For Product only:** market settings follow Manifold's defaults; the website's sign-in done; Round 3 closed and Round 4's queue set (the perp, the app's sign-in, then screens from the design chat).
+- **Topics unparked** (1.2): the Product chat drafts the first markets' topics, so the charts format below can start from real topics sooner.
+- **A public API for Product's markets** (3.5a to 3.5f): bots and AI tools trade play money with personal keys, on staging until launch. Nothing in it touches News Desk's content.
+- **Still coming:** market/2, before 3.3, which the founder approves in News Desk's place.
 
 ## Open questions
 
 - **Which creators to invite first** (step 1.3). Recommendation: start from the creators whose takes the bots find most often in each launch category, once the pipeline runs; invite those with original work and a steady record.
-- **How News Desk chooses what to build on, and what each format looks like made from the pool** (step 1.3). Recommendation: three formats to start: explainers (what's happening and why), roundups of the best found takes on a story, each credited, and, once step 1.2 chooses the markets' topics, charts for them; each names the posts it builds on.
+- **How News Desk chooses what to build on, and what each format looks like made from the pool** (step 1.3). Recommendation: three formats to start: explainers (what's happening and why), roundups of the best found takes on a story, each credited, and, once the founder approves step 1.2's first topics (unparked on 10 November 2026, drafted in the Product chat), charts for them; each names the posts it builds on.
 - **When News Desk is set up** (the founder). Recommendation: once the news pipeline (1.1) is close to running on staging, so formats and the creator list are ready when the pool fills; earlier if the closed test (2.6) waits for News Desk's first content.
 
 ## What's next
