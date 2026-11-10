@@ -19,7 +19,7 @@ import {
   STAND_IN_PRICE,
 } from '@hrizzup/market-engine';
 import type { Pool } from 'pg';
-import type { StepState, StoredPosition, StoredSettings } from './plan.ts';
+import { nextFundingAt, type StepState, type StoredPosition, type StoredSettings } from './plan.ts';
 import { PerpNotSetUpError, type PriceSource, priceFor, runStep } from './step.ts';
 
 /**
@@ -145,21 +145,6 @@ export function plain(value: number): string {
         : `${all.slice(0, point)}.${all.slice(point)}`;
   const trimmed = out.includes('.') ? out.replace(/0+$/, '').replace(/\.$/, '') : out;
   return `${negative ? '-' : ''}${trimmed.replace(/^0+(?=\d)/, '')}`;
-}
-
-/**
- * When a perp's next funding falls due: on hourly slots of its own from its first period, never
- * sooner than the engine takes a run (the database's perps.next_funding_at, the rule the schedule
- * follows); it runs within a minute of then.
- */
-export function nextFundingAt(
-  fundingFrom: number,
-  lastFundingAt: number | null,
-  periodMs: number,
-): number {
-  if (lastFundingAt === null) return fundingFrom + periodMs;
-  const slot = fundingFrom + (Math.floor((lastFundingAt - fundingFrom) / periodMs) + 1) * periodMs;
-  return Math.max(slot, lastFundingAt + periodMs - 60_000);
 }
 
 /** A perp's price now, from its own walk (and seed), or the environment's secret seed. */

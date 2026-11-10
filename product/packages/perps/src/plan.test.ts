@@ -171,9 +171,10 @@ class Books {
   /**
    * Two of the database's own rules (perps.apply_step), checked here so the planner can't break
    * them unseen: nothing happens to a position after it closes in a step (a closed position's last
-   * event closes it), and with a new price the pools balance one way only, the receiving pool never
-   * past its own side's margins and the paying one never below what its own side would be paid back
-   * at the price (each position's margin, or what it's worth if less), as the price left them.
+   * event closes it), and with a new price the pools balance one way only, worked out from the
+   * positions as the price left them, each side's reserve being what its positions would be paid
+   * back at the price (each one's margin, or its worth if less): a pool topped up only when it holds
+   * less than its reserve, never past it, by a pool that keeps its own.
    */
   checkTheBooksRules(plan: Plan) {
     const closing = new Set(['liquidation', 'settle', 'close']);
@@ -236,10 +237,14 @@ class Books {
     const sideOf = (pool: string) => (pool === LONG_POOL ? 'long' : 'short');
     const sum = (side: string, key: 'margin' | 'reserve') =>
       afterPrice.filter((p) => p.direction === side).reduce((total, p) => total + p[key], 0);
-    const receiverAfter = toNumber(this.balances.get(to) ?? 0n) + priceFlow(to);
+    const receiverBefore = toNumber(this.balances.get(to) ?? 0n);
+    const receiverAfter = receiverBefore + priceFlow(to);
     const payerAfter = toNumber(this.balances.get(from) ?? 0n) + priceFlow(from);
-    expect(receiverAfter, "the receiving pool never past its side's margins").toBeLessThanOrEqual(
-      sum(sideOf(to), 'margin') + 0.000001,
+    expect(receiverBefore, 'only a pool that is short is topped up').toBeLessThan(
+      sum(sideOf(to), 'reserve') + 0.000001,
+    );
+    expect(receiverAfter, "never past its side's reserve").toBeLessThanOrEqual(
+      sum(sideOf(to), 'reserve') + 0.000001,
     );
     expect(
       payerAfter,

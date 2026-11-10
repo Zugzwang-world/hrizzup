@@ -321,18 +321,15 @@ class Builder {
   }
 
   /**
-   * Balances one pool against the maths after a phase: when the maths moved money from one pool to
-   * the other beyond the people it paid (a side's pool short of what its own positions would be
-   * paid back, topped up from the other: Manifold's cross-side transfer, with or without winners
-   * scaled down), the books move it too, rounded up for the pool receiving it. Only floating
-   * point's own noise is left unmoved.
+   * Manifold's own move of money between the pools, with no position changing (its
+   * `crossSideTransfer`: positive from the short pool to the long, negative the other way): exactly
+   * the maths' amount, rounded up for the pool receiving it. Floating point's own noise moves
+   * nothing.
    */
-  balancePools(phase: Phase, target: PerpState['pool']) {
-    const need = target.L - toNumber(this.long);
-    if (Math.abs(need) <= 2 * NOISE * Math.max(1, this.moves.length)) return;
+  crossSide(phase: Phase, transfer: number) {
     const { longAccountId, shortAccountId } = this.state.perp;
-    if (need > 0) this.move(phase, shortAccountId, longAccountId, up(need));
-    else this.move(phase, longAccountId, shortAccountId, up(-need));
+    if (transfer > NOISE) this.move(phase, shortAccountId, longAccountId, up(transfer));
+    else if (transfer < -NOISE) this.move(phase, longAccountId, shortAccountId, up(-transfer));
   }
 
   /** The pools as the maths left them, within rounding of the books' exact ones. */
@@ -348,6 +345,21 @@ class Builder {
   }
 }
 
+/**
+ * When a perp's next funding falls due: on hourly slots of its own from its first period, never
+ * sooner than the engine takes a run (the database's perps.next_funding_at, the same rule); the
+ * schedule runs it within a minute of then.
+ */
+export function nextFundingAt(
+  fundingFrom: number,
+  lastFundingAt: number | null,
+  periodMs: number,
+): number {
+  if (lastFundingAt === null) return fundingFrom + periodMs;
+  const slot = fundingFrom + (Math.floor((lastFundingAt - fundingFrom) / periodMs) + 1) * periodMs;
+  return Math.max(slot, lastFundingAt + periodMs - 60_000);
+}
+
 /** Positions by owner and side. */
 const indexed = (positions: PerpPosition[]) =>
   new Map(positions.map((position) => [keyOf(position.userId, position.direction), position]));
@@ -359,11 +371,14 @@ function pricePhase(
   after: PerpState,
   liquidated: PerpPosition[],
   settlements: { userId: string; amount: number }[],
+  crossSideTransfer: number,
 ) {
+  // First, as in Manifold's maths: a pool holding less than its own side's positions would be paid
+  // back is topped up from the other, if the other has that much to spare.
+  plan.crossSide('price', crossSideTransfer);
   const gone = indexed(liquidated);
   const now = indexed(after.positions);
   const paid = new Map(settlements.map((move) => [move.userId, move.amount]));
-  let scaled = false;
   for (const position of before.positions) {
     const key = keyOf(position.userId, position.direction);
     if (gone.has(key)) {
@@ -382,7 +397,6 @@ function pricePhase(
           survivor.size - position.size,
           survivor.costBasis - position.costBasis,
         );
-        scaled = true;
       }
       continue;
     }
@@ -391,11 +405,7 @@ function pricePhase(
     const id = plan.write(position, 'settled');
     plan.event('price', 'settle', id, -position.size, -position.costBasis, { payout });
     plan.move('price', plan.pool(position.direction), position.userId, payout);
-    scaled = true;
   }
-  // Whether or not anyone was scaled down: Manifold tops a pool up from the other with no position
-  // changing when the pool has fallen short of what its own side's positions would be paid back.
-  plan.balancePools('price', after.pool);
   plan.agreeWith(after.pool, 'A new price');
 }
 
@@ -407,7 +417,16 @@ function fundingPhase(
   after: PerpState,
   rate: number,
   settlements: { userId: string; amount: number }[],
+  crossSideTransfer: number,
 ) {
+  // The books take a move between the pools in funding only from the crowded side to the other: a
+  // funding that left a pool short of its own side (rare; Manifold's funding draws no pool below
+  // its side's reserve) waits, and the next new price balances the pools first.
+  if (Math.abs(crossSideTransfer) > NOISE) {
+    throw new PerpPlanError(
+      'Funding would leave a pool short of its side: the next price balances it first',
+    );
+  }
   if (rate === 0) return;
   const crowded: PerpDirection = rate > 0 ? 'long' : 'short';
   const other: PerpDirection = rate > 0 ? 'short' : 'long';
@@ -420,7 +439,6 @@ function fundingPhase(
   const fundedNow = indexed(funded.positions);
   const afterNow = indexed(after.positions);
   const paid = new Map(settlements.map((move) => [move.userId, move.amount]));
-  let scaled = false;
   for (const position of before.positions) {
     const key = keyOf(position.userId, position.direction);
     const scaledByFunding = fundedNow.get(key) ?? position;
@@ -440,7 +458,6 @@ function fundingPhase(
         payout,
       });
       plan.move('funding', plan.pool(position.direction), position.userId, payout);
-      scaled = true;
       continue;
     }
     plan.write(survivor);
@@ -452,10 +469,8 @@ function fundingPhase(
         survivor.size - scaledByFunding.size,
         survivor.costBasis - scaledByFunding.costBasis,
       );
-      scaled = true;
     }
   }
-  if (scaled) plan.balancePools('funding', after.pool);
   plan.agreeWith(after.pool, 'Funding');
 }
 
@@ -543,6 +558,7 @@ export function planStep(
           applied.book.state,
           applied.liquidated,
           applied.moves.map((move) => ({ userId: move.userId, amount: move.amount })),
+          applied.crossSideTransfer,
         );
       }
       book = applied.book;
@@ -552,9 +568,19 @@ export function planStep(
   // 2. What the step is for.
   let funding: Plan['funding'];
   let refused: Plan['refusal'];
+  // Funding on the perp's own hourly slots, as the books hold it (perps.next_funding_at): never
+  // sooner, even where the engine's own rule (a period less a minute) would take a run.
+  const fundingDue =
+    request.action === 'funding' &&
+    now >=
+      nextFundingAt(
+        Date.parse(perp.fundingFrom),
+        perp.lastFundingAt ? Date.parse(perp.lastFundingAt) : null,
+        settings.fundingPeriodMs,
+      );
   if (request.action === 'funding') {
-    const funded = applyPerpFunding({ book, settings, now });
-    if (funded.ok) {
+    const funded = fundingDue ? applyPerpFunding({ book, settings, now }) : null;
+    if (funded?.ok) {
       const interest = getPerpOpenInterest(book.state.positions);
       funding = {
         rate: figure(funded.fundingRate),
@@ -568,6 +594,7 @@ export function planStep(
         funded.book.state,
         funded.fundingRate,
         funded.moves.map((move) => ({ userId: move.userId, amount: move.amount })),
+        funded.crossSideTransfer,
       );
       book = funded.book;
     }

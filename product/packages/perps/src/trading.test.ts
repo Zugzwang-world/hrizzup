@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { nextFundingAt, plain } from './trading.ts';
+import { nextFundingAt } from './plan.ts';
+import { plain } from './trading.ts';
 
 /**
  * Quick checks of the calls' own helpers: the maths' numbers written as the contract takes them

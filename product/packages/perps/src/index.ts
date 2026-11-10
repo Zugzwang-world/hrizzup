@@ -9,6 +9,7 @@ export {
 export { type JobName, type JobRun, runJob } from './jobs.ts';
 export {
   type CloseParams,
+  nextFundingAt,
   type OpenParams,
   PerpPlanError,
   type Plan,
@@ -30,7 +31,6 @@ export {
   asPerpTradingError,
   closePerp,
   listedPerps,
-  nextFundingAt,
   nextStepAt,
   openPerp,
   PerpTradingError,
