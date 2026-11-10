@@ -12,6 +12,7 @@
       "!agreement/README.md",
       "!agreement/src/types.generated.ts",
       "!product/packages/api/src/contract.routes.json",
+      "!product/packages/api/openapi.json",
       "!product/packages/market-engine/src/manifold/calculate-cpmm-arbitrage.ts",
       "!product/packages/market-engine/types",
       "infra/supabase/package.json",
