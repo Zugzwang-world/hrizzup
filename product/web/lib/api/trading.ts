@@ -8,7 +8,13 @@ import { apiKeysEnabled } from '@/lib/env.ts';
 import { type SignedIn, signedIn } from './context.ts';
 import { credentialOf } from './credential.ts';
 import { findKey } from './keys.ts';
-import { allowKeyRead, allowTrade } from './rate-limit.ts';
+import {
+  allowKeyRead,
+  allowTrade,
+  KEY_READS_PER_MINUTE,
+  rateLimitHeaders,
+  TRADES_PER_MINUTE,
+} from './rate-limit.ts';
 
 /**
  * The markets' calls for everyone in the website's API (PLAN.md step 1.7d), around `@hrizzup/markets`:
@@ -158,6 +164,11 @@ export async function asPerson<T>(who: Person, work: () => Promise<T>): Promise<
 export async function withinReadLimit(who: Person, responseHeaders?: Headers): Promise<void> {
   if (!who.key) return;
   const allowance = await allowKeyRead(who.key.id);
+  for (const [name, value] of Object.entries(
+    rateLimitHeaders('key-reads', KEY_READS_PER_MINUTE, allowance),
+  )) {
+    responseHeaders?.set(name, value);
+  }
   if (allowance.allowed) return;
   responseHeaders?.set('Retry-After', String(allowance.retryAfterSeconds));
   throw new ORPCError('TOO_MANY_REQUESTS', {
@@ -173,6 +184,11 @@ export async function withinReadLimit(who: Person, responseHeaders?: Headers): P
  */
 export async function withinTradeLimit(account: string, responseHeaders?: Headers): Promise<void> {
   const allowance = await allowTrade(account);
+  for (const [name, value] of Object.entries(
+    rateLimitHeaders('trades', TRADES_PER_MINUTE, allowance),
+  )) {
+    responseHeaders?.set(name, value);
+  }
   if (allowance.allowed) return;
   responseHeaders?.set('Retry-After', String(allowance.retryAfterSeconds));
   throw new ORPCError('TOO_MANY_REQUESTS', {

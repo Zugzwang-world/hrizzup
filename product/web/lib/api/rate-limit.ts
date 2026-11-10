@@ -29,7 +29,13 @@ export const KEY_READS_PER_MINUTE = 120;
 /** How long the limiter waits for Redis before letting a trade through. */
 const REDIS_TIMEOUT_MS = 1000;
 
-export type Allowance = { allowed: true } | { allowed: false; retryAfterSeconds: number };
+/**
+ * Whether a call may go on, and, when Redis counted it, what's left: how many more this window allows
+ * and the seconds until the window has room again (for the `RateLimit` headers).
+ */
+export type Allowance =
+  | { allowed: true; left?: { remaining: number; resetSeconds: number } }
+  | { allowed: false; retryAfterSeconds: number };
 
 type Env = Readonly<Record<string, string | undefined>>;
 
@@ -99,13 +105,37 @@ async function allow(
   try {
     const answer = await limit.limit(id);
     waitUntil(answer.pending);
-    if (answer.success) return { allowed: true };
-    return {
-      allowed: false,
-      retryAfterSeconds: Math.max(1, Math.ceil((answer.reset - now()) / 1000)),
-    };
+    const resetSeconds = Math.max(1, Math.ceil((answer.reset - now()) / 1000));
+    if (answer.success) {
+      return { allowed: true, left: { remaining: Math.max(0, answer.remaining), resetSeconds } };
+    }
+    return { allowed: false, retryAfterSeconds: resetSeconds };
   } catch {
     // Redis failed: the books still check every trade, so the trade goes on.
     return { allowed: true };
   }
+}
+
+/**
+ * The IETF's `RateLimit-Policy` and `RateLimit` headers (draft-ietf-httpapi-ratelimit-headers), so a
+ * bot can pace itself: the limit's name, how many a window allows (`q`) and the window in seconds
+ * (`w`); then how many are left (`r`) and the seconds until there's room again (`t`).
+ */
+export function rateLimitHeaders(
+  name: 'trades' | 'key-reads',
+  perMinute: number,
+  allowance: Allowance,
+): Record<string, string> {
+  const policy = `"${name}";q=${perMinute};w=60`;
+  if (!allowance.allowed) {
+    return {
+      'RateLimit-Policy': policy,
+      RateLimit: `"${name}";r=0;t=${allowance.retryAfterSeconds}`,
+    };
+  }
+  if (!allowance.left) return {};
+  return {
+    'RateLimit-Policy': policy,
+    RateLimit: `"${name}";r=${allowance.left.remaining};t=${allowance.left.resetSeconds}`,
+  };
 }

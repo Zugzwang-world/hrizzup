@@ -519,7 +519,7 @@ type StoredHeld = StoredPosition & {
 export async function perpPositions(
   pool: Database,
   account: string,
-  page: { after?: string | undefined },
+  page: { after?: string | undefined; limit?: number | undefined },
   source: PriceSource,
 ): Promise<PerpPositionsPage> {
   const found = await read(pool, account, async (tx) => {
@@ -536,7 +536,7 @@ export async function perpPositions(
                 from jsonb_array_elements(held.page -> 'positions') item)) as sources,
               ${DATABASE_NOW}
        from held`,
-      [page.after ?? null, 50],
+      [page.after ?? null, page.limit ?? 50],
     );
     return rows[0];
   });

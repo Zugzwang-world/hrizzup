@@ -41,7 +41,7 @@ export async function positionIn(marketId: string): Promise<Position | null> {
     const found = page.positions.find((position) => position.marketId === marketId);
     if (found) return found;
     if (!page.next) return null;
-    page = await serverApi.portfolio.positions({ after: page.next });
+    page = await serverApi.portfolio.positions({ cursor: page.next });
   }
   return null;
 }
@@ -51,7 +51,7 @@ export async function ordersIn(marketId: string): Promise<OpenOrder[]> {
   const found: OpenOrder[] = [];
   let after: string | undefined;
   for (let pages = 0; pages < MOST_PAGES; pages++) {
-    const page = await serverApi.portfolio.orders(after ? { after } : undefined);
+    const page = await serverApi.portfolio.orders(after ? { cursor: after } : undefined);
     found.push(...page.orders.filter((order) => order.marketId === marketId));
     if (!page.next) break;
     after = page.next;
@@ -67,7 +67,7 @@ export async function ordersIn(marketId: string): Promise<OpenOrder[]> {
 export const findMarket = cache(async (id: string): Promise<ListedMarket | null> => {
   const above = justAbove(id);
   if (!above) return null;
-  const page = await serverApi.markets.list({ after: above });
+  const page = await serverApi.markets.list({ cursor: above });
   const first = page.markets[0];
   return first && first.market.id === id ? first : null;
 });

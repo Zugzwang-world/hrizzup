@@ -2,6 +2,7 @@ import { type Market, validate } from '@hrizzup/agreement';
 import { z } from 'zod';
 import { decimal, marketState, moment, probability, recordId } from './console.ts';
 import { forbidden } from './keys.ts';
+import { nextCursor, pageInput } from './paging.ts';
 
 /**
  * The markets' part of the contract for everyone (PLAN.md step 1.7d; blueprint section 13): the list
@@ -156,7 +157,7 @@ export const listedMarket = z.object({
 });
 
 /** A page of the markets anyone may see, newest first, and where the next page starts (null on the last). */
-export const marketList = z.object({ markets: z.array(listedMarket), next: recordId.nullable() });
+export const marketList = z.object({ markets: z.array(listedMarket), next: nextCursor });
 
 /** One of the person's positions: their shares in a market still open or waiting to be settled. */
 export const position = z.object({
@@ -174,7 +175,7 @@ export const position = z.object({
 export const positionsPage = z.object({
   balance: decimal,
   positions: z.array(position),
-  next: recordId.nullable(),
+  next: nextCursor,
 });
 
 /** One of the person's resting limit orders. */
@@ -195,13 +196,13 @@ export const openOrder = z.object({
 });
 
 /** A page of the person's open orders, newest first. */
-export const ordersPage = z.object({ orders: z.array(openOrder), next: z.uuid().nullable() });
+export const ordersPage = z.object({ orders: z.array(openOrder), next: nextCursor });
 
-/** Where a page of positions starts: after the last market of the page before. */
-export const positionsPageInput = z.strictObject({ after: recordId.optional() }).optional();
+/** A page of positions: where it starts (`cursor`) and how many (`limit`). */
+export const positionsPageInput = pageInput;
 
-/** Where a page of open orders starts: after the last order of the page before. */
-export const ordersPageInput = z.strictObject({ after: orderId.optional() }).optional();
+/** A page of open orders: where it starts (`cursor`) and how many (`limit`). */
+export const ordersPageInput = pageInput;
 
 /** The errors a trading call may answer, besides a refused input (400, BAD_REQUEST). */
 export const tradingErrors = {

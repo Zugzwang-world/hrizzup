@@ -60,7 +60,7 @@ export default async function SandboxMarkets({ searchParams }: Props) {
   sandboxOnly();
   const { after } = await searchParams;
   const page = await serverApi.markets.list(
-    typeof after === 'string' && MARKET_ID.test(after) ? { after } : undefined,
+    typeof after === 'string' && MARKET_ID.test(after) ? { cursor: after } : undefined,
   );
   const open = page.markets.filter((listed) => listed.market.state === 'open');
   const rest = page.markets.filter((listed) => listed.market.state !== 'open');

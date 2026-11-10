@@ -26,7 +26,7 @@ export default async function ConsolePage({ searchParams }: Props) {
   const { after } = await searchParams;
   const [page, perps] = await Promise.all([
     serverApi.admin.markets.list(
-      typeof after === 'string' && MARKET_ID.test(after) ? { after } : undefined,
+      typeof after === 'string' && MARKET_ID.test(after) ? { cursor: after } : undefined,
     ),
     // The perps: the Bitcoin perp, then the check runs' newest test perps (PLAN.md step 3.4a).
     serverApi.admin.perps.list(),
