@@ -4,14 +4,7 @@
 appId: com.hrizzup.app
 name: The app shows staging's answer
 ---
-- launchApp:
-    clearState: true
-# As in app-opens.yaml: wait out a frozen system app's dialog on the slow CI emulator.
-- runFlow:
-    when:
-      visible: ".*isn't responding"
-    commands:
-      - tapOn: "Wait"
+- runFlow: steps/start-fresh.yaml
 - extendedWaitUntil:
     visible:
       id: api-answer

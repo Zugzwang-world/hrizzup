@@ -7,14 +7,7 @@
 appId: com.hrizzup.app
 name: The sign-in test asks for an email code behind the bot check, and checks a typed code
 ---
-- launchApp:
-    clearState: true
-# As in app-opens.yaml: wait out a frozen system app's dialog on the slow CI emulator.
-- runFlow:
-    when:
-      visible: ".*isn't responding"
-    commands:
-      - tapOn: "Wait"
+- runFlow: steps/start-fresh.yaml
 - scrollUntilVisible:
     element:
       id: email-code-button
