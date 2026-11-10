@@ -13,8 +13,10 @@ export default async function SandboxPerps() {
     <>
       <h1 className="text-3xl font-semibold">Perps</h1>
       <p className="mt-2 max-w-2xl text-muted">
-        Go up or down on a price with play money and a multiplier of 1 to 10 times. On staging the
-        price is a stand-in that moves every 5 seconds, until the real feed.
+        Go up or down on a price with play money and a multiplier of 1 to 10 times.{' '}
+        {perps.some((perp) => perp.feed === 'btc-usd')
+          ? 'The price is Bitcoin’s, in US dollars: every 5 seconds, the median of three big exchanges’ prices.'
+          : 'On staging the price is a stand-in that moves every 5 seconds, until the real feed.'}
       </p>
       {perps.length === 0 ? (
         <p className="mt-6 text-muted">No perps are listed here.</p>

@@ -11,21 +11,28 @@ export {
   type CloseParams,
   nextFundingAt,
   type OpenParams,
+  OWN_PRICE,
   PerpPlanError,
   type Plan,
   planStep,
   type StepRequest,
   type StepState,
+  type StoredPoint,
 } from './plan.ts';
 export {
+  OWN_PRICE_INTERVAL_MS,
+  OWN_PRICE_WAIT_MS,
+  ownPriceDueAt,
   PerpNotSetUpError,
   type PerpPriceSource,
   type PriceSource,
+  PriceUnavailableError,
   priceFor,
   priceSource,
   runStep,
   type StepAnswer,
   stepIn,
+  storedPrice,
 } from './step.ts';
 export {
   asPerpTradingError,

@@ -93,14 +93,24 @@ export default async function ConsolePerpPage({ params }: Props) {
           </Detail>
           <Detail term="Price">
             {perp.price && perp.priceAt
-              ? `${dollars(perp.price)}, from the 5-second step starting ${indiaTime(perp.priceAt)}`
+              ? perp.feed === 'btc-usd'
+                ? `${dollars(perp.price)}, asked for at ${indiaTime(perp.priceAt)}`
+                : `${dollars(perp.price)}, from the 5-second step starting ${indiaTime(perp.priceAt)}`
               : 'No price applied yet: the first trade or check applies one'}
           </Detail>
           <Detail term="Price from">
-            {perp.feed === 'stand-in-btc-usd' ? 'The stand-in price' : perp.feed}: from{' '}
-            {indiaTime(perp.standIn.origin)} at {dollars(perp.standIn.startPrice)}, moving{' '}
-            {perp.standIn.volatility} a year,{' '}
-            {perp.standIn.ownSeed ? 'with a seed of its own' : "with the environment's secret seed"}
+            {perp.feed === 'btc-usd' ? (
+              'Our own Bitcoin price: every 5 seconds, the median of Coinbase, Kraken and Bitstamp, Gemini standing by'
+            ) : (
+              <>
+                {perp.feed === 'stand-in-btc-usd' ? 'The stand-in price' : perp.feed}: from{' '}
+                {indiaTime(perp.standIn.origin)} at {dollars(perp.standIn.startPrice)}, moving{' '}
+                {perp.standIn.volatility} a year,{' '}
+                {perp.standIn.ownSeed
+                  ? 'with a seed of its own'
+                  : "with the environment's secret seed"}
+              </>
+            )}
           </Detail>
           <Detail term="Pools">
             <span data-testid="perp-pools">
