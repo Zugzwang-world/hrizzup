@@ -2,30 +2,34 @@
 -- pull request against a fresh database built from the migrations. Everything runs in a transaction
 -- that is rolled back, so nothing is left behind.
 --
--- 1. The pools balance as Manifold's maths balances them: a long pool left short of its own side's
---    margins (a short closed at a profit while the long was losing, then the price came back) is
---    topped up from the short pool with the next price, no position changing; never past its side's
---    margins, never both ways at once, never in a trade. Three windows a little over 5 seconds
---    apart, since a new price needs a new 5-second step. The steps run as the server runs them
---    (begin_step, then apply_step with its plan, worked out by hand here).
--- 2. Funding on each perp's own hourly slots, and the books refusing one before its slot.
+-- 1. The pools balance as Manifold's maths balances them: a long pool left holding less than its
+--    side would be paid back (a short closed at a profit while the long was losing, then the price
+--    came back) is topped up from the short pool with the next price, no position changing; only
+--    when it's short, never past what its side would be paid back, never from a pool that would then
+--    hold less than its own side's, never both ways at once, never in a trade. Three windows a
+--    little over 5 seconds apart, since a new price needs a new 5-second step. The steps run as the
+--    server runs them (begin_step, then apply_step with its plan, worked out by hand here).
+-- 2. Funding on each perp's own hourly slots, and the books refusing one before its slot, even one
+--    the engine's own rule would take (59 minutes after the last).
 -- 3. A check run's test perp leaves the schedule's work two hours after it's made.
--- 4. The listed perp stays off where its scheduled jobs aren't set up; the app's roles can't read
---    Vault, where they are.
+-- 4. The listed perp stays off where its scheduled jobs aren't set up, and can always be stepped
+--    down; the app's roles can't read Vault, where they are.
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(24);
+select plan(31);
 
 insert into auth.users (id, email) values
   ('00000000-0000-4000-8000-0000000000d1', 'ada@perp-rules.test'),
   ('00000000-0000-4000-8000-0000000000d2', 'ann@perp-rules.test'),
-  ('00000000-0000-4000-8000-0000000000d3', 'bob@perp-rules.test');
+  ('00000000-0000-4000-8000-0000000000d3', 'bob@perp-rules.test'),
+  ('00000000-0000-4000-8000-0000000000d4', 'cid@perp-rules.test');
 insert into private.admins (user_id, note) values
   ('00000000-0000-4000-8000-0000000000d1', 'Ada, the perp rules tests'' admin');
 select ledger.open_account('00000000-0000-4000-8000-0000000000d2', 1000);
 select ledger.open_account('00000000-0000-4000-8000-0000000000d3', 1000);
+select ledger.open_account('00000000-0000-4000-8000-0000000000d4', 1000);
 
 create function pg_temp.user_id(name text)
 returns uuid
@@ -35,6 +39,7 @@ as $$
     when 'ada' then '00000000-0000-4000-8000-0000000000d1'::uuid
     when 'ann' then '00000000-0000-4000-8000-0000000000d2'::uuid
     when 'bob' then '00000000-0000-4000-8000-0000000000d3'::uuid
+    when 'cid' then '00000000-0000-4000-8000-0000000000d4'::uuid
   end;
 $$;
 
@@ -53,6 +58,8 @@ as $$
   select case name
     when 'b1' then '01a1c504-0000-7000-8000-000000000001'::uuid
     when 'b2' then '01a1c504-0000-7000-8000-000000000002'::uuid
+    when 'b3' then '01a1c504-0000-7000-8000-000000000003'::uuid
+    when 'b4' then '01a1c504-0000-7000-8000-000000000004'::uuid
     when 'btc' then '01a1c501-ec40-78f6-87b6-3fb041143421'::uuid
   end;
 $$;
@@ -80,6 +87,9 @@ as $$
     when 'ann' then '0b000000-0000-4000-8000-0000000000d1'::uuid
     when 'bob' then '0b000000-0000-4000-8000-0000000000d2'::uuid
     when 'bob2' then '0b000000-0000-4000-8000-0000000000d3'::uuid
+    when 'ann4' then '0b000000-0000-4000-8000-0000000000d4'::uuid
+    when 'bob4' then '0b000000-0000-4000-8000-0000000000d5'::uuid
+    when 'cid4' then '0b000000-0000-4000-8000-0000000000d6'::uuid
   end;
 $$;
 
@@ -116,7 +126,8 @@ returns jsonb
 language sql
 as $$
   select jsonb_build_object(
-    'id', pg_temp.position(holder), 'accountId', pg_temp.acct(rtrim(holder, '2')),
+    -- Holders are people's names, with a number for a person's second position or another perp's.
+    'id', pg_temp.position(holder), 'accountId', pg_temp.acct(regexp_replace(holder, '[0-9]+$', '')),
     'direction', direction,
     'size', size, 'costBasis', cost_basis, 'originalCostBasis', original_cost_basis,
     'takerFeeCostBasis', fee_cost_basis, 'entryPrice', entry_price, 'leverage', leverage,
@@ -191,9 +202,10 @@ begin
 end;
 $$;
 
--- A test perp made and switched on by Ada: Ṁ1 in the long pool, Ṁ1,000 in the short one, its first
--- funding period started `funding_hours_ago` hours ago.
-create function pg_temp.make_perp(perp text, funding_hours_ago integer)
+-- A test perp made and switched on by Ada: the house's subsidies in its two pools, its first funding
+-- period started `funding_ago` before now.
+create function pg_temp.make_perp(perp text, funding_ago interval, subsidy_long text,
+                                  subsidy_short text)
 returns void
 language plpgsql
 as $$
@@ -204,18 +216,21 @@ begin
          jsonb_build_object('maxLeverage', '10', 'takerFeeBps', '10', 'takerFeeImpact', '0',
                             'fundingPeriodMs', '3600000', 'fundingSensitivity', '1',
                             'maxFundingRate', '0.0001', 'maxPriceAgeMs', '120000',
-                            'subsidyLong', '1', 'subsidyShort', '1000'),
-         clock_timestamp() - interval '%s hours',
+                            'subsidyLong', %L, 'subsidyShort', %L),
+         clock_timestamp() - %L::interval,
          'The perp rules tests'' own test perp')::text$q$,
-    pg_temp.perp(perp), 'Rules test perp ' || perp, funding_hours_ago));
+    pg_temp.perp(perp), 'Rules test perp ' || perp, subsidy_long, subsidy_short, funding_ago));
   perform pg_temp.as_app('ada', format(
     $q$select admin.set_perp_mode(%L, 'enabled', 'The rules tests trade it')::text$q$,
     pg_temp.perp(perp)));
 end;
 $$;
 
-select pg_temp.make_perp('b1', 0);
-select pg_temp.make_perp('b2', 2);
+select pg_temp.make_perp('b1', interval '0 hours', '1', '1000');
+select pg_temp.make_perp('b2', interval '2 hours', '1', '1000');
+-- Its first funding period started 1 hour 59 minutes 45 seconds ago: its second slot is 15 seconds off.
+select pg_temp.make_perp('b3', interval '1 hour 59 minutes 45 seconds', '1', '1000');
+select pg_temp.make_perp('b4', interval '0 hours', '1', '1');
 
 
 -- 1. The pools balance as Manifold's maths balances them ------------------------------------------------
@@ -251,9 +266,64 @@ select is(
   'and Bob a 10-times short'
 );
 
+-- And on b4, whose pools the house seeds with Ṁ1 each: the same long and short, and Cid's 1-times
+-- short of Ṁ50.
+select is(
+  (select string_agg(pg_temp.step(who, 'b4', 'open', request, params, plan) ->> 'status', ' ' order by n)
+   from (values
+     (1, 'ann', '0c000000-0000-4000-8000-0000000000e1', '{"direction": "long", "margin": "100", "leverage": "10"}'::jsonb,
+      jsonb_build_object(
+        'price', jsonb_build_object('at', 'now', 'price', '100'),
+        'moves', jsonb_build_array(
+          pg_temp.mv('trade', pg_temp.acct('ann'), pg_temp.pool('b4', 'long'), '100'),
+          pg_temp.mv('trade', pg_temp.acct('ann'), pg_temp.pool('b4', 'long'), '1')),
+        'positions', jsonb_build_array(
+          pg_temp.pos('ann4', 'long', '1000', '100', '100', '1', '100', '10', '90')),
+        'events', jsonb_build_array(pg_temp.ev('trade', 'open', 'ann4', '1000', '100', '100', '1')),
+        'pools', jsonb_build_object('long', '102', 'short', '1'))),
+     (2, 'bob', '0c000000-0000-4000-8000-0000000000e2', '{"direction": "short", "margin": "100", "leverage": "10"}'::jsonb,
+      jsonb_build_object(
+        'moves', jsonb_build_array(
+          pg_temp.mv('trade', pg_temp.acct('bob'), pg_temp.pool('b4', 'short'), '100'),
+          pg_temp.mv('trade', pg_temp.acct('bob'), pg_temp.pool('b4', 'short'), '1')),
+        'positions', jsonb_build_array(
+          pg_temp.pos('bob4', 'short', '1000', '100', '100', '1', '100', '10', '110')),
+        'events', jsonb_build_array(pg_temp.ev('trade', 'open', 'bob4', '1000', '100', '100', '1')),
+        'pools', jsonb_build_object('long', '102', 'short', '102'))),
+     (3, 'cid', '0c000000-0000-4000-8000-0000000000e3', '{"direction": "short", "margin": "50", "leverage": "1"}'::jsonb,
+      jsonb_build_object(
+        'moves', jsonb_build_array(
+          pg_temp.mv('trade', pg_temp.acct('cid'), pg_temp.pool('b4', 'short'), '50'),
+          pg_temp.mv('trade', pg_temp.acct('cid'), pg_temp.pool('b4', 'short'), '0.05')),
+        'positions', jsonb_build_array(
+          pg_temp.pos('cid4', 'short', '50', '50', '50', '0.05', '100', '1', '200')),
+        'events', jsonb_build_array(pg_temp.ev('trade', 'open', 'cid4', '50', '50', '50', '0.05')),
+        'pools', jsonb_build_object('long', '102', 'short', '152.05')))
+   ) as t (n, who, request, params, plan)),
+  'opened opened opened',
+  'on b4: Ann''s long, Bob''s short and Cid''s 1-times short'
+);
+
 -- Window 2, at $91: Bob closes in profit, Ṁ90 of it paid from the long pool, which is left with Ṁ12
 -- against Ann's Ṁ100 of margin (her long is losing Ṁ90 of it at this price, so that's enough now).
 do $$ begin perform pg_sleep(5.1); end $$;
+select throws_ok(
+  $$select pg_temp.step('bob', 'b1', 'close', '0c000000-0000-4000-8000-0000000000d5', '{"fraction": "1"}',
+      jsonb_build_object(
+        'price', jsonb_build_object('at', 'now', 'price', '91'),
+        'moves', jsonb_build_array(
+          pg_temp.mv('price', pg_temp.pool('b1', 'short'), pg_temp.pool('b1', 'long'), '1'),
+          pg_temp.mv('trade', pg_temp.pool('b1', 'short'), pg_temp.acct('bob'), '100'),
+          pg_temp.mv('trade', pg_temp.pool('b1', 'long'), pg_temp.acct('bob'), '90')),
+        'positions', jsonb_build_array(
+          pg_temp.pos('bob', 'short', '1000', '100', '100', '1', '100', '10', '110', 'closed',
+                      pg_temp.opened('bob'))),
+        'events', jsonb_build_array(
+          pg_temp.ev('trade', 'close', 'bob', '-1000', '-100', '0', '0', '190')),
+        'pools', jsonb_build_object('long', '13', 'short', '1000')))$$,
+  '23514', 'A move between the wrong pool and person, or more than the maths allows',
+  'no top-up while the long pool holds what Ann''s long is worth (Ṁ10 at $91): none is short'
+);
 select is(
   pg_temp.step('bob', 'b1', 'close', '0c000000-0000-4000-8000-0000000000d3', '{"fraction": "1"}',
     jsonb_build_object(
@@ -270,6 +340,22 @@ select is(
   'closed',
   'Bob closes his short at $91, Ṁ90 of profit from the long pool'
 );
+select is(
+  pg_temp.step('bob', 'b4', 'close', '0c000000-0000-4000-8000-0000000000e4', '{"fraction": "1"}',
+    jsonb_build_object(
+      'price', jsonb_build_object('at', 'now', 'price', '91'),
+      'moves', jsonb_build_array(
+        pg_temp.mv('trade', pg_temp.pool('b4', 'short'), pg_temp.acct('bob'), '100'),
+        pg_temp.mv('trade', pg_temp.pool('b4', 'long'), pg_temp.acct('bob'), '90')),
+      'positions', jsonb_build_array(
+        pg_temp.pos('bob4', 'short', '1000', '100', '100', '1', '100', '10', '110', 'closed',
+                    pg_temp.opened('bob4'))),
+      'events', jsonb_build_array(
+        pg_temp.ev('trade', 'close', 'bob4', '-1000', '-100', '0', '0', '190')),
+      'pools', jsonb_build_object('long', '12', 'short', '52.05'))) ->> 'status',
+  'closed',
+  'and on b4, leaving its short pool Ṁ52.05 against Cid''s Ṁ50'
+);
 
 -- Window 3, at $99: Ann's long is worth Ṁ90 again, but the long pool holds Ṁ12. Manifold moves the
 -- Ṁ78 across from the short pool (which no one's margin needs), no position changing.
@@ -279,10 +365,10 @@ select throws_ok(
       jsonb_build_object(
         'price', jsonb_build_object('at', 'now', 'price', '99'),
         'moves', jsonb_build_array(
-          pg_temp.mv('price', pg_temp.pool('b1', 'short'), pg_temp.pool('b1', 'long'), '89')),
-        'pools', jsonb_build_object('long', '101', 'short', '912')))$$,
+          pg_temp.mv('price', pg_temp.pool('b1', 'short'), pg_temp.pool('b1', 'long'), '79')),
+        'pools', jsonb_build_object('long', '91', 'short', '922')))$$,
   '23514', 'A move between the wrong pool and person, or more than the maths allows',
-  'never past the receiving side''s own margins (Ann''s Ṁ100)'
+  'never past what the receiving side would be paid back (Ann''s long, worth Ṁ90)'
 );
 select throws_ok(
   $$select pg_temp.step(null, 'b1', 'tick', null, null,
@@ -292,8 +378,20 @@ select throws_ok(
           pg_temp.mv('price', pg_temp.pool('b1', 'short'), pg_temp.pool('b1', 'long'), '79'),
           pg_temp.mv('price', pg_temp.pool('b1', 'long'), pg_temp.pool('b1', 'short'), '1')),
         'pools', jsonb_build_object('long', '90', 'short', '923')))$$,
-  '23514', 'A move between the wrong pool and person, or more than the maths allows',
+  '23514', 'With a new price, the pools balance one way only',
   'one way only'
+);
+-- On b4 at $99 the long pool (Ṁ12) is short of Ann's Ṁ90 too, but the short pool's Ṁ52.05 has only
+-- Ṁ2.05 to spare beyond Cid's Ṁ50: Manifold moves nothing. A top-up of Ṁ10 would take Cid's.
+select throws_ok(
+  $$select pg_temp.step(null, 'b4', 'tick', null, null,
+      jsonb_build_object(
+        'price', jsonb_build_object('at', 'now', 'price', '99'),
+        'moves', jsonb_build_array(
+          pg_temp.mv('price', pg_temp.pool('b4', 'short'), pg_temp.pool('b4', 'long'), '10')),
+        'pools', jsonb_build_object('long', '22', 'short', '42.05')))$$,
+  '23514', 'A move between the wrong pool and person, or more than the maths allows',
+  'never from a pool that would then hold less than its own side would be paid back (Cid''s Ṁ50)'
 );
 -- Bob opens a 1-times short of Ṁ10 at the book's $91, the plan also moving Ṁ78 between the pools.
 select throws_ok(
@@ -368,6 +466,18 @@ select throws_ok(
   '23514', 'Funding runs once a period, on its perp''s own hourly slots',
   'the books refuse a funding before its perp''s slot, whatever asks for it'
 );
+-- b3 was funded 59 minutes 15 seconds ago, 30 seconds into its first slot: the engine would fund it
+-- again now (a period less its minute), but its next slot is 15 seconds off.
+update perps.perps set last_funding_at = clock_timestamp() - interval '59 minutes 15 seconds'
+where id = pg_temp.perp('b3');
+select throws_ok(
+  $$select pg_temp.step(null, 'b3', 'funding', null, null,
+      '{"price": {"at": "now", "price": "100"},
+        "funding": {"rate": "0", "openInterestLong": "0", "openInterestShort": "0"},
+        "pools": {"long": "1", "short": "1000"}}')$$,
+  '23514', 'Funding runs once a period, on its perp''s own hourly slots',
+  'a funding the engine''s own rule takes, 59 minutes on, waits for its slot: never every 59 minutes'
+);
 select lives_ok(
   $$insert into perps.fundings (perp_id, step, at, rate, price, open_interest_long,
                                 open_interest_short, pool_long_before, pool_short_before,
@@ -403,6 +513,11 @@ select throws_ok(
   '55000', 'The perp stays off until this environment''s scheduled jobs are set up',
   'the Bitcoin perp stays off where nothing would run its liquidations and funding'
 );
+select throws_ok(
+  $$select pg_temp.as_app('ada', $q$select admin.set_perp_mode('01a1c501-ec40-78f6-87b6-3fb041143421', 'reduce-only', 'Closing only, with no jobs')::text$q$)$$,
+  '55000', 'The perp stays off until this environment''s scheduled jobs are set up',
+  'nor out of off to closing only'
+);
 select vault.create_secret('http://127.0.0.1:9/api/jobs/perps', 'perps_jobs_url', 'The rules tests'' address');
 select vault.create_secret('the-rules-tests-jobs-secret-that-is-not-a-key', 'perps_jobs_secret',
                            'The rules tests'' secret');
@@ -410,6 +525,15 @@ select is(
   pg_temp.as_app('ada', $q$select admin.set_perp_mode('01a1c501-ec40-78f6-87b6-3fb041143421', 'enabled', 'Its jobs are set up')::jsonb ->> 'tradingMode'$q$),
   'enabled',
   'and switches on once they are'
+);
+-- Were the jobs' secrets to go, stepping it down still works: to closing only, then off.
+delete from vault.secrets where name in ('perps_jobs_url', 'perps_jobs_secret');
+select is(
+  pg_temp.as_app('ada', $q$select admin.set_perp_mode('01a1c501-ec40-78f6-87b6-3fb041143421', 'reduce-only', 'Winding down')::jsonb ->> 'tradingMode'$q$)
+  || ' ' ||
+  pg_temp.as_app('ada', $q$select admin.set_perp_mode('01a1c501-ec40-78f6-87b6-3fb041143421', 'halted', 'Off')::jsonb ->> 'tradingMode'$q$),
+  'reduce-only halted',
+  'stepping down, to closing only and off, never needs the jobs'
 );
 select ok(
   not pg_catalog.has_table_privilege('hrizzup_app', 'vault.decrypted_secrets', 'SELECT')

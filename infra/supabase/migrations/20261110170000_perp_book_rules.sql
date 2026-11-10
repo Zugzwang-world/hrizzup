@@ -8,9 +8,9 @@
 --    across from the other pool, if that pool has room to spare, with no position changing. The
 --    books took such a move only alongside winners scaled down, so a perp in that state refused
 --    every new price and trade until one appeared. Now a new price may move money from one pool to
---    the other on its own, one way only, the receiving pool ending no higher than its own side's
---    margins (the bound the books already held it to); a trade still never moves money between the
---    pools.
+--    the other on its own, as Manifold does and within its bounds: one way only, into a pool holding
+--    less than its own side would be paid back at the price, never past that, from a pool that
+--    keeps its own side's; a trade still never moves money between the pools.
 -- 2. Funding on each perp's own hourly slots. Manifold runs funding from an hourly scheduler and
 --    gives it a minute's grace (a run up to a minute early still counts), so a check that runs more
 --    often than hourly would take that minute every time and fund every 59 minutes, drifting (R3's
@@ -20,8 +20,9 @@
 --    asks for it.
 -- 3. The scheduled jobs leave a check run's test perp alone two hours after it's made: long enough
 --    for any run, so a run that failed before switching its perp off stops costing anything.
--- 4. The listed perp can't be switched on (or to closing only) where its scheduled jobs aren't set
---    up, so it never runs with no one to liquidate its positions or pay its funding.
+-- 4. The listed perp can't be switched on (or out of off) where its scheduled jobs aren't set up, so
+--    it never runs with no one to liquidate its positions or pay its funding; stepping it down, to
+--    closing only or off, is always allowed.
 
 -- 1. The pools balance as Manifold's maths balances them (see the top of this file).
 create or replace function perps.apply_step(plan jsonb)
@@ -602,9 +603,8 @@ begin
   end if;
   -- An open's margin and fee go into the trader's own side's pool, and a close puts nothing in;
   -- a close's payout comes from its own side's pool (at most the margin it closed) and the other's
-  -- (at most its profit); funding moves only from the crowded side's pool to the other; and a pool
-  -- topped up by the other with a new price ends no higher than its own side's margins, one way only
-  -- (Manifold moves a side's shortfall across only from a side with room to spare).
+  -- (at most its profit); and funding moves only from the crowded side's pool to the other. (With a
+  -- new price, how the pools may balance is checked next, on its own.)
   if exists (
     select 1 from jsonb_array_elements(moves_in) m
     where m ->> 'phase' = 'trade' and (m ->> 'from')::uuid is not distinct from trader
@@ -631,28 +631,68 @@ begin
       and (m ->> 'to')::uuid in (p.long_account_id, p.short_account_id)
       and ((m ->> 'from')::uuid is distinct from crowded_pool
            or (m ->> 'to')::uuid is distinct from other_pool)
-  ) or exists (
-    select 1
-    from (values ('long', p.long_account_id, pool_long_before),
-                 ('short', p.short_account_id, pool_short_before)) as pool (side, account, before)
-    where exists (
-            select 1 from jsonb_array_elements(moves_in) m
-            where m ->> 'phase' = 'price' and (m ->> 'to')::uuid = pool.account
-              and (m ->> 'from')::uuid in (p.long_account_id, p.short_account_id))
-      and pool.before
-          + (select coalesce(sum(case when (m ->> 'to')::uuid = pool.account then (m ->> 'amount')::numeric
-                                      else -(m ->> 'amount')::numeric end), 0)
-             from jsonb_array_elements(moves_in) m
-             where m ->> 'phase' = 'price'
-               and pool.account in ((m ->> 'to')::uuid, (m ->> 'from')::uuid))
-          > (select coalesce(sum(y.cost_basis), 0) from perps.positions y
-             where y.perp_id = perp and y.closed_at is null and y.direction = pool.side) + 0.000001
-  ) or (
-    select count(distinct m ->> 'from') from jsonb_array_elements(moves_in) m
-    where m ->> 'phase' = 'price'
-      and (m ->> 'from')::uuid in (p.long_account_id, p.short_account_id)
-      and (m ->> 'to')::uuid in (p.long_account_id, p.short_account_id)
-  ) > 1 then
+  ) then
+    raise exception 'A move between the wrong pool and person, or more than the maths allows'
+      using errcode = 'check_violation';
+  end if;
+  -- With a new price the pools balance one way only: Manifold moves a side's shortfall across from
+  -- the other side, never both ways at once.
+  if (select count(distinct m ->> 'from') from jsonb_array_elements(moves_in) m
+      where m ->> 'phase' = 'price'
+        and (m ->> 'from')::uuid in (p.long_account_id, p.short_account_id)
+        and (m ->> 'to')::uuid in (p.long_account_id, p.short_account_id)) > 1 then
+    raise exception 'With a new price, the pools balance one way only'
+      using errcode = 'check_violation';
+  end if;
+  -- And only as Manifold's maths balances them, worked out from the positions as the new price left
+  -- them (those it liquidated or settled gone, the rest at the sizes it scaled them to; nothing the
+  -- trade does after counts), each side's reserve being what its positions would be paid back at
+  -- the price: each one's margin, or what it's worth if less. A pool is topped up only when it holds
+  -- less than its side's reserve, and never past it; the pool that pays keeps at least its own
+  -- side's reserve. (Manifold moves the whole shortfall, and only when the other side has that much
+  -- to spare; any move the books take here is within those bounds.)
+  if exists (
+    with after_price as (
+      select y.direction,
+             least(y.cost_basis, greatest(y.cost_basis + case y.direction
+                     when 'long' then (book_price - y.entry_price) / y.entry_price
+                     else (y.entry_price - book_price) / y.entry_price end
+                   * (y.size + coalesce((
+                       select sum((e ->> 'sizeChange')::numeric) from jsonb_array_elements(events_in) e
+                       where (e ->> 'positionId')::uuid = y.id and e ->> 'phase' = 'price'), 0)), 0))
+               as reserve
+      from perps.positions y
+      where y.perp_id = perp and y.closed_at is null
+        and not exists (
+          select 1 from jsonb_array_elements(events_in) e
+          where (e ->> 'positionId')::uuid = y.id and e ->> 'phase' = 'price'
+            and e ->> 'kind' in ('liquidation', 'settle'))
+    ),
+    pool as (
+      select v.side, v.before,
+             v.before + (
+               select coalesce(sum(case when (m ->> 'to')::uuid = v.account then (m ->> 'amount')::numeric
+                                        else -(m ->> 'amount')::numeric end), 0)
+               from jsonb_array_elements(moves_in) m
+               where m ->> 'phase' = 'price' and v.account in ((m ->> 'to')::uuid, (m ->> 'from')::uuid))
+               as after,
+             (select coalesce(sum(a.reserve), 0) from after_price a where a.direction = v.side) as reserve,
+             exists (
+               select 1 from jsonb_array_elements(moves_in) m
+               where m ->> 'phase' = 'price' and (m ->> 'to')::uuid = v.account
+                 and (m ->> 'from')::uuid in (p.long_account_id, p.short_account_id)) as receives,
+             exists (
+               select 1 from jsonb_array_elements(moves_in) m
+               where m ->> 'phase' = 'price' and (m ->> 'from')::uuid = v.account
+                 and (m ->> 'to')::uuid in (p.long_account_id, p.short_account_id)) as pays
+      from (values ('long', p.long_account_id, pool_long_before),
+                   ('short', p.short_account_id, pool_short_before)) as v (side, account, before)
+    )
+    select 1 from pool
+    where (pool.receives and (pool.before >= pool.reserve + 0.000001
+                              or pool.after > pool.reserve + 0.000001))
+       or (pool.pays and pool.after < pool.reserve - 0.000001)
+  ) then
     raise exception 'A move between the wrong pool and person, or more than the maths allows'
       using errcode = 'check_violation';
   end if;
@@ -900,7 +940,8 @@ set search_path = ''
 as $$
   select coalesce(array_agg(p.id order by p.id), '{}')
   from perps.perps p
-  where perps.has_work(p, job, clock_timestamp());
+  where p.state = 'live' and p.trading_mode <> 'halted'
+    and perps.has_work(p, job, clock_timestamp());
 $$;
 
 -- 4. The listed perp stays off where its scheduled jobs aren't set up.
@@ -929,16 +970,18 @@ begin
   if reason is null or char_length(btrim(reason)) = 0 then
     raise exception 'Every rule change says why' using errcode = 'invalid_parameter_value';
   end if;
-  -- The listed perp runs only where its scheduled jobs can: switched on (or closing only) with
-  -- nobody running its prices, liquidations and funding, positions would sit past their
-  -- liquidation price. So it stays off until this environment's jobs are set up: their address and
-  -- secret in Supabase Vault (infra/supabase/perps_jobs.py). A check run's test perps are driven by
-  -- their own runs and tests.
-  if p.listed and mode <> 'halted' and mode <> p.trading_mode and (
-       not exists (select 1 from vault.secrets s where s.name = 'perps_jobs_url')
-       or not exists (select 1 from vault.secrets s where s.name = 'perps_jobs_secret')) then
-    raise exception 'The perp stays off until this environment''s scheduled jobs are set up'
-      using errcode = 'object_not_in_prerequisite_state';
+  -- The listed perp runs only where its scheduled jobs can: switched on (or back to closing only
+  -- from off) with nobody running its prices, liquidations and funding, positions would sit past
+  -- their liquidation price. So switching it on, or out of off, needs this environment's jobs set
+  -- up: their address and secret in Supabase Vault (the script infra/supabase/perps_jobs.py, which
+  -- comes with the jobs, puts them there). Stepping down, to closing only or off, never does, and
+  -- never reads Vault. A check run's test perps are driven by their own runs and tests.
+  if p.listed and mode <> p.trading_mode and (mode = 'enabled' or p.trading_mode = 'halted') then
+    if not exists (select 1 from vault.secrets s where s.name = 'perps_jobs_url')
+       or not exists (select 1 from vault.secrets s where s.name = 'perps_jobs_secret') then
+      raise exception 'The perp stays off until this environment''s scheduled jobs are set up'
+        using errcode = 'object_not_in_prerequisite_state';
+    end if;
   end if;
   if mode <> p.trading_mode then
     changed_at := date_trunc('milliseconds', greatest(clock_timestamp(), p.updated_at));
