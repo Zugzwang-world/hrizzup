@@ -225,10 +225,24 @@ jobs:
           path: ${{ runner.temp }}/startup-main
           key: app-startup-main-${{ github.sha }}
           restore-keys: app-startup-main-
+      # Before any key is loaded: every name in stg_preview must be one of the app's keys
+      # (infra/doppler/app-keys.txt), so a tool token there stops this job before it sits beside
+      # the pull request's code. Names only.
+      - name: The previews' keys are the app's own (names only)
+        if: steps.run.outputs.app == 'true'
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN_PREVIEW }}
+        run: python3 infra/doppler/app_keys.py check stg_preview
+      # The signed-in journey signs in a fresh account of this run's with a code made by staging's
+      # admin access (no email sent; product/web/scripts/app-journey-account.ts). The read-only
+      # token goes to that command's key request alone (infra/doppler/named_keys.py, three keys by
+      # name): emulator.sh and run.sh take it out of the environment before the emulator, adb or
+      # Maestro start, so none of them, nor the app, ever holds it or a key.
       - name: The app's journeys, at a phone size and a tablet size, then its cold start
         if: steps.run.outputs.app == 'true'
         env:
           STARTUP_BASELINE: ${{ runner.temp }}/startup-main/startup.json
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN_PREVIEW }} # read-only; run.sh asks it for three keys by name
         run: bash product/app/journeys/emulator.sh run bash product/app/journeys/run.sh product/app/journeys-build/app.apk "$RUNNER_TEMP/journeys"
       - name: Keep main's cold start for the next pull requests (main only)
         if: steps.run.outputs.app == 'true' && github.ref == 'refs/heads/main'

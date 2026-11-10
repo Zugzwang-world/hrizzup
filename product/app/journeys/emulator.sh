@@ -118,13 +118,17 @@ case "${1:-}" in
   run)
     shift
     [ "$#" -gt 0 ] || { echo "run <command>" >&2; exit 2; }
+    # A Doppler token in the environment (App journeys: run.sh asks it for three keys by name)
+    # goes to the command alone, never to the emulator, adb's server or anything else started here.
+    token="${DOPPLER_TOKEN:-}"
+    unset DOPPLER_TOKEN
     create_avd
     boot -no-snapshot-save
     adb shell settings put global window_animation_scale 0.0
     adb shell settings put global transition_animation_scale 0.0
     adb shell settings put global animator_duration_scale 0.0
     status=0
-    "$@" || status=$?
+    if [ -n "$token" ]; then DOPPLER_TOKEN="$token" "$@" || status=$?; else "$@" || status=$?; fi
     shut_down
     exit "$status"
     ;;
