@@ -7,6 +7,7 @@ import { supabaseConfig } from '@/lib/supabase/config.ts';
 import { sendSignInCode } from '@/lib/supabase/send-code.ts';
 import { EMAIL_CODE_ACTION, passesBotCheck } from '@/lib/turnstile.ts';
 import type { ApiContext } from './context.ts';
+import { allowEmailCode, visitorId } from './email-code-limit.ts';
 
 /**
  * The app's sign-in calls in the website's API (PLAN.md step 1.6b; the contract's auth.ts):
@@ -28,14 +29,22 @@ export function appAuthSettings(env: Env = process.env): AuthSettings {
   return { supabaseUrl: config.url, publishableKey: config.publishableKey };
 }
 
+function tooMany() {
+  return new ORPCError('TOO_MANY_REQUESTS', {
+    status: 429,
+    message: 'Too many codes were asked for: wait a minute',
+  });
+}
+
 /**
- * Emails a sign-in code: the address must be one, the bot check's answer must pass Cloudflare's
- * check for this host and the email-code action (testing keys' answers only on previews and
- * this Mac), and then Supabase Auth sends the code, with its own limits (one email a minute to an
- * address; its hourly limit). The answer works once, so a refused send needs a new one.
+ * Emails a sign-in code: at most 5 requests a minute from a visitor (email-code-limit.ts, on top
+ * of the firewall's), the address must be one, the bot check's answer must pass Cloudflare's check
+ * for this host and the email-code action (testing keys' answers only on previews and this Mac),
+ * and then Supabase Auth sends the code, with its own limits (one email a minute to an address;
+ * its hourly limit). The answer works once, so a refused send needs a new one.
  */
 export async function appEmailCode(
-  context: Pick<ApiContext, 'headers' | 'url'>,
+  context: Pick<ApiContext, 'headers' | 'url'> & { resHeaders?: Headers },
   input: EmailCodeInput,
   env: Env = process.env,
 ): Promise<EmailCodeSent> {
@@ -43,6 +52,13 @@ export async function appEmailCode(
   const secretKey = env.SUPABASE_SECRET_KEY;
   const botSecret = env.TURNSTILE_SECRET_KEY;
   if (!config || !secretKey || !botSecret || !context.url) throw notSetUp();
+
+  const ip = ipAddress(context.headers);
+  const allowance = await allowEmailCode(visitorId(ip, botSecret));
+  if (!allowance.allowed) {
+    context.resHeaders?.set('Retry-After', String(allowance.retryAfterSeconds));
+    throw tooMany();
+  }
 
   const email = cleanEmail(input.email);
   if (!email) {
@@ -54,19 +70,14 @@ export async function appEmailCode(
     hostname: new URL(context.url).hostname,
     action: EMAIL_CODE_ACTION,
     environment: currentEnvironment(env),
-    ip: ipAddress(context.headers),
+    ip,
   });
   if (!human) {
     throw new ORPCError('BOT_CHECK_FAILED', { status: 403, message: "The bot check didn't pass" });
   }
 
   const sent = await sendSignInCode(config.url, secretKey, email);
-  if (sent === 'too-many') {
-    throw new ORPCError('TOO_MANY_REQUESTS', {
-      status: 429,
-      message: 'Too many codes were asked for: wait a minute',
-    });
-  }
+  if (sent === 'too-many') throw tooMany();
   if (sent !== 'sent') {
     throw new ORPCError('SEND_FAILED', { status: 502, message: "The code couldn't be sent" });
   }

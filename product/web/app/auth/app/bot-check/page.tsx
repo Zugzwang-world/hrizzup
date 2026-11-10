@@ -3,6 +3,10 @@ import { notFound } from 'next/navigation';
 import { AppBotCheck } from '@/components/app-bot-check.tsx';
 import { signInTestEnabled } from '@/lib/env.ts';
 
+// Read per request, like every sign-in route: the environment and the bot check's key are this
+// deployment's own, never what the build happened to have.
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: 'Bot check',
   robots: { index: false, follow: false },

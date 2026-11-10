@@ -7,7 +7,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * Screen check runs both for real on every preview (e2e/journeys/app-sign-in.spec.ts).
  */
 
-const mocks = vi.hoisted(() => ({ sendSignInCode: vi.fn(), passesBotCheck: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  sendSignInCode: vi.fn(),
+  passesBotCheck: vi.fn(),
+  allowEmailCode: vi.fn(),
+}));
 
 vi.mock('@/lib/supabase/send-code.ts', () => ({ sendSignInCode: mocks.sendSignInCode }));
 vi.mock('@/lib/turnstile.ts', async (original) => ({
@@ -15,6 +19,10 @@ vi.mock('@/lib/turnstile.ts', async (original) => ({
   passesBotCheck: mocks.passesBotCheck,
 }));
 vi.mock('@/lib/db.ts', () => ({ database: () => null }));
+vi.mock('@/lib/api/email-code-limit.ts', async (original) => ({
+  ...(await original<typeof import('@/lib/api/email-code-limit.ts')>()),
+  allowEmailCode: mocks.allowEmailCode,
+}));
 
 const route = await import('./route.ts');
 
@@ -46,6 +54,7 @@ beforeEach(() => {
   vi.stubEnv('TURNSTILE_SECRET_KEY', 'turnstile-secret-for-this-test');
   mocks.sendSignInCode.mockResolvedValue('sent');
   mocks.passesBotCheck.mockResolvedValue(true);
+  mocks.allowEmailCode.mockResolvedValue({ allowed: true });
 });
 
 afterEach(() => {
@@ -103,6 +112,22 @@ describe('asking for an email code (POST /api/v1/auth/email/code)', () => {
       'secret-key-for-this-test',
       'reader@example.com',
     );
+  });
+
+  it('counts each visitor, by an ID that holds nothing of their address, and refuses a sixth in a minute', async () => {
+    await askForCode({ email: 'reader@example.com', botCheck: 'answer' });
+    const [visitor] = mocks.allowEmailCode.mock.calls[0] ?? [];
+    expect(visitor).toMatch(/^[A-Za-z0-9_-]{32}$/);
+    expect(visitor).not.toContain('203.0.113');
+
+    mocks.allowEmailCode.mockResolvedValue({ allowed: false, retryAfterSeconds: 42 });
+    const refused = await askForCode({ email: 'reader@example.com', botCheck: 'answer' });
+    expect(refused.status).toBe(429);
+    expect(refused.body).toMatchObject({ code: 'TOO_MANY_REQUESTS' });
+    expect(refused.headers['retry-after']).toBe('42');
+    expect(refused.headers['cache-control']).toBe('private, no-store');
+    expect(mocks.passesBotCheck).toHaveBeenCalledTimes(1);
+    expect(mocks.sendSignInCode).toHaveBeenCalledTimes(1);
   });
 
   it('sends nothing when the bot check refuses the answer', async () => {
