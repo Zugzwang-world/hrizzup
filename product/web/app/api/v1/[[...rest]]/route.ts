@@ -35,6 +35,10 @@ function crossSite(): Response {
 }
 
 async function handle(request: Request): Promise<Response> {
+  // Every call has exactly one address. An address with an empty part (`//`) would still reach a
+  // call, past the firewall's rules for its path (the 5-a-minute limit on calls that send email),
+  // so it is an address the API doesn't have.
+  if (new URL(request.url).pathname.includes('//')) return noSuchCall();
   if (crossSiteWrite(request)) return crossSite();
   // The market console's calls: anyone but an admin is turned away before the request is read
   // at all (oRPC decodes a body before any middleware runs, and a body that doesn't decode would
@@ -43,7 +47,11 @@ async function handle(request: Request): Promise<Response> {
   if (admin === null) return noSuchCall();
   const { matched, response } = await handler.handle(request, {
     prefix: '/api/v1',
-    context: { headers: request.headers, ...(admin ? { consoleAdmin: admin } : {}) },
+    context: {
+      headers: request.headers,
+      url: request.url,
+      ...(admin ? { consoleAdmin: admin } : {}),
+    },
   });
   if (!matched) return noSuchCall();
   const headers = new Headers(response.headers);

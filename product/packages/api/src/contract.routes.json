@@ -40,6 +40,50 @@
       }
     }
   },
+  "auth": {
+    "settings": {
+      "~orpc": {
+        "errorMap": {},
+        "meta": {
+          "caching": {
+            "kind": "public",
+            "edgeSeconds": 300,
+            "staleSeconds": 300,
+            "tags": [
+              "auth-settings"
+            ]
+          }
+        },
+        "route": {
+          "method": "GET",
+          "path": "/auth/settings",
+          "summary": "Supabase Auth's public settings, which the app signs in with",
+          "tags": [
+            "public"
+          ]
+        }
+      }
+    },
+    "emailCode": {
+      "~orpc": {
+        "errorMap": {},
+        "meta": {
+          "caching": {
+            "kind": "personal"
+          },
+          "sendsEmail": true
+        },
+        "route": {
+          "method": "POST",
+          "path": "/auth/email/code",
+          "summary": "Email a sign-in code, behind the bot check",
+          "tags": [
+            "auth"
+          ]
+        }
+      }
+    }
+  },
   "markets": {
     "list": {
       "~orpc": {

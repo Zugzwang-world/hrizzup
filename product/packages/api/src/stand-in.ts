@@ -39,6 +39,26 @@ export function standIn(options: { signedIn?: boolean; admin?: boolean } = {}) {
 
   return api.router({
     health: api.health.handler(() => examples.health),
+    auth: {
+      settings: api.auth.settings.handler(() => examples.authSettings),
+      emailCode: api.auth.emailCode.handler(({ input }) => {
+        // As the real call: an answer the bot check refuses is refused; the stand-in takes any other.
+        if (input.botCheck === 'refused') {
+          throw new ORPCError('BOT_CHECK_FAILED', {
+            status: 403,
+            message: "The bot check didn't pass",
+          });
+        }
+        const email = input.email.trim().toLowerCase();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          throw new ORPCError('INVALID_EMAIL', {
+            status: 400,
+            message: 'Not a valid email address',
+          });
+        }
+        return { ...examples.emailCodeSent, email };
+      }),
+    },
     me: api.me.handler(() => {
       if (!signedIn) throw new ORPCError('UNAUTHORIZED');
       return examples.me;

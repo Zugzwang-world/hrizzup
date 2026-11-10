@@ -1,47 +1,8 @@
 'use client';
 
 import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react';
-import { EMAIL_CODE_ACTION, TURNSTILE_SCRIPT } from '@/lib/turnstile.ts';
-
-type TurnstileOptions = {
-  sitekey: string;
-  action?: string;
-  size?: 'normal' | 'flexible' | 'compact';
-  callback?: (answer: string) => void;
-  'expired-callback'?: () => void;
-  'error-callback'?: () => void;
-};
-
-type Turnstile = { render: (box: HTMLElement, options: TurnstileOptions) => string | undefined };
-
-declare global {
-  interface Window {
-    turnstile?: Turnstile;
-  }
-}
-
-let loading: Promise<Turnstile> | undefined;
-
-/** Cloudflare's widget script, fetched once, the first time someone starts the form. */
-function loadTurnstile(): Promise<Turnstile> {
-  loading ??= new Promise<Turnstile>((resolve, reject) => {
-    if (window.turnstile) {
-      resolve(window.turnstile);
-      return;
-    }
-    const script = document.createElement('script');
-    script.src = `${TURNSTILE_SCRIPT}?render=explicit`;
-    script.async = true;
-    script.onload = () =>
-      window.turnstile ? resolve(window.turnstile) : reject(new Error('Turnstile missing'));
-    script.onerror = () => {
-      loading = undefined;
-      reject(new Error('Turnstile failed to load'));
-    };
-    document.head.appendChild(script);
-  });
-  return loading;
-}
+import { EMAIL_CODE_ACTION } from '@/lib/turnstile.ts';
+import { loadTurnstile, widgetSize } from '@/lib/turnstile-widget.ts';
 
 type State = 'idle' | 'checking' | 'ready' | 'waiting' | 'sending' | 'failed';
 
@@ -88,8 +49,7 @@ export function EmailCodeRequest({ siteKey, next }: { siteKey: string; next: str
         turnstile.render(target, {
           sitekey: siteKey,
           action: EMAIL_CODE_ACTION,
-          // Cloudflare's normal widget is 300 pixels wide; the compact one fits a narrow phone.
-          size: target.clientWidth >= 300 ? 'flexible' : 'compact',
+          size: widgetSize(target.clientWidth),
           callback: (value) => {
             answer.current = value;
             setState('ready');

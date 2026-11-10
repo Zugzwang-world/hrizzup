@@ -65,6 +65,15 @@ export const pages: readonly Page[] = [
     budget: 'standard',
     absentOn: ['production'],
   },
+  // The bot check the app shows in a small web view (PLAN.md step 1.6b): a sign-in route, so it
+  // exists everywhere but production until launch, like the sign-in test page.
+  {
+    route: '/auth/app/bot-check',
+    name: 'app-bot-check',
+    path: '/auth/app/bot-check',
+    budget: 'standard',
+    absentOn: ['production'],
+  },
   {
     route: 'not-found',
     name: 'not-found',
