@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { checkCode, requestCode } from '../lib/auth/email.ts';
 import {
@@ -12,6 +12,9 @@ import {
 } from '../lib/auth/email-code.ts';
 import { BotCheck, type BotCheckHandle } from './bot-check.tsx';
 import { Choice, type Colors } from './choice.tsx';
+
+const CHECK_FAILED =
+  "The bot check couldn't run. Check your connection, then start the bot check again.";
 
 type Step =
   | { kind: 'address' }
@@ -31,6 +34,7 @@ export function EmailCodeSignIn({ colors, onCancel }: { colors: Colors; onCancel
   const sendWhenReady = useRef(false);
   // Set at once, before the screen catches up, so a quick second tap can't start a second request.
   const working = useRef(false);
+  const waitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [step, setStep] = useState<Step>({ kind: 'address' });
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
@@ -38,11 +42,19 @@ export function EmailCodeSignIn({ colors, onCancel }: { colors: Colors; onCancel
   const [message, setMessage] = useState<string | null>(null);
   const [checkFailed, setCheckFailed] = useState(false);
 
+  /** No longer waiting on the bot check to send. */
+  function stopWaiting() {
+    sendWhenReady.current = false;
+    if (waitTimer.current) clearTimeout(waitTimer.current);
+    waitTimer.current = null;
+  }
+  useEffect(() => stopWaiting, []);
+
   async function send(address: string) {
     const botAnswer = answer.current;
     if (!botAnswer || working.current) return;
     answer.current = null; // it works once, whatever happens next
-    sendWhenReady.current = false;
+    stopWaiting();
     working.current = true;
     setBusy(true);
     setMessage('Sending your code…');
@@ -76,8 +88,19 @@ export function EmailCodeSignIn({ colors, onCancel }: { colors: Colors; onCancel
       void send(address);
       return;
     }
+    if (checkFailed) {
+      setMessage(CHECK_FAILED);
+      return;
+    }
+    // Wait for the bot check's answer, then send; if it hasn't come in 20 seconds, say so.
+    stopWaiting();
     sendWhenReady.current = true;
-    setMessage(checkFailed ? SEND_MESSAGES.failed : "Checking you're not a bot…");
+    waitTimer.current = setTimeout(() => {
+      stopWaiting();
+      setCheckFailed(true);
+      setMessage(CHECK_FAILED);
+    }, 20_000);
+    setMessage("Checking you're not a bot…");
   }
 
   function haveCode() {
@@ -116,7 +139,7 @@ export function EmailCodeSignIn({ colors, onCancel }: { colors: Colors; onCancel
 
   function startAgain() {
     answer.current = null;
-    sendWhenReady.current = false;
+    stopWaiting();
     setCheckFailed(false);
     setMessage(null);
     setStep({ kind: 'address' });
@@ -137,11 +160,13 @@ export function EmailCodeSignIn({ colors, onCancel }: { colors: Colors; onCancel
     return (
       <View testID="code-step" style={styles.part}>
         <Text style={[styles.note, { color: colors.ink }]}>
-          {step.sent ? 'We emailed a code to ' : 'Type the code we emailed to '}
-          <Text testID="code-sent-to" style={styles.strong}>
-            {step.email}
-          </Text>
-          . It has {step.codeLength} digits and works for {step.minutes} minutes.
+          {step.sent ? 'We emailed a code to:' : 'Type the code we emailed to:'}
+        </Text>
+        <Text testID="code-sent-to" style={[styles.note, styles.strong, { color: colors.ink }]}>
+          {step.email}
+        </Text>
+        <Text style={[styles.note, { color: colors.ink }]}>
+          It has {step.codeLength} digits and works for {step.minutes} minutes.
         </Text>
         <Text style={[styles.label, { color: colors.ink }]}>Code</Text>
         <TextInput
@@ -203,9 +228,10 @@ export function EmailCodeSignIn({ colors, onCancel }: { colors: Colors; onCancel
           answer.current = value;
           setCheckFailed(false);
           if (sendWhenReady.current) {
-            sendWhenReady.current = false;
+            stopWaiting();
             const address = cleanEmail(email);
             if (address) void send(address);
+            else setMessage(SEND_MESSAGES['invalid-email']);
           }
         }}
         onExpired={() => {
@@ -215,8 +241,8 @@ export function EmailCodeSignIn({ colors, onCancel }: { colors: Colors; onCancel
           answer.current = null;
           setCheckFailed(true);
           if (sendWhenReady.current) {
-            sendWhenReady.current = false;
-            setMessage("The bot check couldn't run. Check your connection, then try again.");
+            stopWaiting();
+            setMessage(CHECK_FAILED);
           }
         }}
       />

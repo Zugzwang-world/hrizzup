@@ -66,6 +66,9 @@ export const BotCheck = forwardRef<BotCheckHandle, Props>(function BotCheck(prop
   }));
 
   function received(event: WebViewMessageEvent) {
+    // The address is the page's, whichever of its frames sent the message (Android lets the
+    // widget's own frame use the channel too), so this keeps out other pages, not other frames.
+    // That's enough: a made-up answer is refused when our server checks it with Cloudflare.
     if (!isOurs(event.nativeEvent.url)) return;
     const message = readBotCheckMessage(event.nativeEvent.data);
     if (!message) return;
