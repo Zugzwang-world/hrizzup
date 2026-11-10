@@ -293,7 +293,7 @@ export function PerpBoard({
               </Link>
             )}
             <p className="text-sm text-muted">
-              An order fills at the next price published after it was placed: within 5 seconds.
+              An order fills at the next price published after it was placed, a few seconds later.
               Funding only moves money when both Up and Down are open.
             </p>
             {answer && (
