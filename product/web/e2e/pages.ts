@@ -164,6 +164,14 @@ export const pages: readonly Page[] = [
     budget: 'standard',
     absentOn: ['production'],
   },
+  // API keys for bots (PLAN.md step 3.5a), in the sandbox; the screen check opens it signed in too.
+  {
+    route: '/sandbox/keys',
+    name: 'sandbox-keys',
+    path: '/sandbox/keys',
+    budget: 'standard',
+    absentOn: ['production'],
+  },
 ];
 
 /** The pages that exist in an environment (staging, previews and this Mac have them all). */

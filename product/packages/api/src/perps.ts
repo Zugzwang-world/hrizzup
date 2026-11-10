@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { decimal, moment, recordId } from './console.ts';
+import { forbidden } from './keys.ts';
 
 /**
  * The Bitcoin perp's part of the contract (PLAN.md step 3.4a; blueprint section 13). This file
@@ -470,6 +471,8 @@ export const perpPositionsPageInput = z.strictObject({ after: z.uuid().optional(
 /** The errors a perp's trading call may answer, besides a refused input (400, BAD_REQUEST). */
 export const perpTradingErrors = {
   UNAUTHORIZED: { status: 401, message: 'Not signed in' },
+  /** A read-only API key: only a trading key may trade. */
+  FORBIDDEN: forbidden,
   NOT_FOUND: { status: 404, message: 'No such perp' },
   CONFLICT: {
     status: 409,

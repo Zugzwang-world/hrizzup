@@ -5,6 +5,7 @@ import { authSettings, emailCodeInput, emailCodeSent } from './auth.ts';
 import { consoleMarketWithLog, createMarketInput, settleMarketInput } from './console.ts';
 import { contract } from './contract.ts';
 import * as examples from './examples.ts';
+import { createdKey, createKeyInput } from './keys.ts';
 import {
   closePerpInput,
   consolePerpWithLog,
@@ -736,5 +737,69 @@ describe("the stand-in's markets", () => {
         limitProb: '0.995',
       }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST', status: 400 });
+  });
+});
+
+describe('API keys for bots (step 3.5a)', () => {
+  const calls = callsOf(contract.keys);
+
+  it('are listing, making and revoking, personal and never kept, under /me/keys', () => {
+    expect(calls.map(([name]) => name).sort()).toEqual(['create', 'list', 'revoke']);
+    for (const [name, procedure] of calls) {
+      expect(procedure['~orpc'].meta.caching, name).toEqual({ kind: 'personal' });
+      expect(procedure['~orpc'].route.path, name).toMatch(/^\/me\/keys/);
+    }
+    expect(contract.keys.create['~orpc'].route).toMatchObject({
+      method: 'POST',
+      successStatus: 201,
+    });
+    expect(contract.keys.revoke['~orpc'].route).toMatchObject({ method: 'POST' });
+  });
+
+  it('say what a refused key call answers: a key used to make one, five live keys, ten an hour', () => {
+    const errors = contract.keys.create['~orpc'].errorMap;
+    expect(errors.FORBIDDEN.status).toBe(403);
+    expect(errors.REFUSED.status).toBe(422);
+    expect(errors.TOO_MANY_REQUESTS.status).toBe(429);
+    expect(errors.SERVICE_UNAVAILABLE.status).toBe(503);
+  });
+
+  it('take a name of 1 to 60 characters with no control characters, and read or trade', () => {
+    expect(createKeyInput.parse({ name: '  My bot ', scope: 'read' })).toEqual({
+      name: 'My bot',
+      scope: 'read',
+    });
+    for (const bad of [
+      { name: '', scope: 'read' },
+      { name: '   ', scope: 'read' },
+      { name: 'x'.repeat(61), scope: 'read' },
+      { name: 'Bot\u0007', scope: 'read' },
+      { name: 'Bot', scope: 'admin' },
+      { name: 'Bot', scope: 'read', extra: true },
+    ]) {
+      expect(createKeyInput.safeParse(bad).success, JSON.stringify(bad)).toBe(false);
+    }
+  });
+
+  it('let a read-only key be refused a trade, in every trading call', () => {
+    for (const call of [
+      contract.markets.trade,
+      contract.markets.cancelOrder,
+      contract.perps.open,
+      contract.perps.close,
+    ]) {
+      expect(call['~orpc'].errorMap.FORBIDDEN.status).toBe(403);
+    }
+  });
+
+  it('answer with the examples, which pass the contract, in the stand-in', async () => {
+    const api = createRouterClient(standIn());
+    await expect(api.keys.list()).resolves.toEqual(examples.keyList);
+    const made = await api.keys.create({ name: 'Reader', scope: 'read' });
+    expect(made.key).toMatchObject({ name: 'Reader', scope: 'read' });
+    expect(createdKey.safeParse(made).success).toBe(true);
+    await expect(api.keys.revoke({ id: examples.apiKey.id })).resolves.toEqual(examples.revokedKey);
+    const signedOut = createRouterClient(standIn({ signedIn: false }));
+    await expect(signedOut.keys.list()).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
   });
 });

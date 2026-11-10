@@ -25,7 +25,7 @@ import {
   setPerpMode,
   setPerpSettings,
 } from '@hrizzup/perps';
-import { implement, ORPCError } from '@orpc/server';
+import { implement } from '@orpc/server';
 import type { ResponseHeadersPluginContext } from '@orpc/server/plugins';
 import { currentCommit, currentEnvironment, currentRegion } from '@/lib/env.ts';
 import {
@@ -38,10 +38,18 @@ import {
 import { appAuthSettings, appEmailCode } from './auth.ts';
 import { cacheHeaders } from './caching.ts';
 import { asAdmin, consoleCall } from './console.ts';
-import { type ApiContext, signedIn } from './context.ts';
+import type { ApiContext } from './context.ts';
 import { MARKETS_TAG, refreshEdge } from './edge-cache.ts';
+import { createKey, keysSetUp, listKeys, revokeKey } from './keys.ts';
 import { PERPS_TAG, perpCall, perpSource } from './perps.ts';
-import { person, tradingCall, tradingPool, withinTradeLimit } from './trading.ts';
+import {
+  asPerson,
+  person,
+  tradingCall,
+  tradingPool,
+  withinReadLimit,
+  withinTradeLimit,
+} from './trading.ts';
 
 /**
  * The typed API's real implementation (the contract is in product/packages/api). Every call
@@ -114,19 +122,21 @@ export const router = api.router({
   }),
 
   me: api.me.handler(async ({ context }) => {
-    const user = await signedIn(context.headers);
-    if (!user) throw new ORPCError('UNAUTHORIZED');
+    const user = await person(context.headers, 'read');
+    await withinReadLimit(user, context.resHeaders);
     return {
       id: user.id,
       email: user.email,
       name: user.name,
-      signedInWith: user.testAccount
-        ? 'test_account'
-        : user.provider === 'google'
-          ? 'google'
-          : user.provider === 'email'
-            ? 'email'
-            : 'other',
+      signedInWith: user.key
+        ? 'api_key'
+        : user.testAccount
+          ? 'test_account'
+          : user.provider === 'google'
+            ? 'google'
+            : user.provider === 'email'
+              ? 'email'
+              : 'other',
     };
   }),
 
@@ -140,17 +150,19 @@ export const router = api.router({
       tradingCall(() => marketList(tradingPool(), { after: input?.after })),
     ),
     trade: api.markets.trade.handler(async ({ context, input }) => {
-      const user = await person(context.headers);
+      const user = await person(context.headers, 'trade');
       await withinTradeLimit(user.id, context.resHeaders);
-      const result = await tradingCall(() => placeTrade(tradingPool(), user.id, input));
+      const result = await asPerson(user, () =>
+        tradingCall(() => placeTrade(tradingPool(), user.id, input)),
+      );
       // A trade that moved the price changes the public list: its edge copies are cleared.
       if (result.probAfter !== result.probBefore) await refreshEdge([MARKETS_TAG]);
       return result;
     }),
     cancelOrder: api.markets.cancelOrder.handler(async ({ context, input }) => {
-      const user = await person(context.headers);
+      const user = await person(context.headers, 'trade');
       await withinTradeLimit(user.id, context.resHeaders);
-      return tradingCall(() => cancelOrder(tradingPool(), user.id, input));
+      return asPerson(user, () => tradingCall(() => cancelOrder(tradingPool(), user.id, input)));
     }),
   },
 
@@ -161,31 +173,57 @@ export const router = api.router({
     ),
     // A perp trade counts against the same trades a minute as the markets'.
     open: api.perps.open.handler(async ({ context, input }) => {
-      const user = await person(context.headers);
+      const user = await person(context.headers, 'trade');
       await withinTradeLimit(user.id, context.resHeaders);
-      return perpCall(() => openPerp(tradingPool(), user.id, input, perpSource()));
+      return asPerson(user, () =>
+        perpCall(() => openPerp(tradingPool(), user.id, input, perpSource())),
+      );
     }),
     close: api.perps.close.handler(async ({ context, input }) => {
-      const user = await person(context.headers);
+      const user = await person(context.headers, 'trade');
       await withinTradeLimit(user.id, context.resHeaders);
-      return perpCall(() => closePerp(tradingPool(), user.id, input, perpSource()));
+      return asPerson(user, () =>
+        perpCall(() => closePerp(tradingPool(), user.id, input, perpSource())),
+      );
     }),
   },
 
   portfolio: {
     positions: api.portfolio.positions.handler(async ({ context, input }) => {
-      const user = await person(context.headers);
+      const user = await person(context.headers, 'read');
+      await withinReadLimit(user, context.resHeaders);
       return tradingCall(() => positions(tradingPool(), user.id, { after: input?.after }));
     }),
     orders: api.portfolio.orders.handler(async ({ context, input }) => {
-      const user = await person(context.headers);
+      const user = await person(context.headers, 'read');
+      await withinReadLimit(user, context.resHeaders);
       return tradingCall(() => openOrders(tradingPool(), user.id, { after: input?.after }));
     }),
     perps: api.portfolio.perps.handler(async ({ context, input }) => {
-      const user = await person(context.headers);
+      const user = await person(context.headers, 'read');
+      await withinReadLimit(user, context.resHeaders);
       return perpCall(() =>
         perpPositions(tradingPool(), user.id, { after: input?.after }, perpSource()),
       );
+    }),
+  },
+
+  // The keys' calls need a signed-in session, never a key (person(…, 'session')).
+  keys: {
+    list: api.keys.list.handler(async ({ context }) => {
+      keysSetUp();
+      const user = await person(context.headers, 'session');
+      return listKeys(tradingPool(), user.id);
+    }),
+    create: api.keys.create.handler(async ({ context, input }) => {
+      keysSetUp();
+      const user = await person(context.headers, 'session');
+      return createKey(tradingPool(), user.id, input);
+    }),
+    revoke: api.keys.revoke.handler(async ({ context, input }) => {
+      keysSetUp();
+      const user = await person(context.headers, 'session');
+      return revokeKey(tradingPool(), user.id, input.id);
     }),
   },
 

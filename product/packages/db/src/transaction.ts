@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import type { Pool, PoolClient, QueryResult, QueryResultRow } from 'pg';
 
 /**
@@ -13,6 +14,10 @@ import type { Pool, PoolClient, QueryResult, QueryResultRow } from 'pg';
  * again when the database asks it to (a lock wait that ran out, a deadlock it broke, or a
  * serialization failure), so the work it runs must be safe to repeat: a trade is, because each
  * trade request carries its own ID.
+ *
+ * For a request an API key signed (PLAN.md step 3.5a), it also sets that key's ID
+ * (`hrizzup.api_key`), so the database stamps every trade request with the key that placed it and
+ * refuses one the key may not place (infra/supabase/migrations/*_api_keys.sql).
  */
 
 /** The app's own role: it owns nothing and may only call the functions granted to it. */
@@ -29,6 +34,11 @@ export type Transaction = {
 export type TransactionOptions = {
   /** The signed-in account (its Supabase user ID), or null when nobody is signed in. */
   account: string | null;
+  /**
+   * The ID of the API key that signed the request, if one did. Unset, it is the one `asKey` gave the
+   * work this transaction runs inside, if any.
+   */
+  apiKey?: string | null;
   /** Attempts in all, when the database asks to try again (default 3). */
   attempts?: number;
   /** How long a statement may wait for a lock before giving up (default 2 seconds). */
@@ -66,6 +76,18 @@ export function backoffMs(attempt: number, random: () => number = Math.random): 
   return Math.round(base / 2 + random() * base);
 }
 
+const signingKey = new AsyncLocalStorage<string>();
+
+/**
+ * Runs `work` as a request the API key `keyId` signed (null: none), so every transaction inside it
+ * tells the database so, without each layer between the API and the books passing the key on.
+ */
+export function asKey<T>(keyId: string | null, work: () => Promise<T>): Promise<T> {
+  if (keyId === null) return work();
+  if (!USER_ID.test(keyId)) throw new TypeError("An API key's ID must be a UUID");
+  return signingKey.run(keyId.toLowerCase(), work);
+}
+
 /** The claims Supabase's Data API would set for this account (auth.uid() reads `sub`). */
 export function claimsFor(account: string | null): string {
   if (account === null) return JSON.stringify({ role: 'anon' });
@@ -86,6 +108,10 @@ export async function transaction<T>(
   options: TransactionOptions,
 ): Promise<T> {
   const claims = claimsFor(options.account);
+  const apiKey = options.apiKey === undefined ? (signingKey.getStore() ?? null) : options.apiKey;
+  if (apiKey !== null && !USER_ID.test(apiKey)) {
+    throw new TypeError("An API key's ID must be a UUID");
+  }
   const attempts = options.attempts ?? 3;
   const settings = [
     APP_ROLE,
@@ -93,6 +119,7 @@ export async function transaction<T>(
     options.account?.toLowerCase() ?? '',
     `${options.lockTimeoutMs ?? 2_000}ms`,
     `${options.statementTimeoutMs ?? 10_000}ms`,
+    apiKey?.toLowerCase() ?? '',
   ];
   for (let attempt = 1; ; attempt++) {
     if (attempt > 1) await sleep(backoffMs(attempt));
@@ -106,7 +133,8 @@ export async function transaction<T>(
                 set_config('request.jwt.claims', $2, true),
                 set_config('request.jwt.claim.sub', $3, true),
                 set_config('lock_timeout', $4, true),
-                set_config('statement_timeout', $5, true)`,
+                set_config('statement_timeout', $5, true),
+                set_config('hrizzup.api_key', $6, true)`,
         settings,
       );
       const result = await work(client);

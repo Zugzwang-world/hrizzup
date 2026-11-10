@@ -2,6 +2,7 @@ import { combineChunks, parseCookieHeader, stringFromBase64URL } from '@supabase
 import { createClient as createSupabaseClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Pool } from 'pg';
 import { supabaseConfig } from '@/lib/supabase/config.ts';
+import { credentialOf } from './credential.ts';
 
 /**
  * What every call of the typed API is given: the request's headers (cookie, token); over HTTP, its
@@ -72,12 +73,15 @@ function verifier(url: string, publishableKey: string): SupabaseClient {
  * Bearer …`; the website sends its session cookie. Either way the token's signature and expiry
  * are checked locally against the project's public key (`getClaims`), with no trip to Supabase
  * once the key is known, and nothing is ever refreshed or written. Null when nobody is, or
- * sign-in isn't set up here.
+ * sign-in isn't set up here, and for a request that carries a bot's API key, which is never a
+ * session (lib/api/keys.ts says who a key is).
  */
 export async function signedIn(headers: Headers): Promise<SignedIn | null> {
   const config = supabaseConfig();
   if (!config) return null;
-  const bearer = /^Bearer\s+(\S+)$/i.exec(headers.get('authorization') ?? '')?.[1];
+  const credential = credentialOf(headers);
+  if (credential.kind === 'key' || credential.kind === 'bad-key') return null;
+  const bearer = credential.kind === 'token' ? credential.token : undefined;
   const token = bearer ?? (await accessTokenFromCookies(headers.get('cookie'), config.url));
   if (!token) return null;
   const { data, error } = await verifier(config.url, config.publishableKey).auth.getClaims(token);
