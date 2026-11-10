@@ -1,5 +1,9 @@
 import { defineConfig } from '@playwright/test';
+import { runKey } from './e2e/support/run.ts';
 import { signedOutState } from './e2e/support/states.ts';
+
+// This check run's own key, made once here and passed to every test process (e2e/support/run.ts).
+runKey();
 
 /**
  * The Screen check: the screen sizes (e2e/screens.spec.ts) and the journeys (e2e/journeys/),

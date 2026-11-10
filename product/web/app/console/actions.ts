@@ -95,6 +95,8 @@ export async function createMarketAction(
       closesAt,
       probability,
       seed: field(form, 'seed'),
+      // A checkbox is sent only when ticked: a test market, kept off the public list.
+      listed: field(form, 'unlisted') !== 'on',
     });
     id = market.id;
   } catch (error) {

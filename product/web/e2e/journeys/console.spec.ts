@@ -1,4 +1,5 @@
 import { type Browser, expect, type Page, test } from '@playwright/test';
+import { runKey } from '../support/run.ts';
 import { adminState, signedInState } from '../support/states.ts';
 import { ADMIN_TEST_ACCOUNT } from '../support/test-accounts.ts';
 import { phone } from './phone.ts';
@@ -9,8 +10,9 @@ import { phone } from './phone.ts';
  * - An admin creates a test market, opens, closes and settles it by hand, and the log shows each
  *   step, the settlement's evidence, and payouts that come to all the market held; then cancels
  *   another, with the reason.
- * Each run makes its own markets on staging (previews share its database), with a question that
- * says so; they stay as settled test markets.
+ * Each run makes its own markets on staging (previews share its database), unlisted, with a
+ * question that names the run (support/run.ts); they stay as settled test markets, off the public
+ * list.
  */
 test.use(phone);
 
@@ -21,7 +23,7 @@ async function asAdmin(browser: Browser, browserName: string): Promise<Page> {
   return context.newPage();
 }
 
-/** Makes a market through the console's form, and lands on its page. */
+/** Makes a market through the console's form, kept off the public list, and lands on its page. */
 async function createMarket(page: Page, question: string) {
   await page.goto('/console');
   await expect(page.getByRole('heading', { level: 1, name: 'Market console' })).toBeVisible();
@@ -33,9 +35,12 @@ async function createMarket(page: Page, question: string) {
     .getByLabel('Rules')
     .fill('A test market for the console journey.\nYes wins if the test desk records it.');
   await page.getByLabel('Settlement source').fill("Hrizzup's test desk (a placeholder source)");
+  // A test market of the run's: kept off staging's public list, as every run's markets are.
+  await page.getByLabel('Keep it off the public list').check();
   await page.getByRole('button', { name: 'Create the draft' }).click();
   await expect(page.getByRole('heading', { level: 1, name: question })).toBeVisible();
   await expect(page.getByTestId('market-state')).toHaveText('Draft');
+  await expect(page.getByTestId('market-listed')).toContainText('Unlisted');
 }
 
 test('anyone but an admin, signed in or not, finds no console', async ({
@@ -65,7 +70,7 @@ test('an admin creates, opens, closes and settles a market; the log shows it, an
 }) => {
   test.skip(onProduction(), "The console doesn't exist on production until launch");
   const page = await asAdmin(browser, browserName);
-  const question = `Journey test (${browserName}, ${Date.now().toString(36)}): will the test desk record event A?`;
+  const question = `Journey test (${browserName}, run ${runKey()}): will the test desk record event A?`;
   await createMarket(page, question);
   await expect(page.getByTestId('market-held')).toHaveText('Ṁ0');
 
@@ -102,7 +107,7 @@ test('an admin cancels a market that cannot be settled fairly, with the reason',
 }) => {
   test.skip(onProduction(), "The console doesn't exist on production until launch");
   const page = await asAdmin(browser, browserName);
-  const question = `Journey test (${browserName}, ${Date.now().toString(36)}): will the test desk record event B?`;
+  const question = `Journey test (${browserName}, run ${runKey()}): will the test desk record event B?`;
   await createMarket(page, question);
   await page.getByRole('button', { name: 'Open the market' }).click();
   await expect(page.getByTestId('market-state')).toHaveText('Open');

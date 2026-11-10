@@ -4,11 +4,12 @@ import { money } from '../../lib/console-format.ts';
 import { adminState, signedInState } from '../support/states.ts';
 
 /**
- * PLAN.md step 1.7d's done-test, on staging itself: list, trade and positions through the typed API
+ * PLAN.md step 1.7d's done-test, on staging itself (the one run that puts its market on staging's
+ * public list, since the list is part of what it proves; it runs only when asked): list, trade and positions through the typed API
  * on a test market, and the trade call refusing each of the inputs it must. Staging's firewall lets
  * only browsers write to the typed API, so every call here is made from inside a real browser page on
- * staging, signed in as the Chromium screen-check account (play money from global-setup.ts), the way
- * the market pages (3.1) will call it. The market console's admin test account makes, opens, closes
+ * staging, signed in as the run's own Chromium account (the Ṁ1,000 its signup gave it;
+ * global-setup.ts), the way the market pages (3.1) will call it. The market console's admin test account makes, opens, closes
  * and settles the test market in the console, and the payouts must add up.
  *
  * Not part of the checks: it runs only when asked, against staging, and leaves a settled test market

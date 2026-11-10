@@ -182,7 +182,9 @@ describe("a new market's input", () => {
 
   it('takes a draft that keeps the agreement, starting at 50% with a seed of Ṁ1,000', () => {
     const parsed = createMarketInput.parse(valid);
-    expect(parsed).toMatchObject({ probability: '0.5', seed: '1000' });
+    expect(parsed).toMatchObject({ probability: '0.5', seed: '1000', listed: true });
+    expect(createMarketInput.parse({ ...valid, listed: false })).toMatchObject({ listed: false });
+    expect(createMarketInput.safeParse({ ...valid, listed: 'no' }).success).toBe(false);
     expect(
       createMarketInput.safeParse({ ...valid, probability: '0.37', seed: '250.5' }).success,
     ).toBe(true);

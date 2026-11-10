@@ -92,6 +92,7 @@ const row = {
   probability: null,
   held: '0.000000',
   trades: 3,
+  listed: false,
   log: [
     {
       id: 7,
@@ -130,6 +131,7 @@ describe('a call', () => {
         at: '2026-11-10T16:00:00.25Z',
       },
       createdBy: { email: 'ada@console.test' },
+      listed: false,
       log: [
         {
           action: 'settle',
@@ -157,6 +159,7 @@ describe('a call', () => {
       closesAt: '2026-11-10T15:00:00Z',
       probability: '0.5',
       seed: '1000',
+      listed: false,
     });
     expect(created.sent[2]?.values).toEqual([
       row.id,
@@ -169,6 +172,7 @@ describe('a call', () => {
       '2026-11-10T15:00:00Z',
       '0.5',
       '1000',
+      false,
     ]);
     const settled = fakePool(row);
     await settleMarket(settled.pool, '00000000-0000-4000-8000-0000000000c1', {

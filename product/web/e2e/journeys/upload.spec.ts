@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { expect, test } from '@playwright/test';
 import { AwsClient } from 'aws4fetch';
+import { runKey } from '../support/run.ts';
 import { phone } from './phone.ts';
 
 /**
@@ -48,7 +49,8 @@ test('a browser on this site uploads straight to the staging bucket', async ({
     "Uploads are tested in staging's bucket only",
   );
   const { aws, address } = stagingUploads();
-  const key = `_selftest/upload-journey/${browserName}-${randomUUID()}.txt`;
+  // Under the run's own key, like everything a run stores (support/run.ts).
+  const key = `_selftest/upload-journey/${runKey()}/${browserName}-${randomUUID()}.txt`;
   const text = `The upload journey, ${new Date().toISOString()}`;
 
   // What our server will do: an upload address for this one file, good for five minutes.
