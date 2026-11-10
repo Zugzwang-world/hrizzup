@@ -58,6 +58,8 @@ async function marketOr404(id: string): Promise<ConsoleMarketWithLog> {
 
 /** One market in the market console (admins only): what it is, its money, what's next, its log. */
 export default async function ConsoleMarketPage({ params }: Props) {
+  // The proxy has already given anyone but an admin the site's own "not found" page (proxy.ts);
+  // this is the second check.
   const admin = await consoleAdmin();
   if (!admin) notFound();
   const { id } = await params;

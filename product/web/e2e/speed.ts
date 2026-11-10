@@ -178,6 +178,106 @@ export function judge(result: RunMetrics, budget: Budget): Verdict[] {
   ];
 }
 
+/**
+ * One run over one of the page's budgets: a warning, never a failure. A page passes or fails on
+ * the median of its runs (`judge`), which a single slow run on a busy machine can't sway; but a
+ * run past the budget itself, with no tolerance, is the first sign a page is drifting towards it.
+ */
+export type RunWarning = {
+  label: string;
+  /** Which run, counting from 1, of how many. */
+  run: number;
+  runs: number;
+  value: string;
+  limit: string;
+};
+
+/** Rounds up, so a number just over its budget never reads as equal to it. */
+const up = (value: number, places: number) => {
+  const scale = 10 ** places;
+  return (Math.ceil(value * scale - 1e-9) / scale).toFixed(places);
+};
+
+/** Every run, of every number, over the page's budget itself (no tolerance). */
+export function overBudgetRuns(runs: RunMetrics[], budget: Budget): RunWarning[] {
+  const checks: {
+    label: string;
+    over: (r: RunMetrics) => boolean;
+    value: (r: RunMetrics) => string;
+    limit: string;
+  }[] = [
+    {
+      label: 'Load (largest content)',
+      over: (r) => r.loadMs > budget.loadMs,
+      value: (r) => `${up(r.loadMs / 1000, 2)} s`,
+      limit: seconds(budget.loadMs),
+    },
+    {
+      label: 'Busy time (blocking)',
+      over: (r) => r.blockingMs > budget.blockingMs,
+      value: (r) => `${up(r.blockingMs, 0)} ms`,
+      limit: `${budget.blockingMs} ms`,
+    },
+    {
+      label: 'Layout shift',
+      over: (r) => r.layoutShift > budget.layoutShift,
+      value: (r) => up(r.layoutShift, 3),
+      limit: budget.layoutShift.toFixed(2),
+    },
+    {
+      label: 'Code',
+      over: (r) => r.codeBytes > budget.codeKB * KB,
+      value: (r) => `${up(r.codeBytes / KB, 1)} KB`,
+      limit: `${budget.codeKB} KB`,
+    },
+    {
+      label: 'Total download',
+      over: (r) => r.totalBytes > budget.totalKB * KB,
+      value: (r) => `${up(r.totalBytes / KB, 1)} KB`,
+      limit: `${budget.totalKB} KB`,
+    },
+  ];
+  return checks.flatMap((check) =>
+    runs.flatMap((r, index) =>
+      check.over(r)
+        ? [
+            {
+              label: check.label,
+              run: index + 1,
+              runs: runs.length,
+              value: check.value(r),
+              limit: check.limit,
+            },
+          ]
+        : [],
+    ),
+  );
+}
+
+/** One warning in words: `/console: Busy time (blocking) 285 ms in run 3 of 5 (budget 200 ms)`. */
+export function describeWarning(path: string, warning: RunWarning): string {
+  return (
+    `${path}: ${warning.label} ${warning.value} in run ${warning.run} of ${warning.runs} ` +
+    `(budget ${warning.limit})`
+  );
+}
+
+/** The numbers each run measured, kept in the results so a page's spread can be read back. */
+export type RunNumbers = Pick<
+  RunMetrics,
+  'loadMs' | 'blockingMs' | 'layoutShift' | 'codeBytes' | 'totalBytes'
+>;
+
+export function runNumbers(r: RunMetrics): RunNumbers {
+  return {
+    loadMs: Math.round(r.loadMs),
+    blockingMs: Math.round(r.blockingMs),
+    layoutShift: Number(r.layoutShift.toFixed(4)),
+    codeBytes: r.codeBytes,
+    totalBytes: r.totalBytes,
+  };
+}
+
 export type PageReport = {
   name: string;
   path: string;
@@ -186,6 +286,10 @@ export type PageReport = {
   contrast: { light: boolean; dark: boolean; problems: string[] };
   otherSitesBytes: number;
   requests: number;
+  /** Single runs over a budget: warnings, which never fail the check. */
+  warnings: RunWarning[];
+  /** Each run's numbers, in the order they ran. */
+  runs: RunNumbers[];
 };
 
 export function pagePasses(report: PageReport): boolean {
@@ -212,4 +316,21 @@ export function markdownTable(reports: PageReport[]): string {
     }),
   ];
   return lines.join('\n');
+}
+
+/**
+ * The single runs over a budget, for the pull request: warnings, listed under the table. Empty
+ * when no run of any page crossed one.
+ */
+export function markdownWarnings(reports: PageReport[]): string {
+  const lines = reports.flatMap((report) =>
+    report.warnings.map((warning) => `- \`${describeWarning(report.path, warning)}\``),
+  );
+  if (lines.length === 0) return '';
+  return [
+    '**Single runs over a budget** (warnings, not failures: each page passes or fails on the ' +
+      'median of its runs, in the table above). A page listed here is drifting towards its ' +
+      "budget: it goes into Product's status file (`docs/status/product.md`).",
+    ...lines,
+  ].join('\n');
 }

@@ -2,14 +2,18 @@ import { describe, expect, it } from 'vitest';
 import { budgets } from './pages.ts';
 import {
   contrastOf,
+  describeWarning,
   judge,
   type LighthouseResult,
   markdownTable,
+  markdownWarnings,
   median,
   metricsFromLighthouse,
+  overBudgetRuns,
   type PageReport,
   pagePasses,
   type RunMetrics,
+  runNumbers,
   summarize,
   TOLERANCE,
 } from './speed.ts';
@@ -149,6 +153,8 @@ describe('the table on the pull request', () => {
     contrast: { light: true, dark: true, problems: [] },
     otherSitesBytes: 0,
     requests: 12,
+    warnings: [],
+    runs: [runNumbers(run())],
     ...overrides,
   });
 
@@ -163,5 +169,73 @@ describe('the table on the pull request', () => {
     expect(pagePasses(faint)).toBe(false);
     expect(markdownTable([faint])).toContain('❌ dark');
     expect(pagePasses(report())).toBe(true);
+  });
+});
+
+describe('single runs over a budget', () => {
+  const standard = budgets.standard;
+
+  it('warns about every run past the budget itself, with no tolerance, and nothing else', () => {
+    const runs = [
+      run(),
+      run({ blockingMs: standard.blockingMs + 1 }),
+      run({ blockingMs: standard.blockingMs }),
+      run({ loadMs: standard.loadMs + 1, blockingMs: 285 }),
+      run({ layoutShift: standard.layoutShift + 0.001 }),
+    ];
+    expect(overBudgetRuns(runs, standard).map((w) => describeWarning('/page', w))).toEqual([
+      '/page: Load (largest content) 2.51 s in run 4 of 5 (budget 2.50 s)',
+      '/page: Busy time (blocking) 201 ms in run 2 of 5 (budget 200 ms)',
+      '/page: Busy time (blocking) 285 ms in run 4 of 5 (budget 200 ms)',
+      '/page: Layout shift 0.101 in run 5 of 5 (budget 0.10)',
+    ]);
+  });
+
+  it('warns about a download over its limit in any run', () => {
+    const runs = [run(), run({ codeBytes: standard.codeKB * 1024 + 1 })];
+    expect(overBudgetRuns(runs, standard)).toEqual([
+      { label: 'Code', run: 2, runs: 2, value: '200.1 KB', limit: '200 KB' },
+    ]);
+  });
+
+  it('never fails a page: the median decides, as it did before the warnings', () => {
+    const runs = [run(), run(), run({ blockingMs: 900 }), run(), run()];
+    expect(overBudgetRuns(runs, standard)).toHaveLength(1);
+    expect(judge(summarize(runs), standard).every((v) => v.passes)).toBe(true);
+  });
+
+  it('lists the warnings under the table, and nothing when no run crossed a budget', () => {
+    const quiet: PageReport = {
+      name: 'privacy',
+      path: '/privacy',
+      verdicts: judge(run(), standard),
+      contrast: { light: true, dark: true, problems: [] },
+      otherSitesBytes: 0,
+      requests: 12,
+      warnings: [],
+      runs: [runNumbers(run())],
+    };
+    expect(markdownWarnings([quiet])).toBe('');
+    const drifting = {
+      ...quiet,
+      path: '/console/markets/new',
+      warnings: overBudgetRuns([run(), run({ blockingMs: 285 })], standard),
+    };
+    const markdown = markdownWarnings([quiet, drifting]);
+    expect(markdown).toContain('**Single runs over a budget**');
+    expect(markdown).toContain(
+      '- `/console/markets/new: Busy time (blocking) 285 ms in run 2 of 2 (budget 200 ms)`',
+    );
+    expect(markdown).not.toContain('/privacy');
+  });
+
+  it("keeps each run's numbers, rounded", () => {
+    expect(runNumbers(run({ blockingMs: 123.4, loadMs: 765.6, layoutShift: 0.012345 }))).toEqual({
+      loadMs: 766,
+      blockingMs: 123,
+      layoutShift: 0.0123,
+      codeBytes: 150 * 1024,
+      totalBytes: 300 * 1024,
+    });
   });
 });

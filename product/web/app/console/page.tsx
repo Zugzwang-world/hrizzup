@@ -19,6 +19,8 @@ type Props = { searchParams: Promise<{ after?: string | string[] }> };
  * signed in or not, gets "not found", as everyone does on production until launch.
  */
 export default async function ConsolePage({ searchParams }: Props) {
+  // The proxy has already given anyone but an admin the site's own "not found" page (proxy.ts);
+  // this is the second check.
   const admin = await consoleAdmin();
   if (!admin) notFound();
   const { after } = await searchParams;

@@ -15,6 +15,8 @@ export const metadata: Metadata = {
 
 /** A new yes-or-no market, made as a draft in the market console (admins only). */
 export default async function NewMarketPage() {
+  // The proxy has already given anyone but an admin the site's own "not found" page (proxy.ts);
+  // this is the second check.
   const admin = await consoleAdmin();
   if (!admin) notFound();
   const now = Date.now();
