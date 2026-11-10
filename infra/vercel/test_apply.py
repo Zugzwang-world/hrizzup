@@ -71,14 +71,17 @@ class TheRepoRules(unittest.TestCase):
         self.assertEqual(names, [
             "Rate limit: staging's typed API calls that send email",
             "Rate limit: staging's typed API",
+            "Rate limit: staging's perp jobs",
             "Staging's typed API: no bot challenge",
             "Staging's typed API: the app's writes, no bot challenge",
+            "Staging's perp jobs: no bot challenge",
         ])
 
     def test_the_bypasses_come_last_and_after_their_rate_limits(self):
         actions = [r["action"]["mitigate"]["action"] for r in WANT["rules"]]
         self.assertEqual(actions, ["rate_limit", "rate_limit", "rate_limit", "bypass",
-                                   "rate_limit", "rate_limit", "bypass", "bypass"])
+                                   "rate_limit", "rate_limit", "rate_limit", "bypass", "bypass",
+                                   "bypass"])
 
     def test_every_description_fits_vercels_limit(self):
         # Vercel refuses a rule whose description is longer than 256 characters (HTTP 400).
@@ -98,6 +101,24 @@ class TheRepoRules(unittest.TestCase):
             {"type": "path", "op": "pre", "value": "/api/v1/"},
             {"type": "method", "op": "eq", "value": "POST"},
         ])
+
+    def test_the_perp_jobs_bypass_covers_only_posts_to_stagings_jobs_address(self):
+        # PLAN.md step 3.4a: Supabase Cron calls the jobs address from the database, so it skips the
+        # bot challenge there alone, by POST, behind its own per-IP limit (the address itself needs
+        # the jobs' secret: product/web/app/api/jobs/perps).
+        address = {"type": "path", "op": "eq", "value": "/api/jobs/perps"}
+        [group] = staging_rule(WANT, "Staging's perp jobs: no bot challenge")["conditionGroup"]
+        self.assertEqual(group["conditions"], [
+            {"type": "host", "op": "eq", "value": "staging.hrizzup.com"},
+            address,
+            {"type": "method", "op": "eq", "value": "POST"},
+        ])
+        limit = staging_rule(WANT, "Rate limit: staging's perp jobs")
+        self.assertIn(address, limit["conditionGroup"][0]["conditions"])
+        self.assertEqual(limit["action"]["mitigate"]["rateLimit"]["limit"], 30)
+        names = [r["name"] for r in WANT["rules"]]
+        self.assertLess(names.index("Rate limit: staging's perp jobs"),
+                        names.index("Staging's perp jobs: no bot challenge"))
 
     def test_stagings_typed_api_keeps_its_limits_ahead_of_its_bypasses(self):
         names = [r["name"] for r in WANT["rules"]]
@@ -135,17 +156,20 @@ class TheChange(unittest.TestCase):
 
     def test_empty_fields_in_vercels_report_still_count_as_staging(self):
         live = live_config(with_staging=True)
-        for name in ("Staging's typed API: no bot challenge", "Staging's typed API: the app's writes, no bot challenge"):
+        for name in ("Staging's typed API: no bot challenge", "Staging's typed API: the app's writes, no bot challenge",
+                     "Staging's perp jobs: no bot challenge"):
             staging_rule(live, name)["action"]["mitigate"].update(redirect={}, actionDuration="", bypassSystem=None)
-        for name in ("Rate limit: staging's typed API calls that send email", "Rate limit: staging's typed API"):
+        for name in ("Rate limit: staging's typed API calls that send email", "Rate limit: staging's typed API",
+                     "Rate limit: staging's perp jobs"):
             staging_rule(live, name)["action"]["mitigate"]["rateLimit"]["action"] = None
         self.assertEqual([r["name"] for r in live["rules"] if is_staging(r)],
                          [r["name"] for r in WANT["rules"] if is_staging(r)])
-        self.assertEqual(len([r for r in live["rules"] if is_staging(r)]), 4)
+        self.assertEqual(len([r for r in live["rules"] if is_staging(r)]), 6)
 
     def test_empty_fields_in_vercels_report_are_not_a_change(self):
         live = live_config(with_staging=True)
-        for name in ("Staging's typed API: no bot challenge", "Staging's typed API: the app's writes, no bot challenge"):
+        for name in ("Staging's typed API: no bot challenge", "Staging's typed API: the app's writes, no bot challenge",
+                     "Staging's perp jobs: no bot challenge"):
             staging_rule(live, name)["action"]["mitigate"].update(redirect={}, actionDuration="", bypassSystem=None)
         self.assertIsNone(apply.staging_firewall(want(), live, HOSTS))
 

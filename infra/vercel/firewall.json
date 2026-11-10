@@ -121,6 +121,31 @@
       }
     },
     {
+      "name": "Rate limit: staging's perp jobs",
+      "description": "At most 30 requests a minute per IP to staging's perp jobs address (/api/jobs/perps on staging.hrizzup.com), which Supabase Cron calls 13 times a minute. Staging only.",
+      "active": true,
+      "conditionGroup": [
+        {
+          "conditions": [
+            { "type": "host", "op": "eq", "value": "staging.hrizzup.com" },
+            { "type": "path", "op": "eq", "value": "/api/jobs/perps" }
+          ]
+        }
+      ],
+      "action": {
+        "mitigate": {
+          "action": "rate_limit",
+          "rateLimit": {
+            "algo": "fixed_window",
+            "window": 60,
+            "limit": 30,
+            "keys": ["ip"],
+            "action": "rate_limit"
+          }
+        }
+      }
+    },
+    {
       "name": "Staging's typed API: no bot challenge",
       "description": "The app reads staging's typed API without a browser, so it can't pass the bot challenge (PLAN.md step 1.5d). Reads only (GET), rate-limited by the rules above; the app's writes have the rule below. Staging only. Keep bypasses last.",
       "active": true,
@@ -144,6 +169,21 @@
           "conditions": [
             { "type": "host", "op": "eq", "value": "staging.hrizzup.com" },
             { "type": "path", "op": "pre", "value": "/api/v1/" },
+            { "type": "method", "op": "eq", "value": "POST" }
+          ]
+        }
+      ],
+      "action": { "mitigate": { "action": "bypass" } }
+    },
+    {
+      "name": "Staging's perp jobs: no bot challenge",
+      "description": "Supabase Cron calls staging's perp jobs address from the database, not a browser (PLAN.md step 3.4a). POST only; the address needs the jobs' secret, and the rule above limits it. Staging only. Keep bypasses last.",
+      "active": true,
+      "conditionGroup": [
+        {
+          "conditions": [
+            { "type": "host", "op": "eq", "value": "staging.hrizzup.com" },
+            { "type": "path", "op": "eq", "value": "/api/jobs/perps" },
             { "type": "method", "op": "eq", "value": "POST" }
           ]
         }
