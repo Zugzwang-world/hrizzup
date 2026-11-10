@@ -103,7 +103,7 @@ Other packages (the ledger, `@hrizzup/ledger`, and through it the website) read 
 
 ## Checks
 
-- **Tests:** `pnpm --filter @hrizzup/market-engine test` (Vitest). Quick checks run them on every pull request, with the type check.
+- **Tests:** `pnpm --filter @hrizzup/market-engine test` (Vitest). Quick checks run them on every pull request, with the type check. They run in two groups, one after the other ([vitest.config.ts](vitest.config.ts)): the unit tests, then the perp's long simulation, whose heavy computing would otherwise take time from Manifold's heaviest fuzz test, which already runs close to its 5-second limit on GitHub's machines (4,981 ms on #92's run).
 - **TypeScript:** our shared settings, except `noUncheckedIndexedAccess`, which is off in this package only ([tsconfig.json](tsconfig.json) says why): with it on, about 300 lines of proven maths and tests would need rewriting.
 - **Biome:** every file is formatted and linted, with one override for `src/manifold/` (in `biome.json`) that switches off style-only rules for Manifold's code (non-null assertions, `any`, string keys, template strings and the like) and Manifold's own `isNaN` and `isFinite` checks, whose `Number.` versions behave differently for values that aren't numbers. React's and Next.js's rules are off for the whole package, which has no screens.
 
