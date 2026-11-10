@@ -29,7 +29,10 @@ export function runKey(): string {
   return process.env.HRIZZUP_E2E_RUN;
 }
 
-/** Every run account's address starts with this, at Resend's test inbox (nothing is ever kept). */
+/**
+ * Every run account's address starts with this, at Resend's test inbox (nothing is ever kept).
+ * (This twin pull request only proves two Screen checks at once both pass; it's never merged.)
+ */
 export const RUN_PREFIX = 'delivered+run-';
 
 /**
