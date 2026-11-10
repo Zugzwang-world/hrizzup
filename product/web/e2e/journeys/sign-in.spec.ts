@@ -1,17 +1,15 @@
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { expect, test } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { PENDING_COOKIE, pendingCookieValue } from '../../lib/email-code.ts';
 import { sendSignInCode } from '../../lib/supabase/send-code.ts';
 import { asBrowserCookie } from '../support/bypass.ts';
+import { engineAccount, runAddress } from '../support/run.ts';
 import {
-  createJourneyAccount,
-  deleteJourneyAccount,
+  createRunAccount,
   type Engine,
-  journeyAddress,
   readSignInCode,
   stagingKeys,
-  TEST_ACCOUNTS,
   testSessionCookies,
 } from '../support/test-accounts.ts';
 import { phone } from './phone.ts';
@@ -61,7 +59,8 @@ test('the test account signs in and out', async ({ page, context, baseURL, brows
   const keys = stagingKeys();
   if (!keys)
     throw new Error("Staging's Supabase keys are missing, so the test account can't sign in");
-  const email = TEST_ACCOUNTS[browserName as Engine];
+  // The engine's own account of this run (made by global-setup.ts).
+  const email = engineAccount(browserName as Engine);
 
   await page.goto('/sign-in-test');
   await expect(page.getByRole('heading', { name: SIGNED_OUT })).toBeVisible();
@@ -97,52 +96,50 @@ test('an email code signs a reader in, and out again', async ({
   const keys = stagingKeys();
   if (!keys) throw new Error("Staging's Supabase keys are missing, so no code can be read");
 
-  // Chromium signs up a new reader; WebKit signs in one who already has an account. Each run
-  // uses fresh addresses at Resend's test inbox (support/test-accounts.ts).
-  const email = journeyAddress('code', browserName as Engine);
-  if (browserName === 'webkit') await createJourneyAccount(keys, email);
+  // Chromium signs up a new reader; WebKit signs in one who already has an account. Each run,
+  // and each retry, uses fresh addresses at Resend's test inbox (support/run.ts), kept like every
+  // run's account.
+  const email = runAddress(`code-${randomUUID().slice(0, 4)}`, browserName as Engine);
+  // A reader like any other, not marked as a test account, so the page says how they signed in.
+  if (browserName === 'webkit') await createRunAccount(keys, email, { testAccount: false });
   const tooMany =
     '(Supabase sends at most one email a minute to an address, and 30 an hour for staging ' +
     'and every preview together)';
-  try {
-    if (botCheckIsATest()) {
-      await page.goto('/sign-in-test');
-      await page.getByLabel('Email address').fill(email);
-      await page.getByRole('button', { name: 'Email me a code' }).click();
-    } else {
-      // The real bot check is for people: ask for the code as our server does once one has
-      // passed it, and remember the address in the cookie the server would set.
-      const sent = await sendSignInCode(keys.url, keys.secretKey, email);
-      if (sent !== 'sent') throw new Error(`No code was sent (${sent}) ${tooMany}`);
-      const remembered = pendingCookieValue({ email, next: '/sign-in-test' });
-      await context.addCookies([
-        asBrowserCookie(baseURL ?? '', PENDING_COOKIE, encodeURIComponent(remembered)),
-      ]);
-      await page.goto('/sign-in-test');
-    }
-    // The code step, or the page's reason why not.
-    const sentTo = page.getByTestId('code-sent-to');
-    const problem = page.getByRole('main').getByRole('alert');
-    await expect(sentTo.or(problem)).toBeVisible({ timeout: 30_000 });
-    if (await problem.isVisible()) {
-      throw new Error(`No code was sent: "${await problem.textContent()}" ${tooMany}`);
-    }
-    await expect(sentTo).toHaveText(email);
-
-    // No inbox is read: staging's admin access gives a working code for the address.
-    await page.getByLabel('Code', { exact: true }).fill(await readSignInCode(keys, email));
-    await page.getByRole('button', { name: 'Sign in' }).click();
-    await expect(page.getByRole('heading', { name: SIGNED_IN })).toBeVisible();
-    await expect(page.getByTestId('signed-in-email')).toHaveText(email);
-    await expect(page.getByText('An email code')).toBeVisible();
-
-    await page.getByRole('button', { name: 'Sign out' }).click();
-    await expect(page.getByRole('heading', { name: SIGNED_OUT })).toBeVisible();
-    const sessionCookies = (await context.cookies()).filter((c) => c.name.startsWith('sb-'));
-    expect(sessionCookies, 'no session cookie left').toEqual([]);
-  } finally {
-    await deleteJourneyAccount(keys, email);
+  if (botCheckIsATest()) {
+    await page.goto('/sign-in-test');
+    await page.getByLabel('Email address').fill(email);
+    await page.getByRole('button', { name: 'Email me a code' }).click();
+  } else {
+    // The real bot check is for people: ask for the code as our server does once one has
+    // passed it, and remember the address in the cookie the server would set.
+    const sent = await sendSignInCode(keys.url, keys.secretKey, email);
+    if (sent !== 'sent') throw new Error(`No code was sent (${sent}) ${tooMany}`);
+    const remembered = pendingCookieValue({ email, next: '/sign-in-test' });
+    await context.addCookies([
+      asBrowserCookie(baseURL ?? '', PENDING_COOKIE, encodeURIComponent(remembered)),
+    ]);
+    await page.goto('/sign-in-test');
   }
+  // The code step, or the page's reason why not.
+  const sentTo = page.getByTestId('code-sent-to');
+  const problem = page.getByRole('main').getByRole('alert');
+  await expect(sentTo.or(problem)).toBeVisible({ timeout: 30_000 });
+  if (await problem.isVisible()) {
+    throw new Error(`No code was sent: "${await problem.textContent()}" ${tooMany}`);
+  }
+  await expect(sentTo).toHaveText(email);
+
+  // No inbox is read: staging's admin access gives a working code for the address.
+  await page.getByLabel('Code', { exact: true }).fill(await readSignInCode(keys, email));
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await expect(page.getByRole('heading', { name: SIGNED_IN })).toBeVisible();
+  await expect(page.getByTestId('signed-in-email')).toHaveText(email);
+  await expect(page.getByText('An email code')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Sign out' }).click();
+  await expect(page.getByRole('heading', { name: SIGNED_OUT })).toBeVisible();
+  const sessionCookies = (await context.cookies()).filter((c) => c.name.startsWith('sb-'));
+  expect(sessionCookies, 'no session cookie left').toEqual([]);
 });
 
 test('Continue with Google goes to Google for our app, and Supabase allows the way back', async ({
@@ -219,45 +216,41 @@ test('a password sign-in is refused', async ({ browserName }) => {
   const keys = stagingKeys();
   if (!keys) throw new Error("Staging's Supabase keys are missing, so no trial can be made");
   // Nobody can give an account a password through the website; staging's server key can, for
-  // this trial only. The account is deleted afterwards.
-  const email = journeyAddress('password', browserName as Engine);
+  // this trial only. The account is kept, like every run's account; its password is random and
+  // kept nowhere.
+  const email = runAddress(`password-${randomUUID().slice(0, 4)}`, browserName as Engine);
   const password = randomBytes(24).toString('base64url');
-  await createJourneyAccount(keys, email, password);
-  try {
-    // From a browser or the app (the public key), Supabase asks for the bot check first.
-    const visitor = await client(keys.url, keys.publishableKey).auth.signInWithPassword({
-      email,
-      password,
-    });
-    expect(visitor.data.session, 'no session from the public key').toBeNull();
-    expect(visitor.error?.status, 'refused by the bot check').toBe(400);
+  await createRunAccount(keys, email, { password, testAccount: false });
+  // From a browser or the app (the public key), Supabase asks for the bot check first.
+  const visitor = await client(keys.url, keys.publishableKey).auth.signInWithPassword({
+    email,
+    password,
+  });
+  expect(visitor.data.session, 'no session from the public key').toBeNull();
+  expect(visitor.error?.status, 'refused by the bot check').toBe(400);
 
-    // Past the bot check (the server key skips it), the access-token hook refuses the session.
-    const past = await client(keys.url, keys.secretKey).auth.signInWithPassword({
-      email,
-      password,
-    });
-    expect(past.data.session, 'no session past the bot check either').toBeNull();
-    // If this says 400 with captcha_failed, the server key didn't get past the bot check, and
-    // the hook wasn't reached at all.
-    expect(past.error?.status, `refused by the access-token hook (${past.error?.code})`).toBe(403);
-    expect(past.error?.message).toBe(
-      "Passwords aren't accepted. Sign in with an email code or with Google.",
-    );
-  } finally {
-    await deleteJourneyAccount(keys, email);
-  }
+  // Past the bot check (the server key skips it), the access-token hook refuses the session.
+  const past = await client(keys.url, keys.secretKey).auth.signInWithPassword({
+    email,
+    password,
+  });
+  expect(past.data.session, 'no session past the bot check either').toBeNull();
+  // If this says 400 with captcha_failed, the server key didn't get past the bot check, and
+  // the hook wasn't reached at all.
+  expect(past.error?.status, `refused by the access-token hook (${past.error?.code})`).toBe(403);
+  expect(past.error?.message).toBe(
+    "Passwords aren't accepted. Sign in with an email code or with Google.",
+  );
 });
 
 test('a session made without a password refreshes', async ({ request, browserName }) => {
   skipOnProduction();
   const keys = stagingKeys();
   if (!keys) throw new Error("Staging's Supabase keys are missing, so no session can be made");
-  const email = TEST_ACCOUNTS[browserName as Engine];
+  const email = engineAccount(browserName as Engine);
   const app = client(keys.url, keys.publishableKey);
-  // The test account's one-time token (it arrives at the hook as `otp`, like an email code).
-  // Checks of other pull requests share the account and may cancel a token between asking
-  // and using it, so this asks again a few times (as support/test-accounts.ts does).
+  // The engine's own account's one-time token (it arrives at the hook as `otp`, like an email
+  // code). Only this run uses the account, but asking again a few times costs nothing.
   let first: string | undefined;
   for (let attempt = 1; attempt <= 5 && !first; attempt++) {
     const { data } = await client(keys.url, keys.secretKey).auth.admin.generateLink({
@@ -282,7 +275,7 @@ test('a session made without a password refreshes', async ({ request, browserNam
   const me = await request.get('/api/v1/me', { headers: { authorization: `Bearer ${token}` } });
   expect(me.status()).toBe(200);
   expect(await me.json()).toMatchObject({ email, signedInWith: 'test_account' });
-  // Only this session: the test account is shared with other runs, whose sessions a
+  // Only this session: the engine's account is shared by this run's other tests, whose sessions a
   // global sign-out would end (supabase-js signs out everywhere unless told otherwise).
   await app.auth.signOut({ scope: 'local' });
 });

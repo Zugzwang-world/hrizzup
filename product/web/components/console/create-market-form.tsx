@@ -213,6 +213,23 @@ export function CreateMarketForm({ id, categories, opensAt, closesAt }: Props) {
         </Field>
       </div>
 
+      <label className="flex items-start gap-3">
+        <input
+          type="checkbox"
+          name="unlisted"
+          defaultChecked={value('unlisted') === 'on'}
+          aria-describedby="unlisted-hint"
+          className="mt-1"
+        />
+        <span>
+          <span className="font-medium">Keep it off the public list</span>
+          <span id="unlisted-hint" className="block text-sm text-muted">
+            A test market: traded and settled like any other by its address, but never listed.
+            Chosen now, for good.
+          </span>
+        </span>
+      </label>
+
       <Refusal message={state.error} />
       <div>
         <button type="submit" disabled={pending} className={BUTTON}>

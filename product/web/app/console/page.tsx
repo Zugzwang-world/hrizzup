@@ -58,6 +58,7 @@ export default async function ConsolePage({ searchParams }: Props) {
                 <p className="mt-1 text-sm text-muted">
                   <span data-testid="market-state">{STATE_NAMES[market.state]}</span> · closes{' '}
                   {indiaTime(market.closesAt)}
+                  {!market.listed && ' · unlisted'}
                 </p>
               </li>
             ))}

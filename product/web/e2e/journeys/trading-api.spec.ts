@@ -1,31 +1,38 @@
 import { randomUUID } from 'node:crypto';
 import { type APIRequestContext, expect, test } from '@playwright/test';
-import { createClient } from '@supabase/supabase-js';
 import { money } from '../../lib/console-format.ts';
 import { newRecordId } from '../../lib/record-id.ts';
-import { adminState, signedInState, signedOutState } from '../support/states.ts';
 import {
-  createJourneyAccount,
-  deleteJourneyAccount,
-  type Engine,
-  journeyAddress,
-  stagingKeys,
-} from '../support/test-accounts.ts';
+  type Answer,
+  call,
+  decimal,
+  holdings,
+  micros,
+  settleAndCheckBooks,
+  type Trader,
+} from '../support/books.ts';
+import { newRunTrader, runKey } from '../support/run.ts';
+import { adminState } from '../support/states.ts';
+import { type Engine, stagingKeys } from '../support/test-accounts.ts';
 
 /**
  * Journey: the markets for everyone in the typed API (PLAN.md step 1.7d), over HTTP as any client
- * calls them, on the pull request's preview (staging's database; the engines' test accounts hold
- * play money from global-setup.ts). It is step 1.7d's done-test:
- * - a signed-in test account lists a test market, buys, retries, sells, places a limit order and
- *   cancels it, and reads its positions and open orders;
- * - bad inputs are refused before the books are touched: a limit outside 1% to 99%, an expiry of
- *   zero, an amount that isn't above zero or is over the balance; so is a write from another site;
- * - the console settles the market, and the payouts add up: the trader gets Ṁ1 a Yes share, the
- *   house the rest, all the market held;
- * - the public list is kept at Vercel's edge, and refreshed when a trade moves the price, well
- *   before the copy it served would have aged out on its own;
- * - each person's trades a minute are limited (on an account made for it, so no other run waits).
- * Each run makes its own market on staging, with a question that says so; it stays, settled.
+ * calls them, on the pull request's preview (staging's database). Each check run on its own
+ * (CLAUDE.md, "How checks behave"): every journey here makes its own fresh accounts, each starting
+ * with exactly the Ṁ1,000 its signup gave it, and its own test markets, unlisted, so they stay off
+ * staging's public list, and trades only there; the console's admin test account is used only for
+ * those markets. Each ends by checking its markets' books add up, to the millionth
+ * (support/books.ts). Between them they make every trading call and every refusal, and the console
+ * settles their markets every way it can:
+ * - one trader buys, retries (getting the first answer), sells, places a limit order that rests,
+ *   sees it among their open orders and cancels it, reads their positions, and has every bad input
+ *   refused, nothing written; the public list never shows the run's market, is kept at Vercel's
+ *   edge, and refreshes after the trade; the console's own form settles it Yes;
+ * - two traders, one's limit order filled by the other's trade, settled No; then at a set
+ *   probability; then cancelled, taking back a sale's profit; then refused at a market's edges: at
+ *   its price limit, past its closing time, once closed, on a draft, and a request ID sent again
+ *   for another request;
+ * - each person's trades a minute are limited.
  */
 
 const environment = () => process.env.SCREEN_CHECK_ENVIRONMENT;
@@ -34,34 +41,8 @@ const onVercel = () => ['preview', 'staging', 'production'].includes(environment
 /** How long the list's edge copies live (the contract's `markets.list`). */
 const EDGE_SECONDS = 60;
 
-const micros = (text: string) => {
-  const negative = text.startsWith('-');
-  const [whole = '0', fraction = ''] = text.replace('-', '').split('.');
-  const value = BigInt(whole) * 1_000_000n + BigInt(fraction.padEnd(6, '0').slice(0, 6));
-  return negative ? -value : value;
-};
-const decimal = (value: bigint) => {
-  const negative = value < 0n;
-  const size = negative ? -value : value;
-  return `${negative ? '-' : ''}${size / 1_000_000n}.${(size % 1_000_000n).toString().padStart(6, '0')}`;
-};
-
-type Answer = { status: number; body: Record<string, unknown>; headers: Record<string, string> };
-
-async function call(
-  as: APIRequestContext,
-  method: 'GET' | 'POST',
-  path: string,
-  data?: unknown,
-): Promise<Answer> {
-  const response = await as.fetch(path, { method, ...(data === undefined ? {} : { data }) });
-  const text = await response.text();
-  return {
-    status: response.status(),
-    body: text ? (JSON.parse(text) as Record<string, unknown>) : {},
-    headers: response.headers(),
-  };
-}
+/** What every account's signup gives it, from the house (infra/supabase/migrations/*_starting_balance.sql). */
+const STARTING = micros('1000');
 
 /** Asks again every half a second until `found` gives something, or `seconds` pass. */
 async function eventually<T>(
@@ -76,10 +57,63 @@ async function eventually<T>(
   }
 }
 
-type Listed = { market: { id: string; state: string; kind: string }; probability: string | null };
+type Listed = { market: { id: string } };
 
-const listedIn = (answer: Answer, id: string) =>
-  (answer.body.markets as Listed[] | undefined)?.find((item) => item.market.id === id);
+/** Whether any page of the public list shows the market. */
+async function onTheList(as: APIRequestContext, id: string): Promise<boolean> {
+  let after: string | null = null;
+  for (let page = 0; page < 20; page++) {
+    const answer = await call(as, 'GET', `/api/v1/markets${after ? `?after=${after}` : ''}`);
+    expect(answer.status, 'the public list answers').toBe(200);
+    if ((answer.body.markets as Listed[]).some((item) => item.market.id === id)) return true;
+    after = (answer.body.next as string | null) ?? null;
+    if (!after) return false;
+  }
+  return false;
+}
+
+/** A test market of the run's own, unlisted, made and opened by the console's admin test account. */
+async function runMarket(
+  admin: APIRequestContext,
+  engine: string,
+  label: string,
+  options: { seed?: string; probability?: string; closesInSeconds?: number; open?: boolean } = {},
+): Promise<string> {
+  const id = newRecordId();
+  const made = await call(admin, 'POST', '/api/v1/admin/markets', {
+    id,
+    question: `${`Trading journey (${engine}, run ${runKey()}): ${label}`.slice(0, 119)}?`,
+    categories: ['general'],
+    rules: `A test market of check run ${runKey()}, the trading journey's.\nIt settles as the journey decides.`,
+    source: { name: "Hrizzup's test desk (a placeholder source)" },
+    opensAt: new Date(Date.now() - 60_000).toISOString(),
+    closesAt: new Date(Date.now() + (options.closesInSeconds ?? 86_400) * 1000).toISOString(),
+    ...(options.seed ? { seed: options.seed } : {}),
+    ...(options.probability ? { probability: options.probability } : {}),
+    listed: false,
+  });
+  expect(made.status, 'the console makes the test market').toBe(201);
+  expect(made.body).toMatchObject({ state: 'draft', listed: false });
+  if (options.open ?? true) {
+    const opened = await call(admin, 'POST', `/api/v1/admin/markets/${id}/open`);
+    expect(opened.body).toMatchObject({ state: 'open' });
+  }
+  return id;
+}
+
+/** A trade, with a request ID of its own unless one is given. */
+function trade(
+  trader: APIRequestContext,
+  marketId: string,
+  order: Record<string, unknown>,
+): Promise<Answer> {
+  return call(trader, 'POST', '/api/v1/trades', { marketId, requestId: randomUUID(), ...order });
+}
+
+/** A refusal by the books: 422, with its reason. */
+function refusedFor(reason: string) {
+  return { status: 422, body: { code: 'REFUSED', defined: true, data: { reason } } };
+}
 
 test.describe('the markets for everyone', () => {
   test.skip(() => environment() === 'production', 'No test accounts on production until launch');
@@ -90,7 +124,7 @@ test.describe('the markets for everyone', () => {
     "Staging's firewall lets only browsers write to the typed API",
   );
 
-  test('a signed-in person lists a test market, trades it, reads their positions, and the console settles it, the payouts adding up', async ({
+  test('a trader of its own lists, buys, retries, sells, places and cancels a limit order, reads their positions, is refused every bad input; the console settles it Yes in its form; the books add up', async ({
     playwright,
     request,
     browser,
@@ -98,66 +132,45 @@ test.describe('the markets for everyone', () => {
     browserName,
   }) => {
     test.setTimeout(300_000);
-    const at = (state: string) =>
-      playwright.request.newContext({ ...(baseURL ? { baseURL } : {}), storageState: state });
-    const admin = await at(adminState(browserName));
-    const trader = await at(signedInState(browserName));
-
-    // The admin makes a test market and opens it, through the console's calls.
-    const id = newRecordId();
-    const made = await call(admin, 'POST', '/api/v1/admin/markets', {
-      id,
-      question: `Trading journey (${browserName}, ${id.slice(-6)}): will the test desk record event T?`,
-      categories: ['general'],
-      rules: 'A test market for the trading journey.\nYes wins if the test desk records event T.',
-      source: { name: "Hrizzup's test desk (a placeholder source)" },
-      opensAt: new Date(Date.now() - 60_000).toISOString(),
-      closesAt: new Date(Date.now() + 86_400_000).toISOString(),
+    const keys = stagingKeys();
+    if (!keys) throw new Error("Staging's Supabase keys are missing, so no account can sign in");
+    const engine = browserName as Engine;
+    const admin = await playwright.request.newContext({
+      ...(baseURL ? { baseURL } : {}),
+      storageState: adminState(browserName),
     });
-    expect(made.status).toBe(201);
-    expect((await call(admin, 'POST', `/api/v1/admin/markets/${id}/open`)).body).toMatchObject({
-      state: 'open',
-    });
+    const { as: trader } = await newRunTrader(keys, playwright, baseURL, engine, 'trade-one');
+    const id = await runMarket(admin, browserName, 'will the test desk record event T');
 
-    // Anyone sees it in the list: opening it cleared the list's edge copies, so it shows within
-    // seconds.
-    const listed = await eventually(20, async () =>
-      listedIn(await call(request, 'GET', '/api/v1/markets'), id),
+    // The run's market stays off the public list, which is kept at Vercel's edge.
+    expect(await onTheList(request, id), "the run's market is never on the public list").toBe(
+      false,
     );
-    expect(listed, 'the new market is in the public list').toMatchObject({
-      market: { id, state: 'open', kind: 'yes_no' },
-      probability: '0.50000000',
-    });
-
-    // The list is kept at the edge: a second read comes from it.
     let ageAtHit = 0;
     if (onVercel()) {
-      const again = await call(request, 'GET', '/api/v1/markets');
-      expect(again.headers['cache-control']).toBe('public, max-age=0, must-revalidate');
-      expect(again.headers['x-vercel-cache'], 'the second read comes from the edge').toMatch(
-        /^(HIT|STALE)$/,
-      );
-      ageAtHit = Number(again.headers.age ?? '0');
-      expect(ageAtHit, "the edge's copy is young enough to show a refresh").toBeLessThan(30);
+      // Opening the market marked the list's edge copies stale, so a young copy is served from
+      // the edge within seconds (other runs' trades refresh it too: the list is everyone's).
+      const again = await eventually(20, async () => {
+        const answer = await call(request, 'GET', '/api/v1/markets');
+        return answer.headers['x-vercel-cache'] === 'HIT' && Number(answer.headers.age ?? '0') < 10
+          ? answer
+          : undefined;
+      });
+      expect(again, 'a young copy is served from the edge').toBeTruthy();
+      expect(again?.headers['cache-control']).toBe('public, max-age=0, must-revalidate');
+      ageAtHit = Number(again?.headers.age ?? '0');
     }
 
-    // The trader's balance before: play money from global-setup.ts.
+    // A fresh account: exactly the starting balance its signup gave it, and no positions.
     const start = await call(trader, 'GET', '/api/v1/me/positions');
     expect(start.status).toBe(200);
     expect(start.headers['cache-control']).toBe('private, no-store');
-    const balance0 = micros(String(start.body.balance));
-    expect(balance0, 'the test account has play money').toBeGreaterThanOrEqual(micros('1000'));
+    expect(start.body).toEqual({ balance: '1000.000000', positions: [], next: null });
 
     // Buys Ṁ10 of Yes, with a request ID of its own.
-    const purchase = {
-      marketId: id,
-      requestId: randomUUID(),
-      action: 'buy',
-      outcome: 'yes',
-      amount: '10',
-    };
+    const purchase = { requestId: randomUUID(), action: 'buy', outcome: 'yes', amount: '10' };
     const tradedAt = Date.now();
-    const bought = await call(trader, 'POST', '/api/v1/trades', purchase);
+    const bought = await trade(trader, id, purchase);
     expect(bought.status).toBe(200);
     expect(bought.headers['cache-control']).toBe('private, no-store');
     expect(bought.body).toMatchObject({
@@ -167,20 +180,24 @@ test.describe('the markets for everyone', () => {
       outcome: 'yes',
       amount: '10.000000',
       probBefore: '0.50000000',
-      balance: decimal(balance0 - micros('10')),
+      balance: '990.000000',
     });
-    const probAfter = String(bought.body.probAfter);
-    expect(Number(probAfter)).toBeGreaterThan(0.5);
+    expect(Number(bought.body.probAfter)).toBeGreaterThan(0.5);
 
-    // The list shows the new price within seconds: the trade cleared its edge copies, well before
-    // the copy it served would have aged out on its own.
-    const refreshed = await eventually(EDGE_SECONDS, async () => {
-      const item = listedIn(await call(request, 'GET', '/api/v1/markets'), id);
-      return item?.probability === probAfter ? item : undefined;
-    });
-    expect(refreshed, "the list shows the trade's price").toBeTruthy();
-    const refreshedAfter = (Date.now() - tradedAt) / 1000;
+    // The trade marked the list's edge copies stale, so a fresh copy is served within seconds,
+    // well before the copy it served would have aged out on its own.
+    let refreshedAfter = 0;
     if (onVercel()) {
+      const fresh = await eventually(EDGE_SECONDS, async () => {
+        const answer = await call(request, 'GET', '/api/v1/markets');
+        const age = Number(answer.headers.age ?? '0');
+        const since = (Date.now() - tradedAt) / 1000;
+        return /^(HIT|MISS)$/.test(answer.headers['x-vercel-cache'] ?? '') && age < since
+          ? answer
+          : undefined;
+      });
+      expect(fresh, 'the list was refreshed after the trade').toBeTruthy();
+      refreshedAfter = (Date.now() - tradedAt) / 1000;
       expect(
         refreshedAfter + ageAtHit,
         'refreshed before the old copy would have expired',
@@ -188,83 +205,82 @@ test.describe('the markets for everyone', () => {
     }
 
     // The same request again answers the same, and trades nothing more.
-    const retried = await call(trader, 'POST', '/api/v1/trades', purchase);
+    const retried = await call(trader, 'POST', '/api/v1/trades', { marketId: id, ...purchase });
     expect(retried.status).toBe(200);
     expect(retried.body).toEqual(bought.body);
-    const afterRetry = await call(trader, 'GET', '/api/v1/me/positions');
-    expect(afterRetry.body.balance).toBe(decimal(balance0 - micros('10')));
+    expect((await holdings(trader, id)).balance).toBe(micros('990'));
 
     // Bad inputs are refused before the books are touched.
-    const fresh = (changes: Record<string, unknown>) => ({
-      ...purchase,
-      requestId: randomUUID(),
-      ...changes,
-    });
     for (const [what, sent] of [
-      ['a limit of 0.5%', fresh({ limitProb: '0.005' })],
-      ['a limit of 99.5%', fresh({ limitProb: '0.995' })],
-      ['an expiry of zero', fresh({ limitProb: '0.4', expiresAt: '1970-01-01T00:00:00Z' })],
-      ['an expiry of the number zero', fresh({ limitProb: '0.4', expiresAt: 0 })],
-      ['an amount of zero', fresh({ amount: '0' })],
-      ['an amount below zero', fresh({ amount: '-5' })],
+      ['a limit of 0.5%', { limitProb: '0.005' }],
+      ['a limit of 99.5%', { limitProb: '0.995' }],
+      ['an expiry of zero', { limitProb: '0.4', expiresAt: '1970-01-01T00:00:00Z' }],
+      ['an expiry of the number zero', { limitProb: '0.4', expiresAt: 0 }],
+      ['an amount of zero', { amount: '0' }],
+      ['an amount below zero', { amount: '-5' }],
     ] as const) {
-      const refused = await call(trader, 'POST', '/api/v1/trades', sent);
+      const refused = await trade(trader, id, {
+        action: 'buy',
+        outcome: 'yes',
+        amount: '1',
+        ...sent,
+      });
       expect(refused.status, what).toBe(400);
       expect(refused.body.code, what).toBe('BAD_REQUEST');
     }
-    const tooMuch = fresh({ amount: decimal(balance0) });
-    const overBalance = await call(trader, 'POST', '/api/v1/trades', tooMuch);
-    expect(overBalance.status).toBe(422);
-    expect(overBalance.body).toMatchObject({
-      code: 'REFUSED',
-      defined: true,
-      data: { reason: 'insufficient_balance' },
-    });
+    const tooMuch = {
+      requestId: randomUUID(),
+      action: 'buy',
+      outcome: 'yes',
+      amount: '990.000001',
+    };
+    expect(
+      await call(trader, 'POST', '/api/v1/trades', { marketId: id, ...tooMuch }),
+    ).toMatchObject(refusedFor('insufficient_balance'));
     // Nothing was written under that request ID: the same ID still trades, once affordable.
-    const affordable = await call(trader, 'POST', '/api/v1/trades', { ...tooMuch, amount: '1' });
+    const affordable = await call(trader, 'POST', '/api/v1/trades', {
+      marketId: id,
+      ...tooMuch,
+      amount: '1',
+    });
     expect(affordable.status, 'the refused request left nothing in the books').toBe(200);
-    expect(affordable.body).toMatchObject({ status: 'filled', requestId: tooMuch.requestId });
-    expect((await call(request, 'POST', '/api/v1/trades', fresh({}))).status).toBe(401);
+    expect(affordable.body).toMatchObject({
+      status: 'filled',
+      requestId: tooMuch.requestId,
+      balance: '989.000000',
+    });
+    const signedOut = await trade(request, id, { action: 'buy', outcome: 'yes', amount: '1' });
+    expect(signedOut.status, 'signed out').toBe(401);
     // A write from another site's page, riding on the session cookie, is refused before it runs.
     const forged = await trader.fetch('/api/v1/trades', {
       method: 'POST',
-      data: fresh({}),
+      data: { marketId: id, requestId: randomUUID(), action: 'buy', outcome: 'yes', amount: '1' },
       headers: { origin: 'https://elsewhere.example', 'sec-fetch-site': 'cross-site' },
     });
     expect(forged.status(), 'a cross-site write is refused').toBe(403);
-    expect(
-      (await call(trader, 'POST', '/api/v1/trades', fresh({ marketId: newRecordId() }))).status,
-    ).toBe(404);
+    const nowhere = await trade(trader, newRecordId(), {
+      action: 'buy',
+      outcome: 'yes',
+      amount: '1',
+    });
+    expect(nowhere.status, 'no such market').toBe(404);
+    expect((await holdings(trader, id)).balance, 'none of them moved any money').toBe(
+      micros('989'),
+    );
 
-    // Sells half of its Yes shares.
+    // Sells half of its Yes shares; more than it holds is refused.
     const held = micros(String((affordable.body.position as { yes: string }).yes));
     const selling = decimal(held / 2n);
-    const sold = await call(trader, 'POST', '/api/v1/trades', {
-      marketId: id,
-      requestId: randomUUID(),
-      action: 'sell',
-      outcome: 'yes',
-      shares: selling,
-    });
+    const sold = await trade(trader, id, { action: 'sell', outcome: 'yes', shares: selling });
     expect(sold.status).toBe(200);
     expect(sold.body).toMatchObject({ status: 'filled', shares: `-${selling}` });
     expect(micros(String(sold.body.amount))).toBeLessThan(0n);
-    const overShares = await call(trader, 'POST', '/api/v1/trades', {
-      marketId: id,
-      requestId: randomUUID(),
-      action: 'sell',
-      outcome: 'yes',
-      shares: decimal(held),
-    });
-    expect(overShares).toMatchObject({
-      status: 422,
-      body: { data: { reason: 'not_enough_shares' } },
-    });
+    expect(
+      await trade(trader, id, { action: 'sell', outcome: 'yes', shares: decimal(held) }),
+    ).toMatchObject(refusedFor('not_enough_shares'));
 
     // A limit order: Ṁ5 more of Yes only at 20% or lower, which rests; then it's cancelled.
-    const limit = await call(trader, 'POST', '/api/v1/trades', {
-      marketId: id,
-      requestId: randomUUID(),
+    const limit = await trade(trader, id, {
       action: 'buy',
       outcome: 'yes',
       amount: '5',
@@ -280,73 +296,209 @@ test.describe('the markets for everyone', () => {
     const orderId = String(limit.body.tradeId);
     const open = await call(trader, 'GET', '/api/v1/me/orders');
     expect(open.headers['cache-control']).toBe('private, no-store');
-    expect(open.body.orders).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ id: orderId, marketId: id, orderAmount: '5.000000' }),
-      ]),
-    );
+    expect(open.body.orders).toEqual([
+      expect.objectContaining({ id: orderId, marketId: id, orderAmount: '5.000000' }),
+    ]);
     const cancel = { marketId: id, orderId, requestId: randomUUID() };
-    const cancelled = await call(trader, 'POST', '/api/v1/orders/cancel', cancel);
-    expect(cancelled).toMatchObject({ status: 200, body: { status: 'cancelled', orderId } });
-    const afterCancel = await call(trader, 'GET', '/api/v1/me/orders');
-    expect((afterCancel.body.orders as { id: string }[]).map((o) => o.id)).not.toContain(orderId);
-    const twice = await call(trader, 'POST', '/api/v1/orders/cancel', {
-      ...cancel,
-      requestId: randomUUID(),
+    expect(await call(trader, 'POST', '/api/v1/orders/cancel', cancel)).toMatchObject({
+      status: 200,
+      body: { status: 'cancelled', orderId },
     });
-    expect(twice).toMatchObject({ status: 422, body: { data: { reason: 'no_open_order' } } });
+    expect((await call(trader, 'GET', '/api/v1/me/orders')).body.orders).toEqual([]);
+    expect(
+      await call(trader, 'POST', '/api/v1/orders/cancel', { ...cancel, requestId: randomUUID() }),
+    ).toMatchObject(refusedFor('no_open_order'));
 
     // Its positions: the Yes shares it kept, at the market's price now.
-    const portfolio = await call(trader, 'GET', '/api/v1/me/positions');
-    const mine = (portfolio.body.positions as { marketId: string; yes: string; no: string }[]).find(
-      (p) => p.marketId === id,
-    );
     const kept = micros(String((sold.body.position as { yes: string }).yes));
-    expect(mine).toMatchObject({ yes: decimal(kept), no: '0.000000', state: 'open' });
-    const balanceBeforeSettling = micros(String(portfolio.body.balance));
+    const portfolio = await call(trader, 'GET', '/api/v1/me/positions');
+    expect(portfolio.body.positions).toEqual([
+      expect.objectContaining({ marketId: id, yes: decimal(kept), no: '0.000000', state: 'open' }),
+    ]);
 
-    // The console settles it Yes, in a browser, as the admin.
-    const context = await browser.newContext({ storageState: adminState(browserName) });
-    const page = await context.newPage();
-    await page.goto(`/console/markets/${id}`);
-    await page.getByRole('button', { name: 'Close the market' }).click();
-    await expect(page.getByTestId('market-state')).toHaveText('Closed');
-    const closed = await call(admin, 'GET', `/api/v1/admin/markets/${id}`);
-    const heldAtClose = micros(String(closed.body.held));
-    await page.getByRole('radio', { name: /^Yes/ }).check();
-    await page.getByLabel('Evidence').fill('The test desk recorded event T (the trading journey).');
-    await page.getByRole('button', { name: 'Settle the market' }).click();
-    await expect(page.getByTestId('market-state')).toHaveText('Settled');
-    // The payouts add up: Ṁ1 a Yes share to the one trader, the rest to the house, all it held.
-    await expect(page.getByTestId('settlement-paid')).toHaveText(
-      `${money(decimal(kept))} to 1 person, and ${money(decimal(heldAtClose - kept))} to the house: all the market held`,
-    );
-    await context.close();
-    const settled = await call(admin, 'GET', `/api/v1/admin/markets/${id}`);
-    const sums = (settled.body.log as { settlement: Record<string, string> | null }[]).at(
-      -1,
-    )?.settlement;
-    expect(sums).toMatchObject({ outcome: 'yes', people: 1, paidToPeople: decimal(kept) });
-    expect(micros(String(sums?.paidToPeople)) + micros(String(sums?.toHouse))).toBe(heldAtClose);
-
-    // The trader has been paid Ṁ1 a Yes share, and the market has left its positions.
-    const paid = await call(trader, 'GET', '/api/v1/me/positions');
-    expect(paid.body.balance).toBe(decimal(balanceBeforeSettling + kept));
-    expect((paid.body.positions as { marketId: string }[]).map((p) => p.marketId)).not.toContain(
-      id,
-    );
-
-    // The list shows it settled, with what won.
-    const done = await eventually(EDGE_SECONDS, async () => {
-      const item = listedIn(await call(request, 'GET', '/api/v1/markets'), id);
-      return item?.market.state === 'settled' ? item : undefined;
+    // The console settles it Yes in its own form, in a browser, as the admin; the books add up.
+    const { paid, heldAtClose } = await settleAndCheckBooks({
+      admin,
+      marketId: id,
+      traders: [{ name: 'the trader', as: trader, start: STARTING }],
+      settlement: { outcome: 'yes' },
+      evidence: 'The test desk recorded event T (the trading journey).',
+      settleWith: async (heldAtClose) => {
+        const context = await browser.newContext({ storageState: adminState(browserName) });
+        const page = await context.newPage();
+        await page.goto(`/console/markets/${id}`);
+        await expect(page.getByTestId('market-state')).toHaveText('Closed');
+        await expect(page.getByTestId('market-listed')).toContainText('Unlisted');
+        await page.getByRole('radio', { name: /^Yes/ }).check();
+        await page
+          .getByLabel('Evidence')
+          .fill('The test desk recorded event T (the trading journey).');
+        await page.getByRole('button', { name: 'Settle the market' }).click();
+        await expect(page.getByTestId('market-state')).toHaveText('Settled');
+        // Ṁ1 a Yes share to the one trader, the rest to the house: all the market held.
+        await expect(page.getByTestId('settlement-paid')).toHaveText(
+          `${money(decimal(kept))} to 1 person, and ${money(decimal(heldAtClose - kept))} to the house: all the market held`,
+        );
+        await context.close();
+      },
     });
-    expect(done).toMatchObject({ market: { result: 'yes' }, probability: null });
+    expect(paid.get('the trader')).toBe(kept);
+    expect(await onTheList(request, id), 'still off the public list once settled').toBe(false);
     console.log(
-      `DONE-TEST (${browserName}, ${environment()}): market ${id}: listed; bought Ṁ10 of Yes (50% to ${(Number(probAfter) * 100).toFixed(2)}%), retried, sold half, a limit order rested and was cancelled; bad inputs refused; the list ${onVercel() ? `was served from the edge (copy ${ageAtHit} s old) and refreshed ${refreshedAfter.toFixed(1)} s after the trade` : 'read (no edge here)'}; settled Yes: ${decimal(kept)} to the trader, ${decimal(heldAtClose - kept)} to the house, all ${decimal(heldAtClose)} it held`,
+      `DONE-TEST (${browserName}, ${environment()}, run ${runKey()}): market ${id}, unlisted: bought Ṁ10 of Yes, retried, sold half, a limit order rested and was cancelled; every bad input refused; ${onVercel() ? `the list came from the edge and refreshed ${refreshedAfter.toFixed(1)} s after the trade` : 'the list read (no edge here)'}; settled Yes in the console's form: ${decimal(kept)} to the trader, ${decimal(heldAtClose - kept)} to the house, all ${decimal(heldAtClose)} it held, to the millionth`,
     );
     await admin.dispose();
     await trader.dispose();
+  });
+
+  test('two traders of its own: a limit order filled by the other, settled No; at a set probability; cancelled, taking back a sale profit; refused at a market edges; the books add up each time', async ({
+    playwright,
+    baseURL,
+    browserName,
+  }) => {
+    test.setTimeout(300_000);
+    const keys = stagingKeys();
+    if (!keys) throw new Error("Staging's Supabase keys are missing, so no account can sign in");
+    const engine = browserName as Engine;
+    const admin = await playwright.request.newContext({
+      ...(baseURL ? { baseURL } : {}),
+      storageState: adminState(browserName),
+    });
+    const ann = (await newRunTrader(keys, playwright, baseURL, engine, 'trade-ann')).as;
+    const raj = (await newRunTrader(keys, playwright, baseURL, engine, 'trade-raj')).as;
+    const balanceOf = async (who: APIRequestContext) => (await holdings(who, '')).balance;
+    expect(await balanceOf(ann), "Ann's starting balance").toBe(STARTING);
+    expect(await balanceOf(raj), "Raj's starting balance").toBe(STARTING);
+
+    // 1. Settled No. Ann's limit order rests below the price; Raj's trade fills it.
+    const no = await runMarket(admin, browserName, 'will event N happen');
+    const traders = async (): Promise<Trader[]> => [
+      { name: 'Ann', as: ann, start: await balanceOf(ann) },
+      { name: 'Raj', as: raj, start: await balanceOf(raj) },
+    ];
+    const atNo = await traders();
+    const resting = await trade(ann, no, {
+      action: 'buy',
+      outcome: 'yes',
+      amount: '20',
+      limitProb: '0.4',
+    });
+    expect(resting.body).toMatchObject({ status: 'resting', limitProb: '0.40000000' });
+    // Ṁ300 of No takes the market from 50% to about 37%, past Ann's 40%.
+    const pushed = await trade(raj, no, { action: 'buy', outcome: 'no', amount: '300' });
+    expect(pushed.body).toMatchObject({ status: 'filled', amount: '300.000000' });
+    expect(Number(pushed.body.probAfter)).toBeLessThan(0.4);
+    const annNow = await holdings(ann, no);
+    const annStart = atNo[0]?.start ?? 0n;
+    expect(annNow.yes > 0n, "Raj's trade filled Ann's resting order: she holds Yes").toBe(true);
+    expect(annNow.balance < annStart, '... and paid for it, out of her balance').toBe(true);
+    expect(await trade(ann, no, { action: 'buy', outcome: 'no', amount: '10' })).toMatchObject({
+      status: 200,
+      body: { status: 'filled' },
+    });
+    await settleAndCheckBooks({
+      admin,
+      marketId: no,
+      traders: atNo,
+      settlement: { outcome: 'no' },
+      evidence: 'The test desk recorded that event N did not happen (the trading journey).',
+    });
+
+    // 2. At a set probability: each Yes share 30%, each No share 70%, rounded down once.
+    const partly = await runMarket(admin, browserName, 'how much of event P happens');
+    const atPartly = await traders();
+    const annYes = await trade(ann, partly, { action: 'buy', outcome: 'yes', amount: '30' });
+    expect(annYes.body).toMatchObject({ status: 'filled' });
+    expect(await trade(raj, partly, { action: 'buy', outcome: 'no', amount: '40' })).toMatchObject({
+      body: { status: 'filled' },
+    });
+    const third = micros(String((annYes.body.position as { yes: string }).yes)) / 3n;
+    expect(
+      await trade(ann, partly, { action: 'sell', outcome: 'yes', shares: decimal(third) }),
+    ).toMatchObject({ body: { status: 'filled' } });
+    await settleAndCheckBooks({
+      admin,
+      marketId: partly,
+      traders: atPartly,
+      settlement: { outcome: 'probability', probability: '0.3' },
+      evidence: 'The test desk recorded 30% of event P (the trading journey).',
+    });
+
+    // 3. Cancelled: Ann buys, Raj's buy lifts the price, Ann sells at a profit; the cancel gives
+    // each back what they put in less what they took out, so Ann's profit is taken back.
+    const called = await runMarket(admin, browserName, 'will event C be recorded at all');
+    const atCalled = await traders();
+    const annIn = await trade(ann, called, { action: 'buy', outcome: 'yes', amount: '50' });
+    expect(annIn.body).toMatchObject({ status: 'filled', amount: '50.000000' });
+    expect(
+      await trade(raj, called, { action: 'buy', outcome: 'yes', amount: '100' }),
+    ).toMatchObject({
+      body: { status: 'filled' },
+    });
+    const annOut = await trade(ann, called, {
+      action: 'sell',
+      outcome: 'yes',
+      shares: String((annIn.body.position as { yes: string }).yes),
+    });
+    expect(annOut.body).toMatchObject({ status: 'filled' });
+    expect(-micros(String(annOut.body.amount)), 'Ann sold at a profit').toBeGreaterThan(
+      micros('50'),
+    );
+    const { paid } = await settleAndCheckBooks({
+      admin,
+      marketId: called,
+      traders: atCalled,
+      settlement: { outcome: 'cancel', reason: 'The test desk recorded nothing (the journey).' },
+      evidence: 'The test desk recorded nothing about event C (the trading journey).',
+    });
+    expect((paid.get('Ann') ?? 0n) < 0n, "the cancel takes Ann's sale profit back").toBe(true);
+
+    // 4. Refused at a market's edges, on a market that opens at the 99% limit and closes in 45
+    // seconds: Yes can't be bought at all there, since a buy stops at 99%.
+    const edge = await runMarket(admin, browserName, 'will event E happen soon', {
+      probability: '0.99',
+      closesInSeconds: 45,
+    });
+    const closesAt = Date.parse(
+      String((await call(admin, 'GET', `/api/v1/admin/markets/${edge}`)).body.closesAt),
+    );
+    const atEdge = await traders();
+    expect(await trade(ann, edge, { action: 'buy', outcome: 'yes', amount: '1' })).toMatchObject(
+      refusedFor('price_limit'),
+    );
+    const sent = { requestId: randomUUID(), action: 'buy', outcome: 'no', amount: '1' };
+    expect((await call(raj, 'POST', '/api/v1/trades', { marketId: edge, ...sent })).status).toBe(
+      200,
+    );
+    const reused = await call(raj, 'POST', '/api/v1/trades', {
+      marketId: edge,
+      ...sent,
+      amount: '2',
+    });
+    expect(reused.status, 'a request ID sent again for another request').toBe(409);
+    const draft = await runMarket(admin, browserName, 'a draft nobody can bet on', { open: false });
+    expect(
+      (await trade(raj, draft, { action: 'buy', outcome: 'yes', amount: '1' })).status,
+      'a draft answers as no market at all',
+    ).toBe(404);
+    // Past its own closing time, with three seconds to spare for the clocks.
+    await new Promise((resolve) => setTimeout(resolve, Math.max(0, closesAt + 3000 - Date.now())));
+    expect(await trade(raj, edge, { action: 'buy', outcome: 'no', amount: '1' })).toMatchObject(
+      refusedFor('market_closed'),
+    );
+    await settleAndCheckBooks({
+      admin,
+      marketId: edge,
+      traders: atEdge,
+      settlement: { outcome: 'yes' },
+      evidence: 'The test desk recorded event E (the trading journey).',
+    });
+    expect(await trade(raj, edge, { action: 'buy', outcome: 'no', amount: '1' })).toMatchObject(
+      refusedFor('market_not_open'),
+    );
+    await admin.dispose();
+    await ann.dispose();
+    await raj.dispose();
   });
 
   test("each person's trades a minute are limited, and the call says when to try again", async ({
@@ -357,57 +509,37 @@ test.describe('the markets for everyone', () => {
     test.setTimeout(180_000);
     const keys = stagingKeys();
     if (!keys) throw new Error("Staging's Supabase keys are missing, so no account can sign in");
-    // An account of its own, so using up a minute of trading holds up no other run.
-    const email = journeyAddress('trade', browserName as Engine);
-    await createJourneyAccount(keys, email);
-    try {
-      const admin = createClient(keys.url, keys.secretKey, {
-        auth: { persistSession: false, autoRefreshToken: false },
-      });
-      const app = createClient(keys.url, keys.publishableKey, {
-        auth: { persistSession: false, autoRefreshToken: false },
-      });
-      const { data } = await admin.auth.admin.generateLink({ type: 'magiclink', email });
-      const { data: session } = await app.auth.verifyOtp({
-        token_hash: data.properties?.hashed_token ?? '',
-        type: 'magiclink',
-      });
-      const token = session.session?.access_token;
-      expect(token, 'a session for the journey account').toBeTruthy();
-      const person = await playwright.request.newContext({
-        ...(baseURL ? { baseURL } : {}),
-        storageState: signedOutState(browserName),
-        extraHTTPHeaders: { authorization: `Bearer ${token}` },
-      });
-      // Trades in a market that doesn't exist: each is counted, then answered "no such market",
-      // with nothing written anywhere. The window slides, so if the calls cross a minute's
-      // boundary the limit can let a few more through: it must stop one by the 40th.
-      const nowhere = newRecordId();
-      const answers: Answer[] = [];
-      for (let n = 0; n < 40; n++) {
-        const answer = await call(person, 'POST', '/api/v1/trades', {
-          marketId: nowhere,
-          requestId: randomUUID(),
-          action: 'buy',
-          outcome: 'yes',
-          amount: '1',
-        });
-        answers.push(answer);
-        if (answer.status === 429) break;
-      }
-      const statuses = answers.map((answer) => answer.status);
-      expect(statuses.slice(0, 30), 'the first 30 in a minute go through').toEqual(
-        Array(30).fill(404),
-      );
-      const limited = answers.at(-1) as Answer;
-      expect(limited.status, 'a call over 30 a minute waits').toBe(429);
-      expect(limited.body).toMatchObject({ code: 'TOO_MANY_REQUESTS', defined: true });
-      expect(Number(limited.headers['retry-after'])).toBeGreaterThan(0);
-      expect(Number(limited.headers['retry-after'])).toBeLessThanOrEqual(60);
-      expect(limited.headers['cache-control']).toBe('private, no-store');
-      await person.dispose();
-    } finally {
-      await deleteJourneyAccount(keys, email);
+    // An account of its own, so using up a minute of trading holds up no other test or run.
+    const { as: person } = await newRunTrader(
+      keys,
+      playwright,
+      baseURL,
+      browserName as Engine,
+      'trade-limit',
+    );
+    // Trades in a market that doesn't exist: each is counted, then answered "no such market",
+    // with nothing written anywhere. The window slides, so if the calls cross a minute's
+    // boundary the limit can let a few more through: it must stop one by the 40th.
+    const nowhere = newRecordId();
+    const answers: Answer[] = [];
+    for (let n = 0; n < 40; n++) {
+      const answer = await trade(person, nowhere, { action: 'buy', outcome: 'yes', amount: '1' });
+      answers.push(answer);
+      if (answer.status === 429) break;
     }
+    const statuses = answers.map((answer) => answer.status);
+    expect(statuses.slice(0, 30), 'the first 30 in a minute go through').toEqual(
+      Array(30).fill(404),
+    );
+    const limited = answers.at(-1) as Answer;
+    expect(limited.status, 'a call over 30 a minute waits').toBe(429);
+    expect(limited.body).toMatchObject({ code: 'TOO_MANY_REQUESTS', defined: true });
+    expect(Number(limited.headers['retry-after'])).toBeGreaterThan(0);
+    expect(Number(limited.headers['retry-after'])).toBeLessThanOrEqual(60);
+    expect(limited.headers['cache-control']).toBe('private, no-store');
+    expect((await holdings(person, nowhere)).balance, 'and none of it moved any money').toBe(
+      STARTING,
+    );
+    await person.dispose();
   });
 });

@@ -120,6 +120,7 @@ type MarketRow = {
   probability: string | null;
   held: string;
   trades: number;
+  listed: boolean;
   log: LogRow[] | null;
 };
 
@@ -167,6 +168,7 @@ function toMarket(row: MarketRow): ConsoleMarket {
     probability: row.probability,
     held: row.held,
     trades: row.trades,
+    listed: row.listed,
   };
 }
 
@@ -249,7 +251,10 @@ export function getMarket(
   );
 }
 
-/** A new yes-or-no market, as a draft; the same ID again gets back the market it made. */
+/**
+ * A new yes-or-no market, as a draft, listed in the public list or not; the same ID again gets
+ * back the market it made.
+ */
 export function createMarket(
   pool: Database,
   account: string,
@@ -259,7 +264,7 @@ export function createMarket(
     toMarketWithLog(
       await answer<MarketRow>(
         tx,
-        'select admin.create_market($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) as answer',
+        'select admin.create_market($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) as answer',
         [
           input.id,
           input.question,
@@ -271,6 +276,7 @@ export function createMarket(
           input.closesAt,
           input.probability,
           input.seed,
+          input.listed,
         ],
       ),
     ),

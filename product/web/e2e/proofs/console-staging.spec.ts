@@ -4,14 +4,15 @@ import { trade } from '@hrizzup/ledger';
 import { expect, test } from '@playwright/test';
 import pg from 'pg';
 import { money } from '../../lib/console-format.ts';
+import { engineAccount } from '../support/run.ts';
 import { adminState } from '../support/states.ts';
-import { TEST_ACCOUNTS } from '../support/test-accounts.ts';
 
 /**
  * PLAN.md step 1.7c's done-test, on staging itself, with a real bet in it: as the market
  * console's admin test account, in the console in a real browser, an admin creates a test market,
- * opens it, closes it and settles it Yes; in between, the Chromium screen-check account bets on
- * Yes through the ledger's own trade() (nothing can bet through the typed API until step 1.7d).
+ * opens it (unlisted, as every run's market is), closes it and settles it Yes; in between, the run's
+ * own Chromium account bets on Yes through the ledger's own trade(), from the Ṁ1,000 its signup gave
+ * it (it was written before the typed API could bet, step 1.7d).
  * The console's log shows each step, and what it paid comes to all the market held.
  *
  * Not part of the checks: it runs only when asked, against staging, and leaves a settled test
@@ -66,18 +67,13 @@ test('on staging, an admin creates, opens, closes and settles a market in the co
   expect(baseURL, 'against staging itself').toBe('https://staging.hrizzup.com');
   const db = stagingDatabase();
   try {
-    // The trader: the Chromium screen-check account, with play money from the house the first time.
+    // The trader: this run's own Chromium account (global-setup.ts), with its starting balance.
     const { rows: users } = await db.query<{ id: string }>(
       'select id from auth.users where email = $1',
-      [TEST_ACCOUNTS.chromium],
+      [engineAccount('chromium')],
     );
     const trader = users[0]?.id as string;
-    expect(trader, 'the screen-check account').toBeTruthy();
-    await db.query(
-      `select ledger.open_account($1, 1000)
-       where not exists (select 1 from ledger.accounts where kind = 'person' and user_id = $1)`,
-      [trader],
-    );
+    expect(trader, "the run's own account").toBeTruthy();
     const balanceOf = async () => {
       const { rows } = await db.query<{ balance: string }>(
         `select balance::text from ledger.accounts where kind = 'person' and user_id = $1`,
@@ -101,6 +97,7 @@ test('on staging, an admin creates, opens, closes and settles a market in the co
         "A test market for step 1.7c's done-test on staging, with one bet in it.\nYes wins if the test desk records event A.",
       );
     await page.getByLabel('Settlement source').fill("Hrizzup's test desk (a placeholder source)");
+    await page.getByLabel('Keep it off the public list').check();
     await page.getByRole('button', { name: 'Create the draft' }).click();
     await expect(page.getByRole('heading', { level: 1, name: question })).toBeVisible();
     const id = page.url().split('/').pop() as string;

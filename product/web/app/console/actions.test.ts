@@ -86,7 +86,17 @@ describe("the console's forms, to an admin", () => {
       closesAt: '2026-11-17T12:30:00.000Z',
       probability: '0.5',
       seed: '1000',
+      listed: true,
     });
+  });
+
+  it('create a test market off the public list when its box is ticked', async () => {
+    consoleAdmin.mockResolvedValue({ account: 'admin', pool: {} });
+    markets.create.mockResolvedValue({ id: ID });
+    await expect(
+      createMarketAction(START, form({ ...goodMarket, unlisted: 'on' })),
+    ).rejects.toThrow(`REDIRECT /console/markets/${ID}`);
+    expect(markets.create).toHaveBeenCalledWith(expect.objectContaining({ listed: false }));
   });
 
   it("answer a bad input in words, keeping what was typed, and don't call the API", async () => {

@@ -91,6 +91,11 @@ export default async function ConsoleMarketPage({ params }: Props) {
           <Detail term="Categories">
             {market.categories.map((code) => CATEGORY_NAMES.get(code) ?? code).join(', ')}
           </Detail>
+          <Detail term="Public list">
+            <span data-testid="market-listed">
+              {market.listed ? 'Listed' : 'Unlisted: a test market, reached only by its address'}
+            </span>
+          </Detail>
           <Detail term="Rules">
             <span className="whitespace-pre-line">{market.rules}</span>
           </Detail>

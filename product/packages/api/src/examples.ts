@@ -92,6 +92,7 @@ export const consoleMarketWithLog: ConsoleMarketWithLog = {
   probability: '0.50000000',
   held: '1000.000000',
   trades: 0,
+  listed: true,
   log: [
     {
       id: 1,

@@ -72,6 +72,7 @@ function draft(changes: Partial<CreateMarketInput> = {}): CreateMarketInput {
     closesAt: new Date(Date.now() + 86_400_000).toISOString(),
     probability: '0.5',
     seed: '1000',
+    listed: true,
     ...changes,
   };
 }

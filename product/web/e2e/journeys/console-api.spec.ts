@@ -1,5 +1,6 @@
 import { type APIRequestContext, expect, test } from '@playwright/test';
 import { newRecordId } from '../../lib/record-id.ts';
+import { runKey } from '../support/run.ts';
 import { adminState, signedInState } from '../support/states.ts';
 import { ADMIN_TEST_ACCOUNT } from '../support/test-accounts.ts';
 
@@ -123,17 +124,19 @@ test('an admin creates, opens, closes and settles a market; the log shows it, an
   const id = newRecordId();
   const market = {
     id,
-    question: `Journey test ${id.slice(-6)}: will the test desk record event A?`,
+    question: `Journey test (run ${runKey()}, ${id.slice(-6)}): will the test desk record event A?`,
     categories: ['general'],
     rules: 'A test market for the console journey.\nYes wins if the test desk records event A.',
     source: { name: "Hrizzup's test desk (a placeholder source)" },
     opensAt: new Date(Date.now() - 60_000).toISOString(),
     closesAt: new Date(Date.now() + 86_400_000).toISOString(),
+    // A test market of the run's: kept off staging's public list, as every run's markets are.
+    listed: false,
   };
 
   const created = await call(request, 'POST', '/api/v1/admin/markets', headers, market);
   expect(created.status).toBe(201);
-  expect(created.body).toMatchObject({ id, state: 'draft', held: '0.000000' });
+  expect(created.body).toMatchObject({ id, state: 'draft', held: '0.000000', listed: false });
   expect(created.caching).toBe('private, no-store');
   // A retried create gets back the same market; the same ID for another question is refused.
   const again = await call(request, 'POST', '/api/v1/admin/markets', headers, market);

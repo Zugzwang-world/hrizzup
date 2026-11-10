@@ -92,6 +92,12 @@ export const consoleMarket = z.object({
   /** The play money the market holds now: nothing once settled. */
   held: decimal,
   trades: z.number().int().nonnegative(),
+  /**
+   * Whether it shows in the public list (`markets.list`). An unlisted market is traded and settled
+   * like any other, by its address, but never listed, as on Manifold; the checks' test markets are
+   * unlisted. Chosen when it's made, never changed after.
+   */
+  listed: z.boolean(),
 });
 
 /** One line of a market's log: who did what and when; for a settlement, how, why and what it paid. */
@@ -143,6 +149,8 @@ export const createMarketInput = z
     closesAt: moment,
     probability: probability.default('0.5'),
     seed: seed.default('1000'),
+    /** Whether it shows in the public list: yes unless asked otherwise (a test market). */
+    listed: z.boolean().default(true),
   })
   .superRefine((input, ctx) => {
     const now = new Date().toISOString();

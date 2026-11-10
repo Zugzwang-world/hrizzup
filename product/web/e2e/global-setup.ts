@@ -2,14 +2,12 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import type { FullConfig } from '@playwright/test';
 import { CONSOLE_FIXTURE_MARKET } from './pages.ts';
 import { asBrowserCookie, BYPASS_COOKIE, bypassCookieValue } from './support/bypass.ts';
-import { ensurePlayMoney } from './support/play-money.ts';
+import { engineAccount, runKey } from './support/run.ts';
 import { adminState, signedInState, signedOutState, statesFolder } from './support/states.ts';
 import {
   ADMIN_TEST_ACCOUNT,
-  type Engine,
+  ENGINES,
   stagingKeys,
-  sweepJourneyAccounts,
-  TEST_ACCOUNTS,
   testSessionCookies,
 } from './support/test-accounts.ts';
 
@@ -18,17 +16,16 @@ import {
  * is (from its /api/health), and save each browser engine's starting states:
  * - signed out: on a protected deployment, only Vercel's bypass cookie (support/bypass.ts), so
  *   the bypass secret itself never travels with the browser's requests;
- * - signed in, outside production: the same, plus a fresh session for the engine's test
- *   account (support/test-accounts.ts).
+ * - signed in, outside production: the same, plus a session for the engine's own account of this
+ *   run, made now (support/run.ts, `engineAccount`): every run has its own, so no two runs ever
+ *   share one;
  * - as the market console's admin test account, outside production: one session, shared by both
  *   engines (each sign-in counts against staging's limit of 30 a 5 minutes from one address, and
  *   a run is over long before the session's hour is up), for the console's screen check and
- *   journeys.
- * Outside production it also deletes any account a sign-in journey made for itself that a
- * broken run left behind (support/test-accounts.ts, `sweepJourneyAccounts`), makes sure the
- * console's fixture market exists, settled, for the screen check of a market's page
- * (`ensureFixtureMarket`), and keeps play money on the engines' test accounts for the trading
- * journeys (support/play-money.ts, `ensurePlayMoney`).
+ *   journeys, which use it only for the run's own markets.
+ * Outside production it also makes sure the console's fixture market exists, settled and
+ * unlisted, for the screen check of a market's page (`ensureFixtureMarket`): the one market runs
+ * share, and only ever read. Every journey that trades makes its own accounts and its own market.
  * The states go in a temporary folder outside the repository (support/states.ts), never
  * uploaded, and deleted when the run ends (global-teardown.ts).
  */
@@ -49,14 +46,14 @@ export default async function globalSetup(config: FullConfig) {
     ? [asBrowserCookie(baseURL, BYPASS_COOKIE, await bypassCookieValue(baseURL, secret))]
     : [];
   const keys = environment === 'production' ? null : stagingKeys();
-  if (keys) await sweepJourneyAccounts(keys);
+  console.log(`Check run ${runKey()}: its accounts and markets carry this key`);
   const admin = keys ? await testSessionCookies(keys, ADMIN_TEST_ACCOUNT) : [];
-  for (const engine of Object.keys(TEST_ACCOUNTS) as Engine[]) {
+  for (const engine of ENGINES) {
     const save = (file: string, cookies: typeof bypass) =>
       writeFile(file, JSON.stringify({ cookies, origins: [] }), { mode: 0o600 });
     await save(signedOutState(engine), bypass);
     if (!keys) continue;
-    const session = await testSessionCookies(keys, TEST_ACCOUNTS[engine]);
+    const session = await testSessionCookies(keys, engineAccount(engine), { create: true });
     await save(signedInState(engine), [
       ...bypass,
       ...session.map(({ name, value }) => asBrowserCookie(baseURL, name, value)),
@@ -70,15 +67,14 @@ export default async function globalSetup(config: FullConfig) {
     // The same session, as the website's own cookies, for the console's calls.
     const cookie = admin.map(({ name, value }) => `${name}=${value}`).join('; ');
     await ensureFixtureMarket(baseURL, { ...headers, cookie });
-    // Play money for the engines' test accounts (made above), for the trading journeys.
-    await ensurePlayMoney(Object.values(TEST_ACCOUNTS));
   }
 }
 
 /**
- * The console's fixture market (pages.ts, CONSOLE_FIXTURE_MARKET): made, opened, closed and
- * settled Yes through the console's calls the first time, as the admin test account, and found
- * again by its ID on every later run, so the screen check sees a market page with its whole log.
+ * The console's fixture market (pages.ts, CONSOLE_FIXTURE_MARKET): made (unlisted, a test market),
+ * opened, closed and settled Yes through the console's calls the first time, as the admin test
+ * account, and found again by its ID on every later run, so the screen check sees a market page
+ * with its whole log.
  * Several runs can do this at once (checks of other pull requests, this Mac): making it twice
  * gets back the same market, and a step another run has already taken is taken as done, so it
  * always ends settled, or the run fails saying why.
@@ -127,6 +123,7 @@ async function ensureFixtureMarket(baseURL: string, headers: Record<string, stri
       source: { name: "Hrizzup's test desk (a placeholder source)" },
       opensAt: new Date(Date.now() - 60_000).toISOString(),
       closesAt: new Date(Date.now() + 86_400_000).toISOString(),
+      listed: false,
     });
     if (made.status !== 201) {
       throw new Error(`Couldn't make the console's fixture market (${made.status})`);

@@ -1,11 +1,9 @@
+import { readFile } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
-import { createClient } from '@supabase/supabase-js';
-import {
-  type Engine,
-  ensureTestAccount,
-  stagingKeys,
-  TEST_ACCOUNTS,
-} from '../support/test-accounts.ts';
+import { accessTokenFromCookies } from '../../lib/api/context.ts';
+import { engineAccount } from '../support/run.ts';
+import { signedInState } from '../support/states.ts';
+import { type Engine, stagingKeys } from '../support/test-accounts.ts';
 
 /**
  * Journey: the typed API at /api/v1 (PLAN.md step 1.5c), called as the app calls it, over HTTP.
@@ -53,23 +51,18 @@ test('who-am-I refuses a stranger and answers the signed-in account', async ({
   const keys = stagingKeys();
   if (!keys)
     throw new Error("Staging's Supabase keys are missing, so the test account can't sign in");
-  const email = TEST_ACCOUNTS[browserName as Engine];
-  await ensureTestAccount(keys, email);
-  // The app signs in with its own token; this is that token, from a fresh one-time sign-in.
-  const admin = createClient(keys.url, keys.secretKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-  const app = createClient(keys.url, keys.publishableKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-  let token: string | undefined;
-  for (let attempt = 1; attempt <= 5 && !token; attempt++) {
-    const { data } = await admin.auth.admin.generateLink({ type: 'magiclink', email });
-    const hash = data.properties?.hashed_token ?? '';
-    const { data: signedIn } = await app.auth.verifyOtp({ token_hash: hash, type: 'magiclink' });
-    token = signedIn.session?.access_token;
-    if (!token) await new Promise((r) => setTimeout(r, 500 + Math.random() * 2000));
-  }
+  // The engine's own account of this run (made by global-setup.ts).
+  const email = engineAccount(browserName as Engine);
+  // The app signs in with its own token: here, the access token of the engine account's session
+  // that global-setup.ts made, read from its cookies exactly as the API reads them, so the run
+  // signs in no more often than it must (staging allows 30 sign-ins in 5 minutes per address).
+  const saved = JSON.parse(await readFile(signedInState(browserName), 'utf8')) as {
+    cookies: { name: string; value: string }[];
+  };
+  const token = await accessTokenFromCookies(
+    saved.cookies.map((c) => `${c.name}=${c.value}`).join('; '),
+    keys.url,
+  );
   expect(token, 'a session for the test account').toBeTruthy();
   const answered = await request.get('/api/v1/me', {
     headers: { authorization: `Bearer ${token}` },
@@ -77,7 +70,4 @@ test('who-am-I refuses a stranger and answers the signed-in account', async ({
   expect(answered.status()).toBe(200);
   expect(await answered.json()).toMatchObject({ email, signedInWith: 'test_account' });
   expect(answered.headers()['cache-control']).toBe('private, no-store');
-  // Only this session: the test account is shared with other runs, whose sessions a
-  // global sign-out would end (supabase-js signs out everywhere unless told otherwise).
-  await app.auth.signOut({ scope: 'local' });
 });

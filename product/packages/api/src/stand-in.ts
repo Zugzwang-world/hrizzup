@@ -141,6 +141,7 @@ export function standIn(options: { signedIn?: boolean; admin?: boolean } = {}) {
             pool: { yes: '0.000000', no: '0.000000' },
             probability: null,
             held: '0.000000',
+            listed: input.listed,
             log: examples.consoleMarketWithLog.log
               .filter((line) => line.action === 'create')
               .map((line) => ({ ...line, at: now })),
