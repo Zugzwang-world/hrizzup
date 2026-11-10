@@ -23,6 +23,15 @@ export function currentEnvironment(env: Env = process.env): Environment {
   }
 }
 
+/**
+ * Bots' API keys (PLAN.md step 3.5a) work on staging, its previews and this Mac, the demo, and not on
+ * production until its API opens at launch (step 5.2): there, making a key answers "not set up
+ * here" and a request with a key is refused.
+ */
+export function apiKeysEnabled(env: Env = process.env): boolean {
+  return currentEnvironment(env) !== 'production';
+}
+
 /** The sign-in test page and Google sign-in run everywhere except production, until launch. */
 export function signInTestEnabled(env: Env = process.env): boolean {
   return currentEnvironment(env) !== 'production';

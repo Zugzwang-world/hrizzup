@@ -1,6 +1,7 @@
 import { type Market, validate } from '@hrizzup/agreement';
 import { z } from 'zod';
 import { decimal, marketState, moment, probability, recordId } from './console.ts';
+import { forbidden } from './keys.ts';
 
 /**
  * The markets' part of the contract for everyone (PLAN.md step 1.7d; blueprint section 13): the list
@@ -205,6 +206,8 @@ export const ordersPageInput = z.strictObject({ after: orderId.optional() }).opt
 /** The errors a trading call may answer, besides a refused input (400, BAD_REQUEST). */
 export const tradingErrors = {
   UNAUTHORIZED: { status: 401, message: 'Not signed in' },
+  /** A read-only API key: only a trading key may trade. */
+  FORBIDDEN: forbidden,
   NOT_FOUND: { status: 404, message: 'No such market' },
   CONFLICT: {
     status: 409,
@@ -221,6 +224,20 @@ export const tradingErrors = {
     data: z.object({ retryAfterSeconds: z.number().int().positive() }),
   },
   SERVICE_UNAVAILABLE: { status: 503, message: 'The database is busy: try again' },
+} as const;
+
+/**
+ * The errors a personal read (your balance, positions and orders) may answer: nobody signed in (or
+ * an API key that isn't valid), or more than an API key's reads a minute.
+ */
+export const personalReadErrors = {
+  UNAUTHORIZED: tradingErrors.UNAUTHORIZED,
+  TOO_MANY_REQUESTS: {
+    status: 429,
+    message: 'Too many reads with this key: try again in a moment',
+    data: z.object({ retryAfterSeconds: z.number().int().positive() }),
+  },
+  SERVICE_UNAVAILABLE: tradingErrors.SERVICE_UNAVAILABLE,
 } as const;
 
 export type Side = z.infer<typeof side>;

@@ -32,6 +32,17 @@ export {
   noInput,
 } from './contract.ts';
 export {
+  type ApiKey,
+  type CreatedKey,
+  type CreateKeyInput,
+  type KeyList,
+  type KeyRefusal,
+  type KeyScope,
+  keyScope,
+  type RevokedKey,
+  type RevokeKeyInput,
+} from './keys.ts';
+export {
   type ClosePerpInput,
   type ConsolePerp,
   type ConsolePerpWithLog,

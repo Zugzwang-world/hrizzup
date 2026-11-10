@@ -240,3 +240,54 @@ export async function closePerpAction(request: {
     return explain(error);
   }
 }
+
+// API keys ---------------------------------------------------------------------------------------------
+
+export type KeyAnswer = Answer & { secret?: string };
+
+const KEY_REFUSALS: Partial<Record<string, string>> = {
+  UNAUTHORIZED: 'Sign in first.',
+  REFUSED: 'You hold five live keys. Revoke one first.',
+  TOO_MANY_REQUESTS: 'You can make at most ten keys an hour. Try again later.',
+  NOT_FOUND: 'That key has already been revoked.',
+  SERVICE_UNAVAILABLE: 'Keys are not set up here, or the database is busy. Try again.',
+};
+
+function explainKey(error: unknown): Answer {
+  if (!(error instanceof ORPCError)) throw error;
+  if (error.code === 'BAD_REQUEST' && error.cause instanceof ValidationError) {
+    const reasons = error.cause.issues.map((issue) => `${issue.message}.`);
+    return { ok: false, message: [...new Set(reasons)].join(' ') };
+  }
+  const words = KEY_REFUSALS[error.code];
+  if (!words) throw error;
+  return { ok: false, message: words };
+}
+
+/** Makes an API key for a bot, read-only or trading: its text comes back this once. */
+export async function createKeyAction(name: string, scope: 'read' | 'trade'): Promise<KeyAnswer> {
+  sandboxOnly();
+  try {
+    const made = await serverApi.keys.create({ name, scope });
+    revalidatePath('/sandbox/keys');
+    return {
+      ok: true,
+      message: `Made "${made.key.name}". Copy it now: it won't be shown again.`,
+      secret: made.secret,
+    };
+  } catch (error) {
+    return explainKey(error);
+  }
+}
+
+/** Revokes one of the person's API keys: it stops working at once. */
+export async function revokeKeyAction(id: string): Promise<Answer> {
+  sandboxOnly();
+  try {
+    const revoked = await serverApi.keys.revoke({ id });
+    revalidatePath('/sandbox/keys');
+    return { ok: true, message: `Revoked "${revoked.key.name}". It no longer works.` };
+  } catch (error) {
+    return explainKey(error);
+  }
+}

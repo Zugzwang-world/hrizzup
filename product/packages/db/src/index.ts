@@ -1,5 +1,6 @@
 export {
   APP_ROLE,
+  asKey,
   DatabaseBusyError,
   errorCode,
   type Transaction,

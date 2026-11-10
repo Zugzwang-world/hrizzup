@@ -1,10 +1,14 @@
-import { DatabaseBusyError } from '@hrizzup/db';
+import type { KeyScope } from '@hrizzup/api';
+import { asKey, DatabaseBusyError, errorCode } from '@hrizzup/db';
 import { TradingError } from '@hrizzup/markets';
 import { ORPCError } from '@orpc/server';
 import type { Pool } from 'pg';
 import { database } from '@/lib/db.ts';
+import { apiKeysEnabled } from '@/lib/env.ts';
 import { type SignedIn, signedIn } from './context.ts';
-import { allowTrade } from './rate-limit.ts';
+import { credentialOf } from './credential.ts';
+import { findKey } from './keys.ts';
+import { allowKeyRead, allowTrade } from './rate-limit.ts';
 
 /**
  * The markets' calls for everyone in the website's API (PLAN.md step 1.7d), around `@hrizzup/markets`:
@@ -16,6 +20,10 @@ import { allowTrade } from './rate-limit.ts';
  * - A request ID already used for a different request: 409. A page cursor that isn't the person's,
  *   or an expiry the database's clock has already passed: 400.
  * - Over the trades a minute: 429 `TOO_MANY_REQUESTS`, with `Retry-After`. A busy database: 503.
+ * - A bot's API key (step 3.5a): one that isn't valid (never made, revoked, or production's,
+ *   before launch) is 401; a read-only key on a trading call is 403 `FORBIDDEN`, and so is any key
+ *   on the keys' own calls, which need a signed-in session; more than its personal reads a minute
+ *   is 429.
  */
 
 /** A trading call's failure as the API's answer. */
@@ -66,11 +74,97 @@ export function tradingPool(): Pick<Pool, 'connect'> {
   return pool;
 }
 
-/** The signed-in person making a personal call, or "not signed in" (401). */
-export async function person(headers: Headers): Promise<SignedIn> {
-  const user = await signedIn(headers);
-  if (!user) throw new ORPCError('UNAUTHORIZED', { status: 401, message: 'Not signed in' });
-  return user;
+/** Who is making a personal call, and with which API key, if any. */
+export type Person = SignedIn & { key: { id: string; scope: KeyScope } | null };
+
+/**
+ * What a call needs of whoever makes it: `session`, someone signed in on the website or in the app
+ * (the keys' own calls); `read`, that or any live API key (personal reads); `trade`, that or a
+ * trading key (trading and the perp).
+ */
+export type Need = 'session' | 'read' | 'trade';
+
+/** How the database's stamp on a trade request begins its refusal of a key (keys.stamp_request). */
+const KEY_REFUSED = "This key can't trade";
+
+const notSignedIn = () => new ORPCError('UNAUTHORIZED', { status: 401, message: 'Not signed in' });
+const badKey = (message: string) => new ORPCError('UNAUTHORIZED', { status: 401, message });
+
+/**
+ * The person making a personal call: from their session, or from a bot's API key when the request
+ * carries one (and then only from the key). Refused as the call's need says (see above).
+ */
+export async function person(headers: Headers, need: Need = 'session'): Promise<Person> {
+  const credential = credentialOf(headers);
+  if (credential.kind !== 'key' && credential.kind !== 'bad-key') {
+    const user = await signedIn(headers);
+    if (!user) throw notSignedIn();
+    return { ...user, key: null };
+  }
+  if (need === 'session') {
+    throw new ORPCError('FORBIDDEN', {
+      status: 403,
+      message: 'Keys are made and revoked only when signed in on the website, never with a key',
+    });
+  }
+  if (!apiKeysEnabled()) throw badKey('API keys work only on staging until launch');
+  const found =
+    credential.kind === 'key'
+      ? await tradingCall(() => findKey(tradingPool(), credential.text))
+      : null;
+  if (!found) throw badKey("This API key isn't valid: it may have been revoked");
+  if (need === 'trade' && found.scope !== 'trade') {
+    throw new ORPCError('FORBIDDEN', {
+      status: 403,
+      message: 'This key is read-only: only a trading key may trade',
+    });
+  }
+  return {
+    id: found.userId,
+    email: null,
+    name: null,
+    provider: null,
+    testAccount: false,
+    key: { id: found.id, scope: found.scope },
+  };
+}
+
+/**
+ * Runs a call's work as the request its person's API key signed, if one did, so the database stamps
+ * each trade with the key and refuses one the key may no longer place (revoked a moment ago): that
+ * refusal answers as a key that isn't valid (401).
+ */
+export async function asPerson<T>(who: Person, work: () => Promise<T>): Promise<T> {
+  if (!who.key) return work();
+  try {
+    return await asKey(who.key.id, work);
+  } catch (error) {
+    // Only the database's own refusal of the key (keys.stamp_request), never another permission error.
+    if (
+      errorCode(error) === '42501' &&
+      error instanceof Error &&
+      error.message.startsWith(KEY_REFUSED)
+    ) {
+      throw badKey("This API key isn't valid: it may have been revoked");
+    }
+    throw error;
+  }
+}
+
+/**
+ * Counts one personal read against an API key's reads a minute, or refuses it (429) with the
+ * seconds to wait, also sent as `Retry-After`. The website's and the app's own reads aren't counted.
+ */
+export async function withinReadLimit(who: Person, responseHeaders?: Headers): Promise<void> {
+  if (!who.key) return;
+  const allowance = await allowKeyRead(who.key.id);
+  if (allowance.allowed) return;
+  responseHeaders?.set('Retry-After', String(allowance.retryAfterSeconds));
+  throw new ORPCError('TOO_MANY_REQUESTS', {
+    status: 429,
+    message: 'Too many reads with this key: try again in a moment',
+    data: { retryAfterSeconds: allowance.retryAfterSeconds },
+  });
 }
 
 /**

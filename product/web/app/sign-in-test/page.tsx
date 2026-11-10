@@ -43,6 +43,7 @@ const SIGNED_IN_WITH: Record<Me['signedInWith'], string> = {
   email: 'An email code',
   test_account: 'Test account (staging only)',
   other: 'Another way',
+  api_key: 'An API key',
 };
 
 type Props = { searchParams: Promise<{ error?: string | string[]; next?: string | string[] }> };

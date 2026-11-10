@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   APP_ROLE,
+  asKey,
   backoffMs,
   claimsFor,
   DatabaseBusyError,
@@ -60,7 +61,9 @@ describe('transaction', () => {
       ANN,
       '2000ms',
       '10000ms',
+      '',
     ]);
+    expect(statements[1]?.text).toContain("set_config('hrizzup.api_key', $6, true)");
     expect(releases).toEqual([false]);
   });
 
@@ -73,7 +76,41 @@ describe('transaction', () => {
       '',
       '500ms',
       '10000ms',
+      '',
     ]);
+  });
+
+  it('tells the database which API key signed the request, given or from asKey', async () => {
+    const KEY = '00000000-0000-4000-8000-0000000000ab';
+    const OTHER = '00000000-0000-4000-8000-0000000000cd';
+    const given = fakePool();
+    await transaction(given.pool, async () => null, { account: ANN, apiKey: KEY.toUpperCase() });
+    expect(given.statements[1]?.values?.[5]).toBe(KEY);
+
+    const inside = fakePool();
+    const outside = fakePool();
+    await asKey(KEY, async () => {
+      await transaction(inside.pool, async () => null, { account: ANN });
+      // A transaction may still say no key, or another, itself.
+      await transaction(outside.pool, async () => null, { account: ANN, apiKey: null });
+    });
+    expect(inside.statements[1]?.values?.[5]).toBe(KEY);
+    expect(outside.statements[1]?.values?.[5]).toBe('');
+
+    const after = fakePool();
+    await asKey(null, () => transaction(after.pool, async () => null, { account: ANN }));
+    await transaction(after.pool, async () => null, { account: ANN, apiKey: OTHER });
+    expect(after.statements[1]?.values?.[5]).toBe('');
+    expect(after.statements[4]?.values?.[5]).toBe(OTHER);
+  });
+
+  it('refuses an API key that is not an ID, before reaching the database', async () => {
+    const { pool, statements } = fakePool();
+    await expect(
+      transaction(pool, async () => null, { account: ANN, apiKey: "x', true); --" }),
+    ).rejects.toThrow(TypeError);
+    expect(() => asKey("x', true); --", async () => null)).toThrow(TypeError);
+    expect(statements).toEqual([]);
   });
 
   it('refuses an account that is not a user ID, before reaching the database', async () => {

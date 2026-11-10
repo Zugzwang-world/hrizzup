@@ -48,12 +48,13 @@ function pagesToCheck(): Check[] {
     checks.push({ name: 'sign-in-test-code-step', path: '/sign-in-test', codeStep: true });
   }
   // The markets sandbox, as a signed-in account sees it: its balance in the header, the market's
-  // position and orders, the perp's positions (the signed-out pages are in pages.ts).
+  // position and orders, the perp's positions, its API keys (the signed-out pages are in pages.ts).
   if (checks.some((check) => check.name === 'sandbox')) {
     for (const [name, path] of [
       ['sandbox', '/sandbox'],
       ['sandbox-market', `/sandbox/markets/${SANDBOX_FIXTURE_MARKET}`],
       ['sandbox-perp', `/sandbox/perps/${BITCOIN_PERP}`],
+      ['sandbox-keys', '/sandbox/keys'],
     ] as const) {
       checks.push({
         name: `${name}-signed-in`,

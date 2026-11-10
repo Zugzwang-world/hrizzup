@@ -1,6 +1,12 @@
 import { createChunks, createServerClient, stringToBase64URL } from '@supabase/ssr';
-import { describe, expect, it } from 'vitest';
-import { accessTokenFromCookies, sessionCookieName } from './context.ts';
+import { describe, expect, it, vi } from 'vitest';
+import { accessTokenFromCookies, sessionCookieName, signedIn } from './context.ts';
+
+// Any token checks out here, so a test sees whether signedIn() asked at all.
+const getClaims = vi.hoisted(() =>
+  vi.fn(async () => ({ data: { claims: { sub: 'someone', app_metadata: {} } }, error: null })),
+);
+vi.mock('@supabase/supabase-js', () => ({ createClient: () => ({ auth: { getClaims } }) }));
 
 const URL_OF_PROJECT = 'https://abcdefghijklmnop.supabase.co';
 const header = (cookies: { name: string; value: string }[]) =>
@@ -53,5 +59,27 @@ describe("reading the website's session cookie", () => {
       { name: sessionCookieName('https://someoneelse.supabase.co'), value: 'base64-e30' },
     ];
     await expect(accessTokenFromCookies(header(other), URL_OF_PROJECT)).resolves.toBeNull();
+  });
+});
+
+describe('a request carrying a bot API key', () => {
+  it('is never a session, even with a session cookie beside it', async () => {
+    vi.stubEnv('SUPABASE_URL', URL_OF_PROJECT);
+    vi.stubEnv('SUPABASE_PUBLISHABLE_KEY', 'sb_publishable_test');
+    const cookie = header([
+      {
+        name: sessionCookieName(URL_OF_PROJECT),
+        value: encodeURIComponent(JSON.stringify({ access_token: 'plain' })),
+      },
+    ]);
+    // Made-up keys, never real ones; the second isn't even well formed.
+    for (const authorization of [`Bearer hz_demo_${'a'.repeat(43)}`, 'Key hz_demo_short']) {
+      await expect(signedIn(new Headers({ authorization, cookie }))).resolves.toBeNull();
+    }
+    expect(getClaims).not.toHaveBeenCalled();
+    // Without a key, the same cookie is a session.
+    await expect(signedIn(new Headers({ cookie }))).resolves.toMatchObject({ id: 'someone' });
+    expect(getClaims).toHaveBeenCalledWith('plain');
+    vi.unstubAllEnvs();
   });
 });
