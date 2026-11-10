@@ -274,3 +274,227 @@ export type SetPerpModeInput = z.output<typeof setPerpModeInput>;
 export type SetPerpSettingsInput = z.output<typeof setPerpSettingsInput>;
 export type CreateTestPerpInput = z.output<typeof createTestPerpInput>;
 export type RetireTestPerpInput = z.output<typeof retireTestPerpInput>;
+
+// The perp for everyone (PLAN.md step 3.4a) --------------------------------------------------------
+
+/** A position's side: long gains when the price rises, short when it falls. */
+export const perpDirection = z.enum(['long', 'short']);
+
+/**
+ * Why a trade was refused: the engine's own reasons (PerpRefusal in
+ * product/packages/market-engine/src/perp/engine.ts). Each is a 422, with the reason in its data.
+ */
+export const perpRefusal = z.enum([
+  /** The off switch: halted (nothing trades), or closing only (no opens). */
+  'trading_off',
+  /** A price couldn't be applied without leaving the pools short: trading resumes with a later one. */
+  'paused',
+  /** The price is older than the perp allows: trading resumes with the next one. */
+  'stale_price',
+  /** An order fills only at a price published after it was placed. */
+  'not_next_price',
+  /** An amount, leverage or share that isn't valid. */
+  'bad_request',
+  /** More leverage than the perp allows (at most 10 times). */
+  'leverage_too_high',
+  /** More fee than the trader accepted, or half the margin or more. */
+  'fee_too_high',
+  /** The size fee can't be priced against an exhausted pool. */
+  'size_fee_unpriceable',
+  /** More than the person's balance (the margin and the fee). */
+  'insufficient_balance',
+  /** The other side can't back this much more. */
+  'exposure_cap',
+  /** No open position to close. */
+  'no_position',
+  /** A part-close sized against a position that has since moved. */
+  'position_changed',
+  /** The pools couldn't back this new position right now. */
+  'insolvent',
+]);
+
+/** A share of play money the person sends: more than zero, to the millionth, as text. */
+const amount = z
+  .string()
+  .regex(/^(?:0|[1-9][0-9]{0,13})(?:\.[0-9]{1,6})?$/, 'Must be an amount, to the millionth')
+  .refine((value) => /[1-9]/.test(value), { message: 'Must be more than zero' });
+
+/** A position's margin: play money, at most Ṁ1,000,000 (far past any balance), to the millionth. */
+const margin = amount.refine((value) => Number(value) <= 1_000_000, {
+  message: 'At most Ṁ1,000,000',
+});
+
+/** A trade request's ID, chosen by whoever sends it: a retry sends the same one. */
+const requestId = z.uuid('Must be a UUID, chosen by the sender and sent again on a retry');
+
+/** Leverage: at least 1 time, as text (the perp allows at most its own cap, 10 times). */
+export const leverage = z
+  .string()
+  .regex(/^(?:[1-9][0-9]{0,3})(?:\.[0-9]{1,4})?$/, 'Must be a leverage of at least 1, as text');
+
+/** A share of a position to close: more than 0 and at most 1, to six decimal places. */
+export const fraction = z
+  .string()
+  .regex(/^(?:0\.[0-9]{1,6}|1(?:\.0{1,6})?)$/, 'Must be more than 0 and at most 1, as text')
+  .refine((value) => Number(value) > 0, { message: 'Must be more than 0' });
+
+/**
+ * Opening a position, or adding to the one on the same side: the margin (the person's own money)
+ * and the leverage, so its size is margin times leverage; Manifold's opening fee of 10 basis points
+ * of the size is charged on top. Holding the other side closes it first ("a flip"), and its payout
+ * can pay for this. The order fills at the first new price published after it was placed (a new one
+ * every 5 seconds), so the answer comes within seconds, never at the price on screen.
+ */
+export const openPerpInput = z.strictObject({
+  perpId: recordId,
+  requestId,
+  direction: perpDirection,
+  margin,
+  leverage,
+  /** The most fee the person accepts; needed only while a perp's size fee is on. */
+  maxFee: amount.optional(),
+});
+
+/** Closing all of a position (1) or a share of it (at least 0.01), at the next new price. */
+export const closePerpInput = z
+  .strictObject({
+    perpId: recordId,
+    requestId,
+    direction: perpDirection.optional(),
+    fraction,
+    /**
+     * For a part-close, required: the size the person saw, so a position that moved since isn't cut
+     * by the wrong amount (the engine's rule, Manifold's).
+     */
+    expectedSize: z
+      .string()
+      .regex(/^(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$/, 'Must be a size, as text')
+      .optional(),
+  })
+  .refine((input) => Number(input.fraction) >= 1 || input.expectedSize !== undefined, {
+    message: 'Closing part of a position needs the size it was sized on',
+    path: ['expectedSize'],
+  });
+
+/** A position as the person sees it. */
+export const perpPosition = z.object({
+  id: z.uuid(),
+  perpId: recordId,
+  direction: perpDirection,
+  /** Its size (notional: margin times leverage, as funding and scaling have changed it). */
+  size: decimal,
+  /** Its margin: the person's money behind it, as funding has scaled it. */
+  margin: decimal,
+  entryPrice: decimal,
+  leverage: decimal,
+  /** Where it's liquidated: a long at or below it, a short at or above it. */
+  liquidationPrice: decimal,
+  /** The opening fees it has paid. */
+  feesPaid: decimal,
+  openedAt: moment,
+  updatedAt: moment,
+});
+
+/** What a trade did, as the books wrote it. A retry of the same request answers the same. */
+export const perpTradeResult = z.object({
+  /** opened: a new position; added: more of one; closed: all or part of one. */
+  status: z.enum(['opened', 'added', 'closed']),
+  requestId: z.uuid(),
+  perpId: recordId,
+  /** When it was placed, and when it filled, by the database's own clock. */
+  placedAt: moment,
+  at: moment,
+  /** The price it filled at, published after it was placed, and that price's time. */
+  price: decimal,
+  priceAt: moment,
+  /** Play money in (margin and fee) and out (a close's or a flip's payout), exactly. */
+  margin: decimal,
+  fee: decimal,
+  payout: decimal,
+  /** The person's open position afterwards, if any, and their balance. */
+  position: perpPosition.nullable(),
+  balance: decimal,
+});
+
+/** A perp as anyone may see it, with its price now. */
+export const perpDetails = z.object({
+  id: recordId,
+  name: z.string(),
+  listed: z.boolean(),
+  state: perpState,
+  tradingMode,
+  feed: z.string(),
+  settings: perpSettings,
+  /** The price now (the stand-in's 5-second step this moment falls in), and its time. */
+  price: decimal,
+  priceAt: moment,
+  /** When the next price comes. */
+  nextPriceAt: moment,
+  /** The last price applied to its book (by a trade or the 5-second check), and its time. */
+  bookPrice: decimal.nullable(),
+  bookPriceAt: moment.nullable(),
+  pausedReason: z.string().nullable(),
+  pools: z.object({ long: decimal, short: decimal }),
+  openInterest: z.object({ long: decimal, short: decimal }),
+  openPositions: z.number().int().nonnegative(),
+  /** The funding rate the next funding would apply now (above zero, longs pay shorts). */
+  fundingRate: decimal,
+  lastFundingAt: moment.nullable(),
+  nextFundingAt: moment,
+});
+
+/** The listed perps (the Bitcoin perp). */
+export const perpList = z.object({ perps: z.array(perpDetails) });
+
+export const perpAddress = z.strictObject({ id: recordId });
+
+/** One of the person's open positions, with what it's worth at the price now. */
+export const heldPerpPosition = perpPosition.extend({
+  perpName: z.string(),
+  tradingMode,
+  /** The price now, and the position's value and profit (or loss) at it; null if not priced here. */
+  price: decimal.nullable(),
+  value: decimal.nullable(),
+  profit: decimal.nullable(),
+});
+
+/** The person's balance, and a page of their open positions, newest first. */
+export const perpPositionsPage = z.object({
+  balance: decimal,
+  positions: z.array(heldPerpPosition),
+  next: z.uuid().nullable(),
+});
+
+export const perpPositionsPageInput = z.strictObject({ after: z.uuid().optional() }).optional();
+
+/** The errors a perp's trading call may answer, besides a refused input (400, BAD_REQUEST). */
+export const perpTradingErrors = {
+  UNAUTHORIZED: { status: 401, message: 'Not signed in' },
+  NOT_FOUND: { status: 404, message: 'No such perp' },
+  CONFLICT: {
+    status: 409,
+    message: 'This request ID was already used for a different request',
+  },
+  REFUSED: {
+    status: 422,
+    message: 'The trade was refused',
+    data: z.object({ reason: perpRefusal }),
+  },
+  TOO_MANY_REQUESTS: {
+    status: 429,
+    message: 'Too many trades: try again in a moment',
+    data: z.object({ retryAfterSeconds: z.number().int().positive() }),
+  },
+  SERVICE_UNAVAILABLE: { status: 503, message: 'Try again in a moment' },
+} as const;
+
+export type PerpDirection = z.infer<typeof perpDirection>;
+export type PerpRefusal = z.infer<typeof perpRefusal>;
+export type OpenPerpInput = z.output<typeof openPerpInput>;
+export type ClosePerpInput = z.output<typeof closePerpInput>;
+export type PerpPosition = z.infer<typeof perpPosition>;
+export type PerpTradeResult = z.infer<typeof perpTradeResult>;
+export type PerpDetails = z.infer<typeof perpDetails>;
+export type PerpList = z.infer<typeof perpList>;
+export type HeldPerpPosition = z.infer<typeof heldPerpPosition>;
+export type PerpPositionsPage = z.infer<typeof perpPositionsPage>;

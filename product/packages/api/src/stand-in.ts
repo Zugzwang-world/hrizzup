@@ -109,10 +109,41 @@ export function standIn(options: { signedIn?: boolean; admin?: boolean } = {}) {
         return { ...examples.cancelOrderResult, requestId: input.requestId };
       }),
     },
+    perps: {
+      list: api.perps.list.handler(() => ({ perps: [examples.perpDetails] })),
+      get: api.perps.get.handler(({ input }) => {
+        if (input.id !== examples.perpDetails.id) {
+          throw new ORPCError('NOT_FOUND', { message: 'No such perp' });
+        }
+        return examples.perpDetails;
+      }),
+      open: api.perps.open.handler(({ input }) => {
+        asPerson();
+        if (input.perpId !== examples.perpDetails.id) {
+          throw new ORPCError('NOT_FOUND', { message: 'No such perp' });
+        }
+        // As the real call: more than 10 times leverage is refused.
+        if (Number(input.leverage) > 10) {
+          throw new ORPCError('REFUSED', { data: { reason: 'leverage_too_high' } });
+        }
+        return { ...examples.perpOpened, requestId: input.requestId };
+      }),
+      close: api.perps.close.handler(({ input }) => {
+        asPerson();
+        if (input.perpId !== examples.perpDetails.id) {
+          throw new ORPCError('NOT_FOUND', { message: 'No such perp' });
+        }
+        return { ...examples.perpClosed, requestId: input.requestId };
+      }),
+    },
     portfolio: {
       positions: api.portfolio.positions.handler(() => {
         asPerson();
         return examples.positionsPage;
+      }),
+      perps: api.portfolio.perps.handler(() => {
+        asPerson();
+        return examples.perpPositionsPage;
       }),
       orders: api.portfolio.orders.handler(() => {
         asPerson();

@@ -136,6 +136,13 @@ export type PerpPriceApplied = {
     adlFactorShort: number;
     /** Winners scaled down to nothing are settled: paid what remains of their margin. */
     moves: PerpMove[];
+    /**
+     * Money the maths moved from one pool to the other, with no position changing (Manifold's
+     * `crossSideTransfer`, in `applyADL`): positive from the short pool to the long, negative the
+     * other way; 0 almost always. A side whose pool fell below what its own positions would be paid
+     * back is topped up from the other, when the other has that much to spare (R5: the books move it).
+     */
+    crossSideTransfer: number;
 };
 /**
  * A new price (Manifold's `applyOracleUpdate` inside `runOracleUpdate`): liquidations, then, if
@@ -154,6 +161,13 @@ export type PerpFundingApplied = {
     book: PerpBook;
     fundingRate: number;
     moves: PerpMove[];
+    /**
+     * The pools and positions as the funding alone left them, before any winner was scaled down
+     * after it (R5: the books record the funding and the scaling as separate events).
+     */
+    funded: PerpState;
+    /** As `PerpPriceApplied.crossSideTransfer`, for the scaling after the funding. */
+    crossSideTransfer: number;
 }
 /** Not due, paused, or (`reason`) the funded book couldn't be made solvent: nothing changes. */
  | {

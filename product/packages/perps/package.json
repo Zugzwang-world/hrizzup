@@ -1,7 +1,7 @@
 {
   "name": "@hrizzup/perps",
   "private": true,
-  "description": "The Bitcoin perp's back end (PLAN.md step 3.4a): the console's calls for admins (the off switch, the settings and the rule-change log; a check run's own test perps), each one database transaction as the app's own role with the admin signed in, so the database itself checks the admins table and logs every rule change. Server only.",
+  "description": "The Bitcoin perp's back end (PLAN.md step 3.4a): each trade, price and funding one step (one database transaction under the perp's lock, running the perp's maths from @hrizzup/market-engine on the book as it stands, with the database's time passed in, rounded once into exact play money); the calls for everyone (its price and details, opening, closing and positions), the console's for admins (the off switch, the settings and the rule-change log; a check run's own test perps) and the scheduled jobs (every 5 seconds the next price and the liquidation check, every hour the funding). Server only.",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
@@ -14,6 +14,7 @@
   "dependencies": {
     "@hrizzup/api": "workspace:*",
     "@hrizzup/db": "workspace:*",
+    "@hrizzup/ledger": "workspace:*",
     "@hrizzup/market-engine": "workspace:*",
     "@hrizzup/markets": "workspace:*"
   },

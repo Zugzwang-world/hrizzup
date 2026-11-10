@@ -10,11 +10,20 @@ import {
   settleMarketInput,
 } from './console.ts';
 import {
+  closePerpInput,
   consolePerpWithLog,
   createTestPerpInput,
+  openPerpInput,
+  perpAddress,
+  perpDetails,
   perpIdInput,
+  perpList,
   perpPage,
   perpPageInput,
+  perpPositionsPage,
+  perpPositionsPageInput,
+  perpTradeResult,
+  perpTradingErrors,
   retireTestPerpInput,
   setPerpModeInput,
   setPerpSettingsInput,
@@ -220,6 +229,65 @@ export const contract = {
       .output(cancelOrderResult),
   },
 
+  /**
+   * The Bitcoin perp, for everyone (PLAN.md step 3.4a; perps.ts): its price and details are public,
+   * kept at Vercel's edge a few seconds (a new price comes every 5) and cleared by their tag when an
+   * admin changes its off switch or settings. Trading is personal, never kept: a signed-in person
+   * opens and closes, each with a request ID of their own so a retry never trades twice; every order
+   * fills at the first price published after it was placed, so it answers within seconds. The
+   * trades a minute are counted with the markets' (at most 30 a minute each).
+   */
+  perps: {
+    /** The listed perps (the Bitcoin perp), each with its price now. */
+    list: call
+      .route({
+        method: 'GET',
+        path: '/perps',
+        summary: 'The perps, with their prices now',
+        tags: ['public'],
+      })
+      .meta({ caching: { kind: 'public', edgeSeconds: 5, staleSeconds: 10, tags: ['perps'] } })
+      .input(noInput)
+      .output(perpList),
+
+    /** One perp by its address (a check run's unlisted test perp too), with its price now. */
+    get: call
+      .route({
+        method: 'GET',
+        path: '/perps/{id}',
+        summary: 'One perp, with its price now',
+        tags: ['public'],
+      })
+      .meta({ caching: { kind: 'public', edgeSeconds: 5, staleSeconds: 10, tags: ['perps'] } })
+      .errors({ NOT_FOUND: perpTradingErrors.NOT_FOUND })
+      .input(perpAddress)
+      .output(perpDetails),
+
+    /** Opens a position, or adds to one, at the next new price (a flip closes the other side first). */
+    open: call
+      .route({
+        method: 'POST',
+        path: '/perps/open',
+        summary: 'Open a perp position, or add to one, at the next price',
+        tags: ['personal'],
+      })
+      .errors(perpTradingErrors)
+      .input(openPerpInput)
+      .output(perpTradeResult),
+
+    /** Closes all of a position or a share of it, at the next new price. */
+    close: call
+      .route({
+        method: 'POST',
+        path: '/perps/close',
+        summary: 'Close a perp position, all or part, at the next price',
+        tags: ['personal'],
+      })
+      .errors(perpTradingErrors)
+      .input(closePerpInput)
+      .output(perpTradeResult),
+  },
+
   /** The signed-in person's own play money (PLAN.md step 1.7d; trading.ts). Personal, never kept. */
   portfolio: {
     /** Their balance, and their positions in markets still open or waiting to be settled. */
@@ -233,6 +301,18 @@ export const contract = {
       .errors({ UNAUTHORIZED: tradingErrors.UNAUTHORIZED })
       .input(positionsPageInput)
       .output(positionsPage),
+
+    /** Their open perp positions, newest first, each with what it's worth at the price now. */
+    perps: call
+      .route({
+        method: 'GET',
+        path: '/me/perps',
+        summary: 'Your balance and perp positions',
+        tags: ['personal'],
+      })
+      .errors({ UNAUTHORIZED: perpTradingErrors.UNAUTHORIZED })
+      .input(perpPositionsPageInput)
+      .output(perpPositionsPage),
 
     /** Their resting limit orders, newest first. */
     orders: call

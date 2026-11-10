@@ -408,6 +408,13 @@ export type PerpPriceApplied = {
   adlFactorShort: number;
   /** Winners scaled down to nothing are settled: paid what remains of their margin. */
   moves: PerpMove[];
+  /**
+   * Money the maths moved from one pool to the other, with no position changing (Manifold's
+   * `crossSideTransfer`, in `applyADL`): positive from the short pool to the long, negative the
+   * other way; 0 almost always. A side whose pool fell below what its own positions would be paid
+   * back is topped up from the other, when the other has that much to spare (R5: the books move it).
+   */
+  crossSideTransfer: number;
 };
 
 /**
@@ -437,6 +444,7 @@ export const applyPerpPrice = (args: {
       moves: adl.settled
         .filter((s) => s.payout > 0)
         .map((s): PerpMove => ({ userId: s.position.userId, kind: 'payout', amount: s.payout })),
+      crossSideTransfer: adl.crossSideTransfer,
     };
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
@@ -446,12 +454,25 @@ export const applyPerpPrice = (args: {
       adlFactorLong: 1,
       adlFactorShort: 1,
       moves: [],
+      crossSideTransfer: 0,
     };
   }
 };
 
 export type PerpFundingApplied =
-  | { ok: true; book: PerpBook; fundingRate: number; moves: PerpMove[] }
+  | {
+      ok: true;
+      book: PerpBook;
+      fundingRate: number;
+      moves: PerpMove[];
+      /**
+       * The pools and positions as the funding alone left them, before any winner was scaled down
+       * after it (R5: the books record the funding and the scaling as separate events).
+       */
+      funded: PerpState;
+      /** As `PerpPriceApplied.crossSideTransfer`, for the scaling after the funding. */
+      crossSideTransfer: number;
+    }
   /** Not due, paused, or (`reason`) the funded book couldn't be made solvent: nothing changes. */
   | { ok: false; reason: 'not_due' | 'paused' | 'stale_price' | 'insolvent' };
 
@@ -498,6 +519,8 @@ export const applyPerpFunding = (args: {
     ok: true,
     book: { ...book, state: withoutClosed(funded.state), lastFundingTime: now },
     fundingRate,
+    funded: funded.fundedState,
+    crossSideTransfer: funded.crossSideTransfer,
     moves: funded.settled
       .filter((s) => s.payout > 0)
       .map((s): PerpMove => ({ userId: s.position.userId, kind: 'payout', amount: s.payout })),

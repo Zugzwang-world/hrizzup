@@ -13,9 +13,14 @@ import {
   settleMarket,
 } from '@hrizzup/markets';
 import {
+  closePerp,
   createTestPerp,
   getPerp,
+  listedPerps,
   listPerps,
+  openPerp,
+  perpDetails,
+  perpPositions,
   retireTestPerp,
   setPerpMode,
   setPerpSettings,
@@ -35,6 +40,7 @@ import { cacheHeaders } from './caching.ts';
 import { asAdmin, consoleCall } from './console.ts';
 import { type ApiContext, signedIn } from './context.ts';
 import { MARKETS_TAG, refreshEdge } from './edge-cache.ts';
+import { PERPS_TAG, perpCall, perpSource } from './perps.ts';
 import { person, tradingCall, tradingPool, withinTradeLimit } from './trading.ts';
 
 /**
@@ -68,6 +74,17 @@ const admin = api.admin.use(asAdmin);
 async function changesTheList<T>(work: () => Promise<T>): Promise<T> {
   const answer = await consoleCall(work);
   await refreshEdge([MARKETS_TAG]);
+  return answer;
+}
+
+/**
+ * A console call that changes what the perps' public reads show (the off switch, the settings,
+ * retiring a test perp): their edge copies are cleared once the change is made. Making a test perp
+ * changes nothing anyone has read.
+ */
+async function changesThePerps<T>(work: () => Promise<T>): Promise<T> {
+  const answer = await consoleCall(work);
+  await refreshEdge([PERPS_TAG]);
   return answer;
 }
 
@@ -137,6 +154,24 @@ export const router = api.router({
     }),
   },
 
+  perps: {
+    list: api.perps.list.handler(() => perpCall(() => listedPerps(tradingPool(), perpSource()))),
+    get: api.perps.get.handler(({ input }) =>
+      perpCall(() => perpDetails(tradingPool(), input.id, perpSource())),
+    ),
+    // A perp trade counts against the same trades a minute as the markets'.
+    open: api.perps.open.handler(async ({ context, input }) => {
+      const user = await person(context.headers);
+      await withinTradeLimit(user.id, context.resHeaders);
+      return perpCall(() => openPerp(tradingPool(), user.id, input, perpSource()));
+    }),
+    close: api.perps.close.handler(async ({ context, input }) => {
+      const user = await person(context.headers);
+      await withinTradeLimit(user.id, context.resHeaders);
+      return perpCall(() => closePerp(tradingPool(), user.id, input, perpSource()));
+    }),
+  },
+
   portfolio: {
     positions: api.portfolio.positions.handler(async ({ context, input }) => {
       const user = await person(context.headers);
@@ -145,6 +180,12 @@ export const router = api.router({
     orders: api.portfolio.orders.handler(async ({ context, input }) => {
       const user = await person(context.headers);
       return tradingCall(() => openOrders(tradingPool(), user.id, { after: input?.after }));
+    }),
+    perps: api.portfolio.perps.handler(async ({ context, input }) => {
+      const user = await person(context.headers);
+      return perpCall(() =>
+        perpPositions(tradingPool(), user.id, { after: input?.after }, perpSource()),
+      );
     }),
   },
 
@@ -177,16 +218,16 @@ export const router = api.router({
         consoleCall(() => getPerp(context.pool, context.account, input.id)),
       ),
       setMode: admin.perps.setMode.handler(({ context, input }) =>
-        consoleCall(() => setPerpMode(context.pool, context.account, input)),
+        changesThePerps(() => setPerpMode(context.pool, context.account, input)),
       ),
       setSettings: admin.perps.setSettings.handler(({ context, input }) =>
-        consoleCall(() => setPerpSettings(context.pool, context.account, input)),
+        changesThePerps(() => setPerpSettings(context.pool, context.account, input)),
       ),
       createTest: admin.perps.createTest.handler(({ context, input }) =>
         consoleCall(() => createTestPerp(context.pool, context.account, input)),
       ),
       retireTest: admin.perps.retireTest.handler(({ context, input }) =>
-        consoleCall(() => retireTestPerp(context.pool, context.account, input)),
+        changesThePerps(() => retireTestPerp(context.pool, context.account, input)),
       ),
     },
   },

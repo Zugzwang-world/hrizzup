@@ -41,13 +41,27 @@ export const STAND_IN_PRICE = {
 /** A seed: 16 hexadecimal digits, the 64-bit key of the hash. */
 export const STAND_IN_SEED_PATTERN = /^[0-9a-f]{16}$/;
 
+/**
+ * Where a walk starts, at what price, and how much it moves in a year. The Bitcoin perp walks
+ * `STAND_IN_PRICE`'s; a check run's test perp walks one of its own (R5: a later start, so its steps
+ * stay few, and a far higher volatility, so a run can see a liquidation within a minute). Its 5-second
+ * steps start at its origin.
+ */
+export type StandInWalk = { origin: number; startPrice: number; annualVolatility: number };
+
+const BITCOIN_WALK: StandInWalk = {
+  origin: STAND_IN_PRICE.origin,
+  startPrice: STAND_IN_PRICE.startPrice,
+  annualVolatility: STAND_IN_PRICE.annualVolatility,
+};
+
 /** Steps in one stretch of the walk: 2^24, about 2.7 years of 5-second steps. */
 const STRETCH = 2 ** 24;
 const STRETCH_LEVELS = 24;
 
-/** The volatility of one 5-second step. */
-const STEP_VOLATILITY =
-  STAND_IN_PRICE.annualVolatility * Math.sqrt(STAND_IN_PRICE.intervalMs / YEAR_MS);
+/** The volatility of one 5-second step, for a walk moving this much in a year. */
+const stepVolatility = (annualVolatility: number) =>
+  annualVolatility * Math.sqrt(STAND_IN_PRICE.intervalMs / YEAR_MS);
 
 /**
  * HalfSipHash-2-4 (Aumasson and Bernstein's keyed hash, 32-bit output) of whole 32-bit words,
@@ -141,19 +155,38 @@ const walk = (key: Key, step: number) => {
 /**
  * The stand-in price at a moment: the price of the 5-second step the moment falls in, and the
  * step's start (`ts`), when that price was published. Rounded to the cent, as Bitcoin is quoted.
+ * Without `along`, the Bitcoin perp's walk (`STAND_IN_PRICE`); a test perp passes its own.
  */
-export const standInPrice = (seed: string, moment: number): OraclePoint => {
+export const standInPrice = (
+  seed: string,
+  moment: number,
+  along: StandInWalk = BITCOIN_WALK,
+): OraclePoint => {
   const key = keyOf(seed);
-  if (!Number.isFinite(moment) || moment < STAND_IN_PRICE.origin)
-    throw new Error('the stand-in price starts on 1 January 2026');
-  const step = Math.floor((moment - STAND_IN_PRICE.origin) / STAND_IN_PRICE.intervalMs);
+  const { origin, startPrice, annualVolatility } = along;
+  if (
+    !Number.isFinite(origin) ||
+    !(startPrice > 0) ||
+    !Number.isFinite(startPrice) ||
+    !(annualVolatility > 0) ||
+    !Number.isFinite(annualVolatility)
+  )
+    throw new Error('a walk starts somewhere, at a price above zero, moving by more than zero');
+  if (!Number.isFinite(moment) || moment < origin)
+    throw new Error(
+      along === BITCOIN_WALK
+        ? 'the stand-in price starts on 1 January 2026'
+        : 'the stand-in price starts at its walk’s origin',
+    );
+  const stepVol = stepVolatility(annualVolatility);
+  const step = Math.floor((moment - origin) / STAND_IN_PRICE.intervalMs);
   const logPrice =
-    Math.log(STAND_IN_PRICE.startPrice) +
-    STEP_VOLATILITY * walk(key, step) -
+    Math.log(startPrice) +
+    stepVol * walk(key, step) -
     // Without this, the average price would drift upwards over time (a log walk's own bias).
-    (STEP_VOLATILITY ** 2 * step) / 2;
+    (stepVol ** 2 * step) / 2;
   return {
-    ts: STAND_IN_PRICE.origin + step * STAND_IN_PRICE.intervalMs,
+    ts: origin + step * STAND_IN_PRICE.intervalMs,
     price: Math.round(Math.exp(logPrice) * 100) / 100,
   };
 };
