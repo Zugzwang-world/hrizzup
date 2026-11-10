@@ -40,14 +40,15 @@ function follow() {
   );
 }
 
+/** A screen starts listening: the first one starts following the session too, outside render. */
 function subscribe(listener: () => void) {
   listeners.add(listener);
+  follow();
   return () => listeners.delete(listener);
 }
 
 /** Who is signed in on this phone, kept current. */
 export function useSignIn(): SignIn {
-  follow();
   return useSyncExternalStore(subscribe, () => current);
 }
 
