@@ -5,6 +5,7 @@ import {
   describeWarning,
   judge,
   type LighthouseResult,
+  longTasks,
   markdownTable,
   markdownWarnings,
   median,
@@ -13,6 +14,7 @@ import {
   type PageReport,
   pagePasses,
   type RunMetrics,
+  runDetail,
   runNumbers,
   summarize,
   TOLERANCE,
@@ -90,6 +92,47 @@ describe('reading a Lighthouse run', () => {
     const lhr = lighthouseResult();
     lhr.audits['color-contrast'] = { score: null, scoreDisplayMode: 'notApplicable' };
     expect(contrastOf(lhr, URL_UNDER_TEST).passes).toBe(true);
+  });
+});
+
+describe("a run's detail, for the log", () => {
+  it("gives the machine's speed and the main thread's three biggest kinds of work", () => {
+    const lhr = lighthouseResult({ environment: { benchmarkIndex: 1234.6 } });
+    lhr.audits['mainthread-work-breakdown'] = {
+      score: 1,
+      details: {
+        items: [
+          { group: 'styleLayout', groupLabel: 'Style & Layout', duration: 31.2 },
+          { group: 'scriptEvaluation', groupLabel: 'Script Evaluation', duration: 410.6 },
+          { group: 'other', groupLabel: 'Other', duration: 190.4 },
+          { group: 'scriptParseCompile', groupLabel: 'Script Parsing & Compilation', duration: 60 },
+        ],
+      },
+    };
+    expect(runDetail(lhr)).toBe(
+      'machine 1235; main thread: script evaluation 411, other 190, script parsing & compilation 60',
+    );
+  });
+
+  it("lists a run's long tasks, each with whose code it ran", () => {
+    const lhr = lighthouseResult();
+    lhr.audits['long-tasks'] = {
+      score: 1,
+      details: {
+        items: [
+          { url: 'https://preview.example/_next/static/chunks/a.js', duration: 412.4 },
+          { url: 'Unattributable', duration: 96.6 },
+        ],
+      },
+    };
+    expect(longTasks(lhr, 'https://preview.example')).toBe(
+      'long tasks: 412 ms /_next/static/chunks/a.js, 97 ms Unattributable',
+    );
+    expect(longTasks(lighthouseResult(), 'https://preview.example')).toBe('no long tasks');
+  });
+
+  it('says so when Lighthouse gave neither', () => {
+    expect(runDetail(lighthouseResult())).toBe('machine unknown; main thread: idle');
   });
 });
 

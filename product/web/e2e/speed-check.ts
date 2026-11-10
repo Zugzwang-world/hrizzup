@@ -10,6 +10,7 @@ import {
   describeWarning,
   judge,
   type LighthouseResult,
+  longTasks,
   markdownTable,
   markdownWarnings,
   metricsFromLighthouse,
@@ -18,6 +19,7 @@ import {
   pagePasses,
   RUNS,
   type RunMetrics,
+  runDetail,
   runNumbers,
   summarize,
 } from './speed.ts';
@@ -89,45 +91,103 @@ async function colourScheme(tab: Tab, scheme: 'light' | 'dark') {
   await tab.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }]);
 }
 
-/** Measures one page: `runs` full runs, then the contrast audit once more in the dark scheme. */
-async function measurePage(tab: Tab, base: string, page: Page, runs: number): Promise<PageReport> {
+/** Serves `server` on a free port of this machine and returns the port. */
+function listen(server: Server, host: string): Promise<number> {
+  return new Promise((resolve) =>
+    server.listen(0, host, () => resolve((server.address() as AddressInfo).port)),
+  );
+}
+
+/** The 404 page answers 404 on purpose; Lighthouse refuses that unless told. */
+const ignoresStatus = (page: Page) => (page.status ?? 200) >= 400;
+
+/** The warm-up's own numbers: a reader's very first visit, cold, shown but never judged. */
+type FirstVisit = { path: string; busyMs: number; loadMs: number };
+
+/**
+ * One run of the site's first page comes first, not counted, so every measured run is the same
+ * kind of visit. A browser opened just now starts itself on its first page (its fonts,
+ * Lighthouse's own first trace: a 927 ms task in the self-test's cold browser), and the site's
+ * first visit compiles React's and Next.js's own code from cold (a 496 ms task in Next.js's main
+ * script), which every later page and run of a check gets warm. Both fell on whichever page went
+ * first, the home page: single runs of 266 to 1176 ms against its usual 85, from the same code.
+ * The pages' own work is still measured in every run, and the code's size against its budget.
+ */
+async function warmUp(tab: Tab, base: string, page: Page): Promise<FirstVisit> {
+  const started = Date.now();
+  const { lhr } = await lighthouseRun(tab, new URL(page.path, base).href, {
+    onlyCategories: ['performance'],
+    ignoreStatusCode: ignoresStatus(page),
+  });
+  const busy = lhr.audits['total-blocking-time']?.numericValue ?? 0;
+  console.log(
+    `  warm-up, ${page.path}, not counted (${((Date.now() - started) / 1000).toFixed(1)} s): ` +
+      `busy ${Math.round(busy)} ms; ${runDetail(lhr)}`,
+  );
+  const load = lhr.audits['largest-contentful-paint']?.numericValue ?? 0;
+  return { path: page.path, busyMs: Math.round(busy), loadMs: Math.round(load) };
+}
+
+/** One page's measured runs, in the light scheme, and what they add up to. */
+type PageRuns = { page: Page; url: string; results: { metrics: RunMetrics; report: string }[] };
+
+/**
+ * Measures one page: `runs` full runs in the light scheme. Each run's numbers go in the log, so
+ * any page's spread can be read back from a check; a run over a budget also gets its long tasks
+ * there and its own Lighthouse report next to the median run's.
+ */
+async function measureRuns(tab: Tab, base: string, page: Page, runs: number): Promise<PageRuns> {
   const url = new URL(page.path, base).href;
-  // The 404 page answers 404 on purpose; Lighthouse refuses that unless told.
-  const ignoreStatusCode = (page.status ?? 200) >= 400;
-  const results: { metrics: RunMetrics; report: string }[] = [];
+  const budget = budgets[page.budget];
+  const results: PageRuns['results'] = [];
   await colourScheme(tab, 'light');
   for (let run = 1; run <= runs; run++) {
     const started = Date.now();
     const { lhr, report } = await lighthouseRun(tab, url, {
       onlyCategories: ['performance', 'accessibility'],
-      ignoreStatusCode,
+      ignoreStatusCode: ignoresStatus(page),
     });
     const metrics = metricsFromLighthouse(lhr, url);
     results.push({ metrics, report });
-    // Each run's own numbers in the log, so any page's spread can be read back from a check.
     console.log(
       `  ${page.path}: run ${run} of ${runs} (${((Date.now() - started) / 1000).toFixed(1)} s): ` +
         `busy ${Math.round(metrics.blockingMs)} ms, load ${(metrics.loadMs / 1000).toFixed(2)} s, ` +
-        `shift ${metrics.layoutShift.toFixed(3)}`,
+        `shift ${metrics.layoutShift.toFixed(3)}; ${runDetail(lhr)}`,
     );
+    if (overBudgetRuns([metrics], budget).length > 0) {
+      console.log(`    over a budget; ${longTasks(lhr, base)}`);
+      await mkdir(join(out, 'reports'), { recursive: true });
+      await writeFile(join(out, 'reports', `${page.name}-run-${run}.html`), report);
+    }
   }
-  const summary = summarize(results.map((r) => r.metrics));
+  return { page, url, results };
+}
 
-  const darkStarted = Date.now();
+/** The contrast audit once more, in the dark scheme. */
+async function darkContrast(tab: Tab, measured: PageRuns) {
+  const started = Date.now();
   await colourScheme(tab, 'dark');
-  const { lhr: darkRun } = await lighthouseRun(tab, url, {
+  const { lhr } = await lighthouseRun(tab, measured.url, {
     onlyAudits: ['color-contrast'],
-    ignoreStatusCode,
+    ignoreStatusCode: ignoresStatus(measured.page),
   });
-  const appliedDark = await tab.evaluate(() => matchMedia('(prefers-color-scheme: dark)').matches);
+  const applied = await tab.evaluate(() => matchMedia('(prefers-color-scheme: dark)').matches);
   await colourScheme(tab, 'light');
-  if (!appliedDark)
+  if (!applied)
     throw new Error('The dark colour scheme was not applied, so dark text went unchecked');
-  const dark = contrastOf(darkRun, url);
   console.log(
-    `  ${page.path}: contrast in the dark scheme (${((Date.now() - darkStarted) / 1000).toFixed(1)} s)`,
+    `  ${measured.page.path}: contrast in the dark scheme (${((Date.now() - started) / 1000).toFixed(1)} s)`,
   );
+  return contrastOf(lhr, measured.url);
+}
 
+/** A page's report from its measured runs and its dark-scheme contrast. */
+async function pageReport(
+  measured: PageRuns,
+  dark: { passes: boolean; problems: string[] },
+): Promise<PageReport> {
+  const { page, results } = measured;
+  const summary = summarize(results.map((r) => r.metrics));
   // Keep the Lighthouse report of the run closest to the median load time.
   const closest = results.reduce((best, r) =>
     Math.abs(r.metrics.loadMs - summary.loadMs) < Math.abs(best.metrics.loadMs - summary.loadMs)
@@ -157,6 +217,12 @@ async function measurePage(tab: Tab, base: string, page: Page, runs: number): Pr
   };
 }
 
+/** Measures one page, then its dark-scheme contrast straight after (the self-test's way). */
+async function measurePage(tab: Tab, base: string, page: Page, runs: number): Promise<PageReport> {
+  const measured = await measureRuns(tab, base, page, runs);
+  return pageReport(measured, await darkContrast(tab, measured));
+}
+
 async function main() {
   const base = process.env.BASE_URL ?? 'http://localhost:3000';
   const runs = Number(process.env.SPEED_RUNS ?? RUNS);
@@ -167,6 +233,7 @@ async function main() {
 
   const { browser, tab } = await openBrowser();
   const reports: PageReport[] = [];
+  let firstVisit: FirstVisit | undefined;
   try {
     if (secret) {
       await browser.setCookie({
@@ -178,8 +245,15 @@ async function main() {
         httpOnly: true,
       });
     }
-    for (const page of pagesIn(environment)) {
-      reports.push(await measurePage(tab, base, page, runs));
+    const pages = pagesIn(environment);
+    if (pages[0]) firstVisit = await warmUp(tab, base, pages[0]);
+    // Every page's measured runs first, then every page's dark-scheme contrast: a contrast run
+    // isn't traced, and the run straight after one, a page's first, was the one over its budget
+    // (the console's pages at 231 to 275 ms, against their usual 75).
+    const measured: PageRuns[] = [];
+    for (const page of pages) measured.push(await measureRuns(tab, base, page, runs));
+    for (const pageRuns of measured) {
+      reports.push(await pageReport(pageRuns, await darkContrast(tab, pageRuns)));
     }
   } finally {
     await browser.close();
@@ -197,6 +271,16 @@ async function main() {
       "total download include other sites' scripts and embeds.",
     ...(faint.length ? ['', '**Text too faint to read:**', ...faint] : []),
     ...(warnings ? ['', warnings] : []),
+    ...(firstVisit
+      ? [
+          '',
+          `**A first visit, cold** (shown, never judged): \`${firstVisit.path}\` in a browser just ` +
+            `opened, its React and Next.js code compiled for the first time: busy ` +
+            `${firstVisit.busyMs} ms, load ${(firstVisit.loadMs / 1000).toFixed(2)} s. Every run ` +
+            'judged above is a visit with that code already compiled, as a reader moving around ' +
+            "the site makes; a reader's very first visit pays this once.",
+        ]
+      : []),
   ].join('\n');
   await mkdir(out, { recursive: true });
   await writeFile(join(out, 'website.md'), `${markdown}\n`);
@@ -239,10 +323,6 @@ async function selfTest() {
       script ?? '<!doctype html><p>An embedded post</p><script src="/frame.js"></script>',
     );
   });
-  const listen = (server: Server, host: string) =>
-    new Promise<number>((resolve) =>
-      server.listen(0, host, () => resolve((server.address() as AddressInfo).port)),
-    );
   const embedPort = await listen(embed, '127.0.0.1');
   const site = createServer((_request, response) => {
     response.writeHead(200, { 'content-type': 'text/html' });
