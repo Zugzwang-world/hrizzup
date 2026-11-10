@@ -4,6 +4,7 @@ import { type GoogleOutcome, onGoogleOutcome, signInWithGoogle } from '../lib/au
 import { retrySignIn, signOut, useSignIn } from '../lib/auth/session.ts';
 import { Choice } from './choice.tsx';
 import { EmailCodeSignIn } from './email-code-sign-in.tsx';
+import { WhoAmI } from './who-am-i.tsx';
 
 const GOOGLE: Record<GoogleOutcome, string | null> = {
   'signed-in': null,
@@ -14,8 +15,11 @@ const GOOGLE: Record<GoogleOutcome, string | null> = {
 
 /**
  * The sign-in test (PLAN.md step 1.6b): a plain place to try the app's sign-in on staging, as
- * the website's sign-in test page is. There's no password anywhere. The real sign-in screen comes
- * from the design chat.
+ * the website's sign-in test page is. Signed out: "Continue with Google" (through the phone's
+ * browser) and "Email me a code" (the bot check in a small web view, the code typed here). Signed
+ * in: who's signed in, from the typed API, and "Sign out". The session stays on the phone,
+ * encrypted, and refreshes itself, so the app stays signed in when it's closed and opened again.
+ * There's no password anywhere. The real sign-in screen comes from the design chat.
  */
 export function SignInTest() {
   const dark = useColorScheme() === 'dark';
@@ -125,9 +129,7 @@ export function SignInTest() {
           <Text testID="signed-in" style={[styles.status, { color: colors.ink }]}>
             You're signed in
           </Text>
-          <Text testID="signed-in-email" style={[styles.note, { color: colors.ink }]}>
-            {signIn.session.user.email}
-          </Text>
+          <WhoAmI colors={colors} />
           <Choice
             testID="sign-out-button"
             label="Sign out"

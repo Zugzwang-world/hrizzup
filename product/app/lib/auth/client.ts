@@ -1,7 +1,7 @@
 import '../crypto.ts';
 import { GoTrueClient } from '@supabase/auth-js';
 import { AppState } from 'react-native';
-import { api } from '../api.ts';
+import { api, sendTokensFrom } from '../api.ts';
 import { sessionStorage } from './storage.ts';
 
 /**
@@ -16,6 +16,8 @@ import { sessionStorage } from './storage.ts';
  *   the app is in front; refreshing stops in the background and starts again on return, as
  *   Supabase advises for apps.
  * - **PKCE for Google**: the browser's code is useless without the verifier only this app holds.
+ * - **The token goes to our API with personal calls only** (lib/api.ts), so public reads stay
+ *   cacheable at the edge.
  */
 
 let client: Promise<GoTrueClient> | undefined;
@@ -39,6 +41,8 @@ export function authClient(): Promise<GoTrueClient> {
         detectSessionInUrl: false,
       });
       refreshWhileInFront(auth);
+      // Personal calls to our API carry the session's token (refreshed first if it has run out).
+      sendTokensFrom(async () => (await auth.getSession()).data.session?.access_token ?? null);
       return auth;
     })
     .catch((error: unknown) => {

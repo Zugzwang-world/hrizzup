@@ -1,5 +1,6 @@
 import type { Session } from '@supabase/auth-js';
 import { useSyncExternalStore } from 'react';
+import { forgetPersonalAnswers } from '../api.ts';
 import { authClient } from './client.ts';
 
 /**
@@ -30,6 +31,9 @@ function follow() {
   authClient().then(
     (auth) => {
       auth.onAuthStateChange((_event, session) => {
+        const before = current.state === 'signed-in' ? current.session.user.id : null;
+        // Signed out, or someone else signed in: nothing personal stays in memory.
+        if (before && before !== session?.user.id) forgetPersonalAnswers();
         set(session ? { state: 'signed-in', session } : { state: 'signed-out' });
       });
     },
