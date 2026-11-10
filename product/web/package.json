@@ -10,7 +10,8 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
     "test:screens": "playwright test",
-    "test-accounts": "node scripts/test-accounts.ts"
+    "test-accounts": "node scripts/test-accounts.ts",
+    "sandbox-markets": "node scripts/sandbox-markets.ts"
   },
   "dependencies": {
     "@hrizzup/agreement": "workspace:*",

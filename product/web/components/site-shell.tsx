@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { currentEnvironment } from '@/lib/env.ts';
 
 /** A small note on every page outside production, so nobody mistakes staging for the live site. */
-function EnvironmentNote() {
+export function EnvironmentNote() {
   const env = currentEnvironment();
   if (env === 'production') return null;
   return (

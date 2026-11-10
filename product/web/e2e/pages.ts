@@ -67,6 +67,16 @@ export const BITCOIN_PERP = '01a1c501-ec40-78f6-87b6-3fb041143421';
  * whoever switches it, a real admin's own address, which must never reach a public screenshot.)
  */
 export const CONSOLE_FIXTURE_PERP = '019a6c00-0000-7000-8000-000000000002';
+
+/**
+ * A test market the screen check keeps on staging for the markets sandbox's market page (R1 of
+ * Round 5): made and opened once by the console's admin test account (global-setup.ts) and only ever
+ * read after. It is listed, unlike the checks' own markets: the sandbox finds a market through the
+ * public list, so an unlisted one has no page there. Nothing ever trades it.
+ */
+export const SANDBOX_FIXTURE_MARKET = '019a6c00-0000-7000-8000-000000000003';
+export const SANDBOX_FIXTURE_QUESTION =
+  'Sandbox: a test market kept on staging for the sandbox page checks';
 export const FIXTURE_PERP_NAME =
   "Screen check: a test perp kept on staging for the console's screen check";
 
@@ -122,6 +132,37 @@ export const pages: readonly Page[] = [
     path: `/console/perps/${BITCOIN_PERP}`,
     status: 404,
     budget: 'standard',
+  },
+  // The markets sandbox (R1 of Round 5): a plain working copy of Kalshi's layout to try the markets and
+  // the Bitcoin perp by hand. Like the sign-in test page it exists on staging, previews and this Mac
+  // only. The screen check also opens the market and perp pages signed in (screens.spec.ts).
+  {
+    route: '/sandbox',
+    name: 'sandbox',
+    path: '/sandbox',
+    budget: 'standard',
+    absentOn: ['production'],
+  },
+  {
+    route: '/sandbox/markets/[id]',
+    name: 'sandbox-market',
+    path: `/sandbox/markets/${SANDBOX_FIXTURE_MARKET}`,
+    budget: 'standard',
+    absentOn: ['production'],
+  },
+  {
+    route: '/sandbox/perps',
+    name: 'sandbox-perps',
+    path: '/sandbox/perps',
+    budget: 'standard',
+    absentOn: ['production'],
+  },
+  {
+    route: '/sandbox/perps/[id]',
+    name: 'sandbox-perp',
+    path: `/sandbox/perps/${BITCOIN_PERP}`,
+    budget: 'standard',
+    absentOn: ['production'],
   },
 ];
 
