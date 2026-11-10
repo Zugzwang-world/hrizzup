@@ -7,6 +7,7 @@ import updates from '@hrizzup/agreement/examples/updates.json' with { type: 'jso
 import type { AuthSettings, EmailCodeSent } from './auth.ts';
 import type { ConsoleMarket, ConsoleMarketWithLog } from './console.ts';
 import type { Health, Me } from './contract.ts';
+import type { ConsolePerp, ConsolePerpWithLog, RuleChange } from './perps.ts';
 import type {
   CancelOrderResult,
   MarketList,
@@ -222,3 +223,80 @@ export const ordersPage: OrdersPage = {
   ],
   next: null,
 };
+
+/**
+ * The Bitcoin perp as the console shows it the day it's made (PLAN.md step 3.4a): listed, switched
+ * off, its settings Manifold's defaults with the 10-times cap, Ṁ25,000 of the house's in each pool,
+ * no price applied yet, and its first rules in the rule-change log, from the migration.
+ */
+const perpMadeAt = '2026-11-10T10:30:00Z';
+const firstRules: [RuleChange['rule'], string][] = [
+  ['created', 'Bitcoin price (US dollars)'],
+  [
+    'stand_in',
+    "stand-in-btc-usd: from 2026-01-01T00:00:00Z at 100000, volatility 0.55 a year, the environment's own seed",
+  ],
+  ['trading_mode', 'halted'],
+  ['funding_from', perpMadeAt],
+  ['max_leverage', '10'],
+  ['taker_fee_bps', '10'],
+  ['taker_fee_impact', '0'],
+  ['funding_period_ms', '3600000'],
+  ['funding_sensitivity', '1'],
+  ['max_funding_rate', '0.00011415525114155251'],
+  ['max_price_age_ms', '120000'],
+  ['subsidy_long', '25000.000000'],
+  ['subsidy_short', '25000.000000'],
+];
+
+export const consolePerpWithLog: ConsolePerpWithLog = {
+  id: '01a1c501-ec40-78f6-87b6-3fb041143421',
+  name: 'Bitcoin price (US dollars)',
+  listed: true,
+  state: 'live',
+  tradingMode: 'halted',
+  feed: 'stand-in-btc-usd',
+  settings: {
+    maxLeverage: '10',
+    takerFeeBps: '10',
+    takerFeeImpact: '0',
+    fundingPeriodMs: '3600000',
+    fundingSensitivity: '1',
+    maxFundingRate: '0.00011415525114155251',
+    maxPriceAgeMs: '120000',
+    subsidyLong: '25000.000000',
+    subsidyShort: '25000.000000',
+  },
+  price: null,
+  priceAt: null,
+  fundingFrom: perpMadeAt,
+  lastFundingAt: null,
+  pausedReason: null,
+  pools: { long: '25000.000000', short: '25000.000000' },
+  openInterest: { long: '0', short: '0' },
+  openPositions: 0,
+  createdAt: perpMadeAt,
+  updatedAt: perpMadeAt,
+  createdBy: null,
+  standIn: {
+    origin: '2026-01-01T00:00:00Z',
+    startPrice: '100000',
+    volatility: '0.55',
+    ownSeed: false,
+  },
+  steps: 0,
+  retiredAt: null,
+  log: firstRules.map(([rule, newValue], index) => ({
+    id: index + 1,
+    at: perpMadeAt,
+    by: null,
+    rule,
+    oldValue: null,
+    newValue,
+    reason:
+      "The perp's first settings: Manifold's defaults with the 10-times cap (the founder's decision, 10 November 2026)",
+  })),
+};
+
+/** The same perp as a list shows it, without its log. */
+export const consolePerp: ConsolePerp = (({ log: _log, ...rest }) => rest)(consolePerpWithLog);

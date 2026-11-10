@@ -1,12 +1,29 @@
 import { describe, expect, it } from 'vitest';
 import {
+  dollars,
   indiaTime,
   indiaTimeToUtc,
   money,
   percent,
   percentToDecimal,
+  ruleValue,
   utcToIndiaField,
 } from './console-format.ts';
+
+describe("the perp's console", () => {
+  it('shows prices in US dollars, to the cent, exactly', () => {
+    expect(dollars('100000')).toBe('$100,000.00');
+    expect(dollars('101234.56')).toBe('$101,234.56');
+    expect(dollars('89.5')).toBe('$89.50');
+  });
+
+  it("names the off switch's positions in its log", () => {
+    expect(ruleValue('trading_mode', 'halted')).toBe('Off (halted)');
+    expect(ruleValue('trading_mode', 'reduce-only')).toBe('Closing only');
+    expect(ruleValue('max_leverage', '10')).toBe('10');
+    expect(ruleValue('max_leverage', null)).toBe('none');
+  });
+});
 
 describe('times in the market console', () => {
   it('are typed in India time and kept in UTC', () => {

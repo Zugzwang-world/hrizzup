@@ -28,7 +28,10 @@ export function toApiError(error: unknown): unknown {
       case 'not_admin':
         return noSuchCall();
       case 'not_found':
-        return new ORPCError('NOT_FOUND', { message: 'No such market' });
+        // The database's own words: "No such market", or "No such perp".
+        return new ORPCError('NOT_FOUND', {
+          message: /^No such (market|perp)$/.test(error.message) ? error.message : 'No such market',
+        });
       case 'conflict':
         return new ORPCError('CONFLICT', { message: error.message });
       case 'invalid':

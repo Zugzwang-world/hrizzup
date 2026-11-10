@@ -36,6 +36,15 @@ const LABELS: Record<string, string> = {
   evidence: 'Evidence',
   reason: 'Reason',
   outcome: 'Outcome',
+  mode: 'The off switch',
+  settings: 'Settings',
+  maxLeverage: 'Most leverage',
+  takerFeeBps: 'Opening fee',
+  takerFeeImpact: 'Size fee',
+  fundingPeriodMs: 'Funding period',
+  fundingSensitivity: 'Funding sensitivity',
+  maxFundingRate: 'Most funding a period',
+  maxPriceAgeMs: 'Oldest price allowed',
 };
 
 /** A field as typed: new lines as the agreement writes them, and no spaces at either end. */
@@ -158,5 +167,81 @@ export async function settleMarketAction(
       ...(probability ? { probability } : {}),
       ...(outcome === 'cancel' && reason ? { reason } : {}),
     }),
+  );
+}
+
+/**
+ * The perp's console (PLAN.md step 3.4a): its off switch and its settings, each change in its
+ * rule-change log with the reason given. Like every form here, it answers anyone but an admin "not
+ * found" before reading anything, and shows the perp again as it now is.
+ */
+async function perpStep(
+  form: FormData,
+  call: (id: string) => Promise<unknown>,
+): Promise<ConsoleFormState> {
+  const values = typed(form);
+  const id = field(form, 'id');
+  try {
+    await call(id);
+  } catch (error) {
+    revalidatePath(`/console/perps/${id}`);
+    return refusal(error, values);
+  }
+  redirect(`/console/perps/${id}`);
+}
+
+export async function setPerpModeAction(
+  _before: ConsoleFormState,
+  form: FormData,
+): Promise<ConsoleFormState> {
+  await adminsOnly();
+  const mode = field(form, 'mode');
+  if (mode !== 'enabled' && mode !== 'reduce-only' && mode !== 'halted') {
+    return { error: 'The off switch: on, closing only, or off.', values: typed(form) };
+  }
+  // The mode the page showed: nothing to switch, and never a switch back over another admin's
+  // change made since the page was loaded.
+  if (mode === field(form, 'shown-mode')) {
+    return {
+      error: 'It is already in that mode: choose another to switch to.',
+      values: typed(form),
+    };
+  }
+  return perpStep(form, (id) =>
+    serverApi.admin.perps.setMode({ id, mode, reason: field(form, 'reason') }),
+  );
+}
+
+/** The settings an admin may change from the console, by the engine's names. */
+const PERP_SETTINGS = [
+  'maxLeverage',
+  'takerFeeBps',
+  'takerFeeImpact',
+  'fundingPeriodMs',
+  'fundingSensitivity',
+  'maxFundingRate',
+  'maxPriceAgeMs',
+] as const;
+
+export async function setPerpSettingsAction(
+  _before: ConsoleFormState,
+  form: FormData,
+): Promise<ConsoleFormState> {
+  await adminsOnly();
+  // Only the settings typed differently from what the page showed: one left as it was is never
+  // sent, so a page loaded before another admin's change can't quietly undo it.
+  const settings = Object.fromEntries(
+    PERP_SETTINGS.map((name) => [name, field(form, name)]).filter(
+      ([name, value]) => value !== '' && value !== field(form, `shown-${name}`),
+    ),
+  );
+  if (Object.keys(settings).length === 0) {
+    return {
+      error: 'Nothing to change: type a new value for a setting first.',
+      values: typed(form),
+    };
+  }
+  return perpStep(form, (id) =>
+    serverApi.admin.perps.setSettings({ id, settings, reason: field(form, 'reason') }),
   );
 }
