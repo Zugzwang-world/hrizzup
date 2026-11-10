@@ -130,8 +130,8 @@ export async function createRunAccount(
 }
 
 /**
- * A working sign-in code for `email`, through staging's admin access instead of an inbox. It
- * replaces the code in the email just sent (Resend's test inbox drops that email anyway).
+ * A working sign-in code for `email`, through staging's admin access instead of an email: no
+ * check run sends one (staging's 30 an hour are shared by every run and the founder's own).
  */
 export async function readSignInCode(keys: Keys, email: string): Promise<string> {
   const { data, error } = await admin(keys).auth.admin.generateLink({ type: 'magiclink', email });
