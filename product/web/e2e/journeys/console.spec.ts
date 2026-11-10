@@ -1,11 +1,13 @@
-import { type Browser, expect, type Page, test } from '@playwright/test';
+import { type APIRequestContext, type Browser, expect, type Page, test } from '@playwright/test';
+import { CONSOLE_FIXTURE_MARKET } from '../pages.ts';
 import { adminState, signedInState } from '../support/states.ts';
 import { ADMIN_TEST_ACCOUNT } from '../support/test-accounts.ts';
 import { phone } from './phone.ts';
 
 /**
  * Journey: the market console (PLAN.md step 1.7c), at a phone size, in Chromium and WebKit.
- * - Anyone but an admin, signed in or not, gets "not found" for every page of it.
+ * - Anyone but an admin, signed in or not, gets "not found" for every page of it: the site's own
+ *   "not found" page, exactly as for an address the site doesn't have, its forms included.
  * - An admin creates a test market, opens, closes and settles it by hand, and the log shows each
  *   step, the settlement's evidence, and payouts that come to all the market held; then cancels
  *   another, with the reason.
@@ -57,6 +59,85 @@ test('anyone but an admin, signed in or not, finds no console', async ({
     await expect(member.getByRole('heading', { level: 1, name: 'Page not found' })).toBeVisible();
   }
   await context.close();
+});
+
+/** Headers that differ from one answer to the next by their nature (the time, the request's ID). */
+const PER_ANSWER = new Set([
+  'date',
+  'age',
+  'x-vercel-id',
+  'x-vercel-cache',
+  'connection',
+  'keep-alive',
+]);
+
+/** An answer as a stranger can compare it: its status, its body, and its headers. */
+async function answer(
+  as: APIRequestContext,
+  method: 'GET' | 'POST',
+  path: string,
+): Promise<{ status: number; text: string; headers: Record<string, string> }> {
+  // A form's post, as the console's forms send one (a server action), naming an action that
+  // doesn't exist: what a stranger trying the forms could send.
+  const form = {
+    headers: {
+      'next-action': '7f00000000000000000000000000000000000000aa',
+      'content-type': 'text/plain;charset=UTF-8',
+      accept: 'text/x-component',
+    },
+    data: '[]',
+  };
+  const response = await as.fetch(path, {
+    method,
+    maxRedirects: 0,
+    ...(method === 'POST' ? form : {}),
+  });
+  return {
+    status: response.status(),
+    text: await response.text(),
+    headers: Object.fromEntries(
+      Object.entries(response.headers()).filter(([name]) => !PER_ANSWER.has(name)),
+    ),
+  };
+}
+
+test("the console's pages answer anyone but an admin exactly as an address the site doesn't have", async ({
+  request,
+  playwright,
+  baseURL,
+  browserName,
+}) => {
+  const strangers: { who: string; as: APIRequestContext }[] = [{ who: 'signed out', as: request }];
+  if (!onProduction()) {
+    strangers.push({
+      who: 'signed in, not an admin',
+      as: await playwright.request.newContext({
+        ...(baseURL ? { baseURL } : {}),
+        storageState: signedInState(browserName),
+      }),
+    });
+  }
+  const pages = ['/console', '/console/markets/new', `/console/markets/${CONSOLE_FIXTURE_MARKET}`];
+  for (const method of ['GET', 'POST'] as const) {
+    // Not a page of the site at all: what every stranger must get, to the byte.
+    const unknown = await answer(request, method, '/this-page-does-not-exist');
+    if (method === 'GET') {
+      expect(unknown.status).toBe(404);
+      // The site's "not found" page, rendered on the server: the page itself is in the answer,
+      // not an empty one the phone must build with JavaScript.
+      expect(unknown.text).toContain('Page not found');
+      expect(unknown.text).not.toContain('__next_error__');
+    }
+    for (const { who, as } of strangers) {
+      for (const path of pages) {
+        const what = `${who}: ${method} ${path}`;
+        const got = await answer(as, method, path);
+        expect(got.status, what).toBe(unknown.status);
+        expect(got.text, what).toBe(unknown.text);
+        expect(got.headers, what).toEqual(unknown.headers);
+      }
+    }
+  }
 });
 
 test('an admin creates, opens, closes and settles a market; the log shows it, and the payouts add up', async ({

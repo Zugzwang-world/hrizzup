@@ -7,14 +7,18 @@ import puppeteer, { type Browser, type Page as Tab } from 'puppeteer-core';
 import { budgets, type Page, pagesIn } from './pages.ts';
 import {
   contrastOf,
+  describeWarning,
   judge,
   type LighthouseResult,
   markdownTable,
+  markdownWarnings,
   metricsFromLighthouse,
+  overBudgetRuns,
   type PageReport,
   pagePasses,
   RUNS,
   type RunMetrics,
+  runNumbers,
   summarize,
 } from './speed.ts';
 import { BYPASS_COOKIE, bypassCookieValue } from './support/bypass.ts';
@@ -129,10 +133,11 @@ async function measurePage(tab: Tab, base: string, page: Page, runs: number): Pr
   await mkdir(join(out, 'reports'), { recursive: true });
   await writeFile(join(out, 'reports', `${page.name}.html`), closest.report);
 
+  const budget = budgets[page.budget];
   return {
     name: page.name,
     path: page.path,
-    verdicts: judge(summary, budgets[page.budget]),
+    verdicts: judge(summary, budget),
     contrast: {
       light: summary.contrastPasses,
       dark: dark.passes,
@@ -140,6 +145,11 @@ async function measurePage(tab: Tab, base: string, page: Page, runs: number): Pr
     },
     otherSitesBytes: summary.otherSitesBytes,
     requests: summary.requests,
+    warnings: overBudgetRuns(
+      results.map((r) => r.metrics),
+      budget,
+    ),
+    runs: results.map((r) => runNumbers(r.metrics)),
   };
 }
 
@@ -173,6 +183,7 @@ async function main() {
 
   const failing = reports.filter((report) => !pagePasses(report));
   const faint = reports.flatMap((r) => r.contrast.problems.map((p) => `- \`${r.path}\`: ${p}`));
+  const warnings = markdownWarnings(reports);
   const markdown = [
     markdownTable(reports),
     '',
@@ -181,6 +192,7 @@ async function main() {
       "small tolerance for GitHub's shared machines (`product/web/e2e/speed.ts`). Code and " +
       "total download include other sites' scripts and embeds.",
     ...(faint.length ? ['', '**Text too faint to read:**', ...faint] : []),
+    ...(warnings ? ['', warnings] : []),
   ].join('\n');
   await mkdir(out, { recursive: true });
   await writeFile(join(out, 'website.md'), `${markdown}\n`);
@@ -189,6 +201,15 @@ async function main() {
     `${JSON.stringify({ base, environment, runs, reports }, null, 2)}\n`,
   );
   console.log(`\n${markdown}\n`);
+  // Each single run over a budget as a GitHub warning on the check: it shows on the pull request
+  // and in the run's summary, and never fails the check (only the medians above can).
+  for (const report of reports) {
+    for (const warning of report.warnings) {
+      console.log(
+        `::warning title=Speed check: one run over a budget::${describeWarning(report.path, warning)}`,
+      );
+    }
+  }
   if (failing.length > 0) {
     console.error(`Over budget: ${failing.map((r) => r.path).join(', ')}`);
     process.exit(1);
