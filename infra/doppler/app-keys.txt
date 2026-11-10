@@ -24,6 +24,8 @@ DATABASE_URL_SESSION        # the migrations' database address: the pooler in se
 GOOGLE_OAUTH_CLIENT_ID      # Google sign-in's client, set in Supabase Auth (infra/supabase/auth)
 GOOGLE_OAUTH_CLIENT_SECRET  # Google sign-in's client secret; Supabase Auth keeps a copy (infra/supabase/auth)
 MEDIA_BASE_URL              # the address images and media are served from
+PERP_JOBS_SECRET            # the perp's scheduled jobs: the database's every-5-seconds and funding calls prove themselves with it (product/web/app/api/jobs/perps; Supabase Vault holds its copy); production holds none while its perp is off
+PERP_STAND_IN_SEED          # the Bitcoin perp's stand-in price: its secret seed, so nobody can work out its prices from the public code (product/packages/perps, step 3.4a); production holds none while its perp is off
 R2_ACCESS_KEY_ID            # the website's storage key for this environment's two R2 buckets
 R2_BUCKET_MEDIA             # the media bucket's name
 R2_BUCKET_UPLOADS           # the uploads bucket's name
