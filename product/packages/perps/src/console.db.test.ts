@@ -102,7 +102,7 @@ async function refusal(work: Promise<unknown>): Promise<ConsoleError> {
 }
 
 describe("the perp's console", () => {
-  it('shows an admin the Bitcoin perp as the migration made it: switched off, with its first rules', async () => {
+  it('shows an admin the Bitcoin perp as the migrations made it: switched off, with its first rules, on our own price', async () => {
     const page = await listPerps(app, ADMIN, { max: 100 });
     const bitcoin = page.perps.find((perp) => perp.id === BITCOIN);
     expect(bitcoin).toMatchObject({
@@ -110,7 +110,7 @@ describe("the perp's console", () => {
       listed: true,
       state: 'live',
       tradingMode: 'halted',
-      feed: 'stand-in-btc-usd',
+      feed: 'btc-usd',
       createdBy: null,
       standIn: {
         origin: '2026-01-01T00:00:00Z',

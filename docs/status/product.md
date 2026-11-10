@@ -811,6 +811,12 @@ Last updated: 11 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/bri
   - **answered without asking** (one line each):
     - An order waits at most 15 seconds for a price stored after it, then is refused as `stale_price` without being recorded, so the same request can be sent again.
     - The contract keeps `stale_price` for "price unavailable" (its message says so), so no call changes while R3 changes their ground rules.
+- **Round 5, R4: the perp's own price (3.4b), milestone 3 of 3: staging's Bitcoin perp onto it** (11 November 2026, [#130](https://github.com/Zugzwang-world/hrizzup/pull/130), `[risky]`):
+  - **the move:** a migration moves the listed perp from its stand-in to our own price (`btc-usd`), once, in every environment, with the move in its rule-change log; its other rules, Manifold's `maxPriceAgeMs` among them, stay as they were. On staging, where it's switched on, the price is asked for from the schedule's next run; production's perp is off, so production asks nothing; a check's database and this Mac's never ask;
+  - **tests:** those that describe the perp as its migrations made it now see it on our own price, each still exact; new database tests trade it end to end on prices the tests store themselves (an order waiting for the next stored price and filling at it, a tick applying a newer one, positions' worth, a close, the books exact, and an order refused when no price comes);
+  - **answered without asking** (one line each):
+    - Every environment's listed perp moves, so production receives exactly the same change; its perp stays off.
+    - Staging's one open position (play money) moves with the price from the stand-in's to Bitcoin's, about 2% apart, short of its liquidation price.
 ## Next
 
 1. **Round 5** (`TRACKER.md`, "Round 5's queue"; the GitHub milestone "Round 5"; Round 4 closed on 10 November 2026, [#120](https://github.com/Zugzwang-world/hrizzup/pull/120)). **R1, the markets sandbox, is done** ([#121](https://github.com/Zugzwang-world/hrizzup/pull/121)): the founder tries the markets and the perp by hand at `/sandbox` on staging. **R2, the public API's research and design, is done** (this file's Done; [docs/research/public-api.md](../research/public-api.md)). Each relay is numbered when it's written:

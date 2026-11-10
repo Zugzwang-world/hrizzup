@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createTestPerp, setPerpMode } from './console.ts';
 import { runJob } from './jobs.ts';
 import type { StepRequest } from './plan.ts';
-import { PerpNotSetUpError, type PriceSource, runStep } from './step.ts';
+import { OWN_PRICE_WAIT_MS, PerpNotSetUpError, type PriceSource, runStep } from './step.ts';
 import {
   closePerp,
   listedPerps,
@@ -705,14 +705,138 @@ describe('the calls for everyone', () => {
     expect(Date.parse(shown.nextPriceAt)).toBe(at + STEP);
     expect(shown.price).toBe(String(priceOf(walk, at).price));
 
-    const list = await listedPerps(app, SOURCE);
-    await passes(outputOf(contract.perps.list), list);
-    expect(list.perps.map((listed) => [listed.id, listed.tradingMode])).toEqual([
-      [BITCOIN, 'halted'],
-    ]);
-    // Without the environment's seed, the listed perp's price isn't set up here.
+    // The listed perp is on our own price: before the first is stored, its price isn't set up
+    // here, whatever the environment's seed.
+    await expect(listedPerps(app, SOURCE)).rejects.toBeInstanceOf(PerpNotSetUpError);
     await expect(listedPerps(app, { seed: undefined })).rejects.toBeInstanceOf(PerpNotSetUpError);
     expect(await refusalOf(perpDetails(app, newId(), SOURCE))).toMatchObject({ kind: 'not_found' });
     await switchOff(perp);
   });
+});
+
+describe('the Bitcoin perp on our own price (3.4b)', () => {
+  /**
+   * A price of ours stored now, as the schedule stores one, asked for at the database's own time.
+   * Written by the test itself: no check ever asks an exchange.
+   */
+  async function store(price: string): Promise<string> {
+    const { rows } = await owner.query<{ at: string }>(
+      `insert into prices.points (feed, at, price, sources, published_at)
+       values ('btc-usd', date_trunc('milliseconds', clock_timestamp()), $1, 3, clock_timestamp())
+       returning markets.utc(at) as at`,
+      [price],
+    );
+    const at = rows[0]?.at;
+    if (!at) throw new Error('No price stored');
+    return at;
+  }
+
+  /** Switched on and off by the database's owner: no jobs are set up here, so nothing is asked. */
+  async function bitcoinMode(mode: 'enabled' | 'halted') {
+    await owner.query('update perps.perps set trading_mode = $2 where id = $1', [BITCOIN, mode]);
+  }
+
+  it('shows our newest stored price, fills each order at the next one stored after it, and ticks on each new one', async () => {
+    const ola = await person('1000');
+    const people = new Map([[ola, '1000']]);
+    await bitcoinMode('enabled');
+    try {
+      const { rows } = await owner.query<{ wanted: boolean }>(
+        "select prices.wanted('btc-usd') as wanted",
+      );
+      expect(rows[0]?.wanted, 'with no jobs set up, the price is never asked for here').toBe(false);
+
+      const first = await store('73342.17');
+      const shown = await perpDetails(app, BITCOIN, SOURCE);
+      await passes(outputOf(contract.perps.get), shown);
+      expect(shown).toMatchObject({ feed: 'btc-usd', price: '73342.17' });
+      expect(Date.parse(shown.priceAt)).toBe(Date.parse(first));
+      expect(Date.parse(shown.nextPriceAt) - Date.parse(shown.priceAt)).toBe(5_000);
+      const list = await listedPerps(app, { seed: undefined });
+      await passes(outputOf(contract.perps.list), list);
+      expect(list.perps.map((listed) => [listed.id, listed.price])).toEqual([
+        [BITCOIN, '73342.17'],
+      ]);
+
+      // An order waits for the next price stored after it, and fills at exactly that one.
+      const opening = openPerp(
+        app,
+        ola,
+        {
+          perpId: BITCOIN,
+          requestId: randomUUID(),
+          direction: 'long',
+          margin: '10',
+          leverage: '2',
+        },
+        SOURCE,
+      );
+      await sleep(1_500);
+      const next = await store('73350.25');
+      const opened = await opening;
+      await passes(outputOf(contract.perps.open), opened);
+      expect(opened).toMatchObject({ status: 'opened', price: '73350.25', priceAt: next });
+      expect(Date.parse(opened.priceAt)).toBeGreaterThan(Date.parse(opened.placedAt));
+      expect(opened.position?.entryPrice).toBe('73350.25');
+
+      // The tick applies a newer price, once.
+      const later = await store('73360.5');
+      const { rows: due } = await owner.query<{ ids: string[] }>("select perps.due('tick') as ids");
+      expect(due[0]?.ids).toContain(BITCOIN);
+      const run = await runJob(app, 'tick', SOURCE);
+      expect(run.failed).toEqual([]);
+      const { rows: book } = await owner.query<{ price: string; at: string }>(
+        'select price::text as price, markets.utc(price_at) as at from perps.perps where id = $1',
+        [BITCOIN],
+      );
+      expect(book[0]).toEqual({ price: '73360.5', at: later });
+      const { rows: after } = await owner.query<{ ids: string[] }>(
+        "select perps.due('tick') as ids",
+      );
+      expect(after[0]?.ids, 'nothing newer: no tick').not.toContain(BITCOIN);
+
+      // Its positions are worth what they are at our newest price.
+      const page = await perpPositions(app, ola, {}, SOURCE);
+      expect(page.positions.map((held) => [held.perpId, held.price])).toEqual([
+        [BITCOIN, '73360.5'],
+      ]);
+
+      const closing = closePerp(
+        app,
+        ola,
+        { perpId: BITCOIN, requestId: randomUUID(), fraction: '1' },
+        SOURCE,
+      );
+      await sleep(1_500);
+      const last = await store('73340.75');
+      const closed = await closing;
+      expect(closed).toMatchObject({ status: 'closed', price: '73340.75', priceAt: last });
+      await booksAddUp(BITCOIN, people);
+    } finally {
+      await bitcoinMode('halted');
+    }
+  }, 60_000);
+
+  it('refuses an order when no price is stored after it, unfilled and unrecorded', async () => {
+    const pia = await person('1000');
+    await bitcoinMode('enabled');
+    try {
+      const requestId = randomUUID();
+      const started = Date.now();
+      const error = await refusalOf(
+        openPerp(
+          app,
+          pia,
+          { perpId: BITCOIN, requestId, direction: 'short', margin: '5', leverage: '1' },
+          SOURCE,
+        ),
+      );
+      expect(error).toMatchObject({ kind: 'refused', reason: 'stale_price' });
+      expect(Date.now() - started).toBeGreaterThanOrEqual(OWN_PRICE_WAIT_MS - 1_000);
+      expect(await storedRequests(requestId)).toBe(0);
+      await booksAddUp(BITCOIN, new Map([[pia, '1000']]));
+    } finally {
+      await bitcoinMode('halted');
+    }
+  }, 60_000);
 });

@@ -302,9 +302,9 @@ select results_eq(
            p.stand_in_origin, p.stand_in_start_price, p.stand_in_volatility, p.price is null
     from perps.perps p where p.id = '01a1c501-ec40-78f6-87b6-3fb041143421'$$,
   $$values ('Bitcoin price (US dollars)'::text, true, 'live'::text, 'halted'::text,
-            'stand-in-btc-usd'::text, true, '2026-01-01 00:00:00+00'::timestamptz, 100000::numeric,
+            'btc-usd'::text, true, '2026-01-01 00:00:00+00'::timestamptz, 100000::numeric,
             0.55::numeric, true)$$,
-  'the Bitcoin perp is made, listed and switched off, on the stand-in price with no seed of its own'
+  'the Bitcoin perp is made, listed and switched off, with no seed of its own; on our own price since 3.4b'
 );
 select is(
   (select perps.settings_of(p) from perps.perps p where p.id = pg_temp.perp('btc')),
@@ -332,13 +332,13 @@ select results_eq(
            ('taker_fee_impact', '0', true), ('funding_period_ms', '3600000', true),
            ('funding_sensitivity', '1', true), ('max_funding_rate', '0.00011415525114155251', true),
            ('max_price_age_ms', '120000', true), ('subsidy_long', '25000.000000', true),
-           ('subsidy_short', '25000.000000', true)$$,
-  'its first rules are its first thirteen lines in the rule-change log, from the migration'
+           ('subsidy_short', '25000.000000', true), ('feed', 'btc-usd', true)$$,
+  'its first rules are its first thirteen lines in the rule-change log, from the migration, then its move onto our own price (3.4b)'
 );
 select ok(
   (select bool_and(r.reason like 'The perp''s first settings%') from perps.rule_changes r
-   where r.perp_id = pg_temp.perp('btc')),
-  'each of those lines says why: the founder''s decision of 10 November 2026'
+   where r.perp_id = pg_temp.perp('btc') and r.rule <> 'feed'),
+  'each of those first thirteen says why: the founder''s decision of 10 November 2026'
 );
 select is_empty($$select * from ledger.problems()$$, 'the books have no problem with it');
 select is(
@@ -359,9 +359,10 @@ select ok(
 select is(
   pg_temp.as_app(null, $$select perps.price_sources(array['01a1c501-ec40-78f6-87b6-3fb041143421'::uuid])::text$$)::jsonb,
   jsonb_build_object('01a1c501-ec40-78f6-87b6-3fb041143421', jsonb_build_object(
-    'feed', 'stand-in-btc-usd', 'seed', null,
-    'standIn', jsonb_build_object('origin', '2026-01-01T00:00:00Z', 'startPrice', '100000', 'volatility', '0.55'))),
-  'the server learns where its price comes from: the walk, and no seed (the environment keeps it)'
+    'feed', 'btc-usd', 'seed', null,
+    'standIn', jsonb_build_object('origin', '2026-01-01T00:00:00Z', 'startPrice', '100000', 'volatility', '0.55'),
+    'point', null)),
+  'the server learns where its price comes from: our own, none stored yet (and never a seed)'
 );
 
 

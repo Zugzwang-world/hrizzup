@@ -14,7 +14,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(61);
+select plan(62);
 
 insert into auth.users (id, email) values
   ('00000000-0000-4000-8000-0000000000e1', 'ada@bitcoin-price.test'),
@@ -285,8 +285,14 @@ select throws_ok(
   $$select prices.ask('eth-usd')$$, '22023', 'No price eth-usd', 'a price we don''t have is refused'
 );
 
--- The listed perp moves to our price (the later migration's move), and is switched on.
-update perps.perps set feed = 'btc-usd' where id = pg_temp.btc();
+-- The listed perp, moved onto our price by its own migration (3.4b's third), and switched on.
+select results_eq(
+  $$select p.feed, r.old_value, r.new_value, r.by_account is null, r.reason like 'Our own Bitcoin price replaces the stand-in%'
+    from perps.perps p join perps.rule_changes r on r.perp_id = p.id and r.rule = 'feed'
+    where p.id = pg_temp.btc()$$,
+  $$values ('btc-usd'::text, 'stand-in-btc-usd'::text, 'btc-usd'::text, true, true)$$,
+  'the Bitcoin perp is on our own price, its move in its rule-change log'
+);
 select ok(not prices.wanted('btc-usd'), 'on our price but switched off: still nothing');
 select vault.create_secret('http://127.0.0.1:9/api/jobs/perps', 'perps_jobs_url',
                            'The Bitcoin price tests'' address');
