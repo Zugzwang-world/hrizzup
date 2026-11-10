@@ -22,6 +22,36 @@ adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS > /dev/null
 
 adb install -r "$apk"
 
+# Google Play services on the emulator brings its settings up to date a minute or two after the
+# emulator starts, by restarting its own processes, and Android then stops every app that was
+# using its font service, as a web view does (the bot check: seen in App journeys on
+# 10 November 2026, about a minute into the journeys, on every run). So the journeys start once
+# that restart is behind them: once its processes have changed and then stayed put for 20
+# seconds, or after 3 minutes whatever happens.
+settle_play_services() {
+  local last now changed=false stable=0 waited=0
+  # `|| true`: pidof answers 1 when a process isn't running, which mustn't end the script.
+  last="$(adb shell pidof com.google.android.gms.persistent com.google.android.gms 2>/dev/null | tr -d '\r' || true)"
+  while [ "$waited" -lt 180 ]; do
+    sleep 5
+    waited=$((waited + 5))
+    now="$(adb shell pidof com.google.android.gms.persistent com.google.android.gms 2>/dev/null | tr -d '\r' || true)"
+    if [ "$now" != "$last" ]; then
+      changed=true
+      stable=0
+      last="$now"
+    else
+      stable=$((stable + 5))
+    fi
+    if [ "$changed" = true ] && [ "$stable" -ge 20 ] && [ -n "$now" ]; then
+      echo "Google Play services restarted itself and settled, after $waited seconds."
+      return 0
+    fi
+  done
+  echo "Google Play services didn't restart within $waited seconds; the journeys start now."
+}
+settle_play_services
+
 journeys() {
   maestro test --format junit --output "$out/$1.xml" --test-output-dir "$out/$1" \
     -e SIZE="$1" "$flows"
