@@ -85,7 +85,14 @@ select set_eq(
     'admin.create_market(uuid,text,text[],text,text,text,timestamp with time zone,timestamp with time zone,numeric,numeric,boolean)',
     'admin.open_market(uuid)',
     'admin.close_market(uuid)',
-    'admin.settle_market(uuid,text,numeric,text,text)'
+    'admin.settle_market(uuid,text,numeric,text,text)',
+    -- The perp's (step 3.4a, migrations/*_perp_books.sql; tested in perp_books.test.sql).
+    'admin.perps(uuid,integer)',
+    'admin.perp(uuid)',
+    'admin.set_perp_mode(uuid,text,text)',
+    'admin.set_perp_settings(uuid,jsonb,text)',
+    'admin.create_test_perp(uuid,text,text,jsonb,jsonb,timestamp with time zone,text)',
+    'admin.retire_test_perp(uuid,text)'
   ],
   'the admin schema holds the console''s calls, and nothing else'
 );
