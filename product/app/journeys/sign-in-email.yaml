@@ -1,0 +1,79 @@
+# The sign-in test's email code (PLAN.md step 1.6b), without sending any email: "Email me a code"
+# shows the address and the bot check (our website's page in a small web view); an address that
+# can't be one is refused before anything is sent; and "I already have a code" goes to the code
+# step, where a code of the wrong length is refused in the app and a wrong one by Supabase, as the
+# app checks codes itself. Signing a fresh account in with a real code is the signed-in journey.
+# Run by journeys/run.sh at a phone size and a tablet size (SIZE says which).
+appId: com.hrizzup.app
+name: The sign-in test asks for an email code behind the bot check, and checks a typed code
+---
+- launchApp:
+    clearState: true
+# As in app-opens.yaml: wait out a frozen system app's dialog on the slow CI emulator.
+- runFlow:
+    when:
+      visible: ".*isn't responding"
+    commands:
+      - tapOn: "Wait"
+- scrollUntilVisible:
+    element:
+      id: email-code-button
+    timeout: 30000
+- tapOn:
+    id: email-code-button
+- extendedWaitUntil:
+    visible:
+      id: email-input
+    timeout: 10000
+- assertVisible:
+    id: bot-check
+- tapOn:
+    id: send-code-button
+- assertVisible:
+    id: email-code-message
+    text: "Enter a valid email address\\."
+- tapOn:
+    id: email-input
+- inputText: "delivered+app-journey-never-sent@resend.dev"
+- hideKeyboard
+- takeScreenshot: ${SIZE}-email
+- tapOn:
+    id: have-code-button
+- extendedWaitUntil:
+    visible:
+      id: code-step
+    timeout: 10000
+- assertVisible:
+    id: code-sent-to
+    text: "delivered\\+app-journey-never-sent@resend\\.dev"
+- tapOn:
+    id: code-input
+- inputText: "1234"
+- hideKeyboard
+- tapOn:
+    id: verify-code-button
+- assertVisible:
+    id: email-code-message
+    text: "Enter the 8-digit code from the email\\."
+- tapOn:
+    id: code-input
+- inputText: "5678"
+- hideKeyboard
+- tapOn:
+    id: verify-code-button
+- extendedWaitUntil:
+    visible:
+      id: email-code-message
+      text: "That code didn't work\\. Check it and try again, or get a new code\\."
+    timeout: 30000
+- takeScreenshot: ${SIZE}-wrong-code
+- tapOn:
+    id: start-again-button
+- extendedWaitUntil:
+    visible:
+      id: address-step
+    timeout: 10000
+- tapOn:
+    id: cancel-email-button
+- assertVisible:
+    id: google-button
