@@ -82,6 +82,7 @@ select set_eq(
     'admin.markets(uuid,integer)',
     'admin.market(uuid)',
     'admin.create_market(uuid,text,text[],text,text,text,timestamp with time zone,timestamp with time zone,numeric,numeric)',
+    'admin.create_market(uuid,text,text[],text,text,text,timestamp with time zone,timestamp with time zone,numeric,numeric,boolean)',
     'admin.open_market(uuid)',
     'admin.close_market(uuid)',
     'admin.settle_market(uuid,text,numeric,text,text)'

@@ -581,6 +581,16 @@ Last updated: 10 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/bri
     - Accounts that already had play money get the starting balance on top: only the recorded grant counts as theirs, the same rule for everyone.
     - `ledger.open_account` keeps its name and callers, as the tool for tests and scripts.
 
+- **Round 4, R2: unlisted markets, the database's half of every check run on its own, 10 November 2026** ([#103](https://github.com/Zugzwang-world/hrizzup/pull/103), risky, with an independent AI review):
+  - **unlisted markets, as on Manifold:** made, opened, traded, closed and settled like any other, by their address, but never in the public list (`markets.details.listed`, chosen when a market is made and never changed after). The console's create call takes the choice (`admin.create_market(..., listed)`); its ten-argument call, which the website makes until the code follows, still makes a listed market. The public list leaves unlisted markets out, with an index for it; the console says which is which;
+  - **the checks' earlier markets came off the list once:** every market the console's test account made (on staging, all of them; the founder's account had made none); on production nothing changes;
+  - **AI review:** one real finding, fixed: the one-off pass queued the details' check across tables, and Postgres makes no index or trigger on a table with a check still queued, so on staging the migration would have failed and stopped the Staging workflow. Reproduced, then fixed (the migration runs that check right after the pass), the real file applied to staging-like data, and the sequence replayed as a test;
+  - **tested:** 20 pgTAP checks (`infra/supabase/tests/unlisted_markets.test.sql`): every page of the public list, paging from an unlisted market included; trading by address; settled and still off the list; the pass replayed; a listing never changing;
+  - **answered without asking** (one line each):
+    - Unlisted as a property of a market, as on Manifold, rather than hiding test markets by their question's words.
+    - A listing never changes once a market is made; one made unlisted by mistake is cancelled and made again.
+    - A new overload, so the website's ten-argument call keeps working until its code follows.
+
 ## Next
 
 1. **Round 4** (`TRACKER.md`, "Round 4's queue"; the GitHub milestone "Round 4"), sequenced in the Product chat at the founder's request, its relays numbered R1 to R5 (R1, the round's records, is done):
