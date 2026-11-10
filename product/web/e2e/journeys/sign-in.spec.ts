@@ -100,7 +100,8 @@ test('an email code signs a reader in, and out again', async ({
   // and each retry, uses fresh addresses at Resend's test inbox (support/run.ts), kept like every
   // run's account.
   const email = runAddress(`code-${randomUUID().slice(0, 4)}`, browserName as Engine);
-  if (browserName === 'webkit') await createRunAccount(keys, email);
+  // A reader like any other, not marked as a test account, so the page says how they signed in.
+  if (browserName === 'webkit') await createRunAccount(keys, email, { testAccount: false });
   const tooMany =
     '(Supabase sends at most one email a minute to an address, and 30 an hour for staging ' +
     'and every preview together)';
@@ -219,7 +220,7 @@ test('a password sign-in is refused', async ({ browserName }) => {
   // kept nowhere.
   const email = runAddress(`password-${randomUUID().slice(0, 4)}`, browserName as Engine);
   const password = randomBytes(24).toString('base64url');
-  await createRunAccount(keys, email, password);
+  await createRunAccount(keys, email, { password, testAccount: false });
   // From a browser or the app (the public key), Supabase asks for the bot check first.
   const visitor = await client(keys.url, keys.publishableKey).auth.signInWithPassword({
     email,

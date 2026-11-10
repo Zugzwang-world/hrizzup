@@ -103,23 +103,27 @@ function ownRunAddress(email: string) {
 }
 
 /**
- * A new account of the run's, marked as a test account; its signup gives it its starting balance.
- * With `password`, the account gets that password, which nobody can do through the website: only
- * the trial of a password sign-in uses it, with staging's server key. Returns its ID. Runs never
+ * A new account of the run's; its signup gives it its starting balance. Marked as a test account
+ * (what the website and the API then say it signed in with), unless it stands for a real reader:
+ * the sign-in journeys' own readers, who sign in by email code like anyone, aren't marked. With
+ * `password`, the account gets that password, which nobody can do through the website: only the
+ * trial of a password sign-in uses it, with staging's server key. Returns its ID. Runs never
  * delete their accounts: the books keep their history.
  */
 export async function createRunAccount(
   keys: Keys,
   email: string,
-  password?: string,
+  options: { password?: string; testAccount?: boolean } = {},
 ): Promise<string> {
   ownRunAddress(email);
+  const testAccount = options.testAccount ?? true;
   const { data, error } = await admin(keys).auth.admin.createUser({
     email,
     email_confirm: true,
-    app_metadata: { test_account: true },
-    user_metadata: { full_name: 'Check run' },
-    ...(password ? { password } : {}),
+    ...(testAccount
+      ? { app_metadata: { test_account: true }, user_metadata: { full_name: 'Check run' } }
+      : {}),
+    ...(options.password ? { password: options.password } : {}),
   });
   if (error || !data.user) throw new Error(`Couldn't create ${email} (${error?.status})`);
   return data.user.id;
