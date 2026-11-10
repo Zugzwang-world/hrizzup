@@ -1,22 +1,18 @@
 import { readBotCheckMessage } from '@hrizzup/core';
 import { expect, type Page, test } from '@playwright/test';
-import { createClient } from '@supabase/supabase-js';
-import {
-  deleteJourneyAccount,
-  type Engine,
-  journeyAddress,
-  readSignInCode,
-  stagingKeys,
-} from '../support/test-accounts.ts';
+import { stagingKeys } from '../support/test-accounts.ts';
 import { phone } from './phone.ts';
 
 /**
  * Journey: our server's half of the app's sign-in (PLAN.md step 1.6b), called as the app calls it.
  * - The app's settings: Supabase's address and publishable key, from the typed API.
  * - The bot check the app shows in a small web view hands its answer to the app.
- * - That answer and an address, sent to the typed API, get an email code; the code, checked with
- *   Supabase as the app checks it, gives a session whose token answers who-am-I.
  * - Where the bot check is real (staging), an answer it didn't give is refused and nothing is sent.
+ *
+ * No email is sent here: staging's 30 emails an hour are shared by every preview's checks and the
+ * founder's own sign-ins, and they ran out on 10 November 2026 with three relays' checks running.
+ * Supabase sending a code with the server key is proven by the website's own email journey
+ * (sign-in.spec.ts), and the call's every answer by its unit tests (app/api/v1/…/auth.test.ts).
  * - Supabase sends the phone's browser back from Google to the app's own address, and to no other.
  */
 
@@ -91,64 +87,6 @@ test('the bot check page hands its answer to the app', async ({ page }) => {
   await expect
     .poll(async () => (await received()).find((m) => m.kind === 'answer'), { timeout: 30_000 })
     .toBeTruthy();
-});
-
-test('an email code asked for through the typed API signs the app in', async ({
-  page,
-  request,
-  browserName,
-}) => {
-  skipOnProduction();
-  test.skip(!botCheckIsATest(), 'The real bot check is for people: a test may not pass it');
-  // One email per run is enough (the call is the same for every browser), since Supabase sends at
-  // most 30 an hour for staging and every preview together.
-  test.skip(browserName !== 'chromium', 'One email a run: Chromium asks for it');
-  const keys = stagingKeys();
-  if (!keys) throw new Error("Staging's Supabase keys are missing, so no code can be read");
-  const email = journeyAddress('code', browserName as Engine);
-  try {
-    const received = await openAsTheApp(page);
-    let answer: string | undefined;
-    await expect
-      .poll(
-        async () => {
-          const message = (await received()).find((m) => m.kind === 'answer');
-          answer = message?.kind === 'answer' ? message.answer : undefined;
-          return answer;
-        },
-        { timeout: 30_000 },
-      )
-      .toBeTruthy();
-
-    // The app's request: JSON, from no browser page (no Origin), with the address and the answer.
-    const sent = await request.post('/api/v1/auth/email/code', {
-      data: { email: email.toUpperCase(), botCheck: answer },
-    });
-    expect(
-      sent.status(),
-      `the code is sent (Supabase sends at most one email a minute to an address, and 30 an hour for staging and every preview together): ${await sent.text()}`,
-    ).toBe(200);
-    expect(await sent.json()).toEqual({ email, codeLength: 8, minutes: 10 });
-    expect(sent.headers()['cache-control']).toBe('private, no-store');
-
-    // No inbox is read: staging's admin access gives a working code for the address. The app
-    // checks it with Supabase itself, with the publishable key, and keeps the session.
-    const code = await readSignInCode(keys, email);
-    const app = createClient(keys.url, keys.publishableKey, {
-      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-    });
-    const { data, error } = await app.auth.verifyOtp({ email, token: code, type: 'email' });
-    expect(error, 'the code signs in').toBeNull();
-    const token = data.session?.access_token;
-    expect(token, 'a session').toBeTruthy();
-
-    const me = await request.get('/api/v1/me', { headers: { authorization: `Bearer ${token}` } });
-    expect(me.status()).toBe(200);
-    expect(await me.json()).toMatchObject({ email, signedInWith: 'email' });
-    await app.auth.signOut({ scope: 'local' });
-  } finally {
-    await deleteJourneyAccount(keys, email);
-  }
 });
 
 test("where the bot check is real, an answer it didn't give is refused and nothing is sent", async ({
