@@ -28,6 +28,7 @@ Built in Expo's cloud (EAS Build, free plan) for the project `@hrizzups-team/hri
   ```sh
   cd product/app && ../../infra/doppler/run tools -- pnpm dlx eas-cli@27.4.1 build --platform android --profile preview --non-interactive
   ```
+
   Start it from `product/app` itself: run from the repository's root, Expo's tool writes a stray `app.json` there.
 - **Development build** (Expo's development client, for sessions at the Mac): the same with `--profile development`, then `pnpm --filter @hrizzup/app start --dev-client` with the phone on the Mac's Wi-Fi.
 
