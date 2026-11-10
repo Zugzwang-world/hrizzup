@@ -2,7 +2,7 @@
 
 **This brief replaces Claude Code's report:** read it after clicking **Sync now**, instead of asking the founder for a report, and attach the files under "Read for detail" from GitHub when you need more.
 
-> Rewritten 10 November 2026 by Round 5's relay R2 (the public API's research and design, research only, [#122](https://github.com/Zugzwang-world/hrizzup/pull/122)), whose change to PLAN.md rewrites every brief. The News Desk project's only file from the repository, rewritten at the end of every session that touches its part. PLAN.md wins any disagreement.
+> Rewritten 11 November 2026 by Round 5's relay R3 (the public API's ground rules, keys and docs, step 3.5a, [#123](https://github.com/Zugzwang-world/hrizzup/pull/123)), whose change to PLAN.md rewrites every brief. The News Desk project's only file from the repository, rewritten at the end of every session that touches its part. PLAN.md wins any disagreement.
 
 **Hrizzup** is a news app built around creators, plus a website with play-money prediction markets. Our AI finds news as it breaks on X and turns it into developing stories that readers see through creators' takes. **News Desk's job:** make our own content from the sourced pool and onboard creators. It produces text, images and video, which Product shows in the app and on the website, in the shape the hand-over agreement (`agreement/README.md`) fixes. **News Desk is on hold until the founder sets it up.**
 
@@ -38,11 +38,10 @@
 
 ## What changed in the latest session
 
-On 10 November 2026, Round 5's relay R2 ([#122](https://github.com/Zugzwang-world/hrizzup/pull/122), research only) recorded the founder's decisions on Product's public API in PLAN.md (section 2, "The public API"). **The creation shape, the sourced item and the agreement don't change.**
+On 11 November 2026, Round 5's relay R3 ([#123](https://github.com/Zugzwang-world/hrizzup/pull/123)) recorded the Product chat's settling of the public API's sixteen details in PLAN.md (all as recommended, 10 November 2026) and began step 3.5a. **The creation shape, the sourced item and the agreement don't change.**
 
-- **Topics unparked** (1.2): the Product chat drafts the first markets' topics, so the charts format below can start from real topics sooner.
-- **A public API for Product's markets** (3.5a to 3.5f): bots and AI tools trade play money with personal keys, on staging until launch. Nothing in it touches News Desk's content.
-- **Still coming:** market/2, before 3.3, which the founder approves in News Desk's place.
+- **The public API's keys moved into 3.5a** (from 3.5b): bots get personal keys, read-only or trading, on staging until launch. Nothing in it touches News Desk's content.
+- **Unchanged for News Desk:** topics (1.2) are drafted in the Product chat, so the charts format below can start from real topics sooner; market/2 comes before 3.3, which the founder approves in News Desk's place.
 
 ## Open questions
 

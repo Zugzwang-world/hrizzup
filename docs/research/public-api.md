@@ -140,7 +140,7 @@ Seven steps in four waves, each step a relay of small pull requests with its own
 |---|---|---|---|---|
 | 1 | **3.5a** ground rules, docs | (1) every call's errors; `limit` and `cursor`; (2) the OpenAPI file with its check; (3) the docs page and llms.txt | normal | 1.5c |
 | 1 | **3.4b** the perp's own price | (1) database: the price table, and the fetch and median on Supabase Cron (decision 7); (2) the perp on the stored price, the stand-in kept for the checks' own test perps, whose seeded prices make liquidations repeatable; (3) after 3.5a, the price reads; a day on staging | risky | 3.4a |
-| 2 | **3.5b** keys | (1) database: the keys table; (2) keys in the API, scopes, limits, `keys.*`; (3) the keys page | risky | 1.6a, 3.5a |
+| 1 | **3.5b** keys | moved into 3.5a (the Product chat, 10 November 2026): (1) database: the keys table and each trade's key; (2) keys in the API, scopes, limits, `keys.*`, and the keys page in the sandbox | risky | 1.6a |
 | 2 | **3.5c** market reads | (1) database: read-only functions; (2) the five reads, cleared from the edge when a trade moves the market | risky (the quote) | 1.7d, 3.5a |
 | 3 | **3.5d** trading for bots | (1) trading with a key, `dryRun`, `YES`/`NO`, `/me/trades`; (2) the example bot, run by a journey test, and the Manifold table | risky | 3.5b, 3.5c |
 | 3 | **3.5e** stream | (1) public channels; (2) your own channel, with a key | normal | 3.4b, 3.5b |
@@ -151,7 +151,7 @@ Two steps in a wave touch different files except the contract's index, which a r
 
 ## 4. Decisions for the Product chat
 
-Each with Claude Code's recommendation. A relay that starts before one is settled takes the recommendation and records it.
+Each with Claude Code's recommendation. **Settled in the Product chat on 10 November 2026: all sixteen as recommended,** with one note: before launch, the limits for each address (decision 3) are checked again, since mobile networks in India put many people behind one address. That check and decision 9 (the exchanges' terms) are on the runbook's pre-launch checklist (P.19 and P.20). The same day the keys moved from 3.5b into 3.5a, with decision 16 (PLAN.md section 5).
 
 1. **Names:** Manifold's where the meaning matches, keeping our exact decimals, ISO times and `marketId`, accepting `YES`/`NO` and `Key`, with a "Moving from Manifold" table.
 2. **Scopes:** just `read` and `trade`; finer ones can be added inside v1 later.
