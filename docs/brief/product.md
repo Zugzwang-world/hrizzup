@@ -2,7 +2,7 @@
 
 **This brief replaces Claude Code's report:** read it after **Sync now** instead of asking the founder for one, and attach the files under "Read for detail" from GitHub for more.
 
-> Rewritten 10 November 2026 by Round 4's relay R4 (the app's sign-in, 1.6b). PLAN.md wins any disagreement.
+> Rewritten 10 November 2026 by Round 4's relay R3 (the perp's maths, 3.4a's first part), after R4's (the app's sign-in). PLAN.md wins any disagreement.
 
 **Hrizzup** is a news app built around creators, plus a website with play-money prediction markets: our AI finds news as it breaks on X and turns it into developing stories seen through creators' takes. **Product builds** the website and the app in parallel (the website a stage ahead; Android, then iPhone from the same code) and the markets. It shows the content it receives through the content store's tables, in the shapes of the hand-over agreement (`agreement/README.md`), whose first half is Agreed.
 
@@ -10,7 +10,7 @@
 
 - **Round 4 is under way** (milestone "Round 4"), its relays numbered R1 to R5.
 - **Staging** (`staging.hrizzup.com`, Mumbai) is public, asking search engines to stay out; previews need Vercel's login and share staging's database; production is a quiet twin.
-- **Built:** the typed API; the app, now with a **sign-in test** (1.6b, waiting for the founder's try); the market engine, ledger and console (1.7a to 1.7d); the content store (1.9); the website's sign-in test page (1.6a); play money on signup (R2).
+- **Built:** the typed API; the app, now with a **sign-in test** (1.6b, waiting for the founder's try); the market engine, ledger and console (1.7a to 1.7d); the perp's maths (3.4a's first part: settings, engine steps and a seeded stand-in price, proven to keep every Ṁ); the content store (1.9); the website's sign-in test page (1.6a); play money on signup (R2).
 - **Checks:** Secret, Quick, Database, Screen, Speed and App journeys, all required. **Design** restarts in the design chat.
 
 ## Round 4 progress
@@ -19,7 +19,7 @@ One line per relay; each relay keeps only its own line current.
 
 - **R1, the round's records:** done, [#95](https://github.com/Zugzwang-world/hrizzup/pull/95): the founder's decisions of 10 November recorded, the relays numbered. Nothing for the founder: you keep your GitHub display name on merges (your choice, [#108](https://github.com/Zugzwang-world/hrizzup/pull/108)).
 - **R2, checks you can trust:** the console page's speed fix, [#93](https://github.com/Zugzwang-world/hrizzup/pull/93): strangers get the site's own "not found" page from the server, so its busy time, measured 20 times on GitHub's runner, was 35 to 168 ms (budget 200; before, 114 to 292); and the Speed check warns on any single run over a budget (three so far, queued in the status file). Play money on signup, [#97](https://github.com/Zugzwang-world/hrizzup/pull/97): Ṁ1,000 from the house for every sign-in account, once. Unlisted markets, [#103](https://github.com/Zugzwang-world/hrizzup/pull/103): a run's markets stay off the public list. Next: every check run on its own (its accounts, markets and journeys), then retry-passes fail. Nothing for the founder.
-- **R3, the perp's maths (3.4a):** Manifold's perps maths and its 274 tests, [#92](https://github.com/Zugzwang-world/hrizzup/pull/92) (merged); our settings (Manifold's defaults, the 10 times cap), the time passed in, the engine steps for the books and the seeded stand-in price, [#98](https://github.com/Zugzwang-world/hrizzup/pull/98) (2 of 3). Next: our tests that no play money is created or lost, with a long simulation (3 of 3). Nothing for the founder.
+- **R3, the perp's maths (3.4a):** done ([#92](https://github.com/Zugzwang-world/hrizzup/pull/92), [#98](https://github.com/Zugzwang-world/hrizzup/pull/98), [#99](https://github.com/Zugzwang-world/hrizzup/pull/99)). Nothing for the founder.
 - **R4, the app's sign-in (1.6b):** built and merged: staging's firewall for the app's writes ([#94](https://github.com/Zugzwang-world/hrizzup/pull/94)), our server's half ([#96](https://github.com/Zugzwang-world/hrizzup/pull/96)), Google through the phone's browser ([#100](https://github.com/Zugzwang-world/hrizzup/pull/100)), email codes in the app ([#101](https://github.com/Zugzwang-world/hrizzup/pull/101)) and the test screen ([#102](https://github.com/Zugzwang-world/hrizzup/pull/102)); **a new build for your phone is ready** (below). Next: the App journey that signs a run's own fresh account in, once R2's accounts merge ([#105](https://github.com/Zugzwang-world/hrizzup/pull/105)). For you: try the build.
 - **R5, the perp's back end (3.4a),** after R3: not started.
 - **Later** (3.1, 3.4c and 2.1 once their designs are approved, then the closing record): numbered when written.
@@ -34,15 +34,12 @@ One line per relay; each relay keeps only its own line current.
 
 ## What changed in the latest session
 
-On 10 November 2026, R4, the app's sign-in (1.6b), five pull requests, each with an independent AI review:
+On 10 November 2026, R3, the perp's maths (`product/packages/market-engine`):
 
-- **Staging's firewall** lets the app's writes through, behind the same per-visitor limit; email calls 5 a minute ([#94](https://github.com/Zugzwang-world/hrizzup/pull/94)).
-- **Our server's half** ([#96](https://github.com/Zugzwang-world/hrizzup/pull/96)): the app's Supabase settings and email codes in the typed API, the bot check's answer checked as on the website and each visitor counted by our server too; the bot check page.
-- **Google** ([#100](https://github.com/Zugzwang-world/hrizzup/pull/100)): Chrome's tab, back to the app's own address, PKCE with SHA-256; a journey reaches Google's real sign-in page.
-- **Email codes** ([#101](https://github.com/Zugzwang-world/hrizzup/pull/101)): the bot check runs while the address is typed; the app checks the code itself. The App journeys wait out Play services' restart after boot and start each journey from a clean app.
-- **The test screen** ([#102](https://github.com/Zugzwang-world/hrizzup/pull/102)): who's signed in, from the typed API; the token on personal calls only.
-- **Found:** staging's 30 emails an hour ran out with several relays' checks running (below); the app's journeys send none.
-- **Your build:** Expo, free plan, from `main` ([#106](https://github.com/Zugzwang-world/hrizzup/pull/106)).
+- **Copied:** Manifold's perps maths, its 274 tests and MIT notice ([#92](https://github.com/Zugzwang-world/hrizzup/pull/92)).
+- **Made ours** ([#98](https://github.com/Zugzwang-world/hrizzup/pull/98)): the time passed in; Manifold's default settings with the 10 times cap; the engine steps the books will run; a stand-in price every 5 seconds from a secret seed.
+- **Proven** ([#99](https://github.com/Zugzwang-world/hrizzup/pull/99)): money tests for every kind of step and a three-week, 30-trader simulation, every step checked: no play money created or lost.
+- **Found:** funding needs an hourly job; Manifold's heaviest yes/no test sits at its time limit on GitHub.
 
 ## Open questions
 
@@ -53,7 +50,7 @@ One line each; the detail, and the rest, are in the status file.
 - **The agreement's market/2** (before 3.3). Recommendation: an optional `result_probability`, drafted when 3.3 nears, with the address-and-handle check, so the first half changes once.
 - **The perp's jobs on production** (R5). Recommendation: each does nothing while the perp is off, and production's perp stays off until launch.
 - **The pipeline's write access** (1.1). Recommendation: a role of its own that inserts and updates, never deletes.
-- **Also in the status file:** Vercel's toolbar over the app's bot check on staging; the ledger's next steps; live prices (3.1); creators' X accounts; embedding found posts; a deleted account's posts; the Hermes rewrite; shared code.
+- **Also in the status file:** the perp's hourly funding job (R5); Manifold's fuzz test near its time limit; Vercel's toolbar over the app's bot check on staging; the ledger's next steps; live prices (3.1); creators' X accounts; embedding found posts; a deleted account's posts; the Hermes rewrite; shared code.
 
 ## For the founder
 

@@ -2,8 +2,9 @@
  * The perp's stand-in price (PLAN.md step 3.4a), until the real Bitcoin price replaces it (3.4b).
  *
  * - **A new price every 5 seconds:** every moment in one 5-second step has the same price.
- * - **Seeded and pure:** the same seed and moment always give the same price, on any machine,
- *   with no state kept between calls, so tests repeat exactly and a job that runs every 5 seconds
+ * - **Seeded and pure:** the same seed and moment always give the same price, with no state kept
+ *   between calls (on the same Node version, which the repository pins: JavaScript's `Math.exp`,
+ *   `Math.log` and `Math.cos` may round their last bit differently between engines), so tests repeat exactly and a job that runs every 5 seconds
  *   needs only the time.
  * - **The seed is a secret key:** this code is public, so a guessable seed would let anyone work
  *   out every future price and trade on it. Every draw is a keyed hash of the seed (HalfSipHash,
