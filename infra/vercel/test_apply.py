@@ -68,11 +68,17 @@ class FakeVercel:
 class TheRepoRules(unittest.TestCase):
     def test_staging_rules_are_limited_to_staging(self):
         names = [r["name"] for r in WANT["rules"] if is_staging(r)]
-        self.assertEqual(names, ["Rate limit: staging's typed API", "Staging's typed API: no bot challenge"])
+        self.assertEqual(names, [
+            "Rate limit: staging's typed API calls that send email",
+            "Rate limit: staging's typed API",
+            "Staging's typed API: no bot challenge",
+            "Staging's typed API: the app's writes, no bot challenge",
+        ])
 
     def test_the_bypasses_come_last_and_after_their_rate_limits(self):
         actions = [r["action"]["mitigate"]["action"] for r in WANT["rules"]]
-        self.assertEqual(actions, ["rate_limit", "rate_limit", "rate_limit", "bypass", "rate_limit", "bypass"])
+        self.assertEqual(actions, ["rate_limit", "rate_limit", "rate_limit", "bypass",
+                                   "rate_limit", "rate_limit", "bypass", "bypass"])
 
     def test_every_description_fits_vercels_limit(self):
         # Vercel refuses a rule whose description is longer than 256 characters (HTTP 400).
@@ -82,6 +88,31 @@ class TheRepoRules(unittest.TestCase):
     def test_the_staging_bypass_covers_reads_only(self):
         conditions = staging_rule(WANT)["conditionGroup"][0]["conditions"]
         self.assertIn({"type": "method", "op": "eq", "value": "GET"}, conditions)
+
+    def test_the_writes_bypass_covers_only_posts_to_stagings_typed_api(self):
+        # PLAN.md step 1.6b: the app's writes skip the bot challenge on staging's typed API alone,
+        # by POST (every write the contract has), behind the same per-visitor limit as its reads.
+        [group] = staging_rule(WANT, "Staging's typed API: the app's writes, no bot challenge")["conditionGroup"]
+        self.assertEqual(group["conditions"], [
+            {"type": "host", "op": "eq", "value": "staging.hrizzup.com"},
+            {"type": "path", "op": "pre", "value": "/api/v1/"},
+            {"type": "method", "op": "eq", "value": "POST"},
+        ])
+
+    def test_stagings_typed_api_keeps_its_limits_ahead_of_its_bypasses(self):
+        names = [r["name"] for r in WANT["rules"]]
+        for limit in ("Rate limit: staging's typed API calls that send email", "Rate limit: staging's typed API"):
+            for bypass in ("Staging's typed API: no bot challenge",
+                           "Staging's typed API: the app's writes, no bot challenge"):
+                self.assertLess(names.index(limit), names.index(bypass), f"{limit} before {bypass}")
+
+    def test_typed_api_calls_that_send_email_have_the_email_routes_limit(self):
+        # Blueprint section 9: every route that sends email is limited to 5 requests a minute per IP.
+        email = staging_rule(WANT, "Rate limit: routes that send email")["action"]["mitigate"]["rateLimit"]
+        rule = staging_rule(WANT, "Rate limit: staging's typed API calls that send email")
+        self.assertEqual(rule["action"]["mitigate"]["rateLimit"], email)
+        self.assertIn({"type": "path", "op": "pre", "value": "/api/v1/auth/email/"},
+                      rule["conditionGroup"][0]["conditions"])
 
 
 class TheChange(unittest.TestCase):
@@ -104,14 +135,18 @@ class TheChange(unittest.TestCase):
 
     def test_empty_fields_in_vercels_report_still_count_as_staging(self):
         live = live_config(with_staging=True)
-        live["rules"][5]["action"]["mitigate"].update(redirect={}, actionDuration="", bypassSystem=None)
-        live["rules"][4]["action"]["mitigate"]["rateLimit"]["action"] = None
+        for name in ("Staging's typed API: no bot challenge", "Staging's typed API: the app's writes, no bot challenge"):
+            staging_rule(live, name)["action"]["mitigate"].update(redirect={}, actionDuration="", bypassSystem=None)
+        for name in ("Rate limit: staging's typed API calls that send email", "Rate limit: staging's typed API"):
+            staging_rule(live, name)["action"]["mitigate"]["rateLimit"]["action"] = None
         self.assertEqual([r["name"] for r in live["rules"] if is_staging(r)],
-                         ["Rate limit: staging's typed API", "Staging's typed API: no bot challenge"])
+                         [r["name"] for r in WANT["rules"] if is_staging(r)])
+        self.assertEqual(len([r for r in live["rules"] if is_staging(r)]), 4)
 
     def test_empty_fields_in_vercels_report_are_not_a_change(self):
         live = live_config(with_staging=True)
-        live["rules"][5]["action"]["mitigate"].update(redirect={}, actionDuration="", bypassSystem=None)
+        for name in ("Staging's typed API: no bot challenge", "Staging's typed API: the app's writes, no bot challenge"):
+            staging_rule(live, name)["action"]["mitigate"].update(redirect={}, actionDuration="", bypassSystem=None)
         self.assertIsNone(apply.staging_firewall(want(), live, HOSTS))
 
     def test_an_updated_staging_rule_keeps_its_id(self):
