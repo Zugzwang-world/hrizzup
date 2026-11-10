@@ -1,4 +1,4 @@
-import { expect, type Page, test } from '@playwright/test';
+import { expect, type Page, type Request, test } from '@playwright/test';
 import { pages, pagesIn, type Page as SitePage } from '../pages.ts';
 import { phone } from './phone.ts';
 
@@ -38,6 +38,36 @@ function watch(page: Page, site: string, expected?: string) {
   return problems;
 }
 
+/**
+ * Waits, as Playwright's "network idle" does, until nothing has been loading for half a second,
+ * counting every request that goes over the network, ours and other sites'. Only addresses that
+ * are already in the page's memory (`blob:`, `data:`) don't count: they aren't traffic, and
+ * Playwright never sees some of them finish (Cloudflare's bot check starts its worker from one,
+ * so "network idle" never came on the app's bot check page, which had settled). Watch from before
+ * the page is opened, so nothing it loads is missed.
+ */
+function watchLoading(page: Page) {
+  const loading = new Set<Request>();
+  const inMemory = (request: Request) => /^(blob|data):/.test(request.url());
+  page.on('request', (request) => {
+    if (!inMemory(request)) loading.add(request);
+  });
+  page.on('requestfinished', (request) => loading.delete(request));
+  page.on('requestfailed', (request) => loading.delete(request));
+  return async function settled(timeout = 60_000) {
+    const start = Date.now();
+    let quietSince = Date.now();
+    while (Date.now() - quietSince < 500) {
+      if (Date.now() - start > timeout) {
+        const still = [...loading].map((request) => request.url());
+        throw new Error(`Still loading after ${timeout / 1000} s: ${still.join(', ')}`);
+      }
+      if (loading.size > 0) quietSince = Date.now();
+      await page.waitForTimeout(100);
+    }
+  };
+}
+
 /** Whether the page exists where the checks run (global-setup.ts reads the environment). */
 function existsHere(sitePage: SitePage): boolean {
   return pagesIn(process.env.SCREEN_CHECK_ENVIRONMENT).includes(sitePage);
@@ -49,11 +79,13 @@ for (const sitePage of pages) {
     // A page that doesn't exist here (the sign-in test page, on production) must answer 404.
     const status = existsHere(sitePage) ? (sitePage.status ?? 200) : 404;
     const problems = watch(page, address.origin, status >= 400 ? address.href : undefined);
+    const settled = watchLoading(page);
     const response = await page.goto(sitePage.path);
     expect(response?.status(), `${sitePage.path} answers`).toBe(status);
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
     await expect(page).toHaveTitle(/Hrizzup/);
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('load');
+    await settled();
     expect(problems).toEqual([]);
   });
 }
