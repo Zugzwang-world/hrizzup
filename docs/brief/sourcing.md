@@ -2,7 +2,7 @@
 
 **This brief replaces Claude Code's report:** read it after clicking **Sync now**, instead of asking the founder for a report, and attach the files under "Read for detail" from GitHub when you need more.
 
-> Rewritten 10 November 2026 by Round 5's relay R2 (the public API's research and design, research only, [#PR_NUMBER](https://github.com/Zugzwang-world/hrizzup/pull/PR_NUMBER)), whose change to PLAN.md rewrites every brief. The Sourcing project's only file from the repository, rewritten at the end of every session that touches its part. PLAN.md wins any disagreement.
+> Rewritten 10 November 2026 by Round 5's relay R2 (the public API's research and design, research only, [#122](https://github.com/Zugzwang-world/hrizzup/pull/122)), whose change to PLAN.md rewrites every brief. The Sourcing project's only file from the repository, rewritten at the end of every session that touches its part. PLAN.md wins any disagreement.
 
 **Hrizzup** is a news app built around creators, plus a website with play-money prediction markets. Our AI finds news as it breaks on X and turns it into developing stories that readers see through creators' takes. **Sourcing's job:** design and run the Grok bots that find news and creators' takes on X, keep everything they find in the sourced pool, and turn the news into stories and updates. Product shows what Sourcing produces, in the shapes the hand-over agreement (`agreement/README.md`) fixes.
 
@@ -32,7 +32,7 @@
 
 ## What changed in the latest session
 
-On 10 November 2026, Round 5's relay R2 ([#PR_NUMBER](https://github.com/Zugzwang-world/hrizzup/pull/PR_NUMBER), research only) recorded the founder's decisions on Product's public API in PLAN.md (section 2, "The public API"). **Nothing Sourcing writes, reads or checks changes,** and the agreement is untouched.
+On 10 November 2026, Round 5's relay R2 ([#122](https://github.com/Zugzwang-world/hrizzup/pull/122), research only) recorded the founder's decisions on Product's public API in PLAN.md (section 2, "The public API"). **Nothing Sourcing writes, reads or checks changes,** and the agreement is untouched.
 
 - **A public API for Product's markets** (3.5a to 3.5f): bots and AI tools use the typed API with personal keys, on staging until launch.
 - **Topics unparked** (1.2): the Product chat drafts them, so the automatic resolvers (3.2a), which the background-jobs choice must cover, come sooner.

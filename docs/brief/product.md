@@ -16,7 +16,7 @@
 ## Round 5 progress
 
 - **R1, the markets sandbox:** done, [#121](https://github.com/Zugzwang-world/hrizzup/pull/121). Next: nothing; the founder tries it. For the founder: the sandbox steps below.
-- **R2, the public API's research and design:** done, [#PR_NUMBER](https://github.com/Zugzwang-world/hrizzup/pull/PR_NUMBER) (research only). Next: the first wave, 3.5a (ground rules and docs) beside 3.4b (the perp's own price). For the founder: the exchanges' terms, before launch (below).
+- **R2, the public API's research and design:** done, [#122](https://github.com/Zugzwang-world/hrizzup/pull/122) (research only). Next: the first wave, 3.5a (ground rules and docs) beside 3.4b (the perp's own price). For the founder: the exchanges' terms, before launch (below).
 
 ## Decisions in force
 
@@ -30,7 +30,7 @@
 
 ## What changed in the latest session
 
-On 10 November 2026, R2, **the public API's research and design** ([#PR_NUMBER](https://github.com/Zugzwang-world/hrizzup/pull/PR_NUMBER), one pull request, research only: nothing in code, settings or services changed): `docs/research/public-api.md`.
+On 10 November 2026, R2, **the public API's research and design** ([#122](https://github.com/Zugzwang-world/hrizzup/pull/122), one pull request, research only: nothing in code, settings or services changed): `docs/research/public-api.md`.
 
 - **Recorded:** the founder's seven decisions in PLAN.md (section 2, "The public API"; section 5: 3.4b now the perp's own price, new steps 3.5a to 3.5f, 3.1 needing 3.5c, 1.2 unparked, production's API with 5.2), Round 5's queue and all three briefs.
 - **Researched:** Manifold (one all-powerful key an account, no order book, no OpenAPI file), Kalshi (series, events and markets; a demo exchange; OpenAPI files and llms.txt; an MCP that never trades) and Polymarket (wallet-signed orders across three services); MCP's current version (stateless; Claude Code, Codex and Cursor send a key); oRPC's OpenAPI file and Scalar's docs page.
