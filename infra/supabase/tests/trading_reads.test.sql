@@ -12,7 +12,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(71);
+select plan(74);
 
 -- Runs one query as the app's own role, signed in as `account` (null: nobody), and gives back its
 -- one value as text. The role lasts only for the query, so pgTAP's own functions (which the app's
@@ -115,13 +115,27 @@ insert into auth.users (id, email) values
   ('00000000-0000-4000-8000-0000000000d1', 'ada@trading.test'),
   ('00000000-0000-4000-8000-0000000000d2', 'ann@trading.test'),
   ('00000000-0000-4000-8000-0000000000d3', 'raj@trading.test'),
-  ('00000000-0000-4000-8000-0000000000d4', 'zoe@trading.test');
+  ('00000000-0000-4000-8000-0000000000d4', 'zoe@trading.test'),
+  ('00000000-0000-4000-8000-0000000000d5', 'sid@trading.test');
 insert into private.admins (user_id, note) values
   ('00000000-0000-4000-8000-0000000000d1', 'A test admin');
 select ok(
   ledger.open_account('00000000-0000-4000-8000-0000000000d2', 100) is not null
   and ledger.open_account('00000000-0000-4000-8000-0000000000d3', 100) is not null,
-  'two people with play money (Zoe has none yet)'
+  'two people with Ṁ100 each (Zoe keeps the starting balance her signup gave her)'
+);
+-- Sid's sign-in account is deleted, while his sign-in token would still be good: his play money
+-- stays in the books, no longer his, so he signs in with no play money at all.
+create temporary table sid on commit drop as
+select a.id from ledger.accounts a
+where a.kind = 'person' and a.user_id = '00000000-0000-4000-8000-0000000000d5';
+delete from auth.users where id = '00000000-0000-4000-8000-0000000000d5';
+select is(
+  (select row(a.user_id, a.balance, s.amount)::text from ledger.accounts a
+   join ledger.starting_balances s on s.account_id = a.id
+   where a.id = (select id from sid)),
+  row(null::uuid, 1000.000000::numeric, 1000.000000::numeric)::text,
+  'a deleted sign-in account''s play money stays in the books, with its starting balance, no longer anyone''s'
 );
 
 -- Six markets, made by the admin: 1 and 2 open; 3 a draft; 4 settled Yes; 5 cancelled; 6 settled at a
@@ -354,9 +368,17 @@ select is(
   pg_temp.as_app('00000000-0000-4000-8000-0000000000d4', format(
     'select trading.holdings(%L, ''00000000-0000-4000-8000-00000000ffff'')', pg_temp.market(1)))::jsonb
     - 'closes_at',
+  jsonb_build_object('market_id', pg_temp.market(1), 'state', 'open', 'has_account', true,
+    'balance', '1000.000000', 'yes', '0.000000', 'no', '0.000000', 'answered', false),
+  'Zoe, who has only signed up, holds her starting balance and no shares'
+);
+select is(
+  pg_temp.as_app('00000000-0000-4000-8000-0000000000d5', format(
+    'select trading.holdings(%L, ''00000000-0000-4000-8000-00000000ffff'')', pg_temp.market(1)))::jsonb
+    - 'closes_at',
   jsonb_build_object('market_id', pg_temp.market(1), 'state', 'open', 'has_account', false,
     'balance', '0.000000', 'yes', '0.000000', 'no', '0.000000', 'answered', false),
-  'Zoe, with no play money yet, holds nothing'
+  'Sid, signed in with no play money at all, holds nothing'
 );
 select is(
   pg_temp.as_app('00000000-0000-4000-8000-0000000000d2', format(
@@ -397,7 +419,7 @@ select is(
     $q$select trading.holdings(%L, '00000000-0000-4000-8000-00000000e001') ->> 'answered'$q$,
     pg_temp.market(1))),
   'false',
-  '... nor for Zoe, who has no play money yet'
+  '... nor for Zoe, who has only signed up'
 );
 select ok(
   not pg_catalog.has_function_privilege('anon', 'trading.holdings(uuid,uuid)', 'EXECUTE')
@@ -450,8 +472,13 @@ select is(
 );
 select is(
   pg_temp.as_app('00000000-0000-4000-8000-0000000000d4', 'select trading.positions(null, 50)')::jsonb,
+  '{"balance": "1000.000000", "positions": [], "next": null}'::jsonb,
+  'Zoe, who has only signed up, has her starting balance and no positions'
+);
+select is(
+  pg_temp.as_app('00000000-0000-4000-8000-0000000000d5', 'select trading.positions(null, 50)')::jsonb,
   '{"balance": "0.000000", "positions": [], "next": null}'::jsonb,
-  'Zoe, with no play money yet, has a balance of nothing and no positions'
+  'Sid, signed in with no play money at all, has a balance of nothing and no positions'
 );
 select throws_ok(
   $$select pg_temp.as_app('00000000-0000-4000-8000-0000000000d2', 'select trading.positions(null, 0)')$$,
