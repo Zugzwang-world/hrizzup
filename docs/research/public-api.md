@@ -68,7 +68,7 @@ Keep oRPC's shape, which every call answers already: `{ "defined": true, "code":
 
 ### 2.5 Pagination
 
-One rule for every list: `limit` (default 50, at most 200) and an opaque `cursor`, answered with `next`, or `null` on the last page, as Kalshi does. Today's lists use `after`; 3.5a renames it before the docs are published, the plan's only rename. History takes `from`, `to` and `interval`, at most 1,000 points.
+One rule for every list: `limit` (default 50, at most 200; built at most 100, the database's own page cap, since raising it later is an addition within v1) and an opaque `cursor`, answered with `next`, or `null` on the last page, as Kalshi does. Today's lists use `after`; 3.5a renames it before the docs are published, the plan's only rename. History takes `from`, `to` and `interval`, at most 1,000 points.
 
 ### 2.6 Versioning
 
