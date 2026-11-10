@@ -37,6 +37,14 @@ From Round 2 on, work runs in rounds of parallel Claude Code sessions ("relays")
 - **Where problems go:** problems in the maths, the back end or the architecture go into the Product brief's open questions, each with a recommendation, for the Product chat. Design taste goes to the founder, in the design session.
 - **At the end:** every session refreshes `TRACKER.md`, the status files and the briefs ("End of every session").
 
+## How sessions work (the founder, 10 November 2026, to save time and usage)
+
+- **Wait on checks with one background watcher that wakes you once;** never poll, and never narrate the wait.
+- **Ask the founder nothing during or after a relay.** Anything for him goes in one short final report: what merged, what's next, what he must do.
+- **The founder's own tries: his report is the record.** If staging clearly disagrees, say so in one line and leave the step open; never watch live or ask him to redo it.
+- **Records go inside each milestone's own pull request;** no records-only pull requests, except a round's opening and closing.
+- **Keep the conversation small:** read only the parts of files you need; from long outputs keep only the failing part or a summary.
+
 ## Parallel sessions
 
 Sessions share this Mac, each in its own worktree, so each runs the website, the app's dev server and the local database only in a slot of its own: its ports, database and Redis prefix (PLAN.md step 1.8; [infra/slots/README.md](infra/slots/README.md); [docs/setup.md](docs/setup.md), "Parallel local development").

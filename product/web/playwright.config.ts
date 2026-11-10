@@ -17,6 +17,8 @@ runKey();
 export default defineConfig({
   testDir: './e2e',
   testMatch: '**/*.spec.ts',
+  // The steps' done-tests run by hand against staging, never in a check (playwright.done.config.ts).
+  testIgnore: '**/done/**',
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
   // One retry in GitHub, so a test that fails for a reason outside our code (a network blip)

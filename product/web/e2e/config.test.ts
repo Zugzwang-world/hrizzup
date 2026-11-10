@@ -45,6 +45,15 @@ describe('retries', () => {
     expect(config.failOnFlakyTests).toBe(true);
   });
 
+  it("the steps' done-tests retry nothing, and the Screen check never runs them", async () => {
+    vi.resetModules();
+    const done = (await import('../playwright.done.config.ts')).default;
+    expect(done.retries).toBe(0);
+    expect(done.testDir).toBe('./e2e/done');
+    const config = await playwrightConfig(true);
+    expect(config.testIgnore).toBe('**/done/**');
+  });
+
   it('on this Mac nothing is retried', async () => {
     const config = await playwrightConfig(false);
     expect(config.retries).toBe(0);
