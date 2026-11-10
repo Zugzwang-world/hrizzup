@@ -1562,6 +1562,14 @@ No good sign-in failed, so the switch-off kept ready beside it (one setting, `ho
 
 **Checked from outside**, with Android's network client's name and no browser: a `POST` to staging's `/api/v1/trades` now reaches the API (400, its own input check) where it got the challenge before; a `GET` of staging's health still answers 200; the same `POST` to production's `hrizzup.com/api/v1/trades` still gets the challenge (429, Vercel's Security Checkpoint), unchanged; and the sixth request within a minute to `/api/v1/auth/email/code` on staging was refused (429), the five before it reaching the API. Production's rules wait for the release pipeline (runbook, pre-launch checklist, P.14).
 
+### The app's way back from Google on staging's sign-in allow-list (Round 4, relay R4; PLAN.md step 1.6b; Claude Code)
+
+**Why:** the app signs in with Google through the phone's browser (the founder's decision, 10 November 2026): Supabase sends the browser back to the app's own address with a one-time code that only the app's verifier can use (PKCE). Supabase sends a visitor only to addresses on its allow-list.
+
+**Set:** `hrizzup://auth/callback`, exactly, joined staging's `uri_allow_list` (`infra/supabase/auth/settings.json`), applied at 07:15 UTC (12:45 India time) with `infra/doppler/run tools stg -- python3 infra/supabase/auth/apply.py staging`, from the Google pull request's branch before it merged: it only adds the app's own address, which the app needs before it can be tried. `--check` beforehand showed that one difference alone; afterwards, "matches the repo (34 settings, 4 secrets by fingerprint; sign-in methods on: external_email_enabled, external_google_enabled)". Production's list is unchanged; it gets the address when the app first uses production (runbook, pre-launch checklist, P.14).
+
+**Checked from outside**, the way the website's Google journey asks without signing anyone in (Supabase's verify step, given a code that's no good, sends the browser to the address asked for if its list has it): `hrizzup://auth/callback` is where Supabase sends it; `hrizzup://auth/elsewhere`, `hrizzup://evil` and another app's `otherapp://auth/callback` all go to staging's own home instead.
+
 ---
 
 ## Rules for this log
