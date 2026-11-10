@@ -12,6 +12,9 @@ import {
 } from './pnl.ts';
 import type { PerpPosition } from './position.ts';
 
+// Hrizzup: the maths takes the time from its caller instead of reading the clock.
+const NOW = 1_800_000_000_000;
+
 const makePosition = (
   direction: 'long' | 'short',
   overrides: Partial<PerpPosition> = {},
@@ -228,6 +231,7 @@ describe('getPerpProfitScenarios', () => {
       4,
       60,
       held,
+      NOW,
     );
     const merged = accruePerpPositionTakerFee(opened.state, opened.position, 0.5).position;
     expect(merged.size).toBe(700);
