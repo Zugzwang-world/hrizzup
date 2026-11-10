@@ -2,7 +2,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { expect, test } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { PENDING_COOKIE, pendingCookieValue } from '../../lib/email-code.ts';
-import { sendSignInCode } from '../../lib/supabase/send-code.ts';
+import { RESPONSE_FIELD } from '../../lib/turnstile.ts';
 import { asBrowserCookie } from '../support/bypass.ts';
 import { engineAccount, runAddress } from '../support/run.ts';
 import {
@@ -20,10 +20,12 @@ import { phone } from './phone.ts';
  * - The test account signs in the way the other checks do: a fresh session from staging's
  *   one-time token, set as the very cookies the website sets after a real sign-in
  *   (support/test-accounts.ts). Signing out then goes through the page's own button.
- * - A reader signs in with a code sent by email, through the page itself: the address, the
- *   bot check, the code, and signing out. Where the bot check is real (staging), it is for
- *   people, so the test asks for the code the way our server does once a person has passed it,
- *   and carries on from the page's code step.
+ * - A reader signs in with an email code, through the page itself, and no email is ever sent
+ *   (staging's 30 emails an hour are shared by every check run and the founder's own sign-ins;
+ *   the Product chat, 10 November 2026): the address and the bot check's answer reach the
+ *   browser's post to our server, which stops there, then the code step, a working code from
+ *   staging's admin access, signing in and signing out. Where the bot check is real (staging),
+ *   it is for people, so the journey starts at the code step.
  * - Google can't be signed into by a test, so Google sign-in is followed up to Google's door,
  *   and Supabase is shown to allow the way back to this site (on this Mac, each slot's own
  *   address: infra/slots/README.md).
@@ -96,40 +98,38 @@ test('an email code signs a reader in, and out again', async ({
   const keys = stagingKeys();
   if (!keys) throw new Error("Staging's Supabase keys are missing, so no code can be read");
 
-  // Chromium signs up a new reader; WebKit signs in one who already has an account. Each run,
-  // and each retry, uses fresh addresses at Resend's test inbox (support/run.ts), kept like every
-  // run's account.
+  // A reader of the run's own (support/run.ts), fresh for each run and each retry and kept like
+  // every run's account: not marked as a test account, so the page says how they signed in.
   const email = runAddress(`code-${randomUUID().slice(0, 4)}`, browserName as Engine);
-  // A reader like any other, not marked as a test account, so the page says how they signed in.
-  if (browserName === 'webkit') await createRunAccount(keys, email, { testAccount: false });
-  const tooMany =
-    '(Supabase sends at most one email a minute to an address, and 30 an hour for staging ' +
-    'and every preview together)';
+  await createRunAccount(keys, email, { testAccount: false });
+  await page.goto('/sign-in-test');
   if (botCheckIsATest()) {
-    await page.goto('/sign-in-test');
+    // The address step, in the browser: the address and the bot check's answer go out in the
+    // form's post to our server, which the test stops before it arrives, so nothing is emailed.
+    // Our server's half (it checks the answer, then asks Supabase to send) is proven by its own
+    // tests (app/auth/email-code-routes.test.ts).
+    let posted: URLSearchParams | undefined;
+    await page.route('**/auth/email/code', async (route) => {
+      posted = new URLSearchParams(route.request().postData() ?? '');
+      await route.abort();
+    });
     await page.getByLabel('Email address').fill(email);
     await page.getByRole('button', { name: 'Email me a code' }).click();
-  } else {
-    // The real bot check is for people: ask for the code as our server does once one has
-    // passed it, and remember the address in the cookie the server would set.
-    const sent = await sendSignInCode(keys.url, keys.secretKey, email);
-    if (sent !== 'sent') throw new Error(`No code was sent (${sent}) ${tooMany}`);
-    const remembered = pendingCookieValue({ email, next: '/sign-in-test' });
-    await context.addCookies([
-      asBrowserCookie(baseURL ?? '', PENDING_COOKIE, encodeURIComponent(remembered)),
-    ]);
-    await page.goto('/sign-in-test');
+    await expect.poll(() => posted?.get('email'), { timeout: 30_000 }).toBe(email);
+    expect(posted?.get(RESPONSE_FIELD), "the bot check's answer goes with it").toBeTruthy();
+    expect(posted?.get('next')).toBe('/sign-in-test');
+    await page.unroute('**/auth/email/code');
   }
-  // The code step, or the page's reason why not.
-  const sentTo = page.getByTestId('code-sent-to');
-  const problem = page.getByRole('main').getByRole('alert');
-  await expect(sentTo.or(problem)).toBeVisible({ timeout: 30_000 });
-  if (await problem.isVisible()) {
-    throw new Error(`No code was sent: "${await problem.textContent()}" ${tooMany}`);
-  }
-  await expect(sentTo).toHaveText(email);
+  // The code step, as our server opens it once a code is sent: the address, remembered in its
+  // cookie.
+  const remembered = pendingCookieValue({ email, next: '/sign-in-test' });
+  await context.addCookies([
+    asBrowserCookie(baseURL ?? '', PENDING_COOKIE, encodeURIComponent(remembered)),
+  ]);
+  await page.goto('/sign-in-test');
+  await expect(page.getByTestId('code-sent-to')).toHaveText(email);
 
-  // No inbox is read: staging's admin access gives a working code for the address.
+  // No inbox: staging's admin access gives a working code for the address, as an email would.
   await page.getByLabel('Code', { exact: true }).fill(await readSignInCode(keys, email));
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page.getByRole('heading', { name: SIGNED_IN })).toBeVisible();
