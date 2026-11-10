@@ -33,6 +33,8 @@
 - **Media files go into the content store's storage,** never into the repository.
 - **Legal belongs to the founder's legal team:** takedown handling and legal review are theirs; the plan adds no legal guardrails.
 - **No relays:** the founder carries no messages between projects; this brief carries what News Desk needs. This repository is the only route between projects (CLAUDE.md).
+- **Product first until launch** (the founder, 10 November 2026): work goes to the product; no new privacy, security or production work unless it blocks the product; existing checks, budgets and rules stay exactly as they are, nothing looser.
+- **Nothing paid for now** (the founder, 10 November 2026): free versions and free tiers only; no new paid tool, plan or licence until the founder says so.
 
 ## What changed in the latest session
 

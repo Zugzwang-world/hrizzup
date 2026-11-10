@@ -885,7 +885,7 @@ It prints chosen facts only, never the token. Run on staging at 09:44 UTC: **all
 
 ### Sign-in: Google on Supabase Auth, and Supabase's emails through Resend (runbook Part 8)
 
-**Decided by the founder:** sign-in for the website and the app runs on Supabase Auth. Google first; Apple and email codes before the iPhone build; the app's native Google and Apple sign-in, including the Android client and its fingerprint, come with the app builds. Written into PLAN.md (section 2, step 1.6, section 7) and blueprint section 9.
+**Decided by the founder:** sign-in for the website and the app runs on Supabase Auth. Google first; Apple and email codes before the iPhone build; the app's own Google and Apple sign-in come with the app builds (planned then with an Android client and its fingerprint; since the founder's decision of 10 November 2026, the app's Google sign-in goes through the phone's browser instead, with no Google module in the app). Written into PLAN.md (section 2, step 1.6, section 7) and blueprint section 9.
 
 **The founder's steps (8.1 to 8.4),** as reported:
 
@@ -1533,6 +1533,24 @@ No good sign-in failed, so the switch-off kept ready beside it (one setting, `ho
 **For the founder (a minute):** GitHub → your picture → **Settings → Emails** → tick **Keep my email addresses private**, so everything GitHub writes for you uses the no-reply address too: every pull request's squash merge into `main` (nothing else can make them use it), a merge from the website, an edit in the browser. Leave **Block command line pushes that expose my email** unticked: older branches' commits still carry the old address, and a push of one would be refused.
 
 **Done by the founder, 10 November 2026:** "Keep my email addresses private" ticked; "Block command line pushes that expose my email" left off. **Checked:** a commit object made through GitHub's API with no author given (no branch points at it, so nothing changed) carries the no-reply address, and so does the squash merge of this record's pull request into `main`.
+
+### Round 4's records: commits under the founder's GitHub username, and where his decisions went (the founder's decisions, 10 November 2026; Claude Code, R1, records only)
+
+**Set:** `user.name` = `Zugzwang-world`, the founder's GitHub username, from his public profile (whose ID, 273130081, also builds the no-reply address above), in this repository's own git settings on the Mac (`.git/config`, which every worktree shares; no worktree overrides it). Until now commits took their name from the Mac's global setting, which other projects use and which is unchanged. Nothing else was set.
+
+**Checked:** `git var GIT_AUTHOR_IDENT` and `git var GIT_COMMITTER_IDENT` show `Zugzwang-world <273130081+Zugzwang-world@users.noreply.github.com>`, in this relay's worktree and in the main checkout; this record's commits carry both. Earlier commits stay as they are.
+
+**Where the founder's decisions went:**
+- product first until launch, and nothing paid for now: CLAUDE.md (a section of their own), PLAN.md (sections 3, 5 and 6), the blueprint (section 2 no longer defaults to paid tiers) and all three briefs;
+- how checks behave (each check run owns what it changes; a test passing only on its retry fails its check; re-runs only for outages outside our code; the Speed check's single-run warnings; budgets never move): CLAUDE.md, blueprint sections 11 and 14;
+- play money at signup, moved out of 3.1 into Round 4 (R2): PLAN.md (section 2 and step 3.1), blueprint section 5, `TRACKER.md`;
+- the app's Google sign-in through the phone's browser: PLAN.md (section 2 and step 1.6b), blueprint section 9, the runbook's Part 8, this log's sign-in entry of 3 November, `TRACKER.md`;
+- scheduled jobs defined in migrations: CLAUDE.md ("Database changes"), PLAN.md (sections 2 and 7, step 3.4a), blueprint sections 5, 6 and 13;
+- the commit identity: CLAUDE.md ("While the repository is public") and this entry.
+
+**Found:** GitHub's squash merges into `main` carry the no-reply address (above) but sign it with the founder's profile display name, "Zugzwang/world", not his username; GitHub's merge has no author-name option, so only his profile's **Name** setting can change it (his click, in the Product brief's "For the founder").
+
+**Pre-launch checklist:** two of Claude Code's recommendations for before launch joined "Also before launch", held there by "product first": the app's own database login, and visitors' addresses for Supabase's limits.
 
 ---
 

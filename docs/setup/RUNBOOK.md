@@ -268,7 +268,7 @@ If you'd rather keep the existing token: in step 3, copy its value from `stg` wi
 
 **Why:** "Sign in with Google" on the website and the app, with one account across both, and sign-in codes that come from our own domain.
 
-**Decided 3 November 2026:** Supabase Auth for the website and the app. Google first; Apple and email codes before the iPhone build; the app's native Google and Apple sign-in (with the Android client and its fingerprint) come with the app builds. See PLAN.md section 2 and blueprint section 9.
+**Decided 3 November 2026:** Supabase Auth for the website and the app. Google first; Apple and email codes before the iPhone build; the app's own Google and Apple sign-in come with the app builds. Since 10 November 2026 (founder's decision), the app's Google sign-in goes through the phone's browser, with Supabase's sign-in as on the website: free, with no Google module in the app, so no Android sign-in client or signing fingerprint. See PLAN.md section 2 and blueprint section 9.
 
 | Step | Who | What to do |
 |---|---|---|
@@ -503,6 +503,8 @@ If you'd rather keep the existing token: in step 3, copy its value from `stg` wi
 **Also before launch** (Claude Code's additions, from earlier decisions):
 - **Production's hourly email limit** (`rate_limit_email_sent` in `infra/supabase/auth/settings.json`) raised to fit expected sign-ups.
 - **Claude Code's GitHub identity:** a separate GitHub account for Claude Code, with your approval needed for changes to the release pipeline's files (it merges its own pull requests today).
+- **The app's own database login** (from Round 3's review of the ledger; held until here by the founder's "product first" decision, 10 November 2026): a login that can never become anything but the app's own role, with its own password, which you make in Supabase and keep in Doppler (`stg`, then `prd`); Claude Code then switches the server's database helper to it (blueprint section 5, "The app's own role").
+- **Visitors' addresses for Supabase's limits** (found in step 1.6a; held until here by the same decision): our server passes each visitor's address in Supabase's `Sb-Forwarded-For` header, with Supabase's matching setting on, so Supabase's limits per address count visitors, not Vercel's servers; only once Supabase's documentation confirms it trusts that header only alongside the server key.
 - **Production hardening** (below), before the first real user signs in.
 
 **Done when:** every item is done or decided, and recorded in the setup log.
