@@ -105,6 +105,15 @@ export function runDetail(lhr: LighthouseResult): string {
   return `machine ${machine ? Math.round(machine) : 'unknown'}; main thread: ${work || 'idle'}`;
 }
 
+/** A run's long tasks, for the log: how long each was, and whose code it ran (`base`'s left off). */
+export function longTasks(lhr: LighthouseResult, base: string): string {
+  const tasks = (lhr.audits['long-tasks']?.details?.items ?? []).slice(0, 4).map((item) => {
+    const url = String(item.url ?? 'unattributable').replace(base, '');
+    return `${Math.round(Number(item.duration ?? 0))} ms ${url}`;
+  });
+  return tasks.length > 0 ? `long tasks: ${tasks.join(', ')}` : 'no long tasks';
+}
+
 /** Reads one run's numbers out of a Lighthouse result. */
 export function metricsFromLighthouse(lhr: LighthouseResult, expectedUrl: string): RunMetrics {
   loaded(lhr, expectedUrl);

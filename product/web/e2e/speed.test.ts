@@ -5,6 +5,7 @@ import {
   describeWarning,
   judge,
   type LighthouseResult,
+  longTasks,
   markdownTable,
   markdownWarnings,
   median,
@@ -111,6 +112,23 @@ describe("a run's detail, for the log", () => {
     expect(runDetail(lhr)).toBe(
       'machine 1235; main thread: script evaluation 411, other 190, script parsing & compilation 60',
     );
+  });
+
+  it("lists a run's long tasks, each with whose code it ran", () => {
+    const lhr = lighthouseResult();
+    lhr.audits['long-tasks'] = {
+      score: 1,
+      details: {
+        items: [
+          { url: 'https://preview.example/_next/static/chunks/a.js', duration: 412.4 },
+          { url: 'Unattributable', duration: 96.6 },
+        ],
+      },
+    };
+    expect(longTasks(lhr, 'https://preview.example')).toBe(
+      'long tasks: 412 ms /_next/static/chunks/a.js, 97 ms Unattributable',
+    );
+    expect(longTasks(lighthouseResult(), 'https://preview.example')).toBe('no long tasks');
   });
 
   it('says so when Lighthouse gave neither', () => {
