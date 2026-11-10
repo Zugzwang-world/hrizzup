@@ -39,6 +39,8 @@ export function PerpModeForm({ id, mode }: { id: string; mode: string }) {
   return (
     <form action={run} className="grid gap-6" data-testid="perp-mode-form">
       <input type="hidden" name="id" value={id} />
+      {/* The mode this page showed: switching to it changes nothing, even if it has moved since. */}
+      <input type="hidden" name="shown-mode" value={mode} />
       <fieldset className="grid min-w-0 gap-2">
         <legend className="font-medium">The off switch</legend>
         {(['enabled', 'reduce-only', 'halted'] as const).map((code) => (
@@ -116,6 +118,15 @@ export function PerpSettingsForm({
   return (
     <form action={run} className="grid gap-6" data-testid="perp-settings-form">
       <input type="hidden" name="id" value={id} />
+      {/* The values this page showed: only a setting typed differently is sent as a change. */}
+      {SETTINGS.map((setting) => (
+        <input
+          key={setting.name}
+          type="hidden"
+          name={`shown-${setting.name}`}
+          value={settings[setting.name] ?? ''}
+        />
+      ))}
       <div className="grid gap-4 sm:grid-cols-2">
         {SETTINGS.map((setting) => (
           <Field

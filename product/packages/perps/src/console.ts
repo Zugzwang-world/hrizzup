@@ -8,7 +8,7 @@ import type {
   SetPerpSettingsInput,
 } from '@hrizzup/api';
 import { type Transaction, transaction } from '@hrizzup/db';
-import { asConsoleError } from '@hrizzup/markets';
+import { asConsoleError, ConsoleError } from '@hrizzup/markets';
 import type { Pool } from 'pg';
 
 /**
@@ -134,15 +134,30 @@ export function createTestPerp(
   );
 }
 
-/** Retires a test perp once every position on it is closed: halted for good, its pools to the house. */
-export function retireTestPerp(
+/**
+ * Retires a test perp once every position on it is closed: halted for good, its pools to the house.
+ * Asked again once it's retired (a retried request, or a check run's cleanup), it answers with the
+ * retired perp, as a retried create answers with the perp its first try made; everything else the
+ * database refuses (the listed perp, an open position) stays refused.
+ */
+export async function retireTestPerp(
   pool: Database,
   account: string,
   input: RetireTestPerpInput,
 ): Promise<ConsolePerpWithLog> {
-  return call(pool, account, async (tx) =>
-    asPerpWithLog(
-      await answer(tx, 'select admin.retire_test_perp($1, $2) as answer', [input.id, input.reason]),
-    ),
-  );
+  try {
+    return await call(pool, account, async (tx) =>
+      asPerpWithLog(
+        await answer(tx, 'select admin.retire_test_perp($1, $2) as answer', [
+          input.id,
+          input.reason,
+        ]),
+      ),
+    );
+  } catch (error) {
+    if (!(error instanceof ConsoleError) || error.kind !== 'conflict') throw error;
+    const now = await getPerp(pool, account, input.id);
+    if (now.state === 'retired') return now;
+    throw error;
+  }
 }

@@ -199,6 +199,14 @@ export async function setPerpModeAction(
   if (mode !== 'enabled' && mode !== 'reduce-only' && mode !== 'halted') {
     return { error: 'The off switch: on, closing only, or off.', values: typed(form) };
   }
+  // The mode the page showed: nothing to switch, and never a switch back over another admin's
+  // change made since the page was loaded.
+  if (mode === field(form, 'shown-mode')) {
+    return {
+      error: 'It is already in that mode: choose another to switch to.',
+      values: typed(form),
+    };
+  }
   return perpStep(form, (id) =>
     serverApi.admin.perps.setMode({ id, mode, reason: field(form, 'reason') }),
   );
@@ -220,10 +228,19 @@ export async function setPerpSettingsAction(
   form: FormData,
 ): Promise<ConsoleFormState> {
   await adminsOnly();
-  // Every setting as typed: the database changes, and logs, only those that differ.
+  // Only the settings typed differently from what the page showed: one left as it was is never
+  // sent, so a page loaded before another admin's change can't quietly undo it.
   const settings = Object.fromEntries(
-    PERP_SETTINGS.map((name) => [name, field(form, name)]).filter(([, value]) => value !== ''),
+    PERP_SETTINGS.map((name) => [name, field(form, name)]).filter(
+      ([name, value]) => value !== '' && value !== field(form, `shown-${name}`),
+    ),
   );
+  if (Object.keys(settings).length === 0) {
+    return {
+      error: 'Nothing to change: type a new value for a setting first.',
+      values: typed(form),
+    };
+  }
   return perpStep(form, (id) =>
     serverApi.admin.perps.setSettings({ id, settings, reason: field(form, 'reason') }),
   );

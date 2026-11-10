@@ -151,6 +151,15 @@ describe("the perp's console", () => {
       () => retireTestPerp(app, SOMEONE, { id: BITCOIN, reason: 'x' }),
     ];
     for (const work of calls) expect((await refusal(work())).kind).toBe('not_admin');
+    // Signed out altogether: the same.
+    const nobody = null as unknown as string;
+    for (const work of [
+      () => listPerps(app, nobody),
+      () => getPerp(app, nobody, BITCOIN),
+      () => setPerpMode(app, nobody, { id: BITCOIN, mode: 'enabled', reason: 'Mine now' }),
+    ]) {
+      expect((await refusal(work())).kind).toBe('not_admin');
+    }
     const { rows } = await owner.query(
       "select count(*)::int as n from perps.rule_changes where reason in ('Mine now', 'x')",
     );
@@ -181,6 +190,19 @@ describe("the perp's console", () => {
     expect((await refusal(createTestPerp(app, ADMIN, { ...input, name: 'Another' }))).kind).toBe(
       'invalid',
     );
+    // Asked twice at once: one perp, and both get it back.
+    const twice = testPerp();
+    const both = await Promise.all([
+      createTestPerp(app, ADMIN, twice),
+      createTestPerp(app, ADMIN, twice),
+    ]);
+    expect(both.map((perp) => perp.id)).toEqual([twice.id, twice.id]);
+    const { rows: once } = await owner.query(
+      'select count(*)::int as n from perps.perps where id = $1',
+      [twice.id],
+    );
+    expect(once[0].n).toBe(1);
+    await retireTestPerp(app, ADMIN, { id: twice.id, reason: 'Made twice at once' });
 
     const retired = await retireTestPerp(app, ADMIN, { id: input.id, reason: 'The run is done' });
     expect(retired).toMatchObject({
@@ -189,6 +211,10 @@ describe("the perp's console", () => {
       pools: { long: '0.000000', short: '0.000000' },
     });
     expect(retired.log.at(-1)).toMatchObject({ rule: 'retired', reason: 'The run is done' });
+    // Retired again (a retry, a run's cleanup): the retired perp, and nothing more in its log.
+    const retiredAgain = await retireTestPerp(app, ADMIN, { id: input.id, reason: 'Again' });
+    expect(retiredAgain).toMatchObject({ state: 'retired' });
+    expect(retiredAgain.log).toHaveLength(retired.log.length);
     expect(
       (await refusal(setPerpMode(app, ADMIN, { id: input.id, mode: 'enabled', reason: 'x' }))).kind,
     ).toBe('conflict');

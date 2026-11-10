@@ -126,6 +126,10 @@ describe("the market console's addresses, to anyone but an admin", () => {
     isAdmin.mockResolvedValue(true);
     const unknown = await answer('GET', '/api/v1/no-such-call');
     expect(await answer('GET', '/api/v1/admin/markets')).toEqual(unknown);
+    expect(await answer('GET', '/api/v1/admin/perps')).toEqual(unknown);
+    expect(await answer('GET', '/api/v1/admin/perps/01a1c501-ec40-78f6-87b6-3fb041143421')).toEqual(
+      unknown,
+    );
     expect(isAdmin).not.toHaveBeenCalled();
   });
 });

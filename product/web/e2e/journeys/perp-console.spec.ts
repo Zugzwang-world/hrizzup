@@ -162,6 +162,23 @@ test("an admin runs the run's own test perp: switches it on and off, changes a s
 
   // The run's own test perp, made through the console's call from the page (as a browser sends it).
   const perp = testPerp(`Console journey (${browserName}, run ${runKey()})`);
+  try {
+    await runsTheTestPerp(page, perp);
+  } finally {
+    // Whatever happened, the run's perp ends switched off and retired (a retire asked again
+    // answers with the retired perp), so nothing of the run's is left live on staging.
+    await fromPage(page, 'POST', `/api/v1/admin/perps/${perp.id}/mode`, {
+      mode: 'halted',
+      reason: `The console journey cleans up (run ${runKey()})`,
+    }).catch(() => undefined);
+    await fromPage(page, 'POST', `/api/v1/admin/perps/${perp.id}/retire`, {
+      reason: `The console journey cleans up (run ${runKey()})`,
+    }).catch(() => undefined);
+    await page.context().close();
+  }
+});
+
+async function runsTheTestPerp(page: Page, perp: ReturnType<typeof testPerp>) {
   const made = await fromPage(page, 'POST', '/api/v1/admin/perps', perp);
   expect(made.status).toBe(201);
   expect(made.body).toMatchObject({
@@ -244,5 +261,4 @@ test("an admin runs the run's own test perp: switches it on and off, changes a s
       })
     ).status,
   ).toBe(409);
-  await page.context().close();
-});
+}

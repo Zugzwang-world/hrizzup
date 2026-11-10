@@ -56,10 +56,19 @@ export const CONSOLE_FIXTURE_MARKET = '019a6c00-0000-7000-8000-000000000001';
 
 /**
  * The Bitcoin perp (PLAN.md step 3.4a), which the migration that made the perp's books made on every
- * environment: the screen check opens its console page as the admin test account sees it, and
- * changes nothing (the journeys change only each run's own test perps).
+ * environment. Nothing in the checks changes it (the journeys change only each run's own test perps).
  */
 export const BITCOIN_PERP = '01a1c501-ec40-78f6-87b6-3fb041143421';
+
+/**
+ * A test perp the screen check keeps on staging for the console's perp page: made once by the
+ * console's admin test account (global-setup.ts), switched off, never traded, and changed by nobody
+ * else, so its rule-change log only ever names that test account. (The Bitcoin perp's log names
+ * whoever switches it, a real admin's own address, which must never reach a public screenshot.)
+ */
+export const CONSOLE_FIXTURE_PERP = '019a6c00-0000-7000-8000-000000000002';
+export const FIXTURE_PERP_NAME =
+  "Screen check: a test perp kept on staging for the console's screen check";
 
 export const pages: readonly Page[] = [
   { route: '/', name: 'home', path: '/', budget: 'standard' },

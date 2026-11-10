@@ -4,7 +4,12 @@ import { join } from 'node:path';
 import { type BrowserContextOptions, expect, test } from '@playwright/test';
 import { PENDING_COOKIE, pendingCookieValue } from '../lib/email-code.ts';
 import { layoutProblems } from './layout.ts';
-import { BITCOIN_PERP, CONSOLE_FIXTURE_MARKET, pagesIn } from './pages.ts';
+import {
+  CONSOLE_FIXTURE_MARKET,
+  CONSOLE_FIXTURE_PERP,
+  FIXTURE_PERP_NAME,
+  pagesIn,
+} from './pages.ts';
 import { asBrowserCookie } from './support/bypass.ts';
 import { adminState, signedInState, signedOutState } from './support/states.ts';
 import { views } from './viewports.ts';
@@ -48,11 +53,12 @@ function pagesToCheck(): Check[] {
         path: `/console/markets/${CONSOLE_FIXTURE_MARKET}`,
         admin: "Screen check: a test market kept on staging for the console's screen check",
       },
-      // The Bitcoin perp's console page, read only (PLAN.md step 3.4a).
+      // A perp's console page (PLAN.md step 3.4a), on the fixture test perp: its log names only the
+      // admin test account, never a real admin.
       {
         name: 'console-perp-admin',
-        path: `/console/perps/${BITCOIN_PERP}`,
-        admin: 'Bitcoin price (US dollars)',
+        path: `/console/perps/${CONSOLE_FIXTURE_PERP}`,
+        admin: FIXTURE_PERP_NAME,
       },
     );
   }

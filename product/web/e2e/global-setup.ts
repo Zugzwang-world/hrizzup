@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import type { FullConfig } from '@playwright/test';
-import { CONSOLE_FIXTURE_MARKET } from './pages.ts';
+import { CONSOLE_FIXTURE_MARKET, CONSOLE_FIXTURE_PERP, FIXTURE_PERP_NAME } from './pages.ts';
 import { asBrowserCookie, BYPASS_COOKIE, bypassCookieValue } from './support/bypass.ts';
 import { engineAccount, runKey } from './support/run.ts';
 import { adminState, signedInState, signedOutState, statesFolder } from './support/states.ts';
@@ -67,6 +67,7 @@ export default async function globalSetup(config: FullConfig) {
     // The same session, as the website's own cookies, for the console's calls.
     const cookie = admin.map(({ name, value }) => `${name}=${value}`).join('; ');
     await ensureFixtureMarket(baseURL, { ...headers, cookie });
+    await ensureFixturePerp(baseURL, { ...headers, cookie });
   }
 }
 
@@ -144,5 +145,40 @@ async function ensureFixtureMarket(baseURL: string, headers: Record<string, stri
   }
   if (state !== 'settled') {
     throw new Error(`The console's fixture market ended ${state ?? 'missing'}, not settled`);
+  }
+}
+
+/**
+ * The console's fixture test perp (pages.ts, CONSOLE_FIXTURE_PERP): made once, switched off, by the
+ * admin test account through the console's call, and found again by its ID on every later run (a
+ * second make, by another run at the same moment, gets back the same perp). Nothing ever trades it
+ * or switches it on, so the screen check sees a perp page whose log names only the test account.
+ */
+async function ensureFixturePerp(baseURL: string, headers: Record<string, string>) {
+  const response = await fetch(new URL('/api/v1/admin/perps', baseURL), {
+    method: 'POST',
+    headers: { ...headers, 'content-type': 'application/json' },
+    body: JSON.stringify({
+      id: CONSOLE_FIXTURE_PERP,
+      name: FIXTURE_PERP_NAME,
+      // Not a secret: nothing ever trades this perp.
+      seed: '5c4ee9c4ec6e1f00',
+      standIn: { origin: '2026-11-10T00:00:00.000Z', startPrice: '100', volatility: '0.55' },
+      settings: {
+        maxLeverage: '10',
+        takerFeeBps: '10',
+        takerFeeImpact: '0',
+        fundingPeriodMs: '3600000',
+        fundingSensitivity: '1',
+        maxFundingRate: '0.0001',
+        maxPriceAgeMs: '120000',
+        subsidyLong: '1000',
+        subsidyShort: '1000',
+      },
+      reason: "Kept on staging for the console's screen check: switched off, never traded",
+    }),
+  });
+  if (response.status !== 201 && response.status !== 200) {
+    throw new Error(`Couldn't make the console's fixture perp (${response.status})`);
   }
 }

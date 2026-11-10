@@ -155,6 +155,50 @@ const figure = z
   .regex(/^(?:0|[1-9][0-9]{0,12})(?:\.[0-9]{1,20})?$/, 'Must be a number written as text');
 
 /**
+ * Each setting's bounds as the engine holds them (product/packages/market-engine, `assertPerpSettings`:
+ * Manifold's own, with the 10-times cap), checked on the figure as the engine reads it, a JavaScript
+ * number. The database holds the exact decimal to the same bounds, but a figure can round past one
+ * as a number (0.99999999999999999999 is 1), and the engine would then refuse every step on the perp.
+ * A check run's test perp puts at most Ṁ1,000,000 of the house's in each pool.
+ */
+const ENGINE_BOUNDS: Record<string, { holds: (value: number) => boolean; says: string }> = {
+  maxLeverage: { holds: (n) => n >= 1 && n <= 10, says: 'From 1 to 10 times' },
+  takerFeeBps: { holds: (n) => n >= 0 && n <= 100, says: 'From 0 to 100 basis points' },
+  takerFeeImpact: { holds: (n) => n >= 0 && n <= 100, says: 'From 0 to 100' },
+  fundingPeriodMs: {
+    holds: (n) => Number.isSafeInteger(n) && n >= 3_600_000,
+    says: 'Whole milliseconds, at least an hour (3,600,000)',
+  },
+  fundingSensitivity: { holds: (n) => n > 0, says: 'More than 0' },
+  maxFundingRate: { holds: (n) => n > 0 && n < 1, says: 'More than 0 and less than 1' },
+  maxPriceAgeMs: {
+    holds: (n) => Number.isSafeInteger(n) && n > 0,
+    says: 'Whole milliseconds, more than 0',
+  },
+  subsidyLong: { holds: (n) => n > 0 && n <= 1_000_000, says: 'More than 0, at most Ṁ1,000,000' },
+  subsidyShort: { holds: (n) => n > 0 && n <= 1_000_000, says: 'More than 0, at most Ṁ1,000,000' },
+};
+
+/** Every setting given within the engine's bounds (`ENGINE_BOUNDS`), each refusal on its own field. */
+function withinTheEngine(settings: Record<string, string | undefined>, ctx: z.RefinementCtx) {
+  for (const [name, value] of Object.entries(settings)) {
+    const bound = ENGINE_BOUNDS[name];
+    if (value === undefined || !bound) continue;
+    if (!bound.holds(Number(value)))
+      ctx.addIssue({ code: 'custom', path: [name], message: bound.says });
+  }
+}
+
+/**
+ * A moment to the millisecond at most: a test perp's price walk starts at it, and its 5-second steps
+ * are counted from it the same way in the database (microseconds) and in the engine (milliseconds).
+ */
+const toTheMillisecond = moment.refine(
+  (value) => !/\.[0-9]{4,}/.test(value),
+  'At most three digits after the seconds (milliseconds)',
+);
+
+/**
  * Some of a perp's settings, and why: at least one, each as text; the database holds each to
  * Manifold's bounds and the 10-times cap, and logs every one that changes.
  */
@@ -172,7 +216,8 @@ export const setPerpSettingsInput = z.strictObject({
     })
     .refine((settings) => Object.values(settings).some((value) => value !== undefined), {
       message: 'Change at least one setting',
-    }),
+    })
+    .superRefine(withinTheEngine),
   reason,
 });
 
@@ -191,23 +236,25 @@ export const createTestPerpInput = z.strictObject({
   name: z.string().trim().min(1).max(120),
   seed,
   standIn: z.strictObject({
-    /** Where its walk starts: no later than now. */
-    origin: moment,
+    /** Where its walk starts: no later than now, to the millisecond at most. */
+    origin: toTheMillisecond,
     startPrice: figure,
     /** How much it moves in a year: 0.55 is Bitcoin's; a test perp may move far faster, up to 100. */
     volatility: figure,
   }),
-  settings: z.strictObject({
-    maxLeverage: figure,
-    takerFeeBps: figure,
-    takerFeeImpact: figure,
-    fundingPeriodMs: figure,
-    fundingSensitivity: figure,
-    maxFundingRate: figure,
-    maxPriceAgeMs: figure,
-    subsidyLong: figure,
-    subsidyShort: figure,
-  }),
+  settings: z
+    .strictObject({
+      maxLeverage: figure,
+      takerFeeBps: figure,
+      takerFeeImpact: figure,
+      fundingPeriodMs: figure,
+      fundingSensitivity: figure,
+      maxFundingRate: figure,
+      maxPriceAgeMs: figure,
+      subsidyLong: figure,
+      subsidyShort: figure,
+    })
+    .superRefine(withinTheEngine),
   fundingFrom: moment.optional(),
   reason,
 });
