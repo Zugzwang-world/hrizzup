@@ -1,0 +1,28 @@
+# The start of every journey: the app with nothing kept from before (no session, nothing stored),
+# on its home screen. Not a journey itself (run.sh runs only the flows beside this folder).
+#
+# Its data is cleared first, then the app starts after a 2-second pause: on the slow CI emulator
+# Android removes the app's last task a moment after its data is cleared, and when that comes
+# after the next start, it stops the app it has just started (App journeys, 10 November 2026:
+# "Destroy timeout of remove-task", then "Killing com.hrizzup.app: remove task"). The pause is
+# setup, not a retry: an app that can't start still fails its journey.
+appId: com.hrizzup.app
+---
+- clearState
+# Nothing ever shows this text: a plain 2-second pause.
+- extendedWaitUntil:
+    visible: "Hrizzup's journeys pause here"
+    timeout: 2000
+    optional: true
+- launchApp
+# If one of Android's own apps stopped responding on the slow CI emulator, its dialog would cover
+# the app: wait for it instead of failing on it.
+- runFlow:
+    when:
+      visible: ".*isn't responding"
+    commands:
+      - tapOn: "Wait"
+- extendedWaitUntil:
+    visible:
+      id: home
+    timeout: 30000

@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, useColorScheme, View } from 'react-native';
+import { StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { type GoogleOutcome, onGoogleOutcome, signInWithGoogle } from '../lib/auth/google.ts';
 import { retrySignIn, signOut, useSignIn } from '../lib/auth/session.ts';
+import { Choice } from './choice.tsx';
+import { EmailCodeSignIn } from './email-code-sign-in.tsx';
 
 const GOOGLE: Record<GoogleOutcome, string | null> = {
   'signed-in': null,
@@ -25,11 +27,14 @@ export function SignInTest() {
   const signIn = useSignIn();
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [byEmail, setByEmail] = useState(false);
 
   useEffect(() => onGoogleOutcome((outcome) => setMessage(GOOGLE[outcome])), []);
-  // Signed in, no word about an earlier try (say, a cancel that ended after the sign-in).
+  // Signed in, no word about an earlier try (say, a cancel that ended after the sign-in); signed in
+  // or out, the next sign-in starts from the choices again.
   useEffect(() => {
     if (signIn.state === 'signed-in') setMessage(null);
+    if (signIn.state !== 'signed-out') setByEmail(false);
   }, [signIn.state]);
 
   async function google() {
@@ -89,13 +94,29 @@ export function SignInTest() {
           <Text testID="signed-out" style={[styles.status, { color: colors.ink }]}>
             You're signed out
           </Text>
-          <Choice
-            testID="google-button"
-            label="Continue with Google"
-            onPress={google}
-            disabled={busy}
-            colors={colors}
-          />
+          {byEmail ? (
+            <EmailCodeSignIn colors={colors} onCancel={() => setByEmail(false)} />
+          ) : (
+            <>
+              <Choice
+                testID="google-button"
+                label="Continue with Google"
+                onPress={google}
+                disabled={busy}
+                colors={colors}
+              />
+              <Choice
+                testID="email-code-button"
+                label="Email me a code"
+                onPress={() => {
+                  setMessage(null);
+                  setByEmail(true);
+                }}
+                disabled={busy}
+                colors={colors}
+              />
+            </>
+          )}
         </>
       )}
 
@@ -120,48 +141,10 @@ export function SignInTest() {
   );
 }
 
-type Colors = { ink: string; muted: string; line: string };
-
-/** A plain button: stock look, at least 48 points tall (Android's smallest comfortable target). */
-function Choice(props: {
-  label: string;
-  onPress: () => void;
-  colors: Colors;
-  disabled?: boolean;
-  testID?: string;
-}) {
-  return (
-    <Pressable
-      testID={props.testID}
-      accessibilityRole="button"
-      accessibilityState={{ disabled: Boolean(props.disabled), busy: Boolean(props.disabled) }}
-      disabled={props.disabled}
-      onPress={props.onPress}
-      style={({ pressed }) => [
-        styles.choice,
-        { borderColor: props.colors.line, opacity: pressed || props.disabled ? 0.6 : 1 },
-      ]}
-    >
-      <Text style={[styles.choiceLabel, { color: props.colors.ink }]}>{props.label}</Text>
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
   section: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 24, gap: 12 },
   heading: { fontSize: 20, fontWeight: '600' },
   note: { fontSize: 15, lineHeight: 21 },
   status: { fontSize: 17, fontWeight: '600' },
   message: { fontSize: 15, lineHeight: 21 },
-  choice: {
-    alignSelf: 'flex-start',
-    maxWidth: '100%',
-    minHeight: 48,
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderRadius: 6,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-  },
-  choiceLabel: { fontSize: 17, fontWeight: '500' },
 });

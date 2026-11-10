@@ -1,0 +1,92 @@
+# The sign-in test's email code (PLAN.md step 1.6b), without sending any email: "Email me a code"
+# shows the address and the bot check (our website's page in a small web view); an address that
+# can't be one is refused before anything is sent; and "I already have a code" goes to the code
+# step, where a code of the wrong length is refused in the app and a wrong one by Supabase, as the
+# app checks codes itself. Signing a fresh account in with a real code is the signed-in journey.
+# Run by journeys/run.sh at a phone size and a tablet size (SIZE says which).
+appId: com.hrizzup.app
+name: The sign-in test asks for an email code behind the bot check, and checks a typed code
+---
+- runFlow: steps/start-fresh.yaml
+- scrollUntilVisible:
+    element:
+      id: email-code-button
+    timeout: 30000
+- tapOn:
+    id: email-code-button
+- extendedWaitUntil:
+    visible:
+      id: email-input
+    timeout: 10000
+- assertVisible:
+    id: bot-check
+- scrollUntilVisible:
+    element:
+      id: send-code-button
+- tapOn:
+    id: send-code-button
+- assertVisible:
+    id: email-code-message
+    text: "Enter a valid email address\\."
+- tapOn:
+    id: email-input
+- inputText: "delivered+app-journey-never-sent@resend.dev"
+- hideKeyboard
+- takeScreenshot: ${SIZE}-email
+- scrollUntilVisible:
+    element:
+      id: have-code-button
+- tapOn:
+    id: have-code-button
+- extendedWaitUntil:
+    visible:
+      id: code-step
+    timeout: 10000
+- assertVisible:
+    id: code-sent-to
+    text: "delivered\\+app-journey-never-sent@resend\\.dev"
+- tapOn:
+    id: code-input
+- inputText: "1234"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: verify-code-button
+- tapOn:
+    id: verify-code-button
+- assertVisible:
+    id: email-code-message
+    text: "Enter the 8-digit code from the email\\."
+# A code of the right length that no email sent: Supabase refuses it.
+- tapOn:
+    id: code-input
+- eraseText: 12
+- inputText: "12345678"
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: verify-code-button
+- tapOn:
+    id: verify-code-button
+- extendedWaitUntil:
+    visible:
+      id: email-code-message
+      text: "That code didn't work\\. Check it and try again, or get a new code\\."
+    timeout: 30000
+- takeScreenshot: ${SIZE}-wrong-code
+- scrollUntilVisible:
+    element:
+      id: start-again-button
+- tapOn:
+    id: start-again-button
+- extendedWaitUntil:
+    visible:
+      id: address-step
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      id: cancel-email-button
+- tapOn:
+    id: cancel-email-button
+- assertVisible:
+    id: google-button
