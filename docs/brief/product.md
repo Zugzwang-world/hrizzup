@@ -15,7 +15,7 @@
 
 ## Round 5 progress
 
-- **R1, the markets sandbox:** done, [#PRNUM](https://github.com/Zugzwang-world/hrizzup/pull/PRNUM). Next: nothing; the founder tries it. For the founder: the five steps below.
+- **R1, the markets sandbox:** done, [#121](https://github.com/Zugzwang-world/hrizzup/pull/121). Next: nothing; the founder tries it. For the founder: the five steps below.
 
 ## Decisions in force
 
@@ -28,7 +28,7 @@
 
 ## What changed in the latest session
 
-On 10 November 2026, R1, **the markets sandbox** ([#PRNUM](https://github.com/Zugzwang-world/hrizzup/pull/PRNUM), one pull request, no database change): a plain working copy of Kalshi's layout at **`/sandbox`** on staging, previews and this Mac (production answers "not found"), markets only, from stock components with no design values and no chart library.
+On 10 November 2026, R1, **the markets sandbox** ([#121](https://github.com/Zugzwang-world/hrizzup/pull/121), one pull request, no database change): a plain working copy of Kalshi's layout at **`/sandbox`** on staging, previews and this Mac (production answers "not found"), markets only, from stock components with no design values and no chart library.
 
 - **Pages:** the open markets as rows with chance and Yes/No prices; a market's page (question, chance, close time, a price line drawn from what the page has seen since it opened, Kalshi's trade panel: buy and sell Yes or No at market or with a limit, cancel a resting limit, and the account's position); the Bitcoin perp's page (price and change, open interest, funding, a price line every 5 seconds, Up or Down, 25%, 50% and Max, a multiplier of 1 to 10 times, the liquidation price, open positions with profit or loss and Close). The header has Markets, Perps, the play-money balance, Sign in (through the sign-in test page, which now returns to the page that sent you) and, for admins, the console.
 - **Checks:** all four pages are in the Screen and Speed checks; the layout rules held at every width in both engines, signed in and out. Tried by hand against staging's books: a buy, a sell, a resting limit and its cancel, a refusal, a perp opened and closed, every figure exact.
