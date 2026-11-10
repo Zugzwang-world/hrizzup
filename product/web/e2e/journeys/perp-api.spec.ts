@@ -112,8 +112,10 @@ test.describe('the perp for everyone', () => {
     expect(bitcoin, 'the Bitcoin perp is listed').toMatchObject({
       name: 'Bitcoin price (US dollars)',
       listed: true,
-      feed: 'stand-in-btc-usd',
     });
+    // On its stand-in until 3.4b moves it onto our own price (a migration; previews read staging's
+    // database, which takes it only once it merges), then our own: a follow-up expects ours alone.
+    expect(['stand-in-btc-usd', 'btc-usd']).toContain(bitcoin?.feed);
     expect(Number(bitcoin?.price)).toBeGreaterThan(0);
     expect(Date.parse(bitcoin?.nextPriceAt ?? '') - Date.parse(bitcoin?.priceAt ?? '')).toBe(5_000);
     // Shown on the database's clock: never a price whose 5 seconds haven't started.

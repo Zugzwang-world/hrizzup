@@ -24,8 +24,9 @@ import {
  * transaction, and `perps.apply_step` checks it.
  *
  * A step has up to three phases, in this order, each its own entry in the books:
- * - **price:** the next stand-in price, if it's newer than the book's (liquidations, then winners
- *   scaled down or settled if the pools run short);
+ * - **price:** the perp's newest price, if it's newer than the book's: its stand-in's, or, on our own
+ *   price (step 3.4b), the newest stored (liquidations, then winners scaled down or settled if the
+ *   pools run short);
  * - **funding:** the hourly funding (the crowded side's pool pays the other's);
  * - **trade:** an open (or a flip: the trader's other side closed first) or a close.
  *
@@ -57,6 +58,18 @@ export type StoredPosition = {
 /** The settings as the database writes them (perps.settings_of): the engine's names, as text. */
 export type StoredSettings = Record<keyof PerpSettings, string>;
 
+/** Our own Bitcoin price, by its feed's name (step 3.4b; the database's prices.points). */
+export const OWN_PRICE = 'btc-usd';
+
+/** A stored price of ours, as the database gives it (prices.point_of). */
+export type StoredPoint = {
+  /** When the exchanges were asked: a price stored after an order was placed was asked after it. */
+  at: string;
+  price: string;
+  /** How many exchanges' answers made it: 2 or 3, or 0 for the last price held. */
+  sources: number;
+};
+
 /** What perps.begin_step hands over. */
 export type StepState = {
   now: string;
@@ -69,6 +82,8 @@ export type StepState = {
     /** A test perp's own seed; null for the listed perp, whose seed is the environment's secret. */
     seed: string | null;
     standIn: { origin: string; startPrice: string; volatility: string };
+    /** On our own price, its newest stored point as the step began (the only one it may apply). */
+    point?: StoredPoint | null;
     settings: StoredSettings;
     price: string | null;
     priceAt: string | null;
@@ -490,13 +505,14 @@ const refusal = (code: PerpRefusal['code'], message: string) => ({ code, message
 
 /**
  * The plan for one step, or null when there's nothing to write (a scheduled step with no new price
- * and nothing due). `priceAt` gives the perp's price at a moment (its stand-in); `newId` a new
+ * and nothing due). `priceAt` gives the perp's price at a moment (its stand-in's), or its newest
+ * stored one whatever the moment (our own price's), or null when there's none yet; `newId` a new
  * position's ID.
  */
 export function planStep(
   state: StepState,
   request: StepRequest,
-  priceAt: (moment: number) => OraclePoint,
+  priceAt: (moment: number) => OraclePoint | null,
   newId: () => string,
 ): Plan | null {
   const { perp } = state;
@@ -537,11 +553,11 @@ export function planStep(
     );
   }
 
-  // 1. The price: this moment's 5-second step, if newer than the book's.
+  // 1. The price: this moment's 5-second step (or our own price's newest), if newer than the book's.
   let book = bookOf(state);
   let price: Plan['price'];
   const point = priceAt(now);
-  if (perp.priceAt === null || point.ts > book.priceTime) {
+  if (point && (perp.priceAt === null || point.ts > book.priceTime)) {
     price = { at: iso(point.ts), price: figure(point.price) };
     if (perp.priceAt === null) {
       // The first price: no position can be open yet, so it only sets the book's price.

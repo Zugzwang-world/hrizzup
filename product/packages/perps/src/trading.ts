@@ -19,8 +19,24 @@ import {
   STAND_IN_PRICE,
 } from '@hrizzup/market-engine';
 import type { Pool } from 'pg';
-import { nextFundingAt, type StepState, type StoredPosition, type StoredSettings } from './plan.ts';
-import { PerpNotSetUpError, type PriceSource, priceFor, runStep } from './step.ts';
+import {
+  nextFundingAt,
+  OWN_PRICE,
+  type StepState,
+  type StoredPoint,
+  type StoredPosition,
+  type StoredSettings,
+} from './plan.ts';
+import {
+  OWN_PRICE_INTERVAL_MS,
+  ownPriceDueAt,
+  PerpNotSetUpError,
+  type PriceSource,
+  PriceUnavailableError,
+  priceFor,
+  runStep,
+  storedPrice,
+} from './step.ts';
 
 /**
  * The perp for everyone (PLAN.md step 3.4a; blueprint sections 5 and 13): its price and details,
@@ -36,7 +52,9 @@ import { PerpNotSetUpError, type PriceSource, priceFor, runStep } from './step.t
  *
  * **Orders fill at the next new price, never the one on screen** (PLAN.md, "Starting rules"): the
  * order is placed at the database's own time, and the step runs once the next 5-second price is
- * published, a few seconds at most.
+ * published, a few seconds at most: on our own price (step 3.4b), once the next is stored, asked for
+ * after the order. If none comes (the prices have stopped for longer than the 30 seconds the last
+ * one is held), the order is refused as `stale_price`, unfilled.
  */
 
 type Database = Pick<Pool, 'connect'>;
@@ -117,7 +135,13 @@ type PublicPerp = {
 
 type Sources = Record<
   string,
-  { feed: string; seed: string | null; standIn: StepState['perp']['standIn'] }
+  {
+    feed: string;
+    seed: string | null;
+    standIn: StepState['perp']['standIn'];
+    /** On our own price, the newest stored (null before the first). */
+    point?: StoredPoint | null;
+  }
 >;
 
 const iso = (ms: number) => new Date(ms).toISOString();
@@ -147,7 +171,10 @@ export function plain(value: number): string {
   return `${negative ? '-' : ''}${trimmed.replace(/^0+(?=\d)/, '')}`;
 }
 
-/** A perp's price now, from its own walk (and seed), or the environment's secret seed. */
+/**
+ * A perp's price now: on our own price, the newest stored; on a stand-in, from its own walk (and
+ * seed), or the environment's secret seed.
+ */
 function priceNow(perp: PublicPerp, sources: Sources, source: PriceSource, now: number) {
   const where = sources[perp.id];
   if (!where) throw new PerpTradingError('not_found', 'No such perp');
@@ -183,7 +210,10 @@ function details(
     settings: perp.settings,
     price: plain(point.price),
     priceAt: iso(point.ts),
-    nextPriceAt: iso(point.ts + STAND_IN_PRICE.intervalMs),
+    // On our own price, when the next is about due: asks drift a little, so it's a good guess only.
+    nextPriceAt: iso(
+      point.ts + (perp.feed === OWN_PRICE ? OWN_PRICE_INTERVAL_MS : STAND_IN_PRICE.intervalMs),
+    ),
     bookPrice: perp.price,
     bookPriceAt: perp.priceAt,
     pausedReason: perp.pausedReason,
@@ -249,6 +279,9 @@ type Holdings = {
   pausedReason: string | null;
   priceAt: string | null;
   stepsFrom: string;
+  /** Which price the perp is on, and on our own its newest stored (null before the first). */
+  feed?: string;
+  point?: StoredPoint | null;
   hasAccount: boolean;
   balance: string;
   position: StoredPosition | null;
@@ -355,9 +388,12 @@ async function trade(
   if (!held.answered) {
     // Wait for the next price, outside any transaction: the order fills at a price published after
     // it was placed. The wait is measured from the database's own clock, so this server's doesn't
-    // matter.
+    // matter. On our own price, until the next is about due; the step then looks until it's stored.
     const placed = Date.parse(placedAt);
-    const wait = nextStepAt(placed, Date.parse(held.stepsFrom)) - placed + 150;
+    const wait =
+      held.feed === OWN_PRICE
+        ? ownPriceDueAt(storedPrice(held.point), placed, placed) - placed
+        : nextStepAt(placed, Date.parse(held.stepsFrom)) - placed + 150;
     await (options.wait ?? sleep)(wait);
   }
   try {
@@ -373,6 +409,7 @@ async function trade(
     }
     return asTradeResult(answer.result as unknown as StoredResult);
   } catch (error) {
+    if (error instanceof PriceUnavailableError) throw refused('stale_price', error.message);
     throw asPerpTradingError(error);
   }
 }
