@@ -34,7 +34,7 @@ One line per relay; each relay keeps only its own line current.
 
 ## What changed in the latest session
 
-On 10 November 2026, R2, checks you can trust: seven pull requests, the Product chat's two additions among them, each risky one with an independent AI review:
+On 10 November 2026, R2, checks you can trust: seven pull requests, each risky one with an independent AI review:
 
 - **The console page's speed** ([#93](https://github.com/Zugzwang-world/hrizzup/pull/93)): strangers get the site's own "not found" page from the server (busy 35 to 168 ms over 20 runs, budget 200); the Speed check warns on any single run over a budget.
 - **Play money on signup** ([#97](https://github.com/Zugzwang-world/hrizzup/pull/97)): Ṁ1,000 from the house for every sign-in account, once; accounts already made got it once too.
