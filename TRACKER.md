@@ -152,7 +152,7 @@ These steps don't split into stages; they are tracked in PLAN.md section 5 and P
 | Surface | Step | What |
 |---|---|---|
 | Website | 1.6a | The website's sign-in: Google (working on staging), then email codes; passwords refused; proven on the sign-in test page, the real sign-in screen coming from the design chat. The board (2.1) and the market console (1.7c) need it. Done in Round 3 (relay 5); the founder confirmed Google on staging on 10 November 2026 |
-| App | 1.6b | The app's sign-in: Google through the phone's browser, with Supabase's sign-in as on the website (free, no Google module in the app), and email codes, on the same accounts. In progress in Round 4 (relay R4): staging's firewall, [#94](https://github.com/Zugzwang-world/hrizzup/pull/94) |
+| App | 1.6b | The app's sign-in: Google through the phone's browser, with Supabase's sign-in as on the website (free, no Google module in the app), and email codes, on the same accounts, proven on a test screen in the app, the bot check in a small web view, a new build for the founder's phone. In progress in Round 4 (relay R4): staging's firewall, [#94](https://github.com/Zugzwang-world/hrizzup/pull/94) |
 | App | 2.5 | Notifications for breaking and developing stories |
 | App | 2.6 | The Android store build and the Google Play closed test |
 | App | 4.3 | The iPhone build: Sign in with Apple and Apple's review |
