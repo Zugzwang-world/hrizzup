@@ -1578,6 +1578,8 @@ No good sign-in failed, so the switch-off kept ready beside it (one setting, `ho
 
 **For the founder:** install it from the link and try both ways in (the Product brief, "For the founder"). Step 1.6b is done once he has signed in both ways and is still signed in after reopening the app.
 
+**Tried by the founder, 10 November 2026** (reported in the Product chat): he installed it on his phone and signed in with Google; the test screen showed his account, signed in with Google. Still his to try, whenever he has a moment: an email code, and closing the app and opening it again. Until then 1.6b stays waiting on those two. The same code's signed-in App journey passed on the CI emulator ([#107](https://github.com/Zugzwang-world/hrizzup/pull/107)): a run's own fresh account signed in with a code, still signed in after the app was closed and opened again, then signed out.
+
 ---
 
 ## Rules for this log
