@@ -85,7 +85,7 @@ class InACache(unittest.TestCase):
 
 class ThePins(unittest.TestCase):
     def test_each_pin_is_a_version_a_checksum_and_an_address_that_names_the_version(self):
-        self.assertEqual(set(tools.PINNED), {"gitleaks", "maestro", "android-emulator", "android-system-image"})
+        self.assertEqual(set(tools.PINNED), {"gitleaks", "oasdiff", "maestro", "android-emulator", "android-system-image"})
         for name, tool in tools.PINNED.items():
             with self.subTest(tool=name):
                 self.assertEqual(tool.name, name)
@@ -381,7 +381,7 @@ class EveryWorkflow(unittest.TestCase):
                                 restored = [s for s in steps[:i] if "actions/cache/restore@" in s and key in s]
                                 self.assertTrue(restored, f"{file}, job {job}: fetches {name} without "
                                                 f"first reading GitHub's cache under {key}")
-        self.assertGreaterEqual(fetches, 4)  # gitleaks, Maestro, the emulator and its image
+        self.assertGreaterEqual(fetches, 5)  # gitleaks, oasdiff, Maestro, the emulator and its image
 
     def test_the_checks_only_read_githubs_cache_for_tools(self):
         for file in ("checks.yml", "secret-check.yml", "staging.yml", "release.yml"):

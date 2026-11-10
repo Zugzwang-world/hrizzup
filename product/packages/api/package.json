@@ -12,7 +12,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "routes": "node src/routes.ts --write"
+    "routes": "node src/routes.ts --write",
+    "openapi": "node src/openapi.ts --write"
   },
   "dependencies": {
     "@hrizzup/agreement": "workspace:*",
@@ -22,6 +23,8 @@
   },
   "devDependencies": {
     "@hrizzup/tsconfig": "workspace:*",
+    "@orpc/openapi": "1.16.1",
+    "@orpc/zod": "1.16.1",
     "@types/node": "^24.10.0",
     "typescript": "6.0.3",
     "vitest": "^5.0.0"

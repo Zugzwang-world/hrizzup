@@ -1,7 +1,10 @@
 # Hrizzup: the checks on every pull request (PLAN.md section 3, "Checks sized to the change").
 #
 #   Quick checks    formatting and lint (Biome), type checks and unit tests (Turborepo),
-#                   including the hand-over agreement's check (agreement/src/agreement.test.ts),
+#                   including the hand-over agreement's check (agreement/src/agreement.test.ts)
+#                   and the public API's OpenAPI file kept current; the public API's
+#                   breaking-change check (.github/scripts/api_breaking.py, with oasdiff:
+#                   within v1, only additions, against main's file);
 #                   the infrastructure tools' own tests (infra/vercel, infra/doppler,
 #                   infra/slots, infra/supabase) and the checks' own scripts' tests
 #                   (.github/scripts: tool downloads, affected parts)
@@ -71,6 +74,30 @@ jobs:
         run: pnpm exec biome ci .
       - name: Type checks and unit tests
         run: pnpm exec turbo run typecheck test
+      # The public API's OpenAPI file against main's: within v1, only additions (PLAN.md step
+      # 3.5a). oasdiff is pinned and read from GitHub's cache like every tool (tools.py).
+      - name: oasdiff's pinned version
+        id: oasdiff
+        run: python3 .github/scripts/tools.py key oasdiff >> "$GITHUB_OUTPUT"
+      - name: oasdiff, from GitHub's cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.oasdiff.outputs.oasdiff_file }}
+          key: ${{ steps.oasdiff.outputs.oasdiff_key }}
+      - name: Install oasdiff (pinned version, checksum checked)
+        env:
+          GITHUB_TOKEN: ${{ github.token }} # signed-in downloads from GitHub; read-only
+          ARCHIVE: ${{ steps.oasdiff.outputs.oasdiff_path }}
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/tools.py fetch oasdiff
+          tar -xzf "$ARCHIVE" -C "$RUNNER_TEMP" oasdiff
+          echo "OASDIFF=$RUNNER_TEMP/oasdiff" >> "$GITHUB_ENV"
+      - name: The public API's breaking-change check (within v1, only additions)
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --depth=1 origin main
+          python3 .github/scripts/api_breaking.py --main FETCH_HEAD
       - name: Infrastructure tools' tests
         run: |
           python3 -m unittest discover -s infra/vercel
