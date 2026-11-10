@@ -102,9 +102,6 @@ class RepoSettings(unittest.TestCase):
             self.assertRegex(sql, rf"grant execute on function {qualified}\(jsonb\) to supabase_auth_admin;")
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 
 class Addresses(unittest.TestCase):
     """Where Supabase may send a visitor back to: only our own addresses, never a pattern anyone
@@ -137,3 +134,5 @@ class Addresses(unittest.TestCase):
                     f"{name}: {address}",
                 )
 
+if __name__ == "__main__":
+    unittest.main()

@@ -22,8 +22,9 @@ let client: Promise<GoTrueClient> | undefined;
 
 /** The sign-in client, made once its settings arrive; a failure is tried again next time. */
 export function authClient(): Promise<GoTrueClient> {
-  client ??= api.auth.settings().then(
-    ({ supabaseUrl, publishableKey }) => {
+  client ??= api.auth
+    .settings()
+    .then(({ supabaseUrl, publishableKey }) => {
       const auth = new GoTrueClient({
         url: `${supabaseUrl}/auth/v1`,
         // As Supabase's own client sends them: the publishable key, until a session's token
@@ -39,12 +40,12 @@ export function authClient(): Promise<GoTrueClient> {
       });
       refreshWhileInFront(auth);
       return auth;
-    },
-    (error: unknown) => {
+    })
+    .catch((error: unknown) => {
+      // The settings didn't come, or didn't make a client: try again next time.
       client = undefined;
       throw error;
-    },
-  );
+    });
   return client;
 }
 

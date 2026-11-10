@@ -27,6 +27,10 @@ export function SignInTest() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => onGoogleOutcome((outcome) => setMessage(GOOGLE[outcome])), []);
+  // Signed in, no word about an earlier try (say, a cancel that ended after the sign-in).
+  useEffect(() => {
+    if (signIn.state === 'signed-in') setMessage(null);
+  }, [signIn.state]);
 
   async function google() {
     setBusy(true);
@@ -57,7 +61,7 @@ export function SignInTest() {
         For checking sign-in on staging. The real sign-in screen comes later.
       </Text>
 
-      {message && (
+      {message && signIn.state !== 'signed-in' && (
         <Text
           testID="sign-in-message"
           accessibilityLiveRegion="polite"
