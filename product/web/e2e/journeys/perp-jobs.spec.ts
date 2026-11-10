@@ -289,13 +289,16 @@ test.describe('the perp with no one touching it', () => {
     const engine = browserName as Engine;
     const { as: longer } = await newRunTrader(keys, playwright, baseURL, engine, 'perp-fund-l');
     const { as: shorter } = await newRunTrader(keys, playwright, baseURL, engine, 'perp-fund-s');
-    // Bitcoin's own volatility: calm, so nothing is liquidated; its first period started 2 hours ago.
+    // Bitcoin's own volatility: calm, so nothing is liquidated. Its first period started just under
+    // an hour ago, so its first funding falls due a minute from now: after both positions are open
+    // and the pools are read below. (Due already, the schedule's run every minute could fund it
+    // between the two trades, and nothing would be left to see.)
     const walk = walkWhere('0.55', () => true);
     const perp = await runPerp(
       admin,
       `funding (${browserName})`,
       walk,
-      iso(Date.now() - 7_200_000),
+      iso(Date.now() - 3_600_000 + 60_000),
     );
     const long = await trade(longer, perp, 'open', {
       direction: 'long',
@@ -310,8 +313,9 @@ test.describe('the perp with no one touching it', () => {
     const before = await books(admin, perp);
     expect(before.lastFundingAt, 'not funded by the trades themselves').toBeNull();
 
-    // Nobody asks: the schedule's funding run, every minute, finds it due.
-    const funded = await eventually(150, async () => {
+    // Nobody asks: the schedule's funding run, every minute, finds it due (within a minute of it
+    // falling due, a minute from the start).
+    const funded = await eventually(180, async () => {
       const now = await books(admin, perp);
       return now.lastFundingAt ? now : undefined;
     });
