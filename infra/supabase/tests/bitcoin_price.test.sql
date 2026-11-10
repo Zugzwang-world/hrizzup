@@ -14,7 +14,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(60);
+select plan(61);
 
 insert into auth.users (id, email) values
   ('00000000-0000-4000-8000-0000000000e1', 'ada@bitcoin-price.test'),
@@ -366,6 +366,14 @@ select ok(not prices.needs_spare('btc-usd', pg_temp.t(-55)), 'and asked only onc
 select is(
   prices.settle('btc-usd', pg_temp.t(-55)) ->> 'price', '73350.00',
   'the median of the two and the spare'
+);
+insert into net._http_response (id, status_code, content, created)
+select q.request_id, 200, pg_temp.body('coinbase', '99999.00'), q.at + interval '300 milliseconds'
+from prices.quotes q where q.at = pg_temp.t(-55) and q.source = 'coinbase';
+select results_eq(
+  $$select came, price from prices.answers('btc-usd', pg_temp.t(-55)) where source = 'coinbase'$$,
+  $$values (true, null::numeric)$$,
+  'a second answer under one request''s ID makes that exchange''s answer a failure'
 );
 
 -- The third, 50 seconds ago: an answer not in yet, and nothing else.

@@ -318,7 +318,9 @@ end;
 $$;
 
 -- An ask's answers, as pg_net holds them so far: each exchange asked, whether it has answered (a
--- timeout or an error is an answer too), and the price read from it, if any.
+-- timeout or an error is an answer too), and the price read from it, if any. pg_net writes one answer
+-- a request; any more under the same ID (Supabase's grants let every role write pg_net's tables) and
+-- that exchange's answer counts as failed.
 create function prices.answers(feed text, asked timestamptz)
 returns table (source text, spare boolean, came boolean, price numeric)
 language sql
@@ -326,12 +328,15 @@ stable
 security definer
 set search_path = ''
 as $$
-  select q.source, e.spare, r.id is not null,
-         prices.read_answer(q.source, r.status_code, r.content)
+  select q.source, e.spare, r.n > 0,
+         case when r.n = 1 then prices.read_answer(q.source, r.status_code, r.content) end
   from prices.quotes q
   join prices.exchanges() e on e.source = q.source
-  left join net._http_response r
-    on r.id = q.request_id and r.created >= q.at - interval '5 seconds'
+  cross join lateral (
+    select count(*) as n, min(x.status_code) as status_code, min(x.content) as content
+    from net._http_response x
+    where x.id = q.request_id and x.created >= q.at - interval '5 seconds'
+  ) r
   where q.feed = answers.feed and q.at = answers.asked;
 $$;
 
