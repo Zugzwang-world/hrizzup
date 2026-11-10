@@ -139,7 +139,7 @@ Seven steps in four waves, each step a relay of small pull requests with its own
 | Wave | Step | Milestones (one pull request each) | Size | Needs |
 |---|---|---|---|---|
 | 1 | **3.5a** ground rules, docs | (1) every call's errors; `limit` and `cursor`; (2) the OpenAPI file with its check; (3) the docs page and llms.txt | normal | 1.5c |
-| 1 | **3.4b** the perp's own price | (1) database: the price table and its schedule; (2) the fetch and median, the perp on the stored price (the stand-in kept for tests and previews); (3) after 3.5a, the price reads; a day on staging | risky | 3.4a |
+| 1 | **3.4b** the perp's own price | (1) database: the price table, and the fetch and median on Supabase Cron (decision 7); (2) the perp on the stored price, the stand-in kept for the checks' own test perps, whose seeded prices make liquidations repeatable; (3) after 3.5a, the price reads; a day on staging | risky | 3.4a |
 | 2 | **3.5b** keys | (1) database: the keys table; (2) keys in the API, scopes, limits, `keys.*`; (3) the keys page | risky | 1.6a, 3.5a |
 | 2 | **3.5c** market reads | (1) database: read-only functions; (2) the five reads, cleared from the edge when a trade moves the market | risky (the quote) | 1.7d, 3.5a |
 | 3 | **3.5d** trading for bots | (1) trading with a key, `dryRun`, `YES`/`NO`, `/me/trades`; (2) the example bot, run by a journey test, and the Manifold table | risky | 3.5b, 3.5c |
