@@ -1532,6 +1532,8 @@ No good sign-in failed, so the switch-off kept ready beside it (one setting, `ho
 
 **For the founder (a minute):** GitHub → your picture → **Settings → Emails** → tick **Keep my email addresses private**, so everything GitHub writes for you uses the no-reply address too: every pull request's squash merge into `main` (nothing else can make them use it), a merge from the website, an edit in the browser. Leave **Block command line pushes that expose my email** unticked: older branches' commits still carry the old address, and a push of one would be refused.
 
+**Done by the founder, 10 November 2026:** "Keep my email addresses private" ticked; "Block command line pushes that expose my email" left off. **Checked:** a commit object made through GitHub's API with no author given (no branch points at it, so nothing changed) carries the no-reply address, and so does the squash merge of this record's pull request into `main`.
+
 ---
 
 ## Rules for this log
