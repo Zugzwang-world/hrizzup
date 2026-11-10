@@ -19,7 +19,6 @@
 import {
   applyADL,
   applyFundingWithSolvency,
-  assertPerpFundingConfig,
   assertPerpPositionNumbers,
   assertPerpStateNumbers,
   assertPerpStateSolvent,
@@ -39,9 +38,9 @@ import {
 } from '../manifold/perps/amm.ts';
 import {
   accruePerpPositionTakerFee,
-  assertPerpTakerFeeConfig,
   calculatePerpOpenCashFlow,
   creditPerpPoolFee,
+  formatPerpFeeCents,
   getPerpTakerFeeBps,
   getPerpTakerFeeImpact,
   PERP_MAX_FEE_SHARE_OF_MARGIN,
@@ -100,7 +99,7 @@ export type PerpRefusal = {
     | 'exposure_cap' // the other side can't back this much more
     | 'no_position'
     | 'position_changed' // a part-close sized against a position that has since moved
-    | 'insolvent'; // the pools couldn't pay everyone after this step
+    | 'insolvent'; // the pools couldn't back this new position
   message: string;
 };
 
@@ -149,7 +148,12 @@ const priceRefusal = (book: PerpBook, settings: PerpSettings, now: number) => {
   return null;
 };
 
-/** An order fills only at a price published after it was placed (Manifold's `orders.ts`). */
+/**
+ * An order fills only at a price published after it was placed (Manifold's `orders.ts`). The book
+ * keeps no provider stamp, so this suits feeds Manifold doesn't treat as provider-stamped: the
+ * stand-in, and a Bitcoin feed like Manifold's own. A feed named like Manifold's stamped ones
+ * (`mnx-…`, `adjacent-msry`) would need the stamp kept, or every order would be refused.
+ */
 const nextPriceRefusal = (book: PerpBook, placedTime: number) =>
   isEligiblePerpTick(book.feedId, placedTime, { ts: book.priceTime, price: book.price })
     ? null
@@ -159,15 +163,6 @@ const nextPriceRefusal = (book: PerpBook, placedTime: number) =>
 const assertUserRowsSound = (state: PerpState, userId: string) => {
   for (const row of state.positions)
     if (row.userId === userId) assertPerpPositionNumbers(row, `${row.direction} position`);
-};
-
-const isSolvent = (state: PerpState, price: number) => {
-  try {
-    assertPerpStateSolvent(state, price);
-    return true;
-  } catch {
-    return false;
-  }
 };
 
 /** Positions liquidated or settled are gone, as they are once Manifold writes them away. */
@@ -246,8 +241,7 @@ export const openPerpPosition = (args: {
     (p) => p.userId === userId && p.direction === direction && p.size > 0,
   );
 
-  // The fee settings Manifold's engine checks before any money moves; no API-key channel here.
-  assertPerpTakerFeeConfig(settings);
+  // The fee settings (checked with the rest above); no API-key channel here.
   const takerFeeBps = getPerpTakerFeeBps(settings);
   const takerFeeImpact = getPerpTakerFeeImpact(settings);
   if (takerFeeImpact > 0 && maxFee === undefined)
@@ -258,8 +252,9 @@ export const openPerpPosition = (args: {
   let closePayout = 0;
   if (existingOpposite) {
     const closed = closePosition(working, existingOpposite, price, 1, now);
-    if (!isSolvent(closed.state, price))
-      return refuse('insolvent', 'The pools could not pay this close right now.');
+    // As in Manifold's engine: a book that can't pay a plain close is broken, a failure for an
+    // operator, not a refusal for the trader.
+    assertPerpStateSolvent(closed.state, price);
     working = closed.state;
     closePayout = closed.payout;
   }
@@ -276,7 +271,10 @@ export const openPerpPosition = (args: {
   if (feeQuote.depthExhausted)
     return refuse('size_fee_unpriceable', 'The pool is exhausted beside your position.');
   if (maxFee !== undefined && fee > maxFee)
-    return refuse('fee_too_high', `The fee, ${fee}, is more than the ${maxFee} accepted.`);
+    return refuse(
+      'fee_too_high',
+      `The fee, Ṁ${formatPerpFeeCents(fee, 'up')}, is more than the Ṁ${formatPerpFeeCents(maxFee, 'down')} accepted.`,
+    );
   if (fee >= margin * PERP_MAX_FEE_SHARE_OF_MARGIN)
     return refuse('fee_too_high', 'The fee would take half the margin or more.');
 
@@ -285,7 +283,7 @@ export const openPerpPosition = (args: {
   if (!cashFlow.isAffordable)
     return refuse(
       'insufficient_balance',
-      `This needs ${cashFlow.totalDebit} (margin and fee); there is ${cashFlow.spendableBalance}.`,
+      `This needs Ṁ${formatPerpFeeCents(cashFlow.totalDebit, 'up')} (margin and fee); there is Ṁ${formatPerpFeeCents(cashFlow.spendableBalance, 'down')}.`,
     );
 
   const opened = openPosition(
@@ -308,7 +306,7 @@ export const openPerpPosition = (args: {
   if (!capacity.isWithinLimit)
     return refuse(
       'exposure_cap',
-      `The perp can take at most ${Math.max(capacity.limit - (capacity.openInterest - opened.deltaSize), 0)} more ${direction} exposure now.`,
+      `The perp can take at most Ṁ${formatPerpFeeCents(Math.max(capacity.limit - (capacity.openInterest - opened.deltaSize), 0), 'down')} more ${direction} exposure (margin × leverage) now.`,
     );
   if (!isPerpSideSolvent(direction, next, price))
     return refuse('insolvent', 'The pools could not back this position right now.');
@@ -388,8 +386,9 @@ export const closePerpPosition = (args: {
   const closed = closePosition(state, position, book.price, fraction, now);
   if (!(closed.closedSize > 0) || !(closed.closedCostBasis > 0))
     return refuse('bad_request', 'That share is too small to change the position.');
-  if (!isSolvent(closed.state, book.price))
-    return refuse('insolvent', 'The pools could not pay this close right now.');
+  // As in Manifold's engine: a close the pools can't pay means a broken book (a paused one has
+  // already been refused above), a failure for an operator.
+  assertPerpStateSolvent(closed.state, book.price);
   return {
     ok: true,
     book: { ...book, state: closed.state },
@@ -482,7 +481,6 @@ export const applyPerpFunding = (args: {
     })
   )
     return { ok: false, reason: 'not_due' };
-  assertPerpFundingConfig(settings);
   const openInterest = getPerpOpenInterest(book.state.positions);
   const fundingRate = computeFundingRate(
     openInterest.long,

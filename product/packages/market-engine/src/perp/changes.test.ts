@@ -261,6 +261,107 @@ describe("the perp's other starting rules", () => {
   });
 });
 
+describe('a price the book cannot take', () => {
+  // The long pool holds Ṁ50 against a long's Ṁ100 of margin, and the short pool nothing to cover
+  // it: a book no price can make solvent, as after Manifold's incidents of August 2026.
+  const brokenBook = (): PerpBook => {
+    const book = freshBook();
+    return {
+      ...book,
+      state: {
+        pool: { L: 50, S: 0 },
+        positions: [
+          {
+            userId: 'ana',
+            contractId: 'perp-btc',
+            direction: 'long',
+            size: 200,
+            costBasis: 100,
+            originalCostBasis: 100,
+            takerFeeCostBasis: 0,
+            entryPrice: book.price,
+            leverage: 2,
+            liquidationPrice: book.price / 2,
+            openedTime: book.priceTime,
+            updatedTime: book.priceTime,
+          },
+        ],
+      },
+    };
+  };
+
+  it('moves the price on, keeps the pools and positions, and pauses trading', () => {
+    const book = brokenBook();
+    const next = applyPerpPrice({
+      book,
+      price: book.price * 1.01,
+      priceTime: book.priceTime + 5_000,
+    });
+    expect(next.book.halt).toEqual(expect.stringMatching(/./)); // Manifold's own reason
+    expect(next.book.price).toBe(book.price * 1.01);
+    expect(next.book.state).toEqual(book.state);
+    expect(next.moves).toEqual([]);
+    const tryClose = closePerpPosition({
+      book: next.book,
+      settings: PERP_SETTINGS,
+      tradingMode: 'enabled',
+      request: { userId: 'ana', direction: 'long', fraction: 1, placedTime: book.priceTime },
+      now: next.book.priceTime,
+    });
+    expect(tryClose).toMatchObject({ ok: false, refusal: { code: 'paused' } });
+    expect(open(next.book, { userId: 'ben' })).toMatchObject({
+      ok: false,
+      refusal: { code: 'paused' },
+    });
+    expect(
+      applyPerpFunding({
+        book: next.book,
+        settings: PERP_SETTINGS,
+        now: next.book.priceTime + 2 * HOUR_MS,
+      }),
+    ).toEqual({ ok: false, reason: 'paused' });
+  });
+
+  it('resumes trading with the first price that applies cleanly', () => {
+    const book = { ...mustOpen(freshBook()).book, halt: 'an earlier price could not apply' };
+    const next = applyPerpPrice({ book, price: book.price, priceTime: book.priceTime + 5_000 });
+    expect(next.book.halt).toBeNull();
+    expect(open(next.book, { userId: 'ben' }).ok).toBe(true);
+  });
+});
+
+describe('a part-close and a flip', () => {
+  it('refuses a part-close sized against a position that has since changed', () => {
+    const book = mustOpen(freshBook()).book;
+    const close = (expectedSize: number) =>
+      closePerpPosition({
+        book,
+        settings: PERP_SETTINGS,
+        tradingMode: 'enabled',
+        request: {
+          userId: 'ana',
+          direction: 'long',
+          fraction: 0.5,
+          expectedSize,
+          placedTime: book.priceTime - 1,
+        },
+        now: book.priceTime,
+      });
+    expect(close(400)).toMatchObject({ ok: false, refusal: { code: 'position_changed' } });
+    expect(close(500).ok).toBe(true);
+  });
+
+  it('closes the other side and opens this one in one step', () => {
+    const book = mustOpen(freshBook(), { margin: 100, leverage: 5 }).book;
+    const flipped = mustOpen(book, { direction: 'short', margin: 50, leverage: 2 });
+    expect(flipped.closePayout).toBeCloseTo(100, 9); // the same price: the margin back
+    expect(flipped.moves.map((m) => m.kind)).toEqual(['payout', 'margin', 'fee']);
+    expect(flipped.book.state.positions.map((p) => [p.userId, p.direction])).toEqual([
+      ['ana', 'short'],
+    ]);
+  });
+});
+
 describe('the stand-in price', () => {
   const moment = START + 123_456;
 
