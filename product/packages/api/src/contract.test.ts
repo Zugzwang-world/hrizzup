@@ -5,6 +5,7 @@ import { authSettings, emailCodeInput, emailCodeSent } from './auth.ts';
 import { consoleMarketWithLog, createMarketInput, settleMarketInput } from './console.ts';
 import { contract } from './contract.ts';
 import * as examples from './examples.ts';
+import { consolePerpWithLog, setPerpModeInput, setPerpSettingsInput } from './perps.ts';
 import { procedures as callsOf } from './procedures.ts';
 import { standIn } from './stand-in.ts';
 import { marketList, tradeInput } from './trading.ts';
@@ -142,7 +143,7 @@ describe('the example content', () => {
 });
 
 describe("the market console's calls", () => {
-  const admin = procedures.filter(([name]) => name.startsWith('admin.'));
+  const admin = procedures.filter(([name]) => name.startsWith('admin.markets.'));
 
   it('are create, open, close and settle, with the two reads the console shows', () => {
     expect(admin.map(([name]) => name).sort()).toEqual([
@@ -163,6 +164,78 @@ describe("the market console's calls", () => {
       const reads = name.endsWith('.list') || name.endsWith('.get');
       expect(route.method, name).toBe(reads ? 'GET' : 'POST');
     }
+  });
+});
+
+describe("the perp's console calls (step 3.4a)", () => {
+  const admin = procedures.filter(([name]) => name.startsWith('admin.perps.'));
+
+  it('are the off switch, the settings, and making and retiring a test perp, with the two reads', () => {
+    expect(admin.map(([name]) => name).sort()).toEqual([
+      'admin.perps.createTest',
+      'admin.perps.get',
+      'admin.perps.list',
+      'admin.perps.retireTest',
+      'admin.perps.setMode',
+      'admin.perps.setSettings',
+    ]);
+  });
+
+  it('are personal, never kept, under /admin/, and every write is a POST', () => {
+    for (const [name, procedure] of admin) {
+      const { route, meta } = procedure['~orpc'];
+      expect(meta.caching, name).toEqual({ kind: 'personal' });
+      expect(route.path, name).toMatch(/^\/admin\/perps/);
+      const reads = name.endsWith('.list') || name.endsWith('.get');
+      expect(route.method, name).toBe(reads ? 'GET' : 'POST');
+    }
+  });
+
+  it('answer with the Bitcoin perp as made: switched off, its first rules in its log', () => {
+    expect(consolePerpWithLog.parse(examples.consolePerpWithLog)).toEqual(
+      examples.consolePerpWithLog,
+    );
+    expect(examples.consolePerpWithLog.tradingMode).toBe('halted');
+    expect(examples.consolePerpWithLog.log).toHaveLength(13);
+  });
+
+  it('take the off switch only as a mode Manifold has, always with a reason', () => {
+    const id = examples.consolePerpWithLog.id;
+    expect(setPerpModeInput.safeParse({ id, mode: 'enabled', reason: 'Testing' }).success).toBe(
+      true,
+    );
+    expect(setPerpModeInput.safeParse({ id, mode: 'off', reason: 'x' }).success).toBe(false);
+    expect(setPerpModeInput.safeParse({ id, mode: 'halted', reason: '  ' }).success).toBe(false);
+    expect(setPerpModeInput.safeParse({ id, mode: 'halted' }).success).toBe(false);
+  });
+
+  it('take settings as text, at least one, never the subsidies', () => {
+    const id = examples.consolePerpWithLog.id;
+    const ok = { id, settings: { maxLeverage: '5' }, reason: 'Gentler' };
+    expect(setPerpSettingsInput.safeParse(ok).success).toBe(true);
+    expect(setPerpSettingsInput.safeParse({ ...ok, settings: {} }).success).toBe(false);
+    expect(setPerpSettingsInput.safeParse({ ...ok, settings: { maxLeverage: 5 } }).success).toBe(
+      false,
+    );
+    expect(setPerpSettingsInput.safeParse({ ...ok, settings: { subsidyLong: '1' } }).success).toBe(
+      false,
+    );
+    expect(
+      setPerpSettingsInput.safeParse({ ...ok, settings: { maxLeverage: 'NaN' } }).success,
+    ).toBe(false);
+  });
+
+  it('answer anyone but an admin as an address the API does not have, in the stand-in too', async () => {
+    const stranger = createRouterClient(standIn({ admin: false }));
+    await expect(stranger.admin.perps.list()).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    const admin = createRouterClient(standIn());
+    await expect(
+      admin.admin.perps.setMode({
+        id: examples.consolePerpWithLog.id,
+        mode: 'enabled',
+        reason: 'Switching it on',
+      }),
+    ).resolves.toMatchObject({ tradingMode: 'enabled' });
   });
 });
 

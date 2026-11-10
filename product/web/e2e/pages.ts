@@ -54,6 +54,13 @@ export type Page = {
  */
 export const CONSOLE_FIXTURE_MARKET = '019a6c00-0000-7000-8000-000000000001';
 
+/**
+ * The Bitcoin perp (PLAN.md step 3.4a), which the migration that made the perp's books made on every
+ * environment: the screen check opens its console page as the admin test account sees it, and
+ * changes nothing (the journeys change only each run's own test perps).
+ */
+export const BITCOIN_PERP = '01a1c501-ec40-78f6-87b6-3fb041143421';
+
 export const pages: readonly Page[] = [
   { route: '/', name: 'home', path: '/', budget: 'standard' },
   { route: '/privacy', name: 'privacy', path: '/privacy', budget: 'standard' },
@@ -96,6 +103,14 @@ export const pages: readonly Page[] = [
     route: '/console/markets/[id]',
     name: 'console-market',
     path: `/console/markets/${CONSOLE_FIXTURE_MARKET}`,
+    status: 404,
+    budget: 'standard',
+  },
+  // The perp's console page (PLAN.md step 3.4a): admins only, like every console page.
+  {
+    route: '/console/perps/[id]',
+    name: 'console-perp',
+    path: `/console/perps/${BITCOIN_PERP}`,
     status: 404,
     budget: 'standard',
   },

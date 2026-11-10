@@ -72,3 +72,32 @@ export const STATE_NAMES: Record<string, string> = {
   settled: 'Settled',
   cancelled: 'Cancelled',
 };
+
+/** A perp's off switch, as the console shows it (Manifold's trading modes). */
+export const MODE_NAMES: Record<string, string> = {
+  enabled: 'On',
+  'reduce-only': 'Closing only',
+  halted: 'Off (halted)',
+};
+
+/** What each position of the off switch does, in words. */
+export const MODE_HINTS: Record<string, string> = {
+  enabled: 'Trading on: opens and closes, a new price every 5 seconds, liquidations and funding.',
+  'reduce-only': 'Closing only: no new positions; closes, prices, liquidations and funding go on.',
+  halted: 'Off: nothing runs at all: no trade, no new price, no liquidation and no funding.',
+};
+
+/** A US dollar price as people read it, exactly: $101,234.56. */
+export function dollars(decimal: string): string {
+  const negative = decimal.startsWith('-');
+  const [whole = '0', fraction = ''] = decimal.replace(/^-/, '').split('.');
+  const grouped = BigInt(whole).toLocaleString('en-US');
+  return `${negative ? '-' : ''}$${grouped}.${fraction.padEnd(2, '0')}`;
+}
+
+/** A rule-change log line's value as people read it: a mode by its name, anything else as kept. */
+export function ruleValue(rule: string, value: string | null): string {
+  if (value === null) return 'none';
+  if (rule === 'trading_mode') return MODE_NAMES[value] ?? value;
+  return value;
+}

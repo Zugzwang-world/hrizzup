@@ -2,6 +2,7 @@ import { implement, ORPCError } from '@orpc/server';
 import type { ConsoleMarketWithLog } from './console.ts';
 import { contract } from './contract.ts';
 import * as examples from './examples.ts';
+import type { ConsolePerpWithLog } from './perps.ts';
 
 /**
  * A stand-in implementation of the whole contract that answers with the example answers
@@ -24,6 +25,13 @@ export function standIn(options: { signedIn?: boolean; admin?: boolean } = {}) {
       throw new ORPCError('NOT_FOUND', { message: 'No such market' });
     }
     return examples.consoleMarketWithLog;
+  };
+
+  const perp = (id: string): ConsolePerpWithLog => {
+    if (id !== examples.consolePerpWithLog.id) {
+      throw new ORPCError('NOT_FOUND', { message: 'No such perp' });
+    }
+    return examples.consolePerpWithLog;
   };
 
   /** Trading and the portfolio need someone signed in. */
@@ -167,6 +175,70 @@ export function standIn(options: { signedIn?: boolean; admin?: boolean } = {}) {
           throw new ORPCError('CONFLICT', {
             message: `Only a closed market is settled: this market is ${market.state}`,
           });
+        }),
+      },
+      perps: {
+        list: api.admin.perps.list.handler(() => {
+          asAdmin();
+          return { perps: [examples.consolePerp], next: null };
+        }),
+        get: api.admin.perps.get.handler(({ input }) => {
+          asAdmin();
+          return perp(input.id);
+        }),
+        setMode: api.admin.perps.setMode.handler(({ input }) => {
+          asAdmin();
+          const found = perp(input.id);
+          if (input.mode === found.tradingMode) return found;
+          const at = new Date().toISOString();
+          return {
+            ...found,
+            tradingMode: input.mode,
+            updatedAt: at,
+            log: [
+              ...found.log,
+              {
+                id: found.log.length + 1,
+                at,
+                by: { id: examples.me.id, email: examples.me.email },
+                rule: 'trading_mode',
+                oldValue: found.tradingMode,
+                newValue: input.mode,
+                reason: input.reason,
+              },
+            ],
+          };
+        }),
+        setSettings: api.admin.perps.setSettings.handler(({ input }) => {
+          asAdmin();
+          const found = perp(input.id);
+          if (input.settings.maxLeverage !== undefined && Number(input.settings.maxLeverage) > 10) {
+            throw new ORPCError('BAD_REQUEST', { message: 'Leverage is capped at 10 times' });
+          }
+          return { ...found, settings: { ...found.settings, ...input.settings } };
+        }),
+        createTest: api.admin.perps.createTest.handler(({ input }) => {
+          asAdmin();
+          const at = new Date().toISOString();
+          return {
+            ...examples.consolePerpWithLog,
+            id: input.id,
+            name: input.name,
+            listed: false,
+            settings: input.settings,
+            pools: { long: input.settings.subsidyLong, short: input.settings.subsidyShort },
+            fundingFrom: input.fundingFrom ?? at,
+            createdAt: at,
+            updatedAt: at,
+            createdBy: { id: examples.me.id, email: examples.me.email },
+            standIn: { ...input.standIn, ownSeed: true },
+            log: [],
+          };
+        }),
+        retireTest: api.admin.perps.retireTest.handler(({ input }) => {
+          asAdmin();
+          perp(input.id);
+          throw new ORPCError('CONFLICT', { message: 'The listed perp is never retired' });
         }),
       },
     },

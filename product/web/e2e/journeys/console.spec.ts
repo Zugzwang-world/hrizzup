@@ -1,5 +1,5 @@
 import { type APIRequestContext, type Browser, expect, type Page, test } from '@playwright/test';
-import { CONSOLE_FIXTURE_MARKET } from '../pages.ts';
+import { BITCOIN_PERP, CONSOLE_FIXTURE_MARKET } from '../pages.ts';
 import { runKey } from '../support/run.ts';
 import { adminState, signedInState } from '../support/states.ts';
 import { ADMIN_TEST_ACCOUNT } from '../support/test-accounts.ts';
@@ -127,7 +127,12 @@ test("the console's pages answer anyone but an admin exactly as an address the s
       }),
     });
   }
-  const pages = ['/console', '/console/markets/new', `/console/markets/${CONSOLE_FIXTURE_MARKET}`];
+  const pages = [
+    '/console',
+    '/console/markets/new',
+    `/console/markets/${CONSOLE_FIXTURE_MARKET}`,
+    `/console/perps/${BITCOIN_PERP}`,
+  ];
   for (const method of ['GET', 'POST'] as const) {
     // Not a page of the site at all: what every stranger must get, to the byte.
     const unknown = await answer(request, method, '/this-page-does-not-exist');
