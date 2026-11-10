@@ -6,7 +6,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(42);
+select plan(45);
 
 -- How much, and who may give it ---------------------------------------------------------------------
 
@@ -290,11 +290,26 @@ select is(
 );
 select throws_ok(
   $$select ledger.open_account('00000000-0000-4000-8000-0000000000f8', 100)$$,
-  '23505', null, '... and opens an account only once'
+  '23505', null, '... and opens an account once: refused once it has moved any other play money'
+);
+select is(
+  ledger.open_account('00000000-0000-4000-8000-0000000000fa', 1000),
+  (select same from tool),
+  '... while for an account just as its signup left it, asking again for that much'
+);
+select is(
+  (select row(a.balance, (select count(*) from ledger.moves m where a.id in (m.from_account, m.to_account)))::text
+   from ledger.accounts a where a.id = (select same from tool)),
+  row(1000.000000::numeric, 1)::text,
+  '... changes nothing'
 );
 select throws_ok(
   $$select ledger.open_account('00000000-0000-4000-8000-0000000000fa', -1)$$,
   '22023', null, '... with zero or more'
+);
+select throws_ok(
+  $$select ledger.open_account('00000000-0000-4000-8000-0000000000fa', 1000.0000001)$$,
+  '22023', null, '... counted to the millionth'
 );
 select is_empty('select problem from ledger.problems()', 'the books end with no problem');
 

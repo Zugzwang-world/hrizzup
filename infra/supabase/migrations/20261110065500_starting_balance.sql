@@ -181,6 +181,8 @@ select ledger.give_missing_starting_balances();
 -- the account their signup opened, with its starting balance, brought to `starting` by a grant
 -- from the house or a correction back to it, each a pair of lines like every move. As before,
 -- an account is opened once: refused once it has moved money other than its starting balance.
+-- (For an account still just as its signup left it, asking for its starting balance changes
+-- nothing, so asking twice is harmless.) Amounts are exact, to the millionth.
 create or replace function ledger.open_account(user_id uuid, starting numeric)
 returns uuid
 language plpgsql
@@ -194,6 +196,9 @@ declare
 begin
   if starting is null or starting < 0 then
     raise exception 'A starting balance is zero or more' using errcode = 'invalid_parameter_value';
+  end if;
+  if starting <> round(starting, 6) then
+    raise exception 'Play money is counted to the millionth' using errcode = 'invalid_parameter_value';
   end if;
   account := ledger.give_starting_balance(open_account.user_id);
   if exists (
