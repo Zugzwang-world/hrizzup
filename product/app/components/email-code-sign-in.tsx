@@ -48,7 +48,13 @@ export function EmailCodeSignIn({ colors, onCancel }: { colors: Colors; onCancel
     if (waitTimer.current) clearTimeout(waitTimer.current);
     waitTimer.current = null;
   }
-  useEffect(() => stopWaiting, []);
+  // Leaving the screen stops the wait's timer.
+  useEffect(
+    () => () => {
+      if (waitTimer.current) clearTimeout(waitTimer.current);
+    },
+    [],
+  );
 
   async function send(address: string) {
     const botAnswer = answer.current;
