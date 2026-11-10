@@ -781,6 +781,7 @@ Last updated: 11 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/bri
     - A key's text is hashed with SHA-256, as GitHub and Stripe store theirs: 256 random bits can't be guessed, so a slow hash adds nothing.
     - `limit` is at most 100, not the research's 200: the database's own page cap is 100, and raising it later is an addition within v1.
     - `cursor` is plain text in the contract (opaque) and checked on the server, so what's inside can change within v1.
+    - The typed API's journey (`api.spec.ts`) passed only on its retry on #127's first Screen check: it expected the edge's copy on the very next request, a moment before the edge had stored it. It now asks again for up to 5 seconds, as the trading journey does; the edge must still serve it.
     - The perp's funding journey (`perp-jobs.spec.ts`) passed only on its retry on #123's first Screen check: its test perp's first funding was already due, so the every-minute funding run could fund it between the two opening trades and the reading before. Its first funding now falls due a minute after the start; every assertion stays.
 
 - **Round 5, R4: the perp's own price (3.4b), milestone 1 of 3: its database** (10 November 2026, [#124](https://github.com/Zugzwang-world/hrizzup/pull/124), `[risky]`), as the Product chat settled decisions 6, 7, 8 and 10 ([docs/research/public-api.md](../research/public-api.md), section 4). Adds only; nothing fetches until staging's perp moves onto the price (milestone 3):
