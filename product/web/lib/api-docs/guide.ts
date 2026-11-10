@@ -15,6 +15,9 @@ export type Block =
 
 export type Section = { id: string; title: string; blocks: Block[] };
 
+/** The guides the docs page itself shows; each other guide has a page of its own (/docs/<id>). */
+export const OVERVIEW: ReadonlySet<string> = new Set(['demo', 'first-call']);
+
 const p = (text: string): Block => ({ kind: 'p', text });
 const list = (...items: string[]): Block => ({ kind: 'list', items });
 const code = (text: string): Block => ({ kind: 'code', text });
@@ -119,7 +122,7 @@ export const guide: Section[] = [
     blocks: [
       list(
         `**llms.txt:** ${site}/llms.txt, the short guide for AI tools, in the llmstxt.org format.`,
-        `**This whole page as text:** ${site}/llms-full.txt.`,
+        `**The docs as text, every guide and call:** ${site}/llms-full.txt.`,
         `**The OpenAPI file:** ${server}/openapi.json (OpenAPI 3.1), made from the same contract the website and the app use; any OpenAPI tool reads it.`,
       ),
       p(
