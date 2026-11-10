@@ -25,8 +25,8 @@ check downloads:
 Only downloads are retried, never a test or a build: `retry` refuses any command but Playwright's
 browser download.
 
-The pinned files (`key`, `fetch`): gitleaks (the Secret check), Maestro, the Android emulator and
-its system image (App journeys). Pinned by the lockfile instead (`key` only): Playwright's
+The pinned files (`key`, `fetch`): gitleaks (the Secret check), oasdiff (Quick checks: the public
+API's breaking-change check), Maestro, the Android emulator and its system image (App journeys). Pinned by the lockfile instead (`key` only): Playwright's
 browsers (the Screen check) and the database's Docker images (the Database check), which follow
 the Supabase CLI's version. Python's standard library only; prints no secrets.
 """
@@ -83,6 +83,12 @@ PINNED = {tool.name: tool for tool in (
          "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz",
          "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb",
          "the Secret check"),
+    # oasdiff 1.35.0 (28 October 2026), pinned 11 November 2026; its checksum matched the
+    # release's own checksums.txt.
+    Tool("oasdiff", "1.35.0",
+         "https://github.com/oasdiff/oasdiff/releases/download/v1.35.0/oasdiff_1.35.0_linux_amd64.tar.gz",
+         "a8023002fcb2eaa7f5758148a9303cb63d33b939886df312268bc0fc7b939140",
+         "Quick checks"),
     Tool("maestro", "2.12.1",
          "https://github.com/mobile-dev-inc/maestro/releases/download/cli-2.12.1/maestro.zip",
          "54dbb0716425626604973cbb374c585ca30272375d9ce15177a1152765ddd9d7",

@@ -5,7 +5,7 @@
 # This workflow is what fills them, each under a key made from the tool's pin
 # (.github/scripts/tools.py):
 #   - the packages: pnpm's whole store, by the lockfile (the key setup-node's cache uses);
-#   - the pinned files: gitleaks (the Secret check), Maestro, the Android emulator and its
+#   - the pinned files: gitleaks (the Secret check), oasdiff (Quick checks), Maestro, the Android emulator and its
 #     system image (App journeys), each by its version and checksum;
 #   - Playwright's browsers (the Screen check), by Playwright's version;
 #   - the database's Docker images (the Database check), by the Supabase CLI's version.
@@ -62,7 +62,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        tool: [gitleaks, maestro, android-emulator, android-system-image]
+        tool: [gitleaks, oasdiff, maestro, android-emulator, android-system-image]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
