@@ -146,6 +146,43 @@
       }
     },
     {
+      "name": "Rate limit: staging's API docs",
+      "description": "At most 60 requests a minute per IP to staging's public API docs (/docs, /llms.txt and /llms-full.txt on staging.hrizzup.com), which AI tools read without a browser. Staging only.",
+      "active": true,
+      "conditionGroup": [
+        {
+          "conditions": [
+            { "type": "host", "op": "eq", "value": "staging.hrizzup.com" },
+            { "type": "path", "op": "pre", "value": "/docs" }
+          ]
+        },
+        {
+          "conditions": [
+            { "type": "host", "op": "eq", "value": "staging.hrizzup.com" },
+            { "type": "path", "op": "eq", "value": "/llms.txt" }
+          ]
+        },
+        {
+          "conditions": [
+            { "type": "host", "op": "eq", "value": "staging.hrizzup.com" },
+            { "type": "path", "op": "eq", "value": "/llms-full.txt" }
+          ]
+        }
+      ],
+      "action": {
+        "mitigate": {
+          "action": "rate_limit",
+          "rateLimit": {
+            "algo": "fixed_window",
+            "window": 60,
+            "limit": 60,
+            "keys": ["ip"],
+            "action": "rate_limit"
+          }
+        }
+      }
+    },
+    {
       "name": "Staging's typed API: no bot challenge",
       "description": "The app reads staging's typed API without a browser, so it can't pass the bot challenge (PLAN.md step 1.5d). Reads only (GET), rate-limited by the rules above; the app's writes have the rule below. Staging only. Keep bypasses last.",
       "active": true,
@@ -185,6 +222,35 @@
             { "type": "host", "op": "eq", "value": "staging.hrizzup.com" },
             { "type": "path", "op": "eq", "value": "/api/jobs/perps" },
             { "type": "method", "op": "eq", "value": "POST" }
+          ]
+        }
+      ],
+      "action": { "mitigate": { "action": "bypass" } }
+    },
+    {
+      "name": "Staging's API docs: no bot challenge",
+      "description": "AI tools and bots read staging's API docs (/docs, /llms.txt, /llms-full.txt) without a browser (PLAN.md step 3.5a). Reads only (GET), rate-limited by the rule above. Staging only. Keep bypasses last.",
+      "active": true,
+      "conditionGroup": [
+        {
+          "conditions": [
+            { "type": "host", "op": "eq", "value": "staging.hrizzup.com" },
+            { "type": "path", "op": "pre", "value": "/docs" },
+            { "type": "method", "op": "eq", "value": "GET" }
+          ]
+        },
+        {
+          "conditions": [
+            { "type": "host", "op": "eq", "value": "staging.hrizzup.com" },
+            { "type": "path", "op": "eq", "value": "/llms.txt" },
+            { "type": "method", "op": "eq", "value": "GET" }
+          ]
+        },
+        {
+          "conditions": [
+            { "type": "host", "op": "eq", "value": "staging.hrizzup.com" },
+            { "type": "path", "op": "eq", "value": "/llms-full.txt" },
+            { "type": "method", "op": "eq", "value": "GET" }
           ]
         }
       ],

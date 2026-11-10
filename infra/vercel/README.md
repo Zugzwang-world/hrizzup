@@ -5,7 +5,7 @@ The Vercel project `hrizzup` (team `hrizzup`, Pro) hosts the website for preview
 | File | What it is |
 |---|---|
 | `project.json` | The project: its link to `Zugzwang-world/hrizzup` (production branch `main`), its settings, the custom environment `staging` (follows the `staging` branch, serves `staging.hrizzup.com`; the Staging workflow moves the branch and starts the build through the deploy hook "Staging workflow"; Vercel's own build on a push to `staging` is off in `product/web/vercel.json`) and the production domains (`hrizzup.com`, with `www` redirecting to it) |
-| `firewall.json` | The firewall: Bot Protection (challenge), AI bots (log only), and the rate limits on sign-in, on every route that sends email, on `/api/health` and on staging's typed API (`/api/v1/` on `staging.hrizzup.com`, its calls that send email at 5 a minute); `/api/health` and the app's reads and writes to staging's typed API skip the bot challenge |
+| `firewall.json` | The firewall: Bot Protection (challenge), AI bots (log only), and the rate limits on sign-in, on every route that sends email, on `/api/health` and on staging's typed API (`/api/v1/` on `staging.hrizzup.com`, its calls that send email at 5 a minute); `/api/health`, the app's reads and writes to staging's typed API, and reads of staging's API docs (`/docs`, `/llms.txt`, `/llms-full.txt`, 60 a minute per IP, for AI tools) skip the bot challenge |
 | `apply.py` | Sends both to Vercel's API, reads everything back, and fails, listing each difference, if Vercel doesn't match. `--check` only compares; `--staging-only` applies only what is staging's own (below) |
 | `../../product/web/vercel.json` | The deployment's own settings: framework and the function region (`bom1`, Mumbai) |
 
