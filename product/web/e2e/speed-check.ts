@@ -102,9 +102,13 @@ async function measurePage(tab: Tab, base: string, page: Page, runs: number): Pr
       onlyCategories: ['performance', 'accessibility'],
       ignoreStatusCode,
     });
-    results.push({ metrics: metricsFromLighthouse(lhr, url), report });
+    const metrics = metricsFromLighthouse(lhr, url);
+    results.push({ metrics, report });
+    // Each run's own numbers in the log, so any page's spread can be read back from a check.
     console.log(
-      `  ${page.path}: run ${run} of ${runs} (${((Date.now() - started) / 1000).toFixed(1)} s)`,
+      `  ${page.path}: run ${run} of ${runs} (${((Date.now() - started) / 1000).toFixed(1)} s): ` +
+        `busy ${Math.round(metrics.blockingMs)} ms, load ${(metrics.loadMs / 1000).toFixed(2)} s, ` +
+        `shift ${metrics.layoutShift.toFixed(3)}`,
     );
   }
   const summary = summarize(results.map((r) => r.metrics));
