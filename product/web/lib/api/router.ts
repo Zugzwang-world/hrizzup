@@ -22,6 +22,7 @@ import {
   checkStorage,
   type ServiceResult,
 } from '@/lib/health/checks.ts';
+import { appAuthSettings, appEmailCode } from './auth.ts';
 import { cacheHeaders } from './caching.ts';
 import { asAdmin, consoleCall } from './console.ts';
 import { type ApiContext, signedIn } from './context.ts';
@@ -103,6 +104,11 @@ export const router = api.router({
             : 'other',
     };
   }),
+
+  auth: {
+    settings: api.auth.settings.handler(() => appAuthSettings()),
+    emailCode: api.auth.emailCode.handler(({ context, input }) => appEmailCode(context, input)),
+  },
 
   markets: {
     list: api.markets.list.handler(({ input }) =>

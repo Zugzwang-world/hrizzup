@@ -1,5 +1,6 @@
 import { type ContractRouterClient, oc } from '@orpc/contract';
 import { z } from 'zod';
+import { authErrors, authSettings, emailCodeInput, emailCodeSent } from './auth.ts';
 import {
   consoleMarketWithLog,
   createMarketInput,
@@ -50,7 +51,15 @@ export type Caching =
     }
   | { kind: 'personal' };
 
-export type Meta = { caching: Caching };
+export type Meta = {
+  caching: Caching;
+  /**
+   * The call sends email. Such a call is a POST under `/auth/email/`, so the firewall's limit on
+   * everything that sends email covers it (`/api/v1/auth/email/`: 5 requests a minute per visitor,
+   * infra/vercel/firewall.json); the contract's tests hold every one to it.
+   */
+  sendsEmail?: true;
+};
 
 /** Every call starts personal (never cached); a public read says so itself. */
 const call = oc.$meta<Meta>({ caching: { kind: 'personal' } });
@@ -113,6 +122,46 @@ export const contract = {
     .errors({ UNAUTHORIZED: { status: 401, message: 'Not signed in' } })
     .input(noInput)
     .output(me),
+
+  /**
+   * The app's sign-in (PLAN.md step 1.6b; auth.ts): Supabase Auth's public settings, which the app
+   * signs in with, and asking for an email code behind the bot check. Google goes through the
+   * phone's browser, straight to Supabase. Both answer "not set up" (503) where sign-in isn't, as on
+   * production until launch.
+   */
+  auth: {
+    /** Supabase's address and publishable key (both public by design). Kept at the edge briefly. */
+    settings: call
+      .route({
+        method: 'GET',
+        path: '/auth/settings',
+        summary: "Supabase Auth's public settings, which the app signs in with",
+        tags: ['public'],
+      })
+      .meta({
+        caching: { kind: 'public', edgeSeconds: 300, staleSeconds: 300, tags: ['auth-settings'] },
+      })
+      .errors({ NOT_SET_UP: authErrors.NOT_SET_UP })
+      .input(noInput)
+      .output(authSettings),
+
+    /**
+     * Emails a sign-in code, once our server has checked the bot check's answer with Cloudflare, as
+     * the website does; the account is made if it's new. Supabase Auth sends at most one email a
+     * minute to an address. Personal, never kept.
+     */
+    emailCode: call
+      .route({
+        method: 'POST',
+        path: '/auth/email/code',
+        summary: 'Email a sign-in code, behind the bot check',
+        tags: ['auth'],
+      })
+      .meta({ caching: { kind: 'personal' }, sendsEmail: true })
+      .errors(authErrors)
+      .input(emailCodeInput)
+      .output(emailCodeSent),
+  },
 
   /**
    * The markets, for everyone (PLAN.md step 1.7d; trading.ts). The list is public, kept at Vercel's

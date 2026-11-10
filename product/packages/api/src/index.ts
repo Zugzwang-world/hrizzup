@@ -1,4 +1,13 @@
 export {
+  type AuthSettings,
+  authErrors,
+  authSettings,
+  type EmailCodeInput,
+  type EmailCodeSent,
+  emailCodeInput,
+  emailCodeSent,
+} from './auth.ts';
+export {
   type ConsoleLogLine,
   type ConsoleMarket,
   type ConsoleMarketWithLog,

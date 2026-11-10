@@ -1,6 +1,7 @@
 import { standardSchema } from '@hrizzup/agreement';
 import { createRouterClient, ORPCError } from '@orpc/server';
 import { describe, expect, it } from 'vitest';
+import { authSettings, emailCodeInput, emailCodeSent } from './auth.ts';
 import { consoleMarketWithLog, createMarketInput, settleMarketInput } from './console.ts';
 import { contract } from './contract.ts';
 import * as examples from './examples.ts';
@@ -33,6 +34,76 @@ describe('the contract', () => {
     }
     expect(contract.me['~orpc'].meta.caching.kind).toBe('personal');
     expect(contract.health['~orpc'].meta.caching.kind).toBe('public');
+  });
+});
+
+describe("the app's sign-in calls", () => {
+  it('give the public settings as a public read, kept at the edge briefly', () => {
+    const { route, meta } = contract.auth.settings['~orpc'];
+    expect(route).toMatchObject({ method: 'GET', path: '/auth/settings' });
+    expect(meta.caching).toEqual({
+      kind: 'public',
+      edgeSeconds: 300,
+      staleSeconds: 300,
+      tags: ['auth-settings'],
+    });
+  });
+
+  it('ask for an email code with a personal POST that sends email', () => {
+    const { route, meta } = contract.auth.emailCode['~orpc'];
+    expect(route).toMatchObject({ method: 'POST', path: '/auth/email/code' });
+    expect(meta).toEqual({ caching: { kind: 'personal' }, sendsEmail: true });
+  });
+
+  it('keep every call that sends email a personal POST under /auth/email/, which the firewall limits', () => {
+    const senders = procedures.filter(([, procedure]) => procedure['~orpc'].meta.sendsEmail);
+    expect(senders.map(([name]) => name)).toEqual(['auth.emailCode']);
+    for (const [name, procedure] of senders) {
+      const { route, meta } = procedure['~orpc'];
+      expect(route.method, name).toBe('POST');
+      expect(route.path, name).toMatch(/^\/auth\/email\/[a-z0-9/-]+$/);
+      expect(meta.caching, name).toEqual({ kind: 'personal' });
+    }
+    for (const [name, procedure] of procedures) {
+      if (procedure['~orpc'].meta.sendsEmail) continue;
+      expect(procedure['~orpc'].route.path, `${name} doesn't send email`).not.toMatch(
+        /^\/auth\/email\//,
+      );
+    }
+  });
+
+  it("take an address and the bot check's answer, nothing else, and answer with the code's shape", () => {
+    expect(emailCodeInput.safeParse({ email: 'a@b.co', botCheck: 'x' }).success).toBe(true);
+    expect(emailCodeInput.safeParse({ email: 'a@b.co' }).success).toBe(false);
+    expect(emailCodeInput.safeParse({ email: 'a@b.co', botCheck: '' }).success).toBe(false);
+    expect(emailCodeInput.safeParse({ email: 'a@b.co', botCheck: 'x'.repeat(2049) }).success).toBe(
+      false,
+    );
+    expect(emailCodeInput.safeParse({ email: 'a@b.co', botCheck: 'x', extra: 1 }).success).toBe(
+      false,
+    );
+    expect(emailCodeInput.safeParse({ email: 'x'.repeat(255), botCheck: 'x' }).success).toBe(false);
+    expect(emailCodeSent.parse(examples.emailCodeSent)).toEqual(examples.emailCodeSent);
+    expect(authSettings.parse(examples.authSettings)).toEqual(examples.authSettings);
+    expect(
+      authSettings.safeParse({ ...examples.authSettings, supabaseUrl: 'http://x.co' }).success,
+    ).toBe(false);
+  });
+
+  it("are the stand-in's too: settings, a code sent, and the refusals", async () => {
+    const api = createRouterClient(standIn({ signedIn: false }));
+    await expect(api.auth.settings()).resolves.toEqual(examples.authSettings);
+    await expect(api.auth.emailCode({ email: ' A@B.co ', botCheck: 'x' })).resolves.toEqual({
+      ...examples.emailCodeSent,
+      email: 'a@b.co',
+    });
+    await expect(api.auth.emailCode({ email: 'nope', botCheck: 'x' })).rejects.toMatchObject({
+      code: 'INVALID_EMAIL',
+      status: 400,
+    });
+    await expect(
+      api.auth.emailCode({ email: 'a@b.co', botCheck: 'refused' }),
+    ).rejects.toMatchObject({ code: 'BOT_CHECK_FAILED', status: 403 });
   });
 });
 

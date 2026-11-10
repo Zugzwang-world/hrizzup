@@ -4,6 +4,7 @@ import markets from '@hrizzup/agreement/examples/markets.json' with { type: 'jso
 import sourced from '@hrizzup/agreement/examples/sourced.json' with { type: 'json' };
 import stories from '@hrizzup/agreement/examples/stories.json' with { type: 'json' };
 import updates from '@hrizzup/agreement/examples/updates.json' with { type: 'json' };
+import type { AuthSettings, EmailCodeSent } from './auth.ts';
 import type { ConsoleMarket, ConsoleMarketWithLog } from './console.ts';
 import type { Health, Me } from './contract.ts';
 import type {
@@ -28,6 +29,19 @@ export const health: Health = {
   commit: '0000000000000000000000000000000000000000',
   checkedAt: '2026-11-08T09:30:00Z',
   services: { database: 'ok', redis: 'ok', storage: 'ok', auth: 'ok' },
+};
+
+/** Supabase Auth's public settings, with a made-up project and key (the real ones come from Doppler). */
+export const authSettings: AuthSettings = {
+  supabaseUrl: 'https://exampleproject.supabase.co',
+  publishableKey: 'sb_publishable_example_not_a_real_key',
+};
+
+/** An email code on its way to Resend's test inbox. */
+export const emailCodeSent: EmailCodeSent = {
+  email: 'delivered+app-sign-in@resend.dev',
+  codeLength: 8,
+  minutes: 10,
 };
 
 export const me: Me = {

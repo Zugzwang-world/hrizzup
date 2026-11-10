@@ -1552,6 +1552,16 @@ No good sign-in failed, so the switch-off kept ready beside it (one setting, `ho
 
 **Pre-launch checklist:** two of Claude Code's recommendations for before launch joined "Also before launch", held there by "product first": the app's own database login, and visitors' addresses for Supabase's limits.
 
+### The app's writes through staging's firewall (Round 4, relay R4; PLAN.md step 1.6b; Claude Code)
+
+**Why:** the app asks for its email codes through the typed API, a write (`POST`), and an app can't pass Vercel's bot challenge, which needs a browser. Settled in the Product chat on 10 November 2026: staging lets the app's writes through behind the same per-visitor limit as its reads ([#94](https://github.com/Zugzwang-world/hrizzup/pull/94)).
+
+**Set:** two firewall rules limited to `staging.hrizzup.com`, applied at 06:51 UTC (12:21 India time) with `infra/doppler/run tools -- python3 infra/vercel/apply.py --staging-only`, from `main` after the merge, then `--check`: the project matches the repo, the firewall with 8 rules.
+- "Rate limit: staging's typed API calls that send email": `/api/v1/auth/email/`, at most 5 requests a minute per IP, like every route that sends email;
+- "Staging's typed API: the app's writes, no bot challenge": `POST` to `/api/v1/`, after every rate limit, so the 60 a minute per IP still apply.
+
+**Checked from outside**, with Android's network client's name and no browser: a `POST` to staging's `/api/v1/trades` now reaches the API (400, its own input check) where it got the challenge before; a `GET` of staging's health still answers 200; the same `POST` to production's `hrizzup.com/api/v1/trades` still gets the challenge (429, Vercel's Security Checkpoint), unchanged; and the sixth request within a minute to `/api/v1/auth/email/code` on staging was refused (429), the five before it reaching the API. Production's rules wait for the release pipeline (runbook, pre-launch checklist, P.14).
+
 ---
 
 ## Rules for this log

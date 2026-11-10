@@ -8,4 +8,5 @@ import type { Contract } from './contract.ts';
  */
 export const clientContract = routes as unknown as Contract;
 
-export type { Api, Contract, Health, Me } from './contract.ts';
+export type { AuthSettings, EmailCodeSent } from './auth.ts';
+export type { Api, Contract, Health, Me, Meta } from './contract.ts';

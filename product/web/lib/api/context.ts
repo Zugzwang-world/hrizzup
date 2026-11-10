@@ -4,12 +4,14 @@ import type { Pool } from 'pg';
 import { supabaseConfig } from '@/lib/supabase/config.ts';
 
 /**
- * What every call of the typed API is given: the request's headers (cookie, token); and, on the
- * market console's calls over HTTP, the admin the API's route has already checked (lib/api/
- * console.ts), so the database is asked once.
+ * What every call of the typed API is given: the request's headers (cookie, token); over HTTP, its
+ * full address, whose host the bot check's answer must match (lib/api/auth.ts); and, on the market
+ * console's calls over HTTP, the admin the API's route has already checked (lib/api/console.ts),
+ * so the database is asked once.
  */
 export type ApiContext = {
   headers: Headers;
+  url?: string;
   consoleAdmin?: { account: string; pool: Pick<Pool, 'connect'> } | null;
 };
 
