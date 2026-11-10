@@ -159,13 +159,19 @@ export function MarketBoard({
         </h2>
         {signedIn ? (
           <>
-            <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-6 gap-y-1 tabular-nums sm:max-w-xs">
-              <dt className="text-muted">Yes shares</dt>
-              <dd data-testid="position-yes">{plain(position?.yes ?? '0')}</dd>
-              <dt className="text-muted">No shares</dt>
-              <dd data-testid="position-no">{plain(position?.no ?? '0')}</dd>
-              <dt className="text-muted">Balance</dt>
-              <dd>{balance === null ? '–' : money(balance)}</dd>
+            <dl className="mt-3 grid gap-1 tabular-nums sm:max-w-xs">
+              <div className="flex flex-wrap justify-between gap-x-6">
+                <dt className="text-muted">Yes shares</dt>
+                <dd data-testid="position-yes">{plain(position?.yes ?? '0')}</dd>
+              </div>
+              <div className="flex flex-wrap justify-between gap-x-6">
+                <dt className="text-muted">No shares</dt>
+                <dd data-testid="position-no">{plain(position?.no ?? '0')}</dd>
+              </div>
+              <div className="flex flex-wrap justify-between gap-x-6">
+                <dt className="text-muted">Balance</dt>
+                <dd>{balance === null ? '–' : money(balance)}</dd>
+              </div>
             </dl>
             <h3 className="mt-6 font-semibold">Resting limit orders</h3>
             {orders.length === 0 ? (
