@@ -101,6 +101,9 @@ function listen(server: Server, host: string): Promise<number> {
 /** The 404 page answers 404 on purpose; Lighthouse refuses that unless told. */
 const ignoresStatus = (page: Page) => (page.status ?? 200) >= 400;
 
+/** The warm-up's own numbers: a reader's very first visit, cold, shown but never judged. */
+type FirstVisit = { path: string; busyMs: number; loadMs: number };
+
 /**
  * One run of the site's first page comes first, not counted, so every measured run is the same
  * kind of visit. A browser opened just now starts itself on its first page (its fonts,
@@ -110,7 +113,7 @@ const ignoresStatus = (page: Page) => (page.status ?? 200) >= 400;
  * first, the home page: single runs of 266 to 1176 ms against its usual 85, from the same code.
  * The pages' own work is still measured in every run, and the code's size against its budget.
  */
-async function warmUp(tab: Tab, base: string, page: Page) {
+async function warmUp(tab: Tab, base: string, page: Page): Promise<FirstVisit> {
   const started = Date.now();
   const { lhr } = await lighthouseRun(tab, new URL(page.path, base).href, {
     onlyCategories: ['performance'],
@@ -121,6 +124,8 @@ async function warmUp(tab: Tab, base: string, page: Page) {
     `  warm-up, ${page.path}, not counted (${((Date.now() - started) / 1000).toFixed(1)} s): ` +
       `busy ${Math.round(busy)} ms; ${runDetail(lhr)}`,
   );
+  const load = lhr.audits['largest-contentful-paint']?.numericValue ?? 0;
+  return { path: page.path, busyMs: Math.round(busy), loadMs: Math.round(load) };
 }
 
 /** One page's measured runs, in the light scheme, and what they add up to. */
@@ -228,6 +233,7 @@ async function main() {
 
   const { browser, tab } = await openBrowser();
   const reports: PageReport[] = [];
+  let firstVisit: FirstVisit | undefined;
   try {
     if (secret) {
       await browser.setCookie({
@@ -240,7 +246,7 @@ async function main() {
       });
     }
     const pages = pagesIn(environment);
-    if (pages[0]) await warmUp(tab, base, pages[0]);
+    if (pages[0]) firstVisit = await warmUp(tab, base, pages[0]);
     // Every page's measured runs first, then every page's dark-scheme contrast: a contrast run
     // isn't traced, and the run straight after one, a page's first, was the one over its budget
     // (the console's pages at 231 to 275 ms, against their usual 75).
@@ -265,6 +271,16 @@ async function main() {
       "total download include other sites' scripts and embeds.",
     ...(faint.length ? ['', '**Text too faint to read:**', ...faint] : []),
     ...(warnings ? ['', warnings] : []),
+    ...(firstVisit
+      ? [
+          '',
+          `**A first visit, cold** (shown, never judged): \`${firstVisit.path}\` in a browser just ` +
+            `opened, its React and Next.js code compiled for the first time: busy ` +
+            `${firstVisit.busyMs} ms, load ${(firstVisit.loadMs / 1000).toFixed(2)} s. Every run ` +
+            'judged above is a visit with that code already compiled, as a reader moving around ' +
+            "the site makes; a reader's very first visit pays this once.",
+        ]
+      : []),
   ].join('\n');
   await mkdir(out, { recursive: true });
   await writeFile(join(out, 'website.md'), `${markdown}\n`);
