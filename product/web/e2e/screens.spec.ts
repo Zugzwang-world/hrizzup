@@ -5,10 +5,12 @@ import { type BrowserContextOptions, expect, test } from '@playwright/test';
 import { PENDING_COOKIE, pendingCookieValue } from '../lib/email-code.ts';
 import { layoutProblems } from './layout.ts';
 import {
+  BITCOIN_PERP,
   CONSOLE_FIXTURE_MARKET,
   CONSOLE_FIXTURE_PERP,
   FIXTURE_PERP_NAME,
   pagesIn,
+  SANDBOX_FIXTURE_MARKET,
 } from './pages.ts';
 import { asBrowserCookie } from './support/bypass.ts';
 import { adminState, signedInState, signedOutState } from './support/states.ts';
@@ -28,6 +30,8 @@ type Check = {
   signedIn?: boolean;
   /** The sign-in test page's code step: a code has just been emailed to an address. */
   codeStep?: boolean;
+  /** What a signed-in page must show: a test ID that is only there for a signed-in visitor. */
+  signedInShows?: string;
   /** Signed in as the market console's admin test account; the heading the page must show. */
   admin?: string;
   status?: number;
@@ -42,6 +46,22 @@ function pagesToCheck(): Check[] {
   if (checks.some((check) => check.name === 'sign-in-test')) {
     checks.push({ name: 'sign-in-test-signed-in', path: '/sign-in-test', signedIn: true });
     checks.push({ name: 'sign-in-test-code-step', path: '/sign-in-test', codeStep: true });
+  }
+  // The markets sandbox, as a signed-in account sees it: its balance in the header, the market's
+  // position and orders, the perp's positions (the signed-out pages are in pages.ts).
+  if (checks.some((check) => check.name === 'sandbox')) {
+    for (const [name, path] of [
+      ['sandbox', '/sandbox'],
+      ['sandbox-market', `/sandbox/markets/${SANDBOX_FIXTURE_MARKET}`],
+      ['sandbox-perp', `/sandbox/perps/${BITCOIN_PERP}`],
+    ] as const) {
+      checks.push({
+        name: `${name}-signed-in`,
+        path,
+        signedIn: true,
+        signedInShows: 'sandbox-balance',
+      });
+    }
   }
   // The market console, as an admin sees it (everyone else gets the 404 page, checked above).
   if (process.env.SCREEN_CHECK_ENVIRONMENT !== 'production') {
@@ -121,7 +141,7 @@ for (const view of views) {
       await page.evaluate(() => document.fonts.ready);
       if (check.signedIn) {
         await expect(
-          page.getByTestId('signed-in-email'),
+          page.getByTestId(check.signedInShows ?? 'signed-in-email'),
           'signed in as the test account',
         ).toBeVisible();
       }

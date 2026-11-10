@@ -13,6 +13,7 @@ import {
   readPendingCookie,
 } from '@/lib/email-code.ts';
 import { currentEnvironment, signInTestEnabled } from '@/lib/env.ts';
+import { safeNext } from '@/lib/safe-next.ts';
 import { supabaseConfig } from '@/lib/supabase/config.ts';
 
 export const metadata: Metadata = {
@@ -44,7 +45,7 @@ const SIGNED_IN_WITH: Record<Me['signedInWith'], string> = {
   other: 'Another way',
 };
 
-type Props = { searchParams: Promise<{ error?: string | string[] }> };
+type Props = { searchParams: Promise<{ error?: string | string[]; next?: string | string[] }> };
 
 /**
  * A plain page for testing sign-in end to end on staging, previews and this Mac (runbook
@@ -54,7 +55,9 @@ type Props = { searchParams: Promise<{ error?: string | string[] }> };
  */
 export default async function SignInTestPage({ searchParams }: Props) {
   if (!signInTestEnabled()) notFound();
-  const { error } = await searchParams;
+  const { error, next: asked } = await searchParams;
+  // Where to go after signing in: the page that sent you (the markets sandbox does), else this one.
+  const next = safeNext(typeof asked === 'string' ? asked : undefined);
   const message =
     typeof error === 'string' && Object.hasOwn(ERRORS, error) ? ERRORS[error] : undefined;
 
@@ -125,7 +128,7 @@ export default async function SignInTestPage({ searchParams }: Props) {
               You're signed out
             </h2>
             <form action="/auth/google" method="post" className="mt-6">
-              <input type="hidden" name="next" value="/sign-in-test" />
+              <input type="hidden" name="next" value={next} />
               <button
                 type="submit"
                 className="inline-flex min-h-11 max-w-full items-center gap-3 rounded-md border border-line bg-white px-5 py-2 text-left font-medium text-[#1f1f1f] hover:bg-[#f2f2f2]"
@@ -141,7 +144,7 @@ export default async function SignInTestPage({ searchParams }: Props) {
             {pending ? (
               <CodeStep pending={pending} />
             ) : siteKey ? (
-              <EmailCodeRequest siteKey={siteKey} next="/sign-in-test" />
+              <EmailCodeRequest siteKey={siteKey} next={next} />
             ) : (
               <p className="mt-3 text-muted">Email codes aren't set up in this environment yet.</p>
             )}

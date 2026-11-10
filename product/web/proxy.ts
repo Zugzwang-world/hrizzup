@@ -44,5 +44,5 @@ function noSuchPage(request: NextRequest): NextResponse {
 }
 
 export const config = {
-  matcher: ['/sign-in-test', '/console', '/console/:path*'],
+  matcher: ['/sign-in-test', '/console', '/console/:path*', '/sandbox', '/sandbox/:path*'],
 };

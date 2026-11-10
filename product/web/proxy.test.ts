@@ -124,8 +124,14 @@ describe("the console's addresses", () => {
     }
   });
 
-  it('are all the proxy runs on, with the sign-in test page', () => {
-    expect(config.matcher).toEqual(['/sign-in-test', '/console', '/console/:path*']);
+  it('are all the proxy runs on, with the sign-in test page and the markets sandbox', () => {
+    expect(config.matcher).toEqual([
+      '/sign-in-test',
+      '/console',
+      '/console/:path*',
+      '/sandbox',
+      '/sandbox/:path*',
+    ]);
   });
 });
 
