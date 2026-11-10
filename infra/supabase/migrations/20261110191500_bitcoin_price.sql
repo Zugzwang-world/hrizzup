@@ -393,7 +393,8 @@ $$;
 
 -- An ask's price, once: each exchange's answer read and judged, and the median stored; with too few
 -- answers, the last real price held, for 30 seconds after it; never a price older than the newest.
--- Answers that came after this are ignored. Gives back the price stored, or null.
+-- An answer not in yet counts as failed, and one that comes later is never read. Gives back the
+-- price stored, or null.
 create function prices.settle(feed text, asked timestamptz)
 returns jsonb
 language plpgsql
@@ -453,11 +454,14 @@ end;
 $$;
 
 -- One run of the schedule: an ask, then its price. A procedure, so it can commit each ask before
--- waiting for it: pg_net sends nothing until then. It waits for the main exchanges' answers 3
--- seconds at most and the spare's, when asked, 2.5 more, stopping as soon as they're in (usually
--- well under a second); Supabase Cron never starts a run while the last is still going. No search
--- path of its own (a procedure that commits can't have one): every name in it is written in full.
--- Only the schedule runs it, as the database's owner.
+-- waiting for it: pg_net sends nothing until then. It waits for the main exchanges' answers 2.5
+-- seconds at most and the spare's, when asked, 2.2 more (each request's own limit is 2 seconds),
+-- stopping as soon as they're in (usually well under a second), so even a run that needs the spare
+-- ends inside its 5 seconds; Supabase Cron never starts a run while the last is still going. No
+-- search path of its own (a procedure that commits can't have one): every name in it is written in
+-- full. Only the schedule runs it, as the database's owner. (The commits are checked under Supabase
+-- Cron on this Mac and on staging, never in the Database check: its tests run inside a transaction,
+-- where a procedure can't commit, and must never ask an exchange.)
 create procedure prices.fetch()
 language plpgsql
 as $$
@@ -469,13 +473,13 @@ begin
     return;
   end if;
   commit;
-  for attempt in 1 .. 30 loop
+  for attempt in 1 .. 25 loop
     exit when prices.ready('btc-usd', asked);
     perform pg_catalog.pg_sleep(0.1);
   end loop;
   if prices.ask_spare('btc-usd', asked) then
     commit;
-    for attempt in 1 .. 25 loop
+    for attempt in 1 .. 22 loop
       exit when prices.ready('btc-usd', asked);
       perform pg_catalog.pg_sleep(0.1);
     end loop;

@@ -389,7 +389,7 @@ select is(
 );
 select is(
   (select outcome from prices.quotes where at = pg_temp.t(-50) and source = 'coinbase'),
-  'failed', 'an answer that came too late counts as failed'
+  'failed', 'an answer not in by then counts as failed'
 );
 
 -- 30 seconds after the last real price (55 seconds ago), nothing more is held.
