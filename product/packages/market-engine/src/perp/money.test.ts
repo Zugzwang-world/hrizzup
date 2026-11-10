@@ -258,6 +258,50 @@ describe('the pool running short', () => {
     expect(w.ledger.balance('ana')).toBeCloseTo(1_000 - 1 + 100, 9);
   });
 
+  it('settles a winner scaled down to nothing: paid their margin, from their own pool', () => {
+    // The pattern of Manifold's incidents (August 2026): the short pool holds Ṁ80 against a
+    // short's Ṁ100 of margin. At +10% the long's profit has nothing left to come from.
+    const price = 100_000;
+    const t0 = STAND_IN_PRICE.origin + 3_600_000;
+    const row = (userId: string, direction: 'long' | 'short', size: number) => ({
+      userId,
+      contractId: 'perp-btc',
+      direction,
+      size,
+      costBasis: 100,
+      originalCostBasis: 100,
+      takerFeeCostBasis: 0,
+      entryPrice: price,
+      leverage: size / 100,
+      liquidationPrice: direction === 'long' ? price * (1 - 100 / size) : price * (1 + 100 / size),
+      openedTime: t0,
+      updatedTime: t0,
+    });
+    const book: PerpBook = {
+      ...newPerpBook({
+        contractId: 'perp-btc',
+        feedId: STAND_IN_PRICE.feedId,
+        settings: PERP_SETTINGS,
+        price,
+        priceTime: t0,
+        now: t0,
+      }),
+      state: {
+        pool: { L: 200, S: 80 },
+        positions: [row('ana', 'long', 1_000), row('ben', 'short', 100)],
+      },
+    };
+    const ledger = new TestLedger({ ana: 0, ben: 0 }, 280);
+    // (No check before: this book is short on purpose, and the check would rightly refuse it.)
+    const tick = applyPerpPrice({ book, price: price * 1.1, priceTime: t0 + 5_000 });
+    expect(tick.book.halt).toBeNull();
+    expect(tick.adlFactorLong).toBe(0);
+    expect(tick.moves).toEqual([{ userId: 'ana', kind: 'payout', amount: 100 }]);
+    ledger.apply(tick.moves);
+    ledger.check(tick.book, 'after');
+    expect(tick.book.state.positions.map((p) => p.userId)).toEqual(['ben']);
+  });
+
   it('refuses a position the other side couldn’t back', () => {
     const w = world(thin);
     const refused = w.open('ana', 'long', 101, 10);

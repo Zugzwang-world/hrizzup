@@ -6,9 +6,12 @@
  * The perp opens with the house's subsidy, and every step's moves are applied as pairs, out of one
  * account and into another, the way the books write them. After every step `check()` proves:
  *
- * - **nothing is created or lost:** all the balances add up to what there was at the start;
+ * - **each step moves exactly its money:** the change in the two pools equals the step's moves
+ *   in and out (to a billionth of the pools' size), so the maths neither makes nor loses any;
  * - **the pools hold exactly the perp's money:** escrow = long pool + short pool (Manifold's own
  *   check, `isPerpEscrowBalanced`, at its own tolerance for floating point);
+ * - **the ledger's own sums hold:** all the balances add up to the start (true by construction,
+ *   since each move is a pair; it guards this ledger, not the maths);
  * - **nobody goes below zero, and neither pool does;**
  * - **every winner can be paid:** the pools cover every position's claim (Manifold's
  *   `assertPerpStateSolvent`), unless the book is paused, when nothing moved.
@@ -25,12 +28,17 @@ export class TestLedger {
   readonly start: number;
   /** Every move applied, in order. */
   readonly moves: PerpMove[] = [];
+  /** The pools and the escrow at the last check, for the step-by-step comparison. */
+  private lastPools: number;
+  private lastEscrow: number;
 
   constructor(traders: Record<string, number>, subsidy: number, houseBalance = 1_000_000) {
     this.balances.set(HOUSE, houseBalance - subsidy);
     this.escrow = subsidy;
     for (const [id, amount] of Object.entries(traders)) this.balances.set(id, amount);
     this.start = this.total();
+    this.lastPools = subsidy;
+    this.lastEscrow = subsidy;
   }
 
   balance(id: string) {
@@ -65,6 +73,12 @@ export class TestLedger {
       throw new Error(`${typeof label === 'function' ? label() : label}: ${what}`);
     };
     const { L, S } = book.state.pool;
+    const poolsMoved = L + S - this.lastPools;
+    const movesIn = this.escrow - this.lastEscrow;
+    if (!(Math.abs(poolsMoved - movesIn) <= 1e-9 * Math.max(1, L + S, this.lastPools)))
+      fail(`the pools moved ${poolsMoved} but the step's moves put in ${movesIn}`);
+    this.lastPools = L + S;
+    this.lastEscrow = this.escrow;
     if (!(Math.abs(this.total() - this.start) < 1e-9 * Math.max(1, Math.abs(this.start))))
       fail(`money created or lost: ${this.total()} against ${this.start} at the start`);
     const snapshot = { ledgerBalance: this.escrow, poolLong: L, poolShort: S };

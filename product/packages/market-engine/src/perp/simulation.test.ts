@@ -49,6 +49,8 @@ const simulate = (args: {
   days: number;
   traders: number;
   settings: PerpSettings;
+  /** Six hours closing-only, then an hour halted (day 10), and five minutes without prices (day 12). */
+  incidents?: boolean;
 }) => {
   const { settings } = args;
   const random = randomSource(args.tradeSeed);
@@ -92,6 +94,8 @@ const simulate = (args: {
     fundingPaidByLongs: 0,
     fundingPaidByShorts: 0,
     pausedPrices: 0,
+    missedPrices: 0,
+    fundingSkippedStale: 0,
     refused: {} as Partial<Record<PerpRefusal['code'], number>>,
   };
   const refused = (code: PerpRefusal['code']) => {
@@ -103,6 +107,26 @@ const simulate = (args: {
   const ticks = (args.days * DAY_MS) / STAND_IN_PRICE.intervalMs;
   for (let tick = 1; tick <= ticks; tick++) {
     const point = standInPrice(args.priceSeed, start + tick * STAND_IN_PRICE.intervalMs);
+    const elapsed = point.ts - start;
+    const offSwitch =
+      args.incidents && elapsed >= 10 * DAY_MS && elapsed < 10 * DAY_MS + 7 * HOUR_MS;
+    const tradingMode =
+      offSwitch && elapsed < 10 * DAY_MS + 6 * HOUR_MS
+        ? 'reduce-only'
+        : offSwitch
+          ? 'halted'
+          : 'enabled';
+    // No price for five minutes across an hour (the price job down): orders wait, funding finds
+    // the price too old and skips that hour.
+    const gap = 12 * DAY_MS + 57 * 60_000;
+    if (args.incidents && elapsed >= gap && elapsed < gap + 5 * 60_000) {
+      counts.missedPrices++;
+      const skipped =
+        elapsed % HOUR_MS === 0 ? applyPerpFunding({ book, settings, now: point.ts }) : null;
+      if (skipped && !skipped.ok && skipped.reason === 'stale_price') counts.fundingSkippedStale++;
+      if (skipped?.ok) throw new Error('funding ran on a price over 2 minutes old');
+      continue;
+    }
     const priced = applyPerpPrice({ book, price: point.price, priceTime: point.ts });
     book = priced.book;
     ledger.apply(priced.moves);
@@ -122,7 +146,7 @@ const simulate = (args: {
         const result = openPerpPosition({
           book,
           settings,
-          tradingMode: 'enabled',
+          tradingMode,
           request: { ...order, placedTime },
           balance: ledger.balance(order.userId),
           now,
@@ -138,7 +162,7 @@ const simulate = (args: {
         const result = closePerpPosition({
           book,
           settings,
-          tradingMode: 'enabled',
+          tradingMode,
           request: {
             userId: order.userId,
             direction: order.direction,
@@ -242,15 +266,20 @@ describe('the long simulation', () => {
       days: 21,
       traders: 30,
       settings: PERP_SETTINGS,
+      incidents: true,
     });
     // It really traded, and everything the perp does happened.
-    // (The runs are seeded, so these are what this run does: 3,784 opens, 2,794 closes, 786 flips,
-    // 3 liquidations, 504 fundings, 109 orders refused for leverage.)
+    // (The runs are seeded, so these are what this run does: 3,750 opens, 2,769 closes, 782 flips,
+    // 3 liquidations, 503 fundings, 108 orders refused for leverage, 110 by the off switch.)
     expect(counts.opens).toBeGreaterThan(3_000);
     expect(counts.closes).toBeGreaterThan(2_000);
     expect(counts.flips).toBeGreaterThan(500);
     expect(counts.liquidations).toBeGreaterThan(0);
-    expect(counts.fundings).toBe(21 * 24); // every hour, from the first full one
+    expect(counts.fundings).toBe(21 * 24 - 1); // every hour but the one without a fresh price
+    expect(counts.fundingSkippedStale).toBe(1);
+    expect(counts.missedPrices).toBe(60);
+    // The off switch: closing-only refused opens, halted refused closes too.
+    expect(counts.refused.trading_off).toBeGreaterThan(0);
     expect(counts.fundingPaidByLongs).toBeGreaterThan(0);
     expect(counts.fundingPaidByShorts).toBeGreaterThan(0);
     expect(counts.refused.leverage_too_high).toBeGreaterThan(0);
