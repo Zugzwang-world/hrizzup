@@ -79,7 +79,12 @@ async function openedMarket(): Promise<string> {
   return made.id;
 }
 
-/** Someone signed in: with a starting balance from the house, or (null) no play money yet. */
+/**
+ * Someone signed in, with this much play money (their signup's starting balance, brought to it by
+ * the owner's tool), or (null) none at all. Every sign-in account gets its starting balance when
+ * it's made, so someone signed in has none only once their sign-in account is deleted while their
+ * sign-in token is still good: their play money stays in the books, no longer theirs.
+ */
 async function person(starting: string | null): Promise<string> {
   const userId = randomUUID();
   await owner.query('insert into auth.users (id, email) values ($1, $2)', [
@@ -88,6 +93,7 @@ async function person(starting: string | null): Promise<string> {
   ]);
   if (starting !== null)
     await owner.query('select ledger.open_account($1, $2)', [userId, starting]);
+  else await owner.query('delete from auth.users where id = $1', [userId]);
   return userId;
 }
 
@@ -175,6 +181,27 @@ describe('the list anyone may see', () => {
 });
 
 describe('trading', () => {
+  it('someone who has only signed up trades with the starting balance their signup gave them', async () => {
+    const market = await openedMarket();
+    const newcomer = randomUUID();
+    await owner.query('insert into auth.users (id, email) values ($1, $2)', [
+      newcomer,
+      `${newcomer}@trading.test`,
+    ]);
+    await expect(positions(app, newcomer)).resolves.toEqual({
+      balance: '1000.000000',
+      positions: [],
+      next: null,
+    });
+    const bought = await placeTrade(app, newcomer, buy(market, { amount: '1000' }));
+    expect(bought).toMatchObject({ status: 'filled', amount: '1000.000000', balance: '0.000000' });
+    const more = buy(market, { amount: '0.000001' });
+    await expect(refusal(placeTrade(app, newcomer, more))).resolves.toMatchObject({
+      reason: 'insufficient_balance',
+    });
+    expect(await written(more.requestId)).toBe(false);
+  });
+
   it('buys, answers a retry with the first answer, and sells back', async () => {
     const market = await openedMarket();
     const trader = await person('100');
@@ -326,7 +353,7 @@ describe('refused before the books are touched', () => {
     expect(await written(wrongSide.requestId)).toBe(false);
   });
 
-  it('someone with no play money yet, with nothing written', async () => {
+  it('someone with no play money at all (their sign-in account deleted since), with nothing written', async () => {
     const market = await openedMarket();
     const newcomer = await person(null);
     const request = buy(market, { amount: '1' });

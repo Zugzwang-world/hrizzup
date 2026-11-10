@@ -566,6 +566,21 @@ Last updated: 10 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/bri
     - Decision 9 also bears on Sourcing's background-jobs choice; it's in PLAN.md section 7, and Sourcing's brief changed only by the two lines asked for.
 - **Round 4, R3: the perp's maths (3.4a, first part), milestone 1 of 3** ([#92](https://github.com/Zugzwang-world/hrizzup/pull/92)): Manifold's perps maths, copied from `common/src/perps/` at commit `79997aa` (1.7a's) into `product/packages/market-engine/src/manifold/perps/` with its tests (7 files, 274 tests, passing under Vitest; Quick checks run them), changed only as far as our coding rules need: `amm.ts` (positions, leverage, liquidation, winners scaled down when the pool runs short, funding's transfer, the exposure cap, solvency), `funding.ts`, `fees.ts`, `pnl.ts`, `escrow.ts`, `trading-mode.ts`, `orders.ts` and `position.ts`. Two slim files of ours stand in for the price feed's (`oracle.ts`, `adjacent-msry.ts`), whose real versions come with 3.4b; a test pins them to Manifold's values. `THIRD_PARTY_NOTICES.md` lists the copy with its MIT notice; the package README lists every file and what wasn't taken.
 
+- **Round 4, R2: play money on signup, 10 November 2026** ([#97](https://github.com/Zugzwang-world/hrizzup/pull/97), risky, with an independent AI review; moved here from 3.1 by the founder's decisions of 10 November 2026):
+  - **every sign-in account gets Ṁ1,000 from the house** in the transaction that makes it: a trigger on Supabase Auth's accounts (`auth.users`) calls `ledger.give_starting_balance`, so Google, email codes and the server key's admin calls all get it, and no code has to remember to; if it can't be given, the sign-up fails, so no account is ever without it. The amount is Manifold's `STARTING_BALANCE` at the commit 1.7a copied from (`79997aa`), since PLAN.md sets none;
+  - **never twice:** `ledger.starting_balances` records each one by its entry (a grant from the house), one per account; asking again, eight times at once or after the money is spent, gives nothing;
+  - **accounts already made** got theirs once with the migration, on top of any play money they had (on staging: five sign-in accounts, two of them the checks' test accounts with play money already);
+  - **tests and scripts** keep `ledger.open_account(user, amount)`: the signup's balance brought to that amount by a grant or a correction, refused once the account has moved other money, to the millionth;
+  - **the books' own check** (`ledger.problems()`, in the Database check, the Staging workflow and the release pipeline) also reports a sign-in account without its play money or its starting balance, and a starting balance that isn't exactly its entry;
+  - **tested:** 45 pgTAP checks (`infra/supabase/tests/starting_balance.test.sql`); sign-ups made by Supabase Auth's own database role, twenty at once, one rolled back, the starting balance asked for eight times at once, an account Supabase Auth deletes keeping its money in the books, no longer anyone's (`product/packages/ledger/src/signup.db.test.ts`); someone who has only signed up trades their Ṁ1,000, and the next millionth is refused. The two tests of someone signed in with no play money keep their assertions, now through a deleted account, the only way left to have none;
+  - **AI review:** nothing serious; two small fixes taken (the test tool asked twice for the same amount, and amounts finer than a millionth); one note for launch, in the open questions;
+  - **answered without asking** (one line each):
+    - Ṁ1,000, Manifold's default at the commit 1.7a copied, since PLAN.md sets no amount.
+    - A trigger in the database rather than a call from the website, so no way of making an account can skip it.
+    - A sign-up fails rather than leave an account without its starting balance.
+    - Accounts that already had play money get the starting balance on top: only the recorded grant counts as theirs, the same rule for everyone.
+    - `ledger.open_account` keeps its name and callers, as the tool for tests and scripts.
+
 ## Next
 
 1. **Round 4** (`TRACKER.md`, "Round 4's queue"; the GitHub milestone "Round 4"), sequenced in the Product chat at the founder's request, its relays numbered R1 to R5 (R1, the round's records, is done):
@@ -581,6 +596,7 @@ Last updated: 10 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/bri
 
 ## Open questions
 
+- **Sign-ups wait for the house** (from R2's AI review of [#97](https://github.com/Zugzwang-world/hrizzup/pull/97)): every starting balance moves the house's balance, so sign-ups take the house's row one at a time, and a settlement holds it while it pays out. Fine at today's scale, and never a deadlock. Recommended: nothing now; if sign-up bursts at launch meet long settlements, keep the house's balance as the sum of its lines instead of a stored figure, or pay a settlement out in smaller transactions.
 - **The perp's scheduled jobs on production** (3.4a, R5; from the founder's decision that scheduled jobs are defined in migrations, 10 November 2026): every migration also runs on production, through the release pipeline, so the jobs a migration defines would run there too, every 5 seconds, from the first release that carries them. Recommended: each job does nothing while the perp is switched off, and production's perp stays switched off until launch, the way the admins migration adds its row only where its account exists.
 - **The Hermes rewrite** (step 1.5c): the app's Babel settings rewrite oRPC's function parameters because Hermes can't compile one form oRPC uses. Recommended: keep it, and drop it when oRPC 2.0 (its own change) or Hermes handles that form.
 - **Posting on the website** (step 2.4): the founder's app-only list leaves posting out, so the plan builds it on both surfaces, yet PLAN.md section 2 still calls the website "news and markets" and the app "news and social". The founder decides.
