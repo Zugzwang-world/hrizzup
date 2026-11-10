@@ -1,0 +1,58 @@
+// Written by scripts/types.ts from src/ (pnpm --filter @hrizzup/market-engine types). Do not edit.
+export type PerpDirection = 'long' | 'short';
+export type PerpPosition = {
+    userId: string;
+    contractId: string;
+    direction: PerpDirection;
+    /** q — notional size */
+    size: number;
+    /** c — current cost basis (scaled by funding; eq. 8/9). */
+    costBasis: number;
+    /** original margin the user put in (never scaled). Used for user-facing PnL. */
+    originalCostBasis: number;
+    /** Cumulative taker fees paid while opening/adding to this live position.
+     * Kept separate from margin so leverage and liquidation math stay unchanged. */
+    takerFeeCostBasis?: number;
+    /** P_e — entry price; units-weighted (harmonic) mean on add, so that
+     * merging tranches conserves equity. See `mergedEntryPrice`. */
+    entryPrice: number;
+    /** ℓ = q/c (recomputed after any mutation). */
+    leverage: number;
+    /** P_liq — cached for fast scans. */
+    liquidationPrice: number;
+    openedTime: number;
+    updatedTime: number;
+};
+export type PerpEventType = 'open' | 'add' | 'close' | 'liquidation' | 'adl' | 'funding';
+export type PerpEvent = {
+    id?: number;
+    contractId: string;
+    userId: string | null;
+    eventType: PerpEventType;
+    /** Accounting application time. Persisted events source this from the
+     * database's `applied_ts`; new in-memory events use the transaction wall
+     * clock until insertion. `ts` may be an older oracle observation time. */
+    appliedTime: number;
+    /** Effective/oracle observation time shown in market history. */
+    ts: number;
+    oraclePrice: number;
+    sizeDelta: number;
+    costBasisDelta: number;
+    originalCostBasisDelta: number;
+    direction: PerpDirection | null;
+    leverage: number | null;
+    data?: Record<string, unknown>;
+};
+export type PerpFundingEvent = {
+    contractId: string;
+    ts: number;
+    oraclePrice: number;
+    poolLongBefore: number;
+    poolLongAfter: number;
+    poolShortBefore: number;
+    poolShortAfter: number;
+    fundingRate: number;
+    numLiquidations: number;
+    adlFactorLong: number;
+    adlFactorShort: number;
+};
