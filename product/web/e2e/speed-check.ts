@@ -98,43 +98,33 @@ function listen(server: Server, host: string): Promise<number> {
   );
 }
 
+/** The 404 page answers 404 on purpose; Lighthouse refuses that unless told. */
+const ignoresStatus = (page: Page) => (page.status ?? 200) >= 400;
+
 /**
- * Chrome's own start-up isn't any page's busy time. The first Lighthouse run in a browser opened
- * just now also starts the browser itself (its first page, its fonts, Lighthouse's own first
- * trace), and it fell on whichever page went first: the home page, at 266 to 1176 ms against its
- * usual 70. So one run of a plain page served from this machine comes first, not counted. It
- * warms none of the site's own code: the first page is still measured as a first visit, in a
- * browser that's already running, like every page after it.
+ * One run of the site's first page comes first, not counted, so every measured run is the same
+ * kind of visit. A browser opened just now starts itself on its first page (its fonts,
+ * Lighthouse's own first trace: a 927 ms task in the self-test's cold browser), and the site's
+ * first visit compiles React's and Next.js's own code from cold (a 496 ms task in Next.js's main
+ * script), which every later page and run of a check gets warm. Both fell on whichever page went
+ * first, the home page: single runs of 266 to 1176 ms against its usual 85, from the same code.
+ * The pages' own work is still measured in every run, and the code's size against its budget.
  */
-async function warmUp(tab: Tab) {
-  const page = createServer((_request, response) => {
-    response.writeHead(200, { 'content-type': 'text/html' });
-    response.end(`<!doctype html><html lang="en"><head>
-      <meta name="viewport" content="width=device-width"><title>Warm-up</title></head><body>
-      <h1>Warm-up</h1><p>A plain page that starts the browser before any page is measured.</p>
-      <script>document.body.dataset.ready = 'yes';</script></body></html>`);
+async function warmUp(tab: Tab, base: string, page: Page) {
+  const started = Date.now();
+  const { lhr } = await lighthouseRun(tab, new URL(page.path, base).href, {
+    onlyCategories: ['performance'],
+    ignoreStatusCode: ignoresStatus(page),
   });
-  const port = await listen(page, 'localhost');
-  try {
-    const started = Date.now();
-    const { lhr } = await lighthouseRun(tab, `http://localhost:${port}/`, {
-      onlyCategories: ['performance'],
-    });
-    const busy = lhr.audits['total-blocking-time']?.numericValue ?? 0;
-    console.log(
-      `  warm-up, a plain page on this machine, not counted (${((Date.now() - started) / 1000).toFixed(1)} s): ` +
-        `busy ${Math.round(busy)} ms; ${runDetail(lhr)}`,
-    );
-  } finally {
-    page.close();
-  }
+  const busy = lhr.audits['total-blocking-time']?.numericValue ?? 0;
+  console.log(
+    `  warm-up, ${page.path}, not counted (${((Date.now() - started) / 1000).toFixed(1)} s): ` +
+      `busy ${Math.round(busy)} ms; ${runDetail(lhr)}`,
+  );
 }
 
 /** One page's measured runs, in the light scheme, and what they add up to. */
 type PageRuns = { page: Page; url: string; results: { metrics: RunMetrics; report: string }[] };
-
-/** The 404 page answers 404 on purpose; Lighthouse refuses that unless told. */
-const ignoresStatus = (page: Page) => (page.status ?? 200) >= 400;
 
 /**
  * Measures one page: `runs` full runs in the light scheme. Each run's numbers go in the log, so
@@ -249,13 +239,13 @@ async function main() {
         httpOnly: true,
       });
     }
-    await warmUp(tab);
+    const pages = pagesIn(environment);
+    if (pages[0]) await warmUp(tab, base, pages[0]);
     // Every page's measured runs first, then every page's dark-scheme contrast: a contrast run
     // isn't traced, and the run straight after one, a page's first, was the one over its budget
     // (the console's pages at 231 to 275 ms, against their usual 75).
     const measured: PageRuns[] = [];
-    for (const page of pagesIn(environment))
-      measured.push(await measureRuns(tab, base, page, runs));
+    for (const page of pages) measured.push(await measureRuns(tab, base, page, runs));
     for (const pageRuns of measured) {
       reports.push(await pageReport(pageRuns, await darkContrast(tab, pageRuns)));
     }
