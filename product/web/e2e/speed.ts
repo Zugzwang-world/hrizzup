@@ -38,6 +38,8 @@ export type LighthouseResult = {
   finalDisplayedUrl: string;
   runtimeError?: { code: string; message: string };
   runWarnings?: string[];
+  /** Lighthouse's own measure of the machine's speed, which varies several-fold on GitHub. */
+  environment?: { benchmarkIndex?: number };
   audits: Record<
     string,
     {
@@ -82,6 +84,25 @@ export function contrastOf(
     return node?.snippet ?? 'an element';
   });
   return { passes: false, problems };
+}
+
+/**
+ * What one run's busy time was made of, for the log, so a slow run can be read back from a check:
+ * the machine's speed (Lighthouse's benchmark; GitHub's runners vary several-fold) and the main
+ * thread's three biggest kinds of work, in milliseconds as the machine took them.
+ */
+export function runDetail(lhr: LighthouseResult): string {
+  const machine = lhr.environment?.benchmarkIndex;
+  const work = (lhr.audits['mainthread-work-breakdown']?.details?.items ?? [])
+    .map((item) => ({
+      kind: String(item.groupLabel ?? item.group ?? 'other').toLowerCase(),
+      ms: Number(item.duration ?? 0),
+    }))
+    .sort((a, b) => b.ms - a.ms)
+    .slice(0, 3)
+    .map(({ kind, ms }) => `${kind} ${Math.round(ms)}`)
+    .join(', ');
+  return `machine ${machine ? Math.round(machine) : 'unknown'}; main thread: ${work || 'idle'}`;
 }
 
 /** Reads one run's numbers out of a Lighthouse result. */

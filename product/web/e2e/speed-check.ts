@@ -18,6 +18,7 @@ import {
   pagePasses,
   RUNS,
   type RunMetrics,
+  runDetail,
   runNumbers,
   summarize,
 } from './speed.ts';
@@ -89,6 +90,45 @@ async function colourScheme(tab: Tab, scheme: 'light' | 'dark') {
   await tab.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }]);
 }
 
+/** Serves `server` on a free port of this machine and returns the port. */
+function listen(server: Server, host: string): Promise<number> {
+  return new Promise((resolve) =>
+    server.listen(0, host, () => resolve((server.address() as AddressInfo).port)),
+  );
+}
+
+/**
+ * Chrome's own start-up isn't any page's busy time. The first Lighthouse run in a browser opened
+ * just now also starts the browser itself (its first page, its fonts, Lighthouse's own first
+ * trace), and it fell on whichever page went first: the home page, at 266 to 1176 ms against its
+ * usual 70. So one run of a plain page served from this machine comes first, not counted. It
+ * warms none of the site's own code: the first page is still measured as a first visit, in a
+ * browser that's already running, like every page after it.
+ */
+async function warmUp(tab: Tab) {
+  const page = createServer((_request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html' });
+    response.end(`<!doctype html><html lang="en"><head>
+      <meta name="viewport" content="width=device-width"><title>Warm-up</title></head><body>
+      <h1>Warm-up</h1><p>A plain page that starts the browser before any page is measured.</p>
+      <script>document.body.dataset.ready = 'yes';</script></body></html>`);
+  });
+  const port = await listen(page, 'localhost');
+  try {
+    const started = Date.now();
+    const { lhr } = await lighthouseRun(tab, `http://localhost:${port}/`, {
+      onlyCategories: ['performance'],
+    });
+    const busy = lhr.audits['total-blocking-time']?.numericValue ?? 0;
+    console.log(
+      `  warm-up, a plain page on this machine, not counted (${((Date.now() - started) / 1000).toFixed(1)} s): ` +
+        `busy ${Math.round(busy)} ms; ${runDetail(lhr)}`,
+    );
+  } finally {
+    page.close();
+  }
+}
+
 /** Measures one page: `runs` full runs, then the contrast audit once more in the dark scheme. */
 async function measurePage(tab: Tab, base: string, page: Page, runs: number): Promise<PageReport> {
   const url = new URL(page.path, base).href;
@@ -108,7 +148,7 @@ async function measurePage(tab: Tab, base: string, page: Page, runs: number): Pr
     console.log(
       `  ${page.path}: run ${run} of ${runs} (${((Date.now() - started) / 1000).toFixed(1)} s): ` +
         `busy ${Math.round(metrics.blockingMs)} ms, load ${(metrics.loadMs / 1000).toFixed(2)} s, ` +
-        `shift ${metrics.layoutShift.toFixed(3)}`,
+        `shift ${metrics.layoutShift.toFixed(3)}; ${runDetail(lhr)}`,
     );
   }
   const summary = summarize(results.map((r) => r.metrics));
@@ -178,6 +218,7 @@ async function main() {
         httpOnly: true,
       });
     }
+    await warmUp(tab);
     for (const page of pagesIn(environment)) {
       reports.push(await measurePage(tab, base, page, runs));
     }
@@ -239,10 +280,6 @@ async function selfTest() {
       script ?? '<!doctype html><p>An embedded post</p><script src="/frame.js"></script>',
     );
   });
-  const listen = (server: Server, host: string) =>
-    new Promise<number>((resolve) =>
-      server.listen(0, host, () => resolve((server.address() as AddressInfo).port)),
-    );
   const embedPort = await listen(embed, '127.0.0.1');
   const site = createServer((_request, response) => {
     response.writeHead(200, { 'content-type': 'text/html' });
