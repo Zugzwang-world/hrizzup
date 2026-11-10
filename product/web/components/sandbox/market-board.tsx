@@ -76,7 +76,7 @@ export function MarketBoard({
     async function ask() {
       if (document.hidden) return;
       try {
-        const response = await fetch(`/api/v1/markets?after=${above}`, {
+        const response = await fetch(`/api/v1/markets?cursor=${above}`, {
           headers: { accept: 'application/json' },
         });
         if (!response.ok || stopped) return;

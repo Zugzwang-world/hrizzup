@@ -43,6 +43,18 @@ export {
   type RevokeKeyInput,
 } from './keys.ts';
 export {
+  commonErrors,
+  cursor,
+  DEFAULT_PAGE,
+  type Issue,
+  issue,
+  MOST_A_PAGE,
+  nextCursor,
+  type PageInput,
+  pageInput,
+  pageLimit,
+} from './paging.ts';
+export {
   type ClosePerpInput,
   type ConsolePerp,
   type ConsolePerpWithLog,

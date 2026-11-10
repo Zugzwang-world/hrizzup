@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { decimal, moment, recordId } from './console.ts';
 import { forbidden } from './keys.ts';
+import { nextCursor, pageInput } from './paging.ts';
 
 /**
  * The Bitcoin perp's part of the contract (PLAN.md step 3.4a; blueprint section 13). This file
@@ -134,9 +135,9 @@ export const ruleChange = z.object({
 export const consolePerpWithLog = consolePerp.extend({ log: z.array(ruleChange) });
 
 /** A page of perps, newest first, and where the next page starts (null on the last). */
-export const perpPage = z.object({ perps: z.array(consolePerp), next: recordId.nullable() });
+export const perpPage = z.object({ perps: z.array(consolePerp), next: nextCursor });
 
-export const perpPageInput = z.strictObject({ after: recordId.optional() }).optional();
+export const perpPageInput = pageInput;
 
 export const perpIdInput = z.strictObject({ id: recordId });
 
@@ -463,10 +464,10 @@ export const heldPerpPosition = perpPosition.extend({
 export const perpPositionsPage = z.object({
   balance: decimal,
   positions: z.array(heldPerpPosition),
-  next: z.uuid().nullable(),
+  next: nextCursor,
 });
 
-export const perpPositionsPageInput = z.strictObject({ after: z.uuid().optional() }).optional();
+export const perpPositionsPageInput = pageInput;
 
 /** The errors a perp's trading call may answer, besides a refused input (400, BAD_REQUEST). */
 export const perpTradingErrors = {

@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { allowTrade, resetTradeLimiter, TRADES_PER_MINUTE, tradeLimiter } from './rate-limit.ts';
+import {
+  allowTrade,
+  rateLimitHeaders,
+  resetTradeLimiter,
+  TRADES_PER_MINUTE,
+  tradeLimiter,
+} from './rate-limit.ts';
 
 /**
  * Each person's trades a minute (rate-limit.ts), with Upstash stood in for: its own library's
@@ -10,10 +16,10 @@ import { allowTrade, resetTradeLimiter, TRADES_PER_MINUTE, tradeLimiter } from '
 const ACCOUNT = '00000000-0000-4000-8000-0000000000e1';
 const NOW = 1_800_000_000_000;
 
-const answering = (answer: { success: boolean; reset: number }) => ({
+const answering = (answer: { success: boolean; reset: number; remaining?: number }) => ({
   limit: vi
     .fn()
-    .mockResolvedValue({ ...answer, limit: 30, remaining: 0, pending: Promise.resolve() }),
+    .mockResolvedValue({ limit: 30, remaining: 0, pending: Promise.resolve(), ...answer }),
 });
 
 afterEach(() => {
@@ -26,9 +32,24 @@ describe('the trades-a-minute limit', () => {
   });
 
   it('lets a call through, counting it against the account', async () => {
-    const limit = answering({ success: true, reset: NOW + 60_000 });
-    await expect(allowTrade(ACCOUNT, limit, () => NOW)).resolves.toEqual({ allowed: true });
+    const limit = answering({ success: true, reset: NOW + 60_000, remaining: 29 });
+    await expect(allowTrade(ACCOUNT, limit, () => NOW)).resolves.toEqual({
+      allowed: true,
+      left: { remaining: 29, resetSeconds: 60 },
+    });
     expect(limit.limit).toHaveBeenCalledWith(ACCOUNT);
+  });
+
+  it("writes the IETF's RateLimit headers: the policy, what's left and when there's room", () => {
+    expect(
+      rateLimitHeaders('trades', 30, { allowed: true, left: { remaining: 29, resetSeconds: 60 } }),
+    ).toEqual({ 'RateLimit-Policy': '"trades";q=30;w=60', RateLimit: '"trades";r=29;t=60' });
+    expect(rateLimitHeaders('key-reads', 120, { allowed: false, retryAfterSeconds: 7 })).toEqual({
+      'RateLimit-Policy': '"key-reads";q=120;w=60',
+      RateLimit: '"key-reads";r=0;t=7',
+    });
+    // Where Redis didn't count the call (not set up, or failed), there's nothing to say.
+    expect(rateLimitHeaders('trades', 30, { allowed: true })).toEqual({});
   });
 
   it('refuses one over the limit, with the whole seconds until the window lets it through', async () => {

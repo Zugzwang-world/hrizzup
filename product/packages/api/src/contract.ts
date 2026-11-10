@@ -17,6 +17,7 @@ import {
   revokedKey,
   revokeKeyInput,
 } from './keys.ts';
+import { commonErrors } from './paging.ts';
 import {
   closePerpInput,
   consolePerpWithLog,
@@ -89,8 +90,23 @@ export type Meta = {
   sendsEmail?: true;
 };
 
-/** Every call starts personal (never cached); a public read says so itself. */
-const call = oc.$meta<Meta>({ caching: { kind: 'personal' } });
+/**
+ * Every call starts personal (never cached); a public read says so itself. Every call may answer the
+ * common errors (paging.ts): a refused input (400, each problem in `data.issues`) and "try again in
+ * a moment" (503); each adds its own below.
+ */
+const call = oc.$meta<Meta>({ caching: { kind: 'personal' } }).errors(commonErrors);
+
+/**
+ * What the console's calls may answer an admin: no such market or perp, a request that clashes with
+ * the market's or perp's state, besides the common errors. To anyone else, each answers exactly as
+ * an address the API doesn't have ("No such call", 404).
+ */
+const consoleErrors = {
+  NOT_FOUND: { status: 404, message: 'No such market' },
+  CONFLICT: { status: 409, message: "That doesn't fit the market's state" },
+} as const;
+const admin = call.errors(consoleErrors);
 
 /**
  * A call that takes no input at all. Anything sent is refused (400), so a stray or random query
@@ -395,7 +411,7 @@ export const contract = {
   admin: {
     markets: {
       /** Markets, newest first, a page at a time. */
-      list: call
+      list: admin
         .route({
           method: 'GET',
           path: '/admin/markets',
@@ -406,7 +422,7 @@ export const contract = {
         .output(marketPage),
 
       /** One market, with its log. */
-      get: call
+      get: admin
         .route({
           method: 'GET',
           path: '/admin/markets/{id}',
@@ -417,7 +433,7 @@ export const contract = {
         .output(consoleMarketWithLog),
 
       /** A new market, as a draft: no money moves until it opens. */
-      create: call
+      create: admin
         .route({
           method: 'POST',
           path: '/admin/markets',
@@ -429,7 +445,7 @@ export const contract = {
         .output(consoleMarketWithLog),
 
       /** Opens a draft: betting starts at once, and the house seeds its pool. */
-      open: call
+      open: admin
         .route({
           method: 'POST',
           path: '/admin/markets/{id}/open',
@@ -440,7 +456,7 @@ export const contract = {
         .output(consoleMarketWithLog),
 
       /** Closes an open market: betting stops at once. */
-      close: call
+      close: admin
         .route({
           method: 'POST',
           path: '/admin/markets/{id}/close',
@@ -451,7 +467,7 @@ export const contract = {
         .output(consoleMarketWithLog),
 
       /** Settles a closed market by hand, logged with its evidence: Yes, No, a set probability, or cancel. */
-      settle: call
+      settle: admin
         .route({
           method: 'POST',
           path: '/admin/markets/{id}/settle',
@@ -469,7 +485,7 @@ export const contract = {
      */
     perps: {
       /** Perps, newest first, a page at a time: the Bitcoin perp and the check runs' test perps. */
-      list: call
+      list: admin
         .route({
           method: 'GET',
           path: '/admin/perps',
@@ -480,7 +496,7 @@ export const contract = {
         .output(perpPage),
 
       /** One perp, with its rule-change log. */
-      get: call
+      get: admin
         .route({
           method: 'GET',
           path: '/admin/perps/{id}',
@@ -491,7 +507,7 @@ export const contract = {
         .output(consolePerpWithLog),
 
       /** The off switch: on, closing only or halted, at once, with the reason in the log. */
-      setMode: call
+      setMode: admin
         .route({
           method: 'POST',
           path: '/admin/perps/{id}/mode',
@@ -502,7 +518,7 @@ export const contract = {
         .output(consolePerpWithLog),
 
       /** Changes some of a perp's settings, each change in the log with the reason. */
-      setSettings: call
+      setSettings: admin
         .route({
           method: 'POST',
           path: '/admin/perps/{id}/settings',
@@ -513,7 +529,7 @@ export const contract = {
         .output(consolePerpWithLog),
 
       /** A check run's own unlisted test perp, switched off, its pools seeded by the house. */
-      createTest: call
+      createTest: admin
         .route({
           method: 'POST',
           path: '/admin/perps',
@@ -525,7 +541,7 @@ export const contract = {
         .output(consolePerpWithLog),
 
       /** Retires a test perp once every position on it is closed: its pools back to the house. */
-      retireTest: call
+      retireTest: admin
         .route({
           method: 'POST',
           path: '/admin/perps/{id}/retire',

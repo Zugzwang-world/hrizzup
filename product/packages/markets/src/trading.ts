@@ -152,13 +152,13 @@ const utc = (moment: string) => new Date(moment).toISOString();
  */
 export async function marketList(
   pool: Database,
-  page: { after?: string | undefined } = {},
+  page: { after?: string | undefined; limit?: number | undefined } = {},
 ): Promise<MarketList> {
   const found = await read<{ markets: ListedMarket[]; next: string | null }>(
     pool,
     null,
     'select trading.markets($1, $2) as answer',
-    [page.after ?? null, PAGE_SIZE],
+    [page.after ?? null, page.limit ?? PAGE_SIZE],
   );
   return { markets: found.markets, next: found.next };
 }
@@ -351,13 +351,13 @@ type PositionRow = {
 export async function positions(
   pool: Database,
   account: string,
-  page: { after?: string | undefined } = {},
+  page: { after?: string | undefined; limit?: number | undefined } = {},
 ): Promise<PositionsPage> {
   const found = await read<{ balance: string; positions: PositionRow[]; next: string | null }>(
     pool,
     account,
     'select trading.positions($1, $2) as answer',
-    [page.after ?? null, PAGE_SIZE],
+    [page.after ?? null, page.limit ?? PAGE_SIZE],
   );
   return {
     balance: found.balance,
@@ -392,13 +392,13 @@ type OrderRow = {
 export async function openOrders(
   pool: Database,
   account: string,
-  page: { after?: string | undefined } = {},
+  page: { after?: string | undefined; limit?: number | undefined } = {},
 ): Promise<OrdersPage> {
   const found = await read<{ orders: OrderRow[]; next: string | null }>(
     pool,
     account,
     'select trading.orders($1, $2) as answer',
-    [page.after ?? null, PAGE_SIZE],
+    [page.after ?? null, page.limit ?? PAGE_SIZE],
   );
   return {
     orders: found.orders.map((row) => ({

@@ -2,7 +2,7 @@
 
 **This brief replaces Claude Code's report:** read it after **Sync now** instead of asking the founder for one, and attach the files under "Read for detail" from GitHub for more.
 
-> Rewritten 11 November 2026 by Round 5's relay R3 (the public API's ground rules, keys and docs, step 3.5a), with its second pull request. PLAN.md wins any disagreement.
+> Rewritten 11 November 2026 by Round 5's relay R3 (the public API's ground rules, keys and docs, step 3.5a), with its third pull request. PLAN.md wins any disagreement.
 
 **Hrizzup** is a news app built around creators, plus a website with play-money prediction markets: our AI finds news as it breaks on X and turns it into developing stories seen through creators' takes. **Product builds** the website and the app in parallel (the website a stage ahead; Android, then iPhone from the same code), the markets, and now the public API that outside bots and AI tools use. It shows the content it receives through the content store's tables, in the shapes of the hand-over agreement (`agreement/README.md`), whose first half is Agreed.
 
@@ -17,7 +17,7 @@
 
 - **R1, the markets sandbox:** done, [#121](https://github.com/Zugzwang-world/hrizzup/pull/121). Next: nothing; the founder tries it. For the founder: the sandbox steps below.
 - **R2, the public API's research and design:** done, [#122](https://github.com/Zugzwang-world/hrizzup/pull/122) (research only). Next: nothing; 3.5a and 3.4b build on it. For the founder: the exchanges' terms, before launch (below).
-- **R3, the public API's ground rules, keys and docs (3.5a):** latest milestone, keys in the API and the keys page in the sandbox, [#125](https://github.com/Zugzwang-world/hrizzup/pull/125) (the keys' database change, [#123](https://github.com/Zugzwang-world/hrizzup/pull/123), before it). Next: paging, errors and limits across every call; then the OpenAPI file with its check, the docs page and llms.txt; then the done-test on staging. For the founder: nothing.
+- **R3, the public API's ground rules, keys and docs (3.5a):** latest milestone, the ground rules across every call, [#127](https://github.com/Zugzwang-world/hrizzup/pull/127) (before it the keys: [#123](https://github.com/Zugzwang-world/hrizzup/pull/123), [#125](https://github.com/Zugzwang-world/hrizzup/pull/125)). Next: the OpenAPI file with its check; the docs page and llms.txt; the done-test on staging. For the founder: nothing.
 - **R4, the perp's own price (3.4b):** in progress: its database, [#124](https://github.com/Zugzwang-world/hrizzup/pull/124) (1 of 3); the website on it, [#126](https://github.com/Zugzwang-world/hrizzup/pull/126) (2 of 3); staging's perp moved onto it, [#130](https://github.com/Zugzwang-world/hrizzup/pull/130) (3 of 3). Next: 3.4b's price reads and its day on staging, after 3.5a. For the founder: nothing new (the exchanges' terms before launch, below).
 
 ## Decisions in force
@@ -32,10 +32,11 @@
 
 ## What changed in the latest session
 
-On 11 November 2026, R3 (3.5a) built **bots' API keys** in two risky milestones, each AI-reviewed with no high-confidence issues:
+On 11 November 2026, R3 (3.5a) built **bots' API keys** in two risky milestones, each AI-reviewed with no high-confidence issues, then **the ground rules**:
 
 - **The database** ([#123](https://github.com/Zugzwang-world/hrizzup/pull/123)): keys read-only or trading, stored only as a hash with their first few characters; made and revoked only from a signed-in session, never with a key; five live an account, ten new an hour; every trade request stamped with its key, refused unless the key is live, the account's own and trading. Also recorded: the sixteen decisions, the keys moved into 3.5a, and pre-launch items P.19 (the exchanges' terms) and P.20 (the limits for each address checked again).
 - **The API** ([#125](https://github.com/Zugzwang-world/hrizzup/pull/125)): bots send `Authorization: Bearer <key>`; a read-only key reads its balance, positions and orders and is refused a trade; a trading key trades and uses the perp; a revoked key stops at once; no key makes a key or reaches the console; keys refused on production until launch; 120 personal reads a minute a key. The keys page is in the sandbox (`/sandbox/keys`, stock components).
+- **The ground rules** ([#127](https://github.com/Zugzwang-world/hrizzup/pull/127)): every list takes `limit` (1 to 100) and `cursor` (today's `after`, renamed once) and answers `next`; every call's errors are in the contract; every refused input answers in one format, its problems in `data.issues`; the limits are said in the standard `RateLimit` headers.
 
 ## Open questions
 

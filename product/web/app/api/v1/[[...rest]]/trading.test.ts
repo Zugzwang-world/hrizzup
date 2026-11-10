@@ -39,7 +39,8 @@ const pool = { connect: vi.fn() };
 
 vi.mock('@/lib/api/context.ts', () => ({ signedIn: (headers: Headers) => signedIn(headers) }));
 vi.mock('@/lib/db.ts', () => ({ database: () => pool }));
-vi.mock('@/lib/api/rate-limit.ts', () => ({
+vi.mock('@/lib/api/rate-limit.ts', async (original) => ({
+  ...(await original<typeof import('@/lib/api/rate-limit.ts')>()),
   allowTrade: (account: string) => allowTrade(account),
 }));
 vi.mock('@/lib/api/edge-cache.ts', () => ({
@@ -125,15 +126,38 @@ describe('the market list', () => {
     expect(signedIn).not.toHaveBeenCalled();
   });
 
-  it('pages after a market, and refuses anything else sent, never kept', async () => {
+  it('pages by cursor and limit, and refuses anything else sent in the one format, never kept', async () => {
     calls.marketList.mockResolvedValue(marketList);
-    await answer('GET', `/api/v1/markets?after=${MARKET}`);
-    expect(calls.marketList).toHaveBeenCalledWith(pool, { after: MARKET });
-    for (const query of ['?unexpected=1', '?after=not-a-market']) {
+    await answer('GET', `/api/v1/markets?cursor=${MARKET}`);
+    expect(calls.marketList).toHaveBeenCalledWith(pool, { after: MARKET, limit: undefined });
+    await answer('GET', `/api/v1/markets?cursor=${MARKET}&limit=20`);
+    expect(calls.marketList).toHaveBeenLastCalledWith(pool, { after: MARKET, limit: 20 });
+    for (const [query, path] of [
+      ['?unexpected=1', ''],
+      [`?after=${MARKET}`, ''],
+      ['?cursor=not-a-market', 'cursor'],
+      ['?limit=0', 'limit'],
+      ['?limit=101', 'limit'],
+      ['?limit=2.5', 'limit'],
+      ['?limit=many', 'limit'],
+    ]) {
       const refused = await answer('GET', `/api/v1/markets${query}`);
       expect(refused.status, query).toBe(400);
       expect(refused.headers['cache-control'], query).toBe('private, no-store');
       expect(refused.headers['vercel-cache-tag'], query).toBeUndefined();
+      expect(refused.body, query).toMatchObject({
+        defined: true,
+        code: 'BAD_REQUEST',
+        status: 400,
+      });
+      const data = refused.body?.data as { issues: { path: string; message: string }[] };
+      const issues = data.issues;
+      expect(issues.length, query).toBeGreaterThan(0);
+      if (path)
+        expect(
+          issues.map((issue) => issue.path),
+          query,
+        ).toContain(path);
     }
   });
 
@@ -385,10 +409,11 @@ describe("the person's own", () => {
     expect(page).toMatchObject({ status: 200, body: positionsPage });
     expect(page.headers['cache-control']).toBe('private, no-store');
     expect(calls.positions).toHaveBeenCalledWith(pool, PERSON.id, { after: undefined });
-    const orders = await answer('GET', `/api/v1/me/orders?after=${restingOrder.tradeId}`);
+    const orders = await answer('GET', `/api/v1/me/orders?cursor=${restingOrder.tradeId}&limit=5`);
     expect(orders).toMatchObject({ status: 200, body: ordersPage });
     expect(calls.openOrders).toHaveBeenCalledWith(pool, PERSON.id, {
       after: restingOrder.tradeId,
+      limit: 5,
     });
     signedIn.mockResolvedValue(null);
     expect((await answer('GET', '/api/v1/me/positions')).status).toBe(401);

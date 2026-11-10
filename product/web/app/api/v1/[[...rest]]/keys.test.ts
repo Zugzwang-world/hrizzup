@@ -20,7 +20,8 @@ const pool = { connect: vi.fn() };
 
 vi.mock('@/lib/api/context.ts', () => ({ signedIn: (headers: Headers) => signedIn(headers) }));
 vi.mock('@/lib/db.ts', () => ({ database: () => pool }));
-vi.mock('@/lib/api/rate-limit.ts', () => ({
+vi.mock('@/lib/api/rate-limit.ts', async (original) => ({
+  ...(await original<typeof import('@/lib/api/rate-limit.ts')>()),
   allowTrade: (account: string) => allowTrade(account),
   allowKeyRead: (key: string) => allowKeyRead(key),
 }));

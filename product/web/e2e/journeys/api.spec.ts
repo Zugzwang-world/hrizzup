@@ -7,7 +7,7 @@ import { type Engine, stagingKeys } from '../support/test-accounts.ts';
 
 /**
  * Journey: the typed API at /api/v1 (PLAN.md step 1.5c), called as the app calls it, over HTTP.
- * - its public read answers, and Vercel's edge serves it from its cache the second time;
+ * - its public read answers, and Vercel's edge serves it from its cache within seconds;
  * - an input the call doesn't take is refused;
  * - who-am-I refuses a visitor who isn't signed in, and answers the test account's own token.
  */
@@ -22,11 +22,16 @@ test('the public read answers, and the edge keeps it', async ({ request }) => {
   expect(body).toMatchObject({ environment: process.env.SCREEN_CHECK_ENVIRONMENT });
   expect(first.headers()['cache-control']).toBe('public, max-age=0, must-revalidate');
   test.skip(!onVercel(), "Only Vercel's edge keeps copies; this Mac's server doesn't");
-  const second = await request.get('/api/v1/health');
-  expect(second.status()).toBe(200);
-  expect(second.headers()['x-vercel-cache'], 'the second answer comes from the edge').toMatch(
-    /^(HIT|STALE)$/,
-  );
+  // The edge stores its copy a moment after the first answer, so the next asks again for a few
+  // seconds, as the trading journey does: a copy must come from the edge within them.
+  let cached = '';
+  for (let attempt = 0; attempt < 10 && !/^(HIT|STALE)$/.test(cached); attempt++) {
+    if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 500));
+    const again = await request.get('/api/v1/health');
+    expect(again.status()).toBe(200);
+    cached = again.headers()['x-vercel-cache'] ?? '';
+  }
+  expect(cached, 'an answer comes from the edge within seconds').toMatch(/^(HIT|STALE)$/);
 });
 
 test('an input the call does not take is refused', async ({ request }) => {
