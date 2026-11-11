@@ -67,9 +67,10 @@ select set_eq(
     'trading.markets(uuid,integer)',
     'trading.holdings(uuid,uuid)',
     'trading.positions(uuid,integer)',
-    'trading.orders(uuid,integer)'
+    'trading.orders(uuid,integer)',
+    'trading.my_trades(uuid,integer)'
   ],
-  'the trading schema holds the four reads, and nothing else'
+  'the trading schema holds the four reads and an account''s own trades (market_data.test.sql), and nothing else'
 );
 select is_empty(
   $$select p.oid::regprocedure::text from pg_catalog.pg_proc p
