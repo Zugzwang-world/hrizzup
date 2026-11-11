@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import { type APIRequestContext, expect, test } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { newRecordId } from '../../lib/record-id.ts';
 import { BITCOIN_PERP } from '../pages.ts';
 import { call, decimal, micros } from '../support/books.ts';
+import { runPerp, SUBSIDY } from '../support/perps.ts';
 import { newRunTrader, runKey } from '../support/run.ts';
 import { adminState } from '../support/states.ts';
 import { type Engine, stagingKeys } from '../support/test-accounts.ts';
@@ -26,46 +27,6 @@ const environment = () => process.env.SCREEN_CHECK_ENVIRONMENT;
 
 /** What every account's signup gives it, from the house. */
 const STARTING = micros('1000');
-/** What the house puts in each of a test perp's pools. */
-const SUBSIDY = micros('1000');
-
-/** The run's own test perp, made and switched on by the console's admin test account. */
-async function runPerp(admin: APIRequestContext, engine: string): Promise<string> {
-  const id = newRecordId();
-  const made = await call(admin, 'POST', '/api/v1/admin/perps', {
-    id,
-    name: `Perp journey (${engine}, run ${runKey()})`,
-    seed: [...crypto.getRandomValues(new Uint8Array(8))]
-      .map((b) => b.toString(16).padStart(2, '0'))
-      .join(''),
-    // Bitcoin's own volatility: prices move a little between trades, never enough to liquidate.
-    standIn: {
-      origin: new Date(Date.now() - 60_000).toISOString(),
-      startPrice: '100',
-      volatility: '0.55',
-    },
-    settings: {
-      maxLeverage: '10',
-      takerFeeBps: '10',
-      takerFeeImpact: '0',
-      fundingPeriodMs: '3600000',
-      fundingSensitivity: '1',
-      maxFundingRate: '0.0001',
-      maxPriceAgeMs: '120000',
-      subsidyLong: decimal(SUBSIDY),
-      subsidyShort: decimal(SUBSIDY),
-    },
-    reason: `The perp journey's own test perp (run ${runKey()})`,
-  });
-  expect(made.status, 'the console makes the test perp').toBe(201);
-  const on = await call(admin, 'POST', `/api/v1/admin/perps/${id}/mode`, {
-    mode: 'enabled',
-    reason: `The perp journey trades it (run ${runKey()})`,
-  });
-  expect(on.body).toMatchObject({ tradingMode: 'enabled' });
-  return id;
-}
-
 /** A refusal by the books: 422, with its reason. */
 function refusedFor(reason: string) {
   return { status: 422, body: { code: 'REFUSED', defined: true, data: { reason } } };

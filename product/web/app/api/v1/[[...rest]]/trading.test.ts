@@ -1,7 +1,9 @@
 import {
   cancelOrderResult,
   consoleMarketWithLog,
+  dryRunResult,
   marketList,
+  myTradesPage,
   ordersPage,
   positionsPage,
   restingOrder,
@@ -28,6 +30,7 @@ const calls = vi.hoisted(() => ({
   cancelOrder: vi.fn(),
   positions: vi.fn(),
   openOrders: vi.fn(),
+  myTrades: vi.fn(),
   openMarket: vi.fn(),
   closeMarket: vi.fn(),
   settleMarket: vi.fn(),
@@ -423,6 +426,38 @@ describe("the person's own", () => {
     signedIn.mockResolvedValue(null);
     expect((await answer('GET', '/api/v1/me/positions')).status).toBe(401);
     expect((await answer('GET', '/api/v1/me/orders')).status).toBe(401);
+  });
+
+  it('their own trades (Manifold’s bets) answer only someone signed in, a page at a time, never kept', async () => {
+    calls.myTrades.mockResolvedValue(myTradesPage);
+    const page = await answer('GET', `/api/v1/me/trades?cursor=${restingOrder.tradeId}&limit=5`);
+    expect(page).toMatchObject({ status: 200, body: myTradesPage });
+    expect(page.headers['cache-control']).toBe('private, no-store');
+    expect(calls.myTrades).toHaveBeenCalledWith(pool, PERSON.id, {
+      after: restingOrder.tradeId,
+      limit: 5,
+    });
+    signedIn.mockResolvedValue(null);
+    expect((await answer('GET', '/api/v1/me/trades')).status).toBe(401);
+  });
+});
+
+describe('a dry run', () => {
+  it("answers what the trade would do, takes Manifold's YES, counts against the limit, and clears nothing at the edge", async () => {
+    calls.placeTrade.mockResolvedValue(dryRunResult);
+    const dry = await answer('POST', '/api/v1/trades', buy({ outcome: 'YES', dryRun: true }));
+    expect(dry).toMatchObject({ status: 200, body: dryRunResult });
+    expect(dry.headers['cache-control']).toBe('private, no-store');
+    expect(calls.placeTrade).toHaveBeenCalledWith(pool, PERSON.id, {
+      marketId: MARKET,
+      requestId: REQUEST,
+      action: 'buy',
+      outcome: 'yes',
+      amount: '25',
+      dryRun: true,
+    });
+    expect(allowTrade).toHaveBeenCalledWith(PERSON.id);
+    expect(refreshEdge).not.toHaveBeenCalled();
   });
 });
 

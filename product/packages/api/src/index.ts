@@ -104,8 +104,12 @@ export {
 export {
   type CancelOrderInput,
   type CancelOrderResult,
+  DRY_RUN_TRADE_ID,
+  isDryRun,
   type ListedMarket,
   type MarketList,
+  type MyTrade,
+  type MyTradesPage,
   type OpenOrder,
   type OrdersPage,
   type Position,

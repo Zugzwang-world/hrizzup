@@ -18,6 +18,23 @@ import { nextCursor, pageInput } from './paging.ts';
 export const side = z.enum(['yes', 'no']);
 
 /**
+ * Yes or No as a bot sends it: ours (`yes`, `no`), or Manifold's (`YES`, `NO`), so Manifold's bots
+ * move over as they are. Every answer says it in lower case.
+ */
+export const sideInput = z
+  .enum(['yes', 'no', 'YES', 'NO'])
+  .transform((value) => value.toLowerCase() as z.infer<typeof side>);
+
+/**
+ * A dry run (Manifold's `dryRun`): the trade worked out exactly as the books would do it, the
+ * person's own balance, position and resting orders included, then undone, so nothing is written
+ * and nothing moves. It answers what the trade would have, marked `dryRun`, with no trade ID of its
+ * own (the nil UUID). It counts against the trades a minute like a trade, and its request ID must be
+ * new: one already used is refused (409), as is reusing it later is not.
+ */
+export const dryRun = z.boolean().optional();
+
+/**
  * Play money or shares a person sends: more than zero, to the millionth (six decimal places at
  * most), written as text. Anything else, zero and below included, is refused before the books.
  */
@@ -88,12 +105,26 @@ const sell = z.strictObject({
   shares: positiveAmount,
 });
 
-export const tradeInput = z.discriminatedUnion('action', [buy, sell]).superRefine((input, ctx) => {
-  if (input.action !== 'buy' || input.expiresAt === undefined) return;
-  if (input.limitProb === undefined) {
-    ctx.addIssue({ code: 'custom', message: 'Only a limit order can expire', path: ['expiresAt'] });
-  }
-});
+/**
+ * The same buy and sale in Manifold's form too (PLAN.md step 3.5d): `outcome` as `YES` or `NO` as
+ * well, and `dryRun`. They're two more choices beside v1's own two, which stay exactly as they were:
+ * within v1, only additions. A request in v1's own form matches it first.
+ */
+const buyAsManifold = buy.extend({ outcome: sideInput, dryRun });
+const sellAsManifold = sell.extend({ outcome: sideInput, dryRun });
+
+export const tradeInput = z
+  .union([buy, sell, buyAsManifold, sellAsManifold])
+  .superRefine((input, ctx) => {
+    if (input.action !== 'buy' || input.expiresAt === undefined) return;
+    if (input.limitProb === undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Only a limit order can expire',
+        path: ['expiresAt'],
+      });
+    }
+  });
 
 /** What a trade did, as the books wrote it. A retry of the same request answers the same. */
 export const tradeResult = z.object({
@@ -119,7 +150,15 @@ export const tradeResult = z.object({
   position: z.object({ yes: decimal, no: decimal }),
   /** When it traded, by the database's own clock. */
   at: moment,
+  /**
+   * Only on a dry run: true. Nothing was written: `tradeId` is the nil UUID, and `balance` and
+   * `position` are what they would have been.
+   */
+  dryRun: z.literal(true).optional(),
 });
+
+/** A dry run's trade ID: the nil UUID, since nothing was written. */
+export const DRY_RUN_TRADE_ID = '00000000-0000-0000-0000-000000000000';
 
 /** Cancelling one of the person's own resting limit orders, with its own request ID. No money moves. */
 export const cancelOrderInput = z.strictObject({ marketId: recordId, orderId, requestId });
@@ -198,6 +237,43 @@ export const openOrder = z.object({
 /** A page of the person's open orders, newest first. */
 export const ordersPage = z.object({ orders: z.array(openOrder), next: nextCursor });
 
+/**
+ * One of the person's own trades, as the books keep it (Manifold's bet): a buy or a sale, now or as a
+ * limit order (its amount and shares what it has filled so far), or a redemption (Yes and No held
+ * together, paid out at Ṁ1 a pair, with no outcome).
+ */
+export const myTrade = z.object({
+  id: z.uuid(),
+  marketId: recordId,
+  question: z.string(),
+  action: z.enum(['buy', 'sell', 'redeem']),
+  outcome: side.nullable(),
+  /** Play money paid, or (below zero) received. */
+  amount: decimal,
+  /** Shares got, or (below zero) sold. */
+  shares: decimal,
+  orderAmount: decimal.nullable(),
+  limitProb: decimal.nullable(),
+  expiresAt: moment.nullable(),
+  isFilled: z.boolean(),
+  isCancelled: z.boolean(),
+  /** Why a limit order stopped: cancelled by its owner, expired, no balance left, or the market ended. */
+  cancelReason: z.enum(['by_owner', 'expired', 'no_balance', 'market_ended']).nullable(),
+  probBefore: decimal.nullable(),
+  probAfter: decimal.nullable(),
+  /** The request ID it was sent with; null for a redemption. */
+  requestId: z.uuid().nullable(),
+  /** Whether a bot's API key placed it (Manifold's `isApi`). */
+  isApi: z.boolean(),
+  at: moment,
+});
+
+/** A page of the person's own trades, newest first. */
+export const myTradesPage = z.object({ trades: z.array(myTrade), next: nextCursor });
+
+/** A page of the person's own trades: where it starts (`cursor`) and how many (`limit`). */
+export const myTradesPageInput = pageInput;
+
 /** A page of positions: where it starts (`cursor`) and how many (`limit`). */
 export const positionsPageInput = pageInput;
 
@@ -244,6 +320,11 @@ export const personalReadErrors = {
 export type Side = z.infer<typeof side>;
 export type Refusal = z.infer<typeof refusal>;
 export type TradeInput = z.output<typeof tradeInput>;
+
+/** Whether a trade's input asks for a dry run. */
+export function isDryRun(input: TradeInput): boolean {
+  return 'dryRun' in input && input.dryRun === true;
+}
 export type TradeResult = z.infer<typeof tradeResult>;
 export type CancelOrderInput = z.output<typeof cancelOrderInput>;
 export type CancelOrderResult = z.infer<typeof cancelOrderResult>;
@@ -253,3 +334,5 @@ export type Position = z.infer<typeof position>;
 export type PositionsPage = z.infer<typeof positionsPage>;
 export type OpenOrder = z.infer<typeof openOrder>;
 export type OrdersPage = z.infer<typeof ordersPage>;
+export type MyTrade = z.infer<typeof myTrade>;
+export type MyTradesPage = z.infer<typeof myTradesPage>;

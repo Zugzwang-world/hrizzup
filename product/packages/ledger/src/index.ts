@@ -27,4 +27,4 @@ export {
   type QuoteRequest,
   quoteTrade,
 } from './quote.ts';
-export { type TradeResult, trade } from './trade.ts';
+export { dryRun, type TradeResult, trade } from './trade.ts';

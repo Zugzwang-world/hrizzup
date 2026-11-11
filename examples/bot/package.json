@@ -1,0 +1,15 @@
+{
+  "name": "@hrizzup/example-bot",
+  "private": true,
+  "description": "Hrizzup's example bot (PLAN.md step 3.5d): a small, readable walk through the public API with a trading key, run with one command, no dependencies. The checks typecheck it and a journey runs it on every pull request's preview.",
+  "type": "module",
+  "scripts": {
+    "start": "node bot.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@hrizzup/tsconfig": "workspace:*",
+    "@types/node": "^24.10.0",
+    "typescript": "6.0.3"
+  }
+}

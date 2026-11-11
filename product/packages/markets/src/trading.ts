@@ -1,18 +1,22 @@
-import type {
-  CancelOrderInput,
-  CancelOrderResult,
-  ListedMarket,
-  MarketList,
-  OrdersPage,
-  PositionsPage,
-  Refusal,
-  Side,
-  TradeInput,
-  TradeResult,
+import {
+  type CancelOrderInput,
+  type CancelOrderResult,
+  DRY_RUN_TRADE_ID,
+  isDryRun,
+  type ListedMarket,
+  type MarketList,
+  type MyTradesPage,
+  type OrdersPage,
+  type PositionsPage,
+  type Refusal,
+  type Side,
+  type TradeInput,
+  type TradeResult,
 } from '@hrizzup/api';
 import { errorCode, type Transaction, transaction } from '@hrizzup/db';
 import {
   type TradeResult as BooksResult,
+  dryRun,
   micros,
   TradeInputError,
   type TradeRequest,
@@ -287,16 +291,25 @@ export async function placeTrade(
   const request = asRequest(input);
   const held = await holdings(pool, account, input.marketId, input.requestId);
   if (!held) throw new TradingError('not_found', 'No such market');
+  // A dry run never answers with a request already answered: it would only be that answer again.
+  const dry = isDryRun(input);
+  if (dry && held.answered) {
+    throw new TradingError(
+      'conflict',
+      'This request ID was already used: a dry run needs a new one',
+    );
+  }
   const before = checkBefore(input, held, now);
   if (before) throw before;
   let result: BooksResult;
   try {
-    result = await trade(pool, account, request);
+    result = dry ? await dryRun(pool, account, request) : await trade(pool, account, request);
   } catch (error) {
     throw asTradingError(error);
   }
   if (result.status === 'refused') throw refused(result.reason);
   if (result.status === 'cancelled') throw new Error('A trade was answered as a cancel');
+  if (dry) return { ...toTradeResult(result), tradeId: DRY_RUN_TRADE_ID, dryRun: true };
   return toTradeResult(result);
 }
 
@@ -413,6 +426,67 @@ export async function openOrders(
       limitProb: row.limit_prob,
       expiresAt: row.expires_at,
       createdAt: row.created_at,
+    })),
+    next: found.next,
+  };
+}
+
+type MyTradeRow = {
+  id: string;
+  market_id: string;
+  question: string;
+  action: 'buy' | 'sell' | 'redeem';
+  outcome: string | null;
+  amount: string;
+  shares: string;
+  order_amount: string | null;
+  limit_prob: string | null;
+  expires_at: string | null;
+  is_filled: boolean;
+  is_cancelled: boolean;
+  cancel_reason: MyTradesPage['trades'][number]['cancelReason'];
+  prob_before: string | null;
+  prob_after: string | null;
+  request_id: string | null;
+  is_api: boolean;
+  at: string;
+};
+
+/**
+ * The signed-in person's own trades in every market, newest first, a page at a time (Manifold's
+ * bets): buys, sales, limit orders (what each has filled so far) and redemptions.
+ */
+export async function myTrades(
+  pool: Database,
+  account: string,
+  page: { after?: string | undefined; limit?: number | undefined } = {},
+): Promise<MyTradesPage> {
+  const found = await read<{ trades: MyTradeRow[]; next: string | null }>(
+    pool,
+    account,
+    'select trading.my_trades($1, $2) as answer',
+    [page.after ?? null, page.limit ?? PAGE_SIZE],
+  );
+  return {
+    trades: found.trades.map((row) => ({
+      id: row.id,
+      marketId: row.market_id,
+      question: row.question,
+      action: row.action,
+      outcome: row.outcome === null ? null : sideOf(row.outcome),
+      amount: row.amount,
+      shares: row.shares,
+      orderAmount: row.order_amount,
+      limitProb: row.limit_prob,
+      expiresAt: row.expires_at,
+      isFilled: row.is_filled,
+      isCancelled: row.is_cancelled,
+      cancelReason: row.cancel_reason,
+      probBefore: row.prob_before,
+      probAfter: row.prob_after,
+      requestId: row.request_id,
+      isApi: row.is_api,
+      at: row.at,
     })),
     next: found.next,
   };
