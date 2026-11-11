@@ -74,3 +74,115 @@ describe('the bot with no market named', () => {
     ).rejects.toThrow('No open market to trade: set HRIZZUP_MARKET');
   });
 });
+
+/**
+ * The API as far as the whole walk, for the perp's part: an account holds one position per side on a
+ * perp, so the bot must never trade one of the person's own. Every call is recorded.
+ */
+function apiWalking(options: { held?: { direction: string; size: string }; openStatus?: string }) {
+  const sent: { method: string; path: string; body?: Record<string, unknown> }[] = [];
+  let size = '0';
+  const fetchStub: typeof fetch = async (input, init) => {
+    const path = String(input).replace('https://staging.hrizzup.com/api/v1', '');
+    const method = init?.method ?? 'GET';
+    const body = init?.body
+      ? (JSON.parse(String(init.body)) as Record<string, unknown>)
+      : undefined;
+    sent.push({ method, path, ...(body ? { body } : {}) });
+    const answer = (value: unknown) => new Response(JSON.stringify(value), { status: 200 });
+    if (path === '/me') return answer({ id: 'an-account' });
+    if (path === '/markets/m') {
+      return answer({
+        market: { question: 'Q?', state: 'open', closes_at: at(86_400) },
+        probability: '0.5',
+      });
+    }
+    if (path === '/perps/p') return answer({ name: 'Bitcoin', price: '100' });
+    if (path.startsWith('/markets/m/quote')) {
+      return answer({ shares: '19', averagePrice: '0.52', probBefore: '0.5', probAfter: '0.55' });
+    }
+    if (path === '/trades' && body?.limitProb) return answer({ status: 'resting', tradeId: 'o1' });
+    if (path === '/orders/cancel') return answer({ status: 'cancelled' });
+    if (path === '/trades' && body?.action === 'buy') {
+      return answer({ amount: '10', shares: '19', probAfter: '0.55', tradeId: 't1' });
+    }
+    if (path === '/trades') return answer({ amount: '-4.9', shares: '-9.5', tradeId: 't2' });
+    if (path.startsWith('/perps/p/quote')) {
+      return answer({ size: '20', fee: '0.02', liquidationPrice: '50', price: '100' });
+    }
+    if (path === '/me/perps') {
+      const positions =
+        options.held && sent.filter((one) => one.path === '/me/perps').length === 1
+          ? [{ perpId: 'p', ...options.held }]
+          : [];
+      return answer({ balance: '1000', positions });
+    }
+    if (path === '/perps/open') {
+      size = '20';
+      return answer({
+        status: options.openStatus ?? 'opened',
+        price: '100',
+        fee: '0.02',
+        margin: '10',
+        position: { size },
+      });
+    }
+    if (path === '/perps/close') {
+      const fraction = Number(body?.fraction);
+      size = fraction >= 1 ? '0' : '10';
+      return answer({ price: '101', payout: '5', position: size === '0' ? null : { size } });
+    }
+    if (path === '/me/positions') return answer({ balance: '1000', positions: [] });
+    if (path === '/me/orders') return answer({ orders: [] });
+    if (path.startsWith('/me/trades')) return answer({ trades: [] });
+    throw new Error(`unexpected ${method} ${path}`);
+  };
+  return { sent, fetchStub };
+}
+
+describe("the bot and the account's own perp position", () => {
+  const walk = (stub: ReturnType<typeof apiWalking>) => {
+    const lines: string[] = [];
+    return {
+      lines,
+      run: runBot({
+        key: 'a-key',
+        market: 'm',
+        perp: 'p',
+        fetch: stub.fetchStub,
+        log: (line) => lines.push(line),
+        now: () => NOW,
+      }),
+    };
+  };
+  const perpCalls = (sent: { method: string; path: string }[]) =>
+    sent.filter((one) => one.method === 'POST' && one.path.startsWith('/perps/'));
+
+  it('leaves the perp alone when the account already holds a position there, saying why', async () => {
+    const stub = apiWalking({ held: { direction: 'long', size: '5000' } });
+    const { lines, run } = walk(stub);
+    const ran = await run;
+    expect(perpCalls(stub.sent)).toEqual([]);
+    expect(ran.opened).toBeNull();
+    expect(lines.join('\n')).toContain('You hold a long of 5000 on this perp already');
+  });
+
+  it('with nothing held, opens and closes exactly what it opened: half, then the rest, each sized on its own', async () => {
+    const stub = apiWalking({});
+    await walk(stub).run;
+    expect(perpCalls(stub.sent).map((one) => [one.path, (one as { body?: object }).body])).toEqual([
+      ['/perps/open', expect.objectContaining({ direction: 'long', margin: '10', leverage: '2' })],
+      ['/perps/close', expect.objectContaining({ fraction: '0.5', expectedSize: '20' })],
+      ['/perps/close', expect.objectContaining({ fraction: '1', expectedSize: '10' })],
+    ]);
+  });
+
+  it("closes nothing when its open was added to a position that appeared meanwhile: it isn't all the bot's", async () => {
+    const stub = apiWalking({ openStatus: 'added' });
+    const { lines, run } = walk(stub);
+    const ran = await run;
+    expect(perpCalls(stub.sent).map((one) => one.path)).toEqual(['/perps/open']);
+    expect(ran.closedHalf).toBeNull();
+    expect(lines.join('\n')).toContain('closes nothing');
+  });
+});

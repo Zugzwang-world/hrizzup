@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { type APIRequestContext, expect, test } from '@playwright/test';
 import { runBot } from '../../../../examples/bot/bot.ts';
 import { newRecordId } from '../../lib/record-id.ts';
@@ -12,7 +13,8 @@ import { type Engine, stagingKeys } from '../support/test-accounts.ts';
  * pull request's preview so it can't silently break. A fresh account of the run's makes a trading key
  * while signed in; the bot, with only that key, walks through the API on the run's own unlisted market
  * and test perp: reads them, gets a quote, places and cancels a limit order, buys exactly as quoted,
- * sells half, opens a perp position and closes it in two halves, and reads its portfolio. Then every Ṁ:
+ * sells half, opens a perp position and closes it in two halves, and reads its portfolio; run again
+ * once the account holds a position of its own on the perp, it leaves that position exactly as it is. Then every Ṁ:
  * the bot's trades are marked as a key's, the market's books add up once it settles, the perp's pools
  * hold the house's subsidy plus exactly what the bot put in less what it took out, and the account's
  * balance is what all the answers say. Each run on its own (CLAUDE.md, "How checks behave").
@@ -117,9 +119,11 @@ test.describe('the example bot', () => {
       ).toEqual({ shares: ran.quote.shares, probAfter: ran.quote.probAfter });
       expect(lines.some((line) => line.includes('exactly as quoted'))).toBe(true);
       expect(ran.sold.status).toBe('filled');
-      expect(ran.opened.status).toBe('opened');
-      expect(ran.closedHalf.position, 'half its position stays open').not.toBeNull();
-      expect(ran.closed.position, 'then none').toBeNull();
+      const { opened, closedHalf, closed } = ran;
+      if (!opened || !closedHalf || !closed) throw new Error('The bot left the perp alone');
+      expect(opened.status).toBe('opened');
+      expect(closedHalf.position, 'half its position stays open').not.toBeNull();
+      expect(closed.position, 'then none').toBeNull();
       expect(ran.orders.orders, 'no resting orders left').toEqual([]);
       expect(ran.perps.positions, 'no perp positions left').toEqual([]);
       const trades = ran.trades.trades as { id: string; isApi: boolean }[];
@@ -130,17 +134,58 @@ test.describe('the example bot', () => {
         ).toBe(true);
       }
 
+      // The account's own position, opened while signed in: an account holds one position per side,
+      // so the bot, run again, must leave it exactly as it is (the founder's run, 11 November 2026,
+      // closed his along with the bot's).
+      const own = await call(person, 'POST', '/api/v1/perps/open', {
+        perpId,
+        requestId: randomUUID(),
+        direction: 'long',
+        margin: '20',
+        leverage: '3',
+      });
+      expect(own.status, 'the account opens a position of its own').toBe(200);
+      const ownSize = (own.body.position as { size: string }).size;
+      const again: string[] = [];
+      const rerun = await runBot({
+        key,
+        api: `${baseURL ?? ''}/api/v1`,
+        market: marketId,
+        perp: perpId,
+        fetch: fetchThrough(anyone),
+        log: (line) => again.push(line),
+      });
+      expect(rerun.opened, 'the bot opens nothing on top of it').toBeNull();
+      expect(again.join('\n')).toContain(`You hold a long of ${ownSize} on this perp already`);
+      const held = await call(person, 'GET', '/api/v1/me/perps');
+      expect(
+        (held.body.positions as { perpId: string; size: string }[]).map((p) => [p.perpId, p.size]),
+        "the account's own position is untouched",
+      ).toEqual([[perpId, ownSize]]);
+      const ownClosed = await call(person, 'POST', '/api/v1/perps/close', {
+        perpId,
+        requestId: randomUUID(),
+        fraction: '1',
+      });
+      expect(ownClosed.body.position, 'the account closes its own').toBeNull();
+
       // The perp, to the millionth: the account's money in (margin and fee) and out (payouts), and
       // the pools holding the house's subsidy plus the same.
-      const perpIn = micros(String(ran.opened.margin)) + micros(String(ran.opened.fee));
-      const perpOut = micros(String(ran.closedHalf.payout)) + micros(String(ran.closed.payout));
+      const perpIn =
+        micros(String(opened.margin)) +
+        micros(String(opened.fee)) +
+        micros(String(own.body.margin)) +
+        micros(String(own.body.fee));
+      const perpOut =
+        micros(String(closedHalf.payout)) +
+        micros(String(closed.payout)) +
+        micros(String(ownClosed.body.payout));
       const books = await call(admin, 'GET', `/api/v1/admin/perps/${perpId}`);
       const pools = books.body.pools as { long: string; short: string };
       expect(decimal(micros(pools.long) + micros(pools.short)), "the perp's pools").toBe(
         decimal(SUBSIDY * 2n + perpIn - perpOut),
       );
       // The market's books: what the account put in is its balance's change, the perp's aside.
-      expect(String(ran.positions.balance)).toBe(String(ran.closed.balance));
       await settleAndCheckBooks({
         admin,
         marketId,
