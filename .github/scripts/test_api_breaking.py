@@ -74,7 +74,9 @@ class WithOasdiff(unittest.TestCase):
 
     def test_adding_a_call_or_an_answers_field_passes(self):
         def add(doc):
-            doc["paths"]["/markets/{id}/history"] = copy.deepcopy(doc["paths"]["/perps/{id}"])
+            # A call v1 doesn't have (a market's comments): an addition, never a change.
+            self.assertNotIn("/markets/{id}/comments", doc["paths"])
+            doc["paths"]["/markets/{id}/comments"] = copy.deepcopy(doc["paths"]["/perps/{id}"])
             self.market_list(doc)["properties"]["total"] = {"type": "integer"}
         code, said = self.verdict(add)
         self.assertEqual(code, 0, said)
