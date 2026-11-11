@@ -147,11 +147,15 @@ describe('an MCP client', () => {
     });
     expect(answer.isError).toBeFalsy();
     expect(answer.structuredContent).toEqual(marketQuote);
-    expect(calls.marketQuote).toHaveBeenCalledWith(pool, {
-      id: marketQuote.marketId,
-      outcome: 'yes',
-      amount: '25',
-    });
+    expect(calls.marketQuote).toHaveBeenCalledWith(
+      pool,
+      {
+        id: marketQuote.marketId,
+        outcome: 'yes',
+        amount: '25',
+      },
+      expect.any(Function),
+    );
     await client.close();
   });
 

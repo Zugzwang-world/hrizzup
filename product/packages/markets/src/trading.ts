@@ -23,6 +23,7 @@ import {
   trade,
 } from '@hrizzup/ledger';
 import type { Pool } from 'pg';
+import { type ClosingWatch, shownMarket, shownState } from './shown.ts';
 
 /**
  * The markets for everyone (PLAN.md step 1.7d; blueprint sections 5 and 13): the list anyone may
@@ -152,11 +153,14 @@ const utc = (moment: string) => new Date(moment).toISOString();
 /**
  * The markets anyone may see, newest first, a page at a time, each the agreement's record with its
  * probability now. Read with nobody signed in, whoever asks: the answer is the same for everyone, so
- * the API may keep it at the edge.
+ * the API may keep it at the edge. A market still stored as open but past its closing time is shown
+ * as closed (`shown.ts`); `watch`, when given, is told when each market shown as open will stop being
+ * open, so the edge's copy of this page can end by then.
  */
 export async function marketList(
   pool: Database,
   page: { after?: string | undefined; limit?: number | undefined } = {},
+  watch?: ClosingWatch,
 ): Promise<MarketList> {
   const found = await read<{ markets: ListedMarket[]; next: string | null }>(
     pool,
@@ -164,7 +168,11 @@ export async function marketList(
     'select trading.markets($1, $2) as answer',
     [page.after ?? null, page.limit ?? PAGE_SIZE],
   );
-  return { markets: found.markets, next: found.next };
+  const now = Date.now();
+  return {
+    markets: found.markets.map((listed) => shownMarket(listed, now, watch)),
+    next: found.next,
+  };
 }
 
 // Trading ----------------------------------------------------------------------------------------------
@@ -372,12 +380,13 @@ export async function positions(
     'select trading.positions($1, $2) as answer',
     [page.after ?? null, page.limit ?? PAGE_SIZE],
   );
+  const now = Date.now();
   return {
     balance: found.balance,
     positions: found.positions.map((row) => ({
       marketId: row.market_id,
       question: row.question,
-      state: row.state,
+      state: shownState(row.state, row.closes_at, now),
       closesAt: row.closes_at,
       yes: row.yes,
       no: row.no,

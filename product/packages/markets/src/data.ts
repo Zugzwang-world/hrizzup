@@ -11,6 +11,7 @@ import type {
 } from '@hrizzup/api';
 import { type MarketState, type QuoteRequest, quoteTrade } from '@hrizzup/ledger';
 import type { Pool } from 'pg';
+import { type ClosingWatch, shownMarket } from './shown.ts';
 import { PAGE_SIZE, REFUSALS, read, TradingError } from './trading.ts';
 
 /**
@@ -34,8 +35,16 @@ function notFound(): TradingError {
   return new TradingError('not_found', 'No such market');
 }
 
-/** One market by its address: any that isn't a draft, listed or not, as the list gives it. */
-export async function oneMarket(pool: Database, id: string): Promise<ListedMarket> {
+/**
+ * One market by its address: any that isn't a draft, listed or not, as the list gives it. A market
+ * still stored as open but past its closing time is shown as closed (`shown.ts`); `watch`, when given,
+ * is told when a market shown as open will stop being open.
+ */
+export async function oneMarket(
+  pool: Database,
+  id: string,
+  watch?: ClosingWatch,
+): Promise<ListedMarket> {
   const found = await read<ListedMarket | null>(
     pool,
     null,
@@ -43,7 +52,7 @@ export async function oneMarket(pool: Database, id: string): Promise<ListedMarke
     [id],
   );
   if (!found) throw notFound();
-  return found;
+  return shownMarket(found, Date.now(), watch);
 }
 
 /** A market's chance of Yes after each trade over a range (everything, when not given). */
@@ -167,9 +176,14 @@ export function quoteOn(input: MarketQuoteInput, state: MarketState): MarketQuot
 /**
  * A public quote for any size: what a buy (now or as a limit order) or a sale would do now, as if the
  * asker could pay exactly what they ask about. Refused as the trade would be: a market that isn't
- * open or is past its closing time, or a price at its limit.
+ * open or is past its closing time, or a price at its limit. `watch`, when given, is told when the
+ * market, if it's open, will stop being open: a quote that fills now is refused from then on.
  */
-export async function marketQuote(pool: Database, input: MarketQuoteInput): Promise<MarketQuote> {
+export async function marketQuote(
+  pool: Database,
+  input: MarketQuoteInput,
+  watch?: ClosingWatch,
+): Promise<MarketQuote> {
   const selling = input.action === 'sell' ? input.shares : undefined;
   const state = await quoteStateFor(pool, input.id, {
     balance: input.action === 'sell' ? '0' : (input.amount ?? '0'),
@@ -179,5 +193,6 @@ export async function marketQuote(pool: Database, input: MarketQuoteInput): Prom
     },
   });
   if (!state) throw notFound();
+  if (state.market.state === 'open') watch?.(Date.parse(state.market.closes_at));
   return quoteOn(input, state);
 }
