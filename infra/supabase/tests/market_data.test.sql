@@ -12,7 +12,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(48);
+select plan(53);
 
 create function pg_temp.as_app(account text, query text)
 returns text
@@ -225,6 +225,19 @@ select is(
   'a draft, a market settled at a set probability, and no market at all: nothing'
 );
 
+-- A market the ledger made with no question (as the ledger's own tests do), unreadable everywhere.
+select is(
+  (select array[
+     pg_temp.read(format('select market_data.one_market(%L)', m)),
+     pg_temp.read(format('select market_data.market_history(%L, ''all'')', m)),
+     pg_temp.read(format('select market_data.book(%L)', m)),
+     pg_temp.read(format('select market_data.trades(%L, null, 10)', m)),
+     pg_temp.read(format('select market_data.quote_state(%L)', m))]
+   from markets.create_market(now() + interval '1 day', 0.5, 100) as m),
+  array[null, null, null, null, null]::jsonb[],
+  'a market with no question (made by the ledger alone) is no one''s to read'
+);
+
 -- Its history -------------------------------------------------------------------------------------------
 
 select is(
@@ -351,11 +364,8 @@ select is(
   'no public read names anyone: no account, no sign-in, no email'
 );
 select is(
-  (select array_agg(t ->> 'probAfter' order by n)
-   from jsonb_array_elements(pg_temp.read(format(
-     'select market_data.trades(%L, null, 3)', pg_temp.market(3))) -> 'trades')
-     with ordinality as x (t, n)),
-  null,
+  pg_temp.read(format('select market_data.trades(%L, null, 3)', pg_temp.market(3))),
+  '{"trades": [], "next": null}'::jsonb,
   'trades with nothing filled as they were placed aren''t listed (the hand-made ones in market 3)'
 );
 insert into markets.fills (trade_id, matched_trade_id, amount, shares, created_at)
@@ -403,6 +413,32 @@ select is(
   pg_temp.read(format('select market_data.quote_state(%L)', pg_temp.market(2))),
   null,
   'a draft can''t be quoted'
+);
+-- The same market as a trade's own start finds it (Zoe's, below, as the app's role), owners put back
+-- in place of their tokens: the same market, orders and balances, so the maths sees the same.
+insert into auth.users (id, email) values ('00000000-0000-4000-8000-0000000000f4', 'zoe@data.test');
+select ok(ledger.open_account('00000000-0000-4000-8000-0000000000f4', 50) is not null, 'Zoe has Ṁ50');
+create temporary table compared on commit drop as
+select pg_temp.read(format('select market_data.quote_state(%L)', pg_temp.market(1))) as quote,
+       pg_temp.as_app('00000000-0000-4000-8000-0000000000f4', format(
+         $q$select markets.begin_trade('00000000-0000-4000-8000-00000000a0ff', %L, 'buy',
+              '{"outcome": "YES", "amount": "1.000000"}')$q$, pg_temp.market(1)))::jsonb as trade;
+select is(
+  (select jsonb_build_object(
+     'market', c.quote -> 'market',
+     'orders', (select jsonb_agg(o - 'account_id' order by n)
+                from jsonb_array_elements(c.quote -> 'orders') with ordinality as x (o, n)),
+     'owners', (select jsonb_agg(c.quote -> 'balances' -> (o ->> 'account_id') order by n)
+                from jsonb_array_elements(c.quote -> 'orders') with ordinality as x (o, n)))
+   from compared c),
+  (select jsonb_build_object(
+     'market', c.trade -> 'market',
+     'orders', (select jsonb_agg(o - 'account_id' order by n)
+                from jsonb_array_elements(c.trade -> 'orders') with ordinality as x (o, n)),
+     'owners', (select jsonb_agg(c.trade -> 'balances' -> (o ->> 'account_id') order by n)
+                from jsonb_array_elements(c.trade -> 'orders') with ordinality as x (o, n)))
+   from compared c),
+  'a quote finds the market as a trade''s own start does: the same pool, orders in the same order, the same balances behind them'
 );
 
 -- Our own Bitcoin price ----------------------------------------------------------------------------------
@@ -465,6 +501,41 @@ select is(
   pg_temp.read('select market_data.perp_quote_state(''019a7100-0009-7000-8000-000000000009'')'),
   null,
   'no such perp: nothing'
+);
+-- Two open positions on it, put in by hand: Ann's long and Raj's short.
+insert into perps.positions (id, perp_id, account_id, direction, size, cost_basis,
+                             original_cost_basis, taker_fee_cost_basis, entry_price, leverage,
+                             liquidation_price, opened_at, updated_at)
+select p.id, (select x.id from perps.perps x where x.listed), a.id, p.direction, 1000, 100, 100, 1,
+       71000, 10, p.liquidation, now() - p.ago, now() - p.ago
+from (values
+  ('00000000-0000-4000-8000-00000000b001'::uuid, '00000000-0000-4000-8000-0000000000f2'::uuid, 'long',
+   63900, interval '2 minutes'),
+  ('00000000-0000-4000-8000-00000000b002'::uuid, '00000000-0000-4000-8000-0000000000f3'::uuid, 'short',
+   78100, interval '1 minute')
+) as p (id, owner, direction, liquidation, ago)
+join ledger.accounts a on a.user_id = p.owner and a.kind = 'person';
+select is(
+  (select jsonb_agg(jsonb_build_object('id', x ->> 'id', 'accountId', x ->> 'accountId',
+                                       'direction', x ->> 'direction', 'size', x ->> 'size') order by n)
+   from jsonb_array_elements(pg_temp.read(format('select market_data.perp_quote_state(%L)',
+     (select p.id from perps.perps p where p.listed))) -> 'positions') with ordinality as y (x, n)),
+  '[{"id": "p1", "accountId": "o1", "direction": "long", "size": "1000"},
+    {"id": "p2", "accountId": "o2", "direction": "short", "size": "1000"}]'::jsonb,
+  'its open positions, oldest first, each owner and ID a token, the figures the maths needs kept'
+);
+select is(
+  (select count(*)::integer
+   from regexp_matches(
+     pg_temp.read(format('select market_data.perp_quote_state(%L)',
+       (select p.id from perps.perps p where p.listed)))::text,
+     '00000000b00[0-9]|' || (select string_agg(a.id::text, '|') from ledger.accounts a
+                              where a.user_id::text like '%0000000000f_')
+     || '|' || (select p.long_account_id::text || '|' || p.short_account_id::text
+                from perps.perps p where p.listed),
+     'g')),
+  0,
+  '... and no account, position or pool ID anywhere in it'
 );
 
 -- A bot's own trades -----------------------------------------------------------------------------------

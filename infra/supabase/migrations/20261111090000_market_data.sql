@@ -71,8 +71,9 @@ begin
 end;
 $$;
 
--- A market anyone may read: any that isn't a draft, nor settled at a set probability (which market/1
--- can't describe yet). Null for anything else.
+-- A market anyone may read: any made through the console (with its question, so the agreement's
+-- record describes it) that isn't a draft, nor settled at a set probability (which market/1 can't
+-- describe yet). Null for anything else.
 create function market_data.readable(wanted uuid)
 returns markets.markets
 language sql
@@ -82,7 +83,8 @@ set search_path = ''
 as $$
   select m.*
   from markets.markets m
-  where m.id = wanted and m.state <> 'draft' and m.resolution is distinct from 'MKT';
+  where m.id = wanted and m.state <> 'draft' and m.resolution is distinct from 'MKT'
+    and exists (select 1 from markets.details d where d.market_id = m.id);
 $$;
 
 
@@ -140,11 +142,14 @@ begin
   opened := coalesce(opened, m.created_at);
   since := market_data.range_start(range, opened);
 
-  select t.prob_after into starting
-  from markets.trades t
-  where t.market_id = m.id and t.created_at < since and t.prob_after is not null
-  order by t.number desc
-  limit 1;
+  -- (Over everything, no trade comes before the range: nothing to look for.)
+  if since > opened then
+    select t.prob_after into starting
+    from markets.trades t
+    where t.market_id = m.id and t.created_at < since and t.prob_after is not null
+    order by t.number desc
+    limit 1;
+  end if;
   -- Before any trade, the pool's two sides are equal, so its chance is its constant p.
   starting := coalesce(starting, m.p);
 
@@ -500,10 +505,16 @@ begin
                        || jsonb_build_object('id', 'p' || o.n, 'accountId', 'o' || o.owner)
                        order by o.n)
       from (
-        select y.*, row_number() over (order by y.opened_at, y.id) as n,
-               dense_rank() over (order by y.account_id) as owner
-        from perps.positions y
-        where y.perp_id = p.id and y.closed_at is null
+        -- Each owner numbered by their first position, as the positions are.
+        select f.*, dense_rank() over (order by f.first_n) as owner
+        from (
+          select r.*, min(r.n) over (partition by r.account_id) as first_n
+          from (
+            select y.id, y.account_id, row_number() over (order by y.opened_at, y.id) as n
+            from perps.positions y
+            where y.perp_id = p.id and y.closed_at is null
+          ) r
+        ) f
       ) o
       join perps.positions x on x.id = o.id), '[]'::jsonb),
     'trader', null
