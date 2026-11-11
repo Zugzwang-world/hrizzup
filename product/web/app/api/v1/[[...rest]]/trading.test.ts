@@ -126,16 +126,24 @@ describe('the market list', () => {
       'max-age=60, stale-while-revalidate=300',
     );
     expect(listed.headers['vercel-cache-tag']).toBe('markets');
-    expect(calls.marketList).toHaveBeenCalledWith(pool, { after: undefined });
+    expect(calls.marketList).toHaveBeenCalledWith(pool, { after: undefined }, expect.any(Function));
     expect(signedIn).not.toHaveBeenCalled();
   });
 
   it('pages by cursor and limit, and refuses anything else sent in the one format, never kept', async () => {
     calls.marketList.mockResolvedValue(marketList);
     await answer('GET', `/api/v1/markets?cursor=${MARKET}`);
-    expect(calls.marketList).toHaveBeenCalledWith(pool, { after: MARKET, limit: undefined });
+    expect(calls.marketList).toHaveBeenCalledWith(
+      pool,
+      { after: MARKET, limit: undefined },
+      expect.any(Function),
+    );
     await answer('GET', `/api/v1/markets?cursor=${MARKET}&limit=20`);
-    expect(calls.marketList).toHaveBeenLastCalledWith(pool, { after: MARKET, limit: 20 });
+    expect(calls.marketList).toHaveBeenLastCalledWith(
+      pool,
+      { after: MARKET, limit: 20 },
+      expect.any(Function),
+    );
     for (const [query, path] of [
       ['?unexpected=1', ''],
       [`?after=${MARKET}`, ''],

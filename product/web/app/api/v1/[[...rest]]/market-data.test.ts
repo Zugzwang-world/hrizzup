@@ -124,11 +124,15 @@ describe('the market data', () => {
     }
     expect(calls.marketHistory).toHaveBeenCalledWith(pool, MARKET, '1d');
     expect(calls.marketTrades).toHaveBeenCalledWith(pool, MARKET, { cursor: undefined, limit: 10 });
-    expect(calls.marketQuote).toHaveBeenCalledWith(pool, {
-      id: MARKET,
-      outcome: 'yes',
-      amount: '25',
-    });
+    expect(calls.marketQuote).toHaveBeenCalledWith(
+      pool,
+      {
+        id: MARKET,
+        outcome: 'yes',
+        amount: '25',
+      },
+      expect.any(Function),
+    );
     expect(signedIn).not.toHaveBeenCalled();
   });
 
@@ -204,5 +208,62 @@ describe("the perp's quote and our own price", () => {
     expect(refused.body).toMatchObject({ code: 'REFUSED', data: { reason: 'leverage_too_high' } });
     const other = await get('/api/v1/prices/eth-usd');
     expect(other.status).toBe(400);
+  });
+});
+
+describe('a market that is about to close', () => {
+  const NOW = Date.parse('2026-11-11T10:00:00Z');
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(NOW);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** A read that answers `answer` and tells the API its market closes `seconds` from now. */
+  const closingIn =
+    (seconds: number, answer: unknown) =>
+    async (...args: unknown[]) => {
+      (args.at(-1) as (closesAt: number) => void)(NOW + seconds * 1000);
+      return answer;
+    };
+
+  it("is kept at the edge only until it closes: its copy never outlives the closing time, fresh or stale, whatever the contract's rule", async () => {
+    calls.oneMarket.mockImplementation(closingIn(100, oneMarket));
+    calls.marketQuote.mockImplementation(closingIn(100, marketQuote));
+    // A hundred seconds left, less the margin's one: fresh for 60, then stale for the 39 left.
+    const one = await get(`/api/v1/markets/${MARKET}`);
+    expect(one.status).toBe(200);
+    expect(one.headers['vercel-cdn-cache-control']).toBe('max-age=60, stale-while-revalidate=39');
+    // A quote's rule is shorter (10 and 60): fresh for 10, then stale for the 60 the rule allows.
+    const quoted = await get(`/api/v1/markets/${MARKET}/quote?outcome=yes&amount=25`);
+    expect(quoted.headers['vercel-cdn-cache-control']).toBe(
+      'max-age=10, stale-while-revalidate=60',
+    );
+
+    // Thirty seconds left: fresh for the 29, never stale.
+    calls.oneMarket.mockImplementation(closingIn(30, oneMarket));
+    const near = await get(`/api/v1/markets/${MARKET}`);
+    expect(near.headers['vercel-cdn-cache-control']).toBe('max-age=29, stale-while-revalidate=0');
+    expect(near.headers['vercel-cache-tag']).toBe('markets');
+
+    // Within the margin of closing, or already past it: not kept at all.
+    calls.oneMarket.mockImplementation(closingIn(1, oneMarket));
+    const last = await get(`/api/v1/markets/${MARKET}`);
+    expect(last.headers['vercel-cdn-cache-control']).toBe('max-age=0, stale-while-revalidate=0');
+    calls.oneMarket.mockImplementation(closingIn(-5, oneMarket));
+    const past = await get(`/api/v1/markets/${MARKET}`);
+    expect(past.headers['vercel-cdn-cache-control']).toBe('max-age=0, stale-while-revalidate=0');
+  });
+
+  it("keeps the contract's rule for a market that closes later than the rule would keep a copy", async () => {
+    calls.oneMarket.mockImplementation(closingIn(3600, oneMarket));
+    const later = await get(`/api/v1/markets/${MARKET}`);
+    expect(later.headers['vercel-cdn-cache-control']).toBe(
+      'max-age=60, stale-while-revalidate=300',
+    );
   });
 });

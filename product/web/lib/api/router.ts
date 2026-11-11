@@ -45,7 +45,7 @@ import {
   type ServiceResult,
 } from '@/lib/health/checks.ts';
 import { appAuthSettings, appEmailCode } from './auth.ts';
-import { cacheHeaders } from './caching.ts';
+import { cacheHeaders, EdgeExpiry } from './caching.ts';
 import { asAdmin, consoleCall } from './console.ts';
 import type { ApiContext } from './context.ts';
 import { MARKET_ACTIVITY_TAG, MARKETS_TAG, refreshEdge } from './edge-cache.ts';
@@ -64,14 +64,19 @@ import {
 /**
  * The typed API's real implementation (the contract is in product/packages/api). Every call
  * gets the caching headers its contract entry asks for, set in one place below, and answers a
- * refused input in the one format (ground-rules.ts), whoever refused it.
+ * refused input in the one format (ground-rules.ts), whoever refused it. A read that shows a
+ * market as open is told by the call, through `context.expiry`, when it closes, and its copy at
+ * the edge ends by then (caching.ts).
  */
 const api = implement(contract)
   .$context<ApiContext & ResponseHeadersPluginContext>()
   .use(async ({ context, procedure, next }) => {
+    const expiry = new EdgeExpiry();
     try {
-      const result = await next();
-      for (const [name, value] of Object.entries(cacheHeaders(procedure['~orpc'].meta.caching))) {
+      const result = await next({ context: { expiry } });
+      for (const [name, value] of Object.entries(
+        cacheHeaders(procedure['~orpc'].meta.caching, expiry.at),
+      )) {
         context.resHeaders?.set(name, value);
       }
       return result;
@@ -167,12 +172,12 @@ export const router = api.router({
   },
 
   markets: {
-    list: api.markets.list.handler(({ input }) =>
-      tradingCall(() => marketList(tradingPool(), pageOf(input))),
+    list: api.markets.list.handler(({ context, input }) =>
+      tradingCall(() => marketList(tradingPool(), pageOf(input), context.expiry.endsAt)),
     ),
     // The market data (3.5c): public, the same for everyone, each read with nobody signed in.
-    get: api.markets.get.handler(({ input }) =>
-      tradingCall(() => oneMarket(tradingPool(), input.id)),
+    get: api.markets.get.handler(({ context, input }) =>
+      tradingCall(() => oneMarket(tradingPool(), input.id, context.expiry.endsAt)),
     ),
     history: api.markets.history.handler(({ input }) =>
       tradingCall(() => marketHistory(tradingPool(), input.id, input.range)),
@@ -185,8 +190,8 @@ export const router = api.router({
         marketTrades(tradingPool(), input.id, { cursor: input.cursor, limit: input.limit }),
       ),
     ),
-    quote: api.markets.quote.handler(({ input }) =>
-      tradingCall(() => marketQuote(tradingPool(), input)),
+    quote: api.markets.quote.handler(({ context, input }) =>
+      tradingCall(() => marketQuote(tradingPool(), input, context.expiry.endsAt)),
     ),
     trade: api.markets.trade.handler(async ({ context, input }) => {
       const user = await person(context.headers, 'trade');

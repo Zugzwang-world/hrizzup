@@ -8,7 +8,8 @@
  *   node examples/bot/bot.ts
  *
  * Optional: HRIZZUP_API_URL (staging's API by default), HRIZZUP_MARKET (a market's ID; the newest open
- * market by default) and HRIZZUP_PERP (a perp's ID; the Bitcoin perp by default). The key is read from
+ * market by default, skipping any that is closed, past its closing time or about to close) and
+ * HRIZZUP_PERP (a perp's ID; the Bitcoin perp by default). The key is read from
  * the environment and never printed. Every trade carries a new request ID, so a retry never trades
  * twice. The docs: https://staging.hrizzup.com/docs
  */
@@ -27,6 +28,8 @@ export type Options = {
   fetch?: typeof fetch;
   /** Where each line of the walk goes (the terminal unless given). */
   log?: (line: string) => void;
+  /** The time now, in milliseconds (the clock unless given). */
+  now?: () => number;
 };
 
 type Json = Record<string, unknown>;
@@ -43,6 +46,21 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * How long a market must stay open, in milliseconds, for the bot to pick it: a trade is refused from a
+ * market's closing time on, and the walk's market trades take a few seconds, so one about to close is
+ * skipped rather than picked and refused halfway.
+ */
+export const MIN_OPEN_MS = 60_000;
+
+/** Whether a market from the list is open now and stays open long enough for the walk. */
+export function staysOpen(
+  market: { state: string; closes_at: string },
+  now: number = Date.now(),
+): boolean {
+  return market.state === 'open' && Date.parse(market.closes_at) - now >= MIN_OPEN_MS;
+}
+
 /** Half of an amount written as exact decimal text (to the millionth), rounded down. */
 function half(amount: string): string {
   const [whole = '0', fraction = ''] = amount.replace('-', '').split('.');
@@ -55,6 +73,7 @@ export async function runBot(options: Options) {
   const api = (options.api ?? STAGING).replace(/\/$/, '');
   const send = options.fetch ?? fetch;
   const log = options.log ?? ((line: string) => console.log(line));
+  const now = options.now ?? Date.now;
 
   /** One call. Public reads go without the key, so the edge's copy can answer them. */
   async function call(method: 'GET' | 'POST', path: string, body?: Json, withKey = true) {
@@ -80,10 +99,12 @@ export async function runBot(options: Options) {
   // 2. A market and the perp.
   let marketId = options.market;
   if (!marketId) {
+    // The newest market that is open and stays open: one that is closed, or past its closing time
+    // whatever its state says, or about to close, would refuse the bot's first trade.
     const listed = await read('/markets?limit=50');
-    const open = (listed.markets as { market: { id: string; state: string } }[]).find(
-      (item) => item.market.state === 'open',
-    );
+    const open = (
+      listed.markets as { market: { id: string; state: string; closes_at: string } }[]
+    ).find((item) => staysOpen(item.market, now()));
     if (!open) throw new Error('No open market to trade: set HRIZZUP_MARKET');
     marketId = open.market.id;
   }

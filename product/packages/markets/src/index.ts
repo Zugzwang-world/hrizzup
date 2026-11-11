@@ -19,6 +19,7 @@ export {
   quoteOn,
   quoteStateFor,
 } from './data.ts';
+export { type ClosingWatch, shownMarket, shownState } from './shown.ts';
 export {
   asTradingError,
   cancelOrder,

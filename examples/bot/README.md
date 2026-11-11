@@ -26,7 +26,7 @@ It prints each step, and `Done.` at the end. Each trade carries a new request ID
 |---|---|---|
 | `HRIZZUP_API_KEY` | A trading key (`hz_demo_…`) | The bot stops and says so |
 | `HRIZZUP_API_URL` | The API's address | `https://staging.hrizzup.com/api/v1` |
-| `HRIZZUP_MARKET` | A market's ID to trade in | The newest open market |
+| `HRIZZUP_MARKET` | A market's ID to trade in | The newest open market: one that is closed, past its closing time or closes within a minute is skipped |
 | `HRIZZUP_PERP` | A perp's ID to trade | The Bitcoin perp |
 
 ## Kept working
