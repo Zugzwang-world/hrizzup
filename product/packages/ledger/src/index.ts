@@ -20,4 +20,11 @@ export {
   TradeInputError,
   type TradeRequest,
 } from './plan.ts';
+export {
+  postgresDivideRound,
+  probabilityOf,
+  type Quote,
+  type QuoteRequest,
+  quoteTrade,
+} from './quote.ts';
 export { type TradeResult, trade } from './trade.ts';

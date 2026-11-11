@@ -32,10 +32,14 @@ export const pageLimit = z.coerce
   .max(MOST_A_PAGE, `Must be at most ${MOST_A_PAGE}`)
   .describe(`How many to a page: 1 to ${MOST_A_PAGE} (${DEFAULT_PAGE} when not sent)`);
 
+/**
+ * A page's two fields, the same in every list: where it starts, and how many to a page. A list of
+ * one thing's own (a market's trades) takes them beside that thing's address.
+ */
+export const pageFields = { cursor: cursor.optional(), limit: pageLimit.optional() };
+
 /** A list's input: where the page starts, and how many to a page. Neither is needed. */
-export const pageInput = z
-  .strictObject({ cursor: cursor.optional(), limit: pageLimit.optional() })
-  .optional();
+export const pageInput = z.strictObject(pageFields).optional();
 
 /** Where the next page starts: send it as `cursor`. Null on the last page. */
 export const nextCursor = z

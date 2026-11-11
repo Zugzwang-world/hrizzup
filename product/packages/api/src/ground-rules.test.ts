@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { z } from 'zod';
 import { contract } from './contract.ts';
-import { commonErrors, pageInput, pageLimit } from './paging.ts';
+import { commonErrors, pageFields, pageInput, pageLimit } from './paging.ts';
 import { procedures } from './procedures.ts';
 
 /**
@@ -40,13 +40,21 @@ describe('the ground rules, for every call', () => {
         'admin.markets.list',
         'admin.perps.list',
         'markets.list',
+        'markets.trades',
         'portfolio.orders',
         'portfolio.perps',
         'portfolio.positions',
       ].sort(),
     );
+    // A list takes the page's two fields and nothing else; a list of one thing's own (a market's
+    // trades) takes them beside that thing's address, the very same fields.
     for (const [name, procedure] of lists) {
-      expect(procedure['~orpc'].inputSchema, name).toBe(pageInput);
+      const input = procedure['~orpc'].inputSchema;
+      if (input === pageInput) continue;
+      const own = fields(input) ?? {};
+      expect(Object.keys(own).sort(), name).toEqual(['cursor', 'id', 'limit']);
+      expect(own.cursor, name).toBe(pageFields.cursor);
+      expect(own.limit, name).toBe(pageFields.limit);
     }
     for (const [name, procedure] of calls) {
       expect(fields(procedure['~orpc'].inputSchema)?.after, name).toBeUndefined();

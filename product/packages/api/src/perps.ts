@@ -316,13 +316,13 @@ export const perpRefusal = z.enum([
 ]);
 
 /** A share of play money the person sends: more than zero, to the millionth, as text. */
-const amount = z
+export const perpAmount = z
   .string()
   .regex(/^(?:0|[1-9][0-9]{0,13})(?:\.[0-9]{1,6})?$/, 'Must be an amount, to the millionth')
   .refine((value) => /[1-9]/.test(value), { message: 'Must be more than zero' });
 
 /** A position's margin: play money, at most Ṁ1,000,000 (far past any balance), to the millionth. */
-const margin = amount.refine((value) => Number(value) <= 1_000_000, {
+export const margin = perpAmount.refine((value) => Number(value) <= 1_000_000, {
   message: 'At most Ṁ1,000,000',
 });
 
@@ -354,7 +354,7 @@ export const openPerpInput = z.strictObject({
   margin,
   leverage,
   /** The most fee the person accepts; needed only while a perp's size fee is on. */
-  maxFee: amount.optional(),
+  maxFee: perpAmount.optional(),
 });
 
 /** Closing all of a position (1) or a share of it (at least 0.01), at the next new price. */

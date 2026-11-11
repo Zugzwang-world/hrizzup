@@ -5,7 +5,12 @@ import {
   createMarket,
   getMarket,
   listMarkets,
+  marketBook,
+  marketHistory,
   marketList,
+  marketQuote,
+  marketTrades,
+  oneMarket,
   openMarket,
   openOrders,
   placeTrade,
@@ -16,11 +21,14 @@ import {
   closePerp,
   createTestPerp,
   getPerp,
+  latestPrice,
   listedPerps,
   listPerps,
   openPerp,
   perpDetails,
   perpPositions,
+  perpQuote,
+  priceHistory,
   retireTestPerp,
   setPerpMode,
   setPerpSettings,
@@ -39,7 +47,7 @@ import { appAuthSettings, appEmailCode } from './auth.ts';
 import { cacheHeaders } from './caching.ts';
 import { asAdmin, consoleCall } from './console.ts';
 import type { ApiContext } from './context.ts';
-import { MARKETS_TAG, refreshEdge } from './edge-cache.ts';
+import { MARKET_ACTIVITY_TAG, MARKETS_TAG, refreshEdge } from './edge-cache.ts';
 import { inOneFormat, pageOf } from './ground-rules.ts';
 import { createKey, keysSetUp, listKeys, revokeKey } from './keys.ts';
 import { PERPS_TAG, perpCall, perpSource } from './perps.ts';
@@ -93,7 +101,7 @@ const admin = api.admin.use(asAdmin);
  */
 async function changesTheList<T>(work: () => Promise<T>): Promise<T> {
   const answer = await consoleCall(work);
-  await refreshEdge([MARKETS_TAG]);
+  await refreshEdge([MARKETS_TAG, MARKET_ACTIVITY_TAG]);
   return answer;
 }
 
@@ -161,20 +169,44 @@ export const router = api.router({
     list: api.markets.list.handler(({ input }) =>
       tradingCall(() => marketList(tradingPool(), pageOf(input))),
     ),
+    // The market data (3.5c): public, the same for everyone, each read with nobody signed in.
+    get: api.markets.get.handler(({ input }) =>
+      tradingCall(() => oneMarket(tradingPool(), input.id)),
+    ),
+    history: api.markets.history.handler(({ input }) =>
+      tradingCall(() => marketHistory(tradingPool(), input.id, input.range)),
+    ),
+    book: api.markets.book.handler(({ input }) =>
+      tradingCall(() => marketBook(tradingPool(), input.id)),
+    ),
+    trades: api.markets.trades.handler(({ input }) =>
+      tradingCall(() =>
+        marketTrades(tradingPool(), input.id, { cursor: input.cursor, limit: input.limit }),
+      ),
+    ),
+    quote: api.markets.quote.handler(({ input }) =>
+      tradingCall(() => marketQuote(tradingPool(), input)),
+    ),
     trade: api.markets.trade.handler(async ({ context, input }) => {
       const user = await person(context.headers, 'trade');
       await withinTradeLimit(user.id, context.resHeaders);
       const result = await asPerson(user, () =>
         tradingCall(() => placeTrade(tradingPool(), user.id, input)),
       );
-      // A trade that moved the price changes the public list: its edge copies are cleared.
-      if (result.probAfter !== result.probBefore) await refreshEdge([MARKETS_TAG]);
+      // Every trade changes the market's record and its history (an order that rests too: a point at
+      // the same price), its book, its latest trades and its quotes: their edge copies are cleared.
+      await refreshEdge([MARKETS_TAG, MARKET_ACTIVITY_TAG]);
       return result;
     }),
     cancelOrder: api.markets.cancelOrder.handler(async ({ context, input }) => {
       const user = await person(context.headers, 'trade');
       await withinTradeLimit(user.id, context.resHeaders);
-      return asPerson(user, () => tradingCall(() => cancelOrder(tradingPool(), user.id, input)));
+      const cancelled = await asPerson(user, () =>
+        tradingCall(() => cancelOrder(tradingPool(), user.id, input)),
+      );
+      // A cancelled order leaves the market's book.
+      await refreshEdge([MARKET_ACTIVITY_TAG]);
+      return cancelled;
     }),
   },
 
@@ -182,6 +214,9 @@ export const router = api.router({
     list: api.perps.list.handler(() => perpCall(() => listedPerps(tradingPool(), perpSource()))),
     get: api.perps.get.handler(({ input }) =>
       perpCall(() => perpDetails(tradingPool(), input.id, perpSource())),
+    ),
+    quote: api.perps.quote.handler(({ input }) =>
+      perpCall(() => perpQuote(tradingPool(), input, perpSource())),
     ),
     // A perp trade counts against the same trades a minute as the markets'.
     open: api.perps.open.handler(async ({ context, input }) => {
@@ -198,6 +233,16 @@ export const router = api.router({
         perpCall(() => closePerp(tradingPool(), user.id, input, perpSource())),
       );
     }),
+  },
+
+  // Our own price (3.4b): public, the same for everyone.
+  prices: {
+    get: api.prices.get.handler(({ input }) =>
+      perpCall(() => latestPrice(tradingPool(), input.feed)),
+    ),
+    history: api.prices.history.handler(({ input }) =>
+      perpCall(() => priceHistory(tradingPool(), input.feed, input.range)),
+    ),
   },
 
   portfolio: {

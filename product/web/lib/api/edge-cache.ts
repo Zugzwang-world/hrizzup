@@ -16,6 +16,13 @@ import { invalidateByTag, waitUntil } from '@vercel/functions';
 /** The tag on every page of the market list (the contract's `markets.list`). */
 export const MARKETS_TAG = 'markets';
 
+/**
+ * The tag on the edge copies of each market's activity (the contract's `markets.book`,
+ * `markets.trades` and `markets.quote`), cleared whenever an order rests, fills or is cancelled, even
+ * when the price doesn't move; and, with the list's, when a trade or the console changes a market.
+ */
+export const MARKET_ACTIVITY_TAG = 'market-activity';
+
 /** How long a call waits for the edge to take the change before answering anyway. */
 const WAIT_MS = 1500;
 

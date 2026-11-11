@@ -11,6 +11,15 @@ export {
   settleMarket,
 } from './console.ts';
 export {
+  marketBook,
+  marketHistory,
+  marketQuote,
+  marketTrades,
+  oneMarket,
+  quoteOn,
+  quoteStateFor,
+} from './data.ts';
+export {
   asTradingError,
   cancelOrder,
   checkBefore,

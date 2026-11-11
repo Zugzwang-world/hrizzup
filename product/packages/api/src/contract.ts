@@ -17,6 +17,25 @@ import {
   revokedKey,
   revokeKeyInput,
 } from './keys.ts';
+import {
+  marketAddress,
+  marketBook,
+  marketHistory,
+  marketHistoryInput,
+  marketQuote,
+  marketQuoteInput,
+  marketReadErrors,
+  marketTrades,
+  marketTradesInput,
+  perpQuote,
+  perpQuoteErrors,
+  perpQuoteInput,
+  price,
+  priceAddress,
+  priceHistory,
+  priceHistoryInput,
+  quoteErrors,
+} from './market-data.ts';
 import { commonErrors } from './paging.ts';
 import {
   closePerpInput,
@@ -40,6 +59,7 @@ import {
 import {
   cancelOrderInput,
   cancelOrderResult,
+  listedMarket,
   marketList,
   ordersPage,
   ordersPageInput,
@@ -232,6 +252,95 @@ export const contract = {
       .input(marketPageInput)
       .output(marketList),
 
+    /**
+     * One market by its address, any that isn't a draft (listed or not), as the list gives it. Kept
+     * at the edge and cleared, like the list, the moment the market changes.
+     */
+    get: call
+      .route({
+        method: 'GET',
+        path: '/markets/{id}',
+        summary: 'One market, with its probability',
+        tags: ['public'],
+      })
+      .meta({
+        caching: { kind: 'public', edgeSeconds: 60, staleSeconds: 300, tags: ['markets'] },
+      })
+      .errors(marketReadErrors)
+      .input(marketAddress)
+      .output(listedMarket),
+
+    /**
+     * A market's chance of Yes after each trade, over the last hour, day, week, 30 days or everything
+     * (when not sent), at most 1,000 points. Cleared from the edge, like the list, when a trade moves
+     * the market's price.
+     */
+    history: call
+      .route({
+        method: 'GET',
+        path: '/markets/{id}/history',
+        summary: "A market's probability after each trade",
+        tags: ['public'],
+      })
+      .meta({
+        caching: { kind: 'public', edgeSeconds: 60, staleSeconds: 300, tags: ['markets'] },
+      })
+      .errors(marketReadErrors)
+      .input(marketHistoryInput)
+      .output(marketHistory),
+
+    /**
+     * The resting limit orders by price, beside the pool's price, with no names. Cleared from the
+     * edge whenever an order rests, fills or is cancelled.
+     */
+    book: call
+      .route({
+        method: 'GET',
+        path: '/markets/{id}/book',
+        summary: "A market's resting limit orders by price",
+        tags: ['public'],
+      })
+      .meta({
+        caching: { kind: 'public', edgeSeconds: 10, staleSeconds: 60, tags: ['market-activity'] },
+      })
+      .errors(marketReadErrors)
+      .input(marketAddress)
+      .output(marketBook),
+
+    /** A market's latest trades, newest first, a page at a time, with no names. */
+    trades: call
+      .route({
+        method: 'GET',
+        path: '/markets/{id}/trades',
+        summary: "A market's latest trades",
+        tags: ['public'],
+      })
+      .meta({
+        caching: { kind: 'public', edgeSeconds: 10, staleSeconds: 60, tags: ['market-activity'] },
+      })
+      .errors(marketReadErrors)
+      .input(marketTradesInput)
+      .output(marketTrades),
+
+    /**
+     * A quote for any size: what a buy (now or as a limit order) or a sale would do now, through the
+     * same maths a trade runs, writing nothing. A trade sent next with the same figures fills exactly
+     * so, unless another trade comes between (each one clears the edge's copies).
+     */
+    quote: call
+      .route({
+        method: 'GET',
+        path: '/markets/{id}/quote',
+        summary: 'A quote for a buy or a sale of any size',
+        tags: ['public'],
+      })
+      .meta({
+        caching: { kind: 'public', edgeSeconds: 10, staleSeconds: 60, tags: ['market-activity'] },
+      })
+      .errors(quoteErrors)
+      .input(marketQuoteInput)
+      .output(marketQuote),
+
     /** Buys or sells, now or as a limit order. Refused before touching the books when it can't trade. */
     trade: call
       .route({
@@ -291,6 +400,22 @@ export const contract = {
       .input(perpAddress)
       .output(perpDetails),
 
+    /**
+     * A quote for an open: its size, fee and liquidation price at the price now, through the same
+     * maths, writing nothing. The order fills at the next price, so these move with it.
+     */
+    quote: call
+      .route({
+        method: 'GET',
+        path: '/perps/{id}/quote',
+        summary: 'A quote for opening a perp position',
+        tags: ['public'],
+      })
+      .meta({ caching: { kind: 'public', edgeSeconds: 5, staleSeconds: 10, tags: ['perps'] } })
+      .errors(perpQuoteErrors)
+      .input(perpQuoteInput)
+      .output(perpQuote),
+
     /** Opens a position, or adds to one, at the next new price (a flip closes the other side first). */
     open: call
       .route({
@@ -314,6 +439,37 @@ export const contract = {
       .errors(perpTradingErrors)
       .input(closePerpInput)
       .output(perpTradeResult),
+  },
+
+  /**
+   * Our own prices (PLAN.md step 3.4b; market-data.ts): Bitcoin in US dollars, the median of three
+   * big exchanges' free public prices, stored about every 5 seconds, which the perp, the website, the
+   * app and every bot use. Public, kept at the edge a moment, so asking every few seconds stays cheap.
+   */
+  prices: {
+    /** The newest price. Answers "try again in a moment" (503) before the first is stored. */
+    get: call
+      .route({
+        method: 'GET',
+        path: '/prices/{feed}',
+        summary: 'Our own price now',
+        tags: ['public'],
+      })
+      .meta({ caching: { kind: 'public', edgeSeconds: 2, staleSeconds: 5, tags: ['prices'] } })
+      .input(priceAddress)
+      .output(price),
+
+    /** The price over the last hour, day (when not sent), week, 30 days or everything, at most 1,000 points. */
+    history: call
+      .route({
+        method: 'GET',
+        path: '/prices/{feed}/history',
+        summary: 'Our own price over a range',
+        tags: ['public'],
+      })
+      .meta({ caching: { kind: 'public', edgeSeconds: 5, staleSeconds: 30, tags: ['prices'] } })
+      .input(priceHistoryInput)
+      .output(priceHistory),
   },
 
   /** The signed-in person's own play money (PLAN.md step 1.7d; trading.ts). Personal, never kept. */

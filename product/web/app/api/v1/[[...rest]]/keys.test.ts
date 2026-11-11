@@ -27,6 +27,7 @@ vi.mock('@/lib/api/rate-limit.ts', async (original) => ({
 }));
 vi.mock('@/lib/api/edge-cache.ts', () => ({
   MARKETS_TAG: 'markets',
+  MARKET_ACTIVITY_TAG: 'market-activity',
   refreshEdge: async () => undefined,
 }));
 vi.mock('@/lib/api/keys.ts', async (original) => ({
