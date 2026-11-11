@@ -3063,7 +3063,8 @@
                       "outcome",
                       "amount"
                     ],
-                    "additionalProperties": false
+                    "additionalProperties": false,
+                    "title": "Manifold's form: YES or NO, and dryRun"
                   },
                   {
                     "type": "object",
@@ -3103,7 +3104,8 @@
                       "outcome",
                       "shares"
                     ],
-                    "additionalProperties": false
+                    "additionalProperties": false,
+                    "title": "Manifold's form: YES or NO, and dryRun"
                   }
                 ]
               }

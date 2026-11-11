@@ -110,8 +110,12 @@ const sell = z.strictObject({
  * well, and `dryRun`. They're two more choices beside v1's own two, which stay exactly as they were:
  * within v1, only additions. A request in v1's own form matches it first.
  */
-const buyAsManifold = buy.extend({ outcome: sideInput, dryRun });
-const sellAsManifold = sell.extend({ outcome: sideInput, dryRun });
+const buyAsManifold = buy
+  .extend({ outcome: sideInput, dryRun })
+  .meta({ title: "Manifold's form: YES or NO, and dryRun" });
+const sellAsManifold = sell
+  .extend({ outcome: sideInput, dryRun })
+  .meta({ title: "Manifold's form: YES or NO, and dryRun" });
 
 export const tradeInput = z
   .union([buy, sell, buyAsManifold, sellAsManifold])

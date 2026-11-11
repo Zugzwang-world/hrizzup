@@ -17,6 +17,7 @@ type Schema = {
   minimum?: number;
   maximum?: number;
   maxLength?: number;
+  title?: string;
   description?: string;
   properties?: Record<string, Schema>;
   required?: string[];
@@ -162,7 +163,12 @@ function bodyOf(operation: Operation): Variant[] {
     return options.map((option) => {
       const tag = Object.entries(option.properties ?? {}).find(([, v]) => v.const !== undefined);
       return {
-        ...(tag ? { when: `${tag[0]} is ${JSON.stringify(tag[1].const)}` } : {}),
+        // A form with a title of its own (Manifold's) says so beside its tag.
+        ...(tag
+          ? {
+              when: `${tag[0]} is ${JSON.stringify(tag[1].const)}${option.title ? `, in ${option.title}` : ''}`,
+            }
+          : {}),
         fields: fieldsOf(option),
       };
     });
