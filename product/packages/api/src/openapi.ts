@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { OpenAPIGenerator, type OpenAPIGeneratorGenerateOptions } from '@orpc/openapi';
 import { JSON_SCHEMA_OUTPUT_REGISTRY, ZodToJsonSchemaConverter } from '@orpc/zod/zod4';
 import { contract } from './contract.ts';
+import { isPublished } from './procedures.ts';
 import { marketRecord } from './trading.ts';
 
 /**
@@ -21,13 +22,7 @@ import { marketRecord } from './trading.ts';
  */
 export const openapiPath = fileURLToPath(new URL('../openapi.json', import.meta.url));
 
-/** The parts of the contract a bot never calls, so the published file leaves them out. */
-const UNPUBLISHED = new Set(['admin', 'auth', 'keys']);
-
-/** Whether a call, by its path in the contract (`markets.list`), is in the published file. */
-export function isPublished(path: readonly string[]): boolean {
-  return !UNPUBLISHED.has(path[0] ?? '');
-}
+export { isPublished } from './procedures.ts';
 
 const DESCRIPTION = `Hrizzup's API for bots and AI tools: play-money prediction markets and a Bitcoin perp, with the same calls Hrizzup's website and app use.
 

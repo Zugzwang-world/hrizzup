@@ -101,6 +101,7 @@ export {
   type TradingMode,
   tradingMode,
 } from './perps.ts';
+export { isPublished, procedures } from './procedures.ts';
 export {
   type CancelOrderInput,
   type CancelOrderResult,
