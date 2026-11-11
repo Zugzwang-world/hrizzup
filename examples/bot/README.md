@@ -2,6 +2,8 @@
 
 A small, readable walk through Hrizzup's public API with a trading key, on staging, the demo (play money only; PLAN.md step 3.5d). It reads a market and the Bitcoin perp, gets a quote, places a limit order and cancels it, buys and sells, opens a perp position and closes it in two halves, then prints its portfolio. One file, [`bot.ts`](bot.ts), plain TypeScript and the standard `fetch`: nothing to install.
 
+**Your own perp position is safe:** an account holds one position per side on each perp (opening adds to it, closing takes from it), so the bot trades the perp only when your account holds no position there, and closes only what it opened. If you hold one, it says so and leaves the perp alone.
+
 ## Run it
 
 1. Sign in on staging and make a **trading** key on the sandbox's keys page (`https://staging.hrizzup.com/sandbox/keys`). It's shown once: copy it.

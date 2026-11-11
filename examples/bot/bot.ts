@@ -1,8 +1,9 @@
 /**
  * Hrizzup's example bot (PLAN.md step 3.5d): a walk through the public API with a trading key, on
  * staging, the demo (play money only). It reads a market and the Bitcoin perp, gets a quote, places a
- * limit order and cancels it, buys and sells, opens a perp position and closes it in two halves, then
- * prints its portfolio. Plain TypeScript and the standard `fetch`, nothing to install:
+ * limit order and cancels it, buys and sells, opens a perp position and closes it in two halves (only
+ * when the account holds no position on that perp: it never trades yours), then prints its
+ * portfolio. Plain TypeScript and the standard `fetch`, nothing to install:
  *
  *   export HRIZZUP_API_KEY=hz_demo_...      # a trading key from the sandbox's keys page, never in code
  *   node examples/bot/bot.ts
@@ -170,34 +171,61 @@ export async function runBot(options: Options) {
   log(`Sold ${half(String(bought.shares))} shares for Ṁ${String(sold.amount).replace('-', '')}.`);
 
   // 7. The perp: a quote, then a 2-times long with Ṁ10, closed in two halves. Each order fills at the
-  //    next price, a few seconds on, so each call answers within seconds.
+  //    next price, a few seconds on, so each call answers within seconds. An account holds one
+  //    position per side on a perp: opening adds to it (or, on the other side, closes it first), and
+  //    closing takes from it. So the bot trades the perp only when it holds nothing there, and closes
+  //    only what it opened: never a position of yours.
   const perpQuote = await read(`/perps/${perpId}/quote?direction=long&margin=10&leverage=2`);
   log(
     `Perp quote: Ṁ10 at 2 times is a Ṁ${perpQuote.size} position, fee Ṁ${perpQuote.fee}, ` +
       `liquidated at ${perpQuote.liquidationPrice} (at today's ${perpQuote.price}).`,
   );
-  const opened = await call('POST', '/perps/open', {
-    perpId,
-    requestId: newRequest(),
-    direction: 'long',
-    margin: '10',
-    leverage: '2',
-  });
-  const position = opened.position as { size: string; liquidationPrice: string };
-  log(`Opened a long of ${position.size} at ${opened.price}, fee Ṁ${opened.fee}.`);
-  const closedHalf = await call('POST', '/perps/close', {
-    perpId,
-    requestId: newRequest(),
-    fraction: '0.5',
-    expectedSize: position.size,
-  });
-  log(`Closed half at ${closedHalf.price}: Ṁ${closedHalf.payout} back.`);
-  const closed = await call('POST', '/perps/close', {
-    perpId,
-    requestId: newRequest(),
-    fraction: '1',
-  });
-  log(`Closed the rest at ${closed.price}: Ṁ${closed.payout} back.`);
+  const before = await call('GET', '/me/perps');
+  const held = (before.positions as { perpId: string; direction: string; size: string }[]).find(
+    (position) => position.perpId === perpId,
+  );
+  let opened: Json | null = null;
+  let closedHalf: Json | null = null;
+  let closed: Json | null = null;
+  if (held) {
+    log(
+      `You hold a ${held.direction} of ${held.size} on this perp already. An account holds one ` +
+        'position per side, so the bot would trade yours: it leaves the perp alone.',
+    );
+  } else {
+    opened = await call('POST', '/perps/open', {
+      perpId,
+      requestId: newRequest(),
+      direction: 'long',
+      margin: '10',
+      leverage: '2',
+    });
+    const position = opened.position as { size: string };
+    log(`Opened a long of ${position.size} at ${opened.price}, fee Ṁ${opened.fee}.`);
+    if (opened.status !== 'opened') {
+      // Someone opened on this perp in the meantime, so the bot's open was added to theirs.
+      log("A position of yours appeared as the bot opened, so it closes nothing: it isn't all the bot's.");
+    } else {
+      closedHalf = await call('POST', '/perps/close', {
+        perpId,
+        requestId: newRequest(),
+        fraction: '0.5',
+        expectedSize: position.size,
+      });
+      log(`Closed half at ${closedHalf.price}: Ṁ${closedHalf.payout} back.`);
+      const left = closedHalf.position as { size: string } | null;
+      if (left) {
+        // The rest, sized on what's left of the bot's own, so nothing else is taken.
+        closed = await call('POST', '/perps/close', {
+          perpId,
+          requestId: newRequest(),
+          fraction: '1',
+          expectedSize: left.size,
+        });
+        log(`Closed the rest at ${closed.price}: Ṁ${closed.payout} back.`);
+      }
+    }
+  }
 
   // 8. The portfolio.
   const positions = await call('GET', '/me/positions');
