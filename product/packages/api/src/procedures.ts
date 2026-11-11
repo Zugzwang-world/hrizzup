@@ -16,3 +16,15 @@ export function procedures(router: object, prefix = ''): [string, AnyProcedure][
     return [];
   });
 }
+
+/**
+ * The calls the public API publishes (in the OpenAPI file, the docs and the MCP server's tools): all
+ * but the console's (admin), the app's sign-in (auth) and the keys' own, which need a signed-in
+ * person on the website or in the app.
+ */
+const UNPUBLISHED = new Set(['admin', 'auth', 'keys']);
+
+/** Whether a call, by its path in the contract, is published. */
+export function isPublished(path: readonly string[]): boolean {
+  return !UNPUBLISHED.has(path[0] ?? '');
+}

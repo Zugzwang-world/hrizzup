@@ -178,13 +178,36 @@ export const guide: Section[] = [
     id: 'ai-tools',
     title: 'For AI tools',
     blocks: [
+      p(
+        `**The MCP server,** at \`${server}/mcp\`: Claude Code, Codex, Cursor and any other MCP client connect over HTTP with an API key, and use the API as tools, one for each public call (\`markets_quote\`, \`markets_trade\`, \`perps_open\`, \`portfolio_positions\`…). The key decides which: with none, the public reads; with a read-only key, every read, your own too; with a trading key, trading and the perp as well. Each tool runs the API's own call, with its limits and refusals.`,
+      ),
+      p(
+        'Keep the key in an environment variable, never in a file or a chat: in your terminal, `read -rs HRIZZUP_API_KEY && export HRIZZUP_API_KEY`, paste the key, then Return (add the export to your shell profile to keep it). Each tool below reads it from there.',
+      ),
+      p(
+        '**Claude Code:** from your terminal (the single quotes keep the key out of the config: Claude Code reads it when it connects):',
+      ),
+      code(
+        `claude mcp add --transport http --scope user hrizzup ${server}/mcp --header 'Authorization: Bearer \${HRIZZUP_API_KEY}'`,
+      ),
+      p('Then `claude mcp list` shows `hrizzup` connected, and you can ask Claude for a quote.'),
+      p('**Codex:** in `~/.codex/config.toml`:'),
+      code(
+        `[mcp_servers.hrizzup]\nurl = "${server}/mcp"\nbearer_token_env_var = "HRIZZUP_API_KEY"`,
+      ),
+      p(
+        "**Cursor:** in `~/.cursor/mcp.json` (or a project's `.cursor/mcp.json`); start Cursor from the terminal so it sees the variable:",
+      ),
+      code(
+        `{\n  "mcpServers": {\n    "hrizzup": {\n      "url": "${server}/mcp",\n      "headers": { "Authorization": "Bearer \${env:HRIZZUP_API_KEY}" }\n    }\n  }\n}`,
+      ),
       list(
         `**llms.txt:** ${site}/llms.txt, the short guide for AI tools, in the llmstxt.org format.`,
         `**The docs as text, every guide and call:** ${site}/llms-full.txt.`,
         `**The OpenAPI file:** ${server}/openapi.json (OpenAPI 3.1), made from the same contract the website and the app use; any OpenAPI tool reads it.`,
       ),
       p(
-        'Give your AI tool a key of its own, read-only unless it should trade, and revoke it when you are done.',
+        'Give your AI tool a key of its own, read-only unless it should trade, and revoke it when you are done. ChatGPT and Claude.ai, which sign in to MCP servers only through OAuth, come later.',
       ),
     ],
   },
@@ -194,6 +217,7 @@ export const guide: Section[] = [
     blocks: [
       p('Every change to v1 and every reset of the demo is listed here first, newest at the top.'),
       list(
+        `**11 November 2026, night:** the MCP server, at \`${server}/mcp\`, for Claude Code, Codex and Cursor, with the same keys.`,
         "**11 November 2026, evening:** trading for bots: `dryRun` on `POST /trades`, Manifold's `YES` and `NO` taken as `outcome`, and your own trades at `GET /me/trades`; the example bot. Only additions.",
         "**11 November 2026, later:** a market's own reads (`GET /markets/{id}`, its history, its resting orders by price, its latest trades and a quote for any size), the perp's quote, and our own Bitcoin price and its history. Only additions.",
         '**11 November 2026:** v1 opens on staging, the demo: the markets and the perp, personal keys (read-only or trading), `limit` and `cursor` on every list (renamed from `after`), one error format, and this page.',
