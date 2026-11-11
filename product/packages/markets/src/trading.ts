@@ -71,7 +71,7 @@ export class TradingError extends Error {
 }
 
 /** What each refusal says, in words for people. */
-const REFUSALS: Record<Refusal, string> = {
+export const REFUSALS: Record<Refusal, string> = {
   market_not_open: "This market isn't taking bets",
   market_closed: 'This market has closed',
   insufficient_balance: 'That is more than your balance',
@@ -116,7 +116,7 @@ export function asTradingError(error: unknown): unknown {
 type Database = Pick<Pool, 'connect'>;
 
 /** One read, as one transaction for `account` (null: nobody signed in), answering one value. */
-async function read<R>(
+export async function read<R>(
   pool: Database,
   account: string | null,
   sql: string,

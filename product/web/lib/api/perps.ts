@@ -1,5 +1,11 @@
 import { DatabaseBusyError } from '@hrizzup/db';
-import { PerpNotSetUpError, PerpTradingError, type PriceSource, priceSource } from '@hrizzup/perps';
+import {
+  NoPriceYetError,
+  PerpNotSetUpError,
+  PerpTradingError,
+  type PriceSource,
+  priceSource,
+} from '@hrizzup/perps';
 import { ORPCError } from '@orpc/server';
 
 /**
@@ -15,7 +21,7 @@ import { ORPCError } from '@orpc/server';
  * - Over the trades a minute: 429. A busy database, or the perp's price not set up here: 503.
  */
 
-/** The tag on every edge copy of the perps' public reads (the contract's `perps.list` and `perps.get`). */
+/** The tag on every edge copy of the perps' public reads (the contract's `perps.list`, `perps.get` and `perps.quote`). */
 export const PERPS_TAG = 'perps';
 
 /**
@@ -47,6 +53,9 @@ export function perpApiError(error: unknown): unknown {
           data: { reason: error.reason ?? 'bad_request' },
         });
     }
+  }
+  if (error instanceof NoPriceYetError) {
+    return new ORPCError('SERVICE_UNAVAILABLE', { status: 503, message: error.message });
   }
   if (error instanceof PerpNotSetUpError) {
     return new ORPCError('SERVICE_UNAVAILABLE', {

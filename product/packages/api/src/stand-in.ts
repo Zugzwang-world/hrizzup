@@ -73,6 +73,27 @@ export function standIn(options: { signedIn?: boolean; admin?: boolean } = {}) {
     }),
     markets: {
       list: api.markets.list.handler(() => examples.marketList),
+      get: api.markets.get.handler(({ input }) => {
+        const found = examples.marketList.markets.find((listed) => listed.market.id === input.id);
+        if (!found) throw new ORPCError('NOT_FOUND', { message: 'No such market' });
+        return found;
+      }),
+      history: api.markets.history.handler(({ input }) => {
+        tradable(input.id);
+        return { ...examples.marketHistory, range: input.range ?? 'all' };
+      }),
+      book: api.markets.book.handler(({ input }) => {
+        tradable(input.id);
+        return examples.marketBook;
+      }),
+      trades: api.markets.trades.handler(({ input }) => {
+        tradable(input.id);
+        return examples.marketTrades;
+      }),
+      quote: api.markets.quote.handler(({ input }) => {
+        tradable(input.id);
+        return examples.marketQuote;
+      }),
       trade: api.markets.trade.handler(({ input }) => {
         asPerson();
         tradable(input.marketId);
@@ -117,6 +138,16 @@ export function standIn(options: { signedIn?: boolean; admin?: boolean } = {}) {
         }
         return examples.perpDetails;
       }),
+      quote: api.perps.quote.handler(({ input }) => {
+        if (input.id !== examples.perpDetails.id) {
+          throw new ORPCError('NOT_FOUND', { message: 'No such perp' });
+        }
+        // As the real call: more than 10 times leverage is refused.
+        if (Number(input.leverage) > 10) {
+          throw new ORPCError('REFUSED', { data: { reason: 'leverage_too_high' } });
+        }
+        return examples.perpQuote;
+      }),
       open: api.perps.open.handler(({ input }) => {
         asPerson();
         if (input.perpId !== examples.perpDetails.id) {
@@ -135,6 +166,13 @@ export function standIn(options: { signedIn?: boolean; admin?: boolean } = {}) {
         }
         return { ...examples.perpClosed, requestId: input.requestId };
       }),
+    },
+    prices: {
+      get: api.prices.get.handler(() => examples.price),
+      history: api.prices.history.handler(({ input }) => ({
+        ...examples.priceHistory,
+        range: input.range ?? '1d',
+      })),
     },
     keys: {
       list: api.keys.list.handler(() => {

@@ -33,7 +33,7 @@ const DESCRIPTION = `Hrizzup's API for bots and AI tools: play-money prediction 
 
 **This is the demo, on staging:** play money only, keys that work only here, and data that may be reset (with notice in the changelog). Production's API opens at launch.
 
-- **Public reads need no key** (markets, perps, health) and are kept at the edge for a few seconds. Send them no key: a request with an \`Authorization\` header is never answered from the edge's copy.
+- **Public reads need no key** (markets, perps, prices, health) and are kept at the edge for a few seconds. Send them no key: a request with an \`Authorization\` header is never answered from the edge's copy.
 - **Personal calls need a key** (your balance, positions, orders; and, with a trading key, trading and the perp): \`Authorization: Bearer <key>\`. Manifold's \`Authorization: Key <key>\` works too. Make keys on the sandbox's keys page, signed in.
 - **Amounts are exact decimal text** (\`"25"\`, \`"2.5"\`), never JSON numbers, and times are ISO 8601 in UTC.
 - **Lists page one way:** \`limit\` (1 to 100, 50 by default) and \`cursor\`, the \`next\` of the page before, sent back as it came; \`next\` is null on the last page.

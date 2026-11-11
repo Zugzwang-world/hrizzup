@@ -6,6 +6,7 @@ export {
   setPerpMode,
   setPerpSettings,
 } from './console.ts';
+export { latestPrice, NoPriceYetError, perpQuote, priceHistory } from './data.ts';
 export { type JobName, type JobRun, runJob } from './jobs.ts';
 export {
   type CloseParams,

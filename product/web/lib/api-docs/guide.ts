@@ -82,6 +82,30 @@ export const guide: Section[] = [
     ],
   },
   {
+    id: 'market-data',
+    title: 'Markets, quotes and prices',
+    blocks: [
+      p(
+        "Everything a market page shows is a public read: no key, the same answer for everyone, and never anyone's name. Each is kept at the edge a moment and cleared the moment a trade changes it.",
+      ),
+      list(
+        "**One market:** `GET /markets/{id}`, any that isn't a draft, with its `probability` of Yes now.",
+        '**Its history:** `GET /markets/{id}/history?range=1d`, the probability after each trade over the last hour (`1h`), day (`1d`), week (`1w`), 30 days (`1m`) or everything (`all`, when not sent), starting with the probability as the range starts. At most 1,000 points: over a busier range, the last of each of 1,000 equal slices.',
+        "**Its resting limit orders, by price:** `GET /markets/{id}/book`. There's no central order book: a trade fills against the market's pool and any resting orders it reaches. Each side best first, with what's unfilled at each price and how many orders hold it, beside the pool's `probability`.",
+        '**Its latest trades:** `GET /markets/{id}/trades`, newest first, each buy or sale as it was placed (`amount` paid, below zero when received; `shares` got, below zero when sold), paged like every list.',
+        '**A quote for any size:** `GET /markets/{id}/quote?outcome=yes&amount=100` for a buy (add `limitProb` for a limit order), or `?action=sell&outcome=yes&shares=40` for a sale: the shares, the average price, the probability before and after (`probBefore`, `probAfter`) and the payout, worked out by the same maths a trade runs, writing nothing. A trade sent next with the same figures fills exactly as quoted, to the millionth, unless another trade comes first.',
+        "**The perp's quote:** `GET /perps/{id}/quote?direction=long&margin=100&leverage=5`: its size, fee and liquidation price at the price now. An order fills at the next price, a few seconds on, so those move with it.",
+        "**Our own Bitcoin price:** `GET /prices/btc-usd`, a new one about every 5 seconds: the median of Coinbase's, Kraken's and Bitstamp's free public prices (Gemini standing by), to the cent, with how many exchanges made it (`sources`; 0 while the last price is held, for up to 30 seconds). Its history: `GET /prices/btc-usd/history?range=1h`, the last day when not sent. The website, the app, every bot and the perp use this one price.",
+      ),
+      p(
+        "There's no live stream yet: ask again. The price changes about every 5 seconds, so asking more often than that gets the same answer from the edge; a market's reads change only when someone trades.",
+      ),
+      code(
+        `curl "${server}/prices/btc-usd"\ncurl "${server}/markets/<a market's id>/quote?outcome=yes&amount=100"`,
+      ),
+    ],
+  },
+  {
     id: 'manifold',
     title: 'Moving from Manifold',
     blocks: [
@@ -108,6 +132,9 @@ export const guide: Section[] = [
         rows: [
           ['`GET /v0/me`', '`GET /me`'],
           ['`GET /v0/markets`', '`GET /markets`'],
+          ['`GET /v0/market/{id}`', '`GET /markets/{id}`'],
+          ['`GET /v0/bets?contractId=…`', '`GET /markets/{id}/trades` (no names)'],
+          ['`GET /v0/bets?kinds=open-limit`', '`GET /markets/{id}/book` (no names)'],
           ['`POST /v0/bet`', '`POST /trades`, `"action": "buy"`'],
           ['`POST /v0/market/{id}/sell`', '`POST /trades`, `"action": "sell"`'],
           ['`POST /v0/bet/cancel/{id}`', '`POST /orders/cancel`'],
@@ -136,6 +163,7 @@ export const guide: Section[] = [
     blocks: [
       p('Every change to v1 and every reset of the demo is listed here first, newest at the top.'),
       list(
+        "**11 November 2026, later:** a market's own reads (`GET /markets/{id}`, its history, its resting orders by price, its latest trades and a quote for any size), the perp's quote, and our own Bitcoin price and its history. Only additions.",
         '**11 November 2026:** v1 opens on staging, the demo: the markets and the perp, personal keys (read-only or trading), `limit` and `cursor` on every list (renamed from `after`), one error format, and this page.',
       ),
     ],

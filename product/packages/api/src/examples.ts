@@ -9,6 +9,15 @@ import type { ConsoleMarket, ConsoleMarketWithLog } from './console.ts';
 import type { Health, Me } from './contract.ts';
 import type { ApiKey, CreatedKey, KeyList, RevokedKey } from './keys.ts';
 import type {
+  MarketBook,
+  MarketHistory,
+  MarketQuote,
+  MarketTrades,
+  PerpQuote,
+  Price,
+  PriceHistory,
+} from './market-data.ts';
+import type {
   ConsolePerp,
   ConsolePerpWithLog,
   PerpDetails,
@@ -214,6 +223,68 @@ export const marketList: MarketList = {
   next: null,
 };
 
+/** The example market by its address, as the list gives it. */
+export const oneMarket = marketList.markets.find((listed) => listed.market.id === market.id);
+
+/**
+ * The quote the example person asked for just before their trade: Ṁ25 of Yes, which the trade then
+ * filled exactly so (PLAN.md step 3.5c's done-test).
+ */
+export const marketQuote: MarketQuote = {
+  marketId: market.id,
+  action: 'buy',
+  outcome: 'yes',
+  status: 'filled',
+  amount: tradeResult.amount,
+  shares: tradeResult.shares,
+  orderAmount: tradeResult.orderAmount,
+  limitProb: null,
+  averagePrice: '0.50617285',
+  probBefore: tradeResult.probBefore,
+  probAfter: tradeResult.probAfter,
+  payout: tradeResult.shares,
+  at: '2026-11-09T07:14:55Z',
+};
+
+/** The example market's history: its starting chance, then the trade, then the resting order. */
+export const marketHistory: MarketHistory = {
+  marketId: market.id,
+  range: 'all',
+  from: market.opens_at,
+  points: [
+    { at: market.opens_at, probability: '0.50000000' },
+    { at: tradeResult.at, probability: tradeResult.probAfter },
+    { at: restingOrder.at, probability: restingOrder.probAfter },
+  ],
+};
+
+/** Its resting orders while the limit order rests: Ṁ10 of Yes at 40%. */
+export const marketBook: MarketBook = {
+  marketId: market.id,
+  probability: tradeResult.probAfter,
+  yes: [{ limitProb: '0.40000000', amount: '10.000000', orders: 1 }],
+  no: [],
+};
+
+/** Its latest trades: the one buy (the limit order filled nothing, so it isn't a trade yet). */
+export const marketTrades: MarketTrades = {
+  marketId: market.id,
+  trades: [
+    {
+      id: tradeResult.tradeId,
+      outcome: 'yes',
+      action: 'buy',
+      amount: tradeResult.amount,
+      shares: tradeResult.shares,
+      limitProb: null,
+      probBefore: tradeResult.probBefore,
+      probAfter: tradeResult.probAfter,
+      at: tradeResult.at,
+    },
+  ],
+  next: null,
+};
+
 /** The example person's balance and position, with the limit order still resting. */
 export const positionsPage: PositionsPage = {
   balance: tradeResult.balance,
@@ -398,6 +469,42 @@ export const perpDetails: PerpDetails = {
   fundingRate: '0',
   lastFundingAt: null,
   nextFundingAt: '2026-11-10T11:30:00Z',
+};
+
+/** The quote the example person saw before opening: at $101,200, a moment before the next price. */
+export const perpQuote: PerpQuote = {
+  perpId: consolePerpWithLog.id,
+  direction: 'long',
+  margin: '100.000000',
+  leverage: '10',
+  size: '1000',
+  fee: '1.000000',
+  cost: '101.000000',
+  price: '101200',
+  priceAt: '2026-11-10T10:59:55Z',
+  liquidationPrice: '91080',
+  at: '2026-11-10T10:59:57.000Z',
+};
+
+/** Our own Bitcoin price then: the median of three exchanges' prices, to the cent. */
+export const price: Price = {
+  feed: 'btc-usd',
+  price: '101200.00',
+  at: '2026-11-10T10:59:55Z',
+  sources: 3,
+  publishedAt: '2026-11-10T10:59:55.412Z',
+};
+
+/** Its last 15 seconds, as a history over the last hour would end. */
+export const priceHistory: PriceHistory = {
+  feed: 'btc-usd',
+  range: '1h',
+  from: '2026-11-10T09:59:57Z',
+  points: [
+    { at: '2026-11-10T10:59:45Z', price: '101180.50' },
+    { at: '2026-11-10T10:59:50Z', price: '101192.25' },
+    { at: price.at, price: price.price },
+  ],
 };
 
 /** The example person's position then, worth Ṁ102.622029 at $101,500. */

@@ -7,6 +7,20 @@ import { contract } from './contract.ts';
 import * as examples from './examples.ts';
 import { createdKey, createKeyInput } from './keys.ts';
 import {
+  bookLevel,
+  marketBook,
+  marketHistory,
+  marketHistoryInput,
+  marketQuote,
+  marketQuoteInput,
+  marketTrades,
+  perpQuote,
+  price,
+  priceHistory,
+  priceHistoryInput,
+  publicTrade,
+} from './market-data.ts';
+import {
   closePerpInput,
   consolePerpWithLog,
   openPerpInput,
@@ -414,24 +428,37 @@ describe('the markets, for everyone', () => {
       name.startsWith('markets.') || (name.startsWith('portfolio.') && name !== 'portfolio.perps'),
   );
 
-  it('are the list, trading, cancelling an order, positions and open orders', () => {
+  it('are the list and the market data, trading, cancelling an order, positions and open orders', () => {
     expect(calls.map(([name]) => name).sort()).toEqual([
+      'markets.book',
       'markets.cancelOrder',
+      'markets.get',
+      'markets.history',
       'markets.list',
+      'markets.quote',
       'markets.trade',
+      'markets.trades',
       'portfolio.orders',
       'portfolio.positions',
     ]);
   });
 
-  it('keep only the list at the edge, tagged so a change clears it; the rest is never kept', () => {
-    expect(contract.markets.list['~orpc'].meta.caching).toMatchObject({
-      kind: 'public',
-      tags: ['markets'],
-    });
-    expect(contract.markets.list['~orpc'].route.method).toBe('GET');
-    for (const [name, procedure] of calls.filter(([name]) => name !== 'markets.list')) {
-      expect(procedure['~orpc'].meta.caching, name).toEqual({ kind: 'personal' });
+  it('keep the list and the market data at the edge, tagged so a change clears them; the rest is never kept', () => {
+    // Cleared when a trade moves a price, or the console changes a market.
+    const byPrice = ['markets.list', 'markets.get', 'markets.history'];
+    // Cleared whenever an order rests, fills or is cancelled, too.
+    const byActivity = ['markets.book', 'markets.trades', 'markets.quote'];
+    for (const [name, procedure] of calls) {
+      const caching = procedure['~orpc'].meta.caching;
+      if (byPrice.includes(name) || byActivity.includes(name)) {
+        expect(caching, name).toMatchObject({
+          kind: 'public',
+          tags: [byPrice.includes(name) ? 'markets' : 'market-activity'],
+        });
+        expect(procedure['~orpc'].route.method, name).toBe('GET');
+      } else {
+        expect(caching, name).toEqual({ kind: 'personal' });
+      }
     }
     expect(contract.markets.trade['~orpc'].route).toMatchObject({
       method: 'POST',
@@ -459,18 +486,19 @@ describe('the perp, for everyone (step 3.4a)', () => {
     ([name]) => name.startsWith('perps.') || name === 'portfolio.perps',
   );
 
-  it('are its price and details, opening, closing and the positions', () => {
+  it('are its price and details, a quote, opening, closing and the positions', () => {
     expect(calls.map(([name]) => name).sort()).toEqual([
       'perps.close',
       'perps.get',
       'perps.list',
       'perps.open',
+      'perps.quote',
       'portfolio.perps',
     ]);
   });
 
-  it('keep the price and details at the edge a few seconds, tagged; trading is never kept', () => {
-    for (const name of ['list', 'get'] as const) {
+  it('keep the price, details and quotes at the edge a few seconds, tagged; trading is never kept', () => {
+    for (const name of ['list', 'get', 'quote'] as const) {
       expect(contract.perps[name]['~orpc'].meta.caching).toEqual({
         kind: 'public',
         edgeSeconds: 5,
@@ -801,5 +829,128 @@ describe('API keys for bots (step 3.5a)', () => {
     await expect(api.keys.revoke({ id: examples.apiKey.id })).resolves.toEqual(examples.revokedKey);
     const signedOut = createRouterClient(standIn({ signedIn: false }));
     await expect(signedOut.keys.list()).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+  });
+});
+
+describe('the market data (step 3.5c) and our own price (step 3.4b)', () => {
+  const api = createRouterClient(standIn({ signedIn: false }));
+  const id = examples.tradeResult.marketId;
+
+  it('are public reads at clean addresses, each kept at the edge briefly', () => {
+    const routes = {
+      'markets.get': '/markets/{id}',
+      'markets.history': '/markets/{id}/history',
+      'markets.book': '/markets/{id}/book',
+      'markets.trades': '/markets/{id}/trades',
+      'markets.quote': '/markets/{id}/quote',
+      'perps.quote': '/perps/{id}/quote',
+      'prices.get': '/prices/{feed}',
+      'prices.history': '/prices/{feed}/history',
+    };
+    for (const [name, path] of Object.entries(routes)) {
+      const procedure = procedures.find(([call]) => call === name)?.[1];
+      expect(procedure?.['~orpc'].route, name).toMatchObject({ method: 'GET', path });
+      const caching = procedure?.['~orpc'].meta.caching;
+      expect(caching?.kind, name).toBe('public');
+      if (caching?.kind === 'public') expect(caching.edgeSeconds, name).toBeLessThanOrEqual(60);
+    }
+    // A new price comes every 5 seconds: the edge keeps the newest only a moment.
+    expect(contract.prices.get['~orpc'].meta.caching).toEqual({
+      kind: 'public',
+      edgeSeconds: 2,
+      staleSeconds: 5,
+      tags: ['prices'],
+    });
+  });
+
+  it('take a quote as a buy of an amount (now or at a limit) or a sale of shares, nothing else', () => {
+    const quote = (input: object) => marketQuoteInput.safeParse({ id, outcome: 'yes', ...input });
+    expect(quote({ amount: '25' }).success).toBe(true);
+    expect(quote({ action: 'buy', amount: '25', limitProb: '0.4' }).success).toBe(true);
+    expect(quote({ action: 'sell', shares: '10.5' }).success).toBe(true);
+    expect(quote({ action: 'sell', shares: '1000000000' }).success).toBe(true);
+    for (const bad of [
+      {},
+      { shares: '10' },
+      { amount: '0' },
+      { amount: '25', shares: '10' },
+      { action: 'sell' },
+      { action: 'sell', amount: '25' },
+      { action: 'sell', shares: '10', limitProb: '0.4' },
+      { amount: '25', limitProb: '0.995' },
+      { amount: '1000000000.000001' },
+      { action: 'sell', shares: '99999999999999' },
+      { amount: '25', action: 'hold' },
+    ]) {
+      expect(quote(bad).success, JSON.stringify(bad)).toBe(false);
+    }
+    expect(marketQuoteInput.safeParse({ id, outcome: 'maybe', amount: '1' }).success).toBe(false);
+  });
+
+  it('take a history only over the usual ranges, and a price only of a feed we keep', () => {
+    for (const range of ['1h', '1d', '1w', '1m', 'all']) {
+      expect(marketHistoryInput.safeParse({ id, range }).success, range).toBe(true);
+    }
+    expect(marketHistoryInput.safeParse({ id, range: '5y' }).success).toBe(false);
+    expect(priceHistoryInput.safeParse({ feed: 'btc-usd' }).success).toBe(true);
+    expect(priceHistoryInput.safeParse({ feed: 'eth-usd' }).success).toBe(false);
+  });
+
+  it("are the stand-in's too, with examples that pass the contract, and the quote matches its trade", async () => {
+    const found = await api.markets.get({ id });
+    expect(found).toEqual(examples.oneMarket);
+    await expect(
+      api.markets.get({ id: '01a1ffff-0000-7000-8000-000000000000' }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND', status: 404 });
+    expect(marketHistory.parse(await api.markets.history({ id }))).toEqual(examples.marketHistory);
+    expect(marketBook.parse(await api.markets.book({ id }))).toEqual(examples.marketBook);
+    expect(marketTrades.parse(await api.markets.trades({ id }))).toEqual(examples.marketTrades);
+    const quoted = marketQuote.parse(
+      await api.markets.quote({ id, outcome: 'yes', amount: examples.tradeResult.amount }),
+    );
+    expect(quoted).toEqual(examples.marketQuote);
+    // The trade that followed filled exactly as quoted.
+    expect({
+      amount: quoted.amount,
+      shares: quoted.shares,
+      probBefore: quoted.probBefore,
+      probAfter: quoted.probAfter,
+    }).toEqual({
+      amount: examples.tradeResult.amount,
+      shares: examples.tradeResult.shares,
+      probBefore: examples.tradeResult.probBefore,
+      probAfter: examples.tradeResult.probAfter,
+    });
+    expect(
+      perpQuote.parse(
+        await api.perps.quote({
+          id: examples.perpDetails.id,
+          direction: 'long',
+          margin: '100',
+          leverage: '10',
+        }),
+      ),
+    ).toEqual(examples.perpQuote);
+    await expect(
+      api.perps.quote({
+        id: examples.perpDetails.id,
+        direction: 'long',
+        margin: '100',
+        leverage: '11',
+      }),
+    ).rejects.toMatchObject({ code: 'REFUSED' });
+    expect(price.parse(await api.prices.get({ feed: 'btc-usd' }))).toEqual(examples.price);
+    expect(priceHistory.parse(await api.prices.history({ feed: 'btc-usd' }))).toMatchObject({
+      range: '1d',
+    });
+  });
+
+  it('name nobody: no public read of a trade or an order carries an account', () => {
+    for (const shape of [publicTrade, bookLevel, marketQuote]) {
+      const keys = Object.keys(shape.shape);
+      for (const personal of ['accountId', 'userId', 'account', 'requestId', 'email', 'name']) {
+        expect(keys).not.toContain(personal);
+      }
+    }
   });
 });

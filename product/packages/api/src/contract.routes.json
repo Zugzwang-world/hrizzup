@@ -108,6 +108,121 @@
         }
       }
     },
+    "get": {
+      "~orpc": {
+        "errorMap": {},
+        "meta": {
+          "caching": {
+            "kind": "public",
+            "edgeSeconds": 60,
+            "staleSeconds": 300,
+            "tags": [
+              "markets"
+            ]
+          }
+        },
+        "route": {
+          "method": "GET",
+          "path": "/markets/{id}",
+          "summary": "One market, with its probability",
+          "tags": [
+            "public"
+          ]
+        }
+      }
+    },
+    "history": {
+      "~orpc": {
+        "errorMap": {},
+        "meta": {
+          "caching": {
+            "kind": "public",
+            "edgeSeconds": 60,
+            "staleSeconds": 300,
+            "tags": [
+              "markets"
+            ]
+          }
+        },
+        "route": {
+          "method": "GET",
+          "path": "/markets/{id}/history",
+          "summary": "A market's probability after each trade",
+          "tags": [
+            "public"
+          ]
+        }
+      }
+    },
+    "book": {
+      "~orpc": {
+        "errorMap": {},
+        "meta": {
+          "caching": {
+            "kind": "public",
+            "edgeSeconds": 10,
+            "staleSeconds": 60,
+            "tags": [
+              "market-activity"
+            ]
+          }
+        },
+        "route": {
+          "method": "GET",
+          "path": "/markets/{id}/book",
+          "summary": "A market's resting limit orders by price",
+          "tags": [
+            "public"
+          ]
+        }
+      }
+    },
+    "trades": {
+      "~orpc": {
+        "errorMap": {},
+        "meta": {
+          "caching": {
+            "kind": "public",
+            "edgeSeconds": 10,
+            "staleSeconds": 60,
+            "tags": [
+              "market-activity"
+            ]
+          }
+        },
+        "route": {
+          "method": "GET",
+          "path": "/markets/{id}/trades",
+          "summary": "A market's latest trades",
+          "tags": [
+            "public"
+          ]
+        }
+      }
+    },
+    "quote": {
+      "~orpc": {
+        "errorMap": {},
+        "meta": {
+          "caching": {
+            "kind": "public",
+            "edgeSeconds": 10,
+            "staleSeconds": 60,
+            "tags": [
+              "market-activity"
+            ]
+          }
+        },
+        "route": {
+          "method": "GET",
+          "path": "/markets/{id}/quote",
+          "summary": "A quote for a buy or a sale of any size",
+          "tags": [
+            "public"
+          ]
+        }
+      }
+    },
     "trade": {
       "~orpc": {
         "errorMap": {},
@@ -192,6 +307,29 @@
         }
       }
     },
+    "quote": {
+      "~orpc": {
+        "errorMap": {},
+        "meta": {
+          "caching": {
+            "kind": "public",
+            "edgeSeconds": 5,
+            "staleSeconds": 10,
+            "tags": [
+              "perps"
+            ]
+          }
+        },
+        "route": {
+          "method": "GET",
+          "path": "/perps/{id}/quote",
+          "summary": "A quote for opening a perp position",
+          "tags": [
+            "public"
+          ]
+        }
+      }
+    },
     "open": {
       "~orpc": {
         "errorMap": {},
@@ -224,6 +362,54 @@
           "summary": "Close a perp position, all or part, at the next price",
           "tags": [
             "personal"
+          ]
+        }
+      }
+    }
+  },
+  "prices": {
+    "get": {
+      "~orpc": {
+        "errorMap": {},
+        "meta": {
+          "caching": {
+            "kind": "public",
+            "edgeSeconds": 2,
+            "staleSeconds": 5,
+            "tags": [
+              "prices"
+            ]
+          }
+        },
+        "route": {
+          "method": "GET",
+          "path": "/prices/{feed}",
+          "summary": "Our own price now",
+          "tags": [
+            "public"
+          ]
+        }
+      }
+    },
+    "history": {
+      "~orpc": {
+        "errorMap": {},
+        "meta": {
+          "caching": {
+            "kind": "public",
+            "edgeSeconds": 5,
+            "staleSeconds": 30,
+            "tags": [
+              "prices"
+            ]
+          }
+        },
+        "route": {
+          "method": "GET",
+          "path": "/prices/{feed}/history",
+          "summary": "Our own price over a range",
+          "tags": [
+            "public"
           ]
         }
       }

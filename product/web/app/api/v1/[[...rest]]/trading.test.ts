@@ -45,6 +45,7 @@ vi.mock('@/lib/api/rate-limit.ts', async (original) => ({
 }));
 vi.mock('@/lib/api/edge-cache.ts', () => ({
   MARKETS_TAG: 'markets',
+  MARKET_ACTIVITY_TAG: 'market-activity',
   refreshEdge: (tags: string[]) => refreshEdge(tags),
 }));
 vi.mock('@hrizzup/markets', async (original) => ({
@@ -187,14 +188,17 @@ describe('a trade', () => {
     expect(allowTrade).toHaveBeenCalledWith(PERSON.id);
   });
 
-  it('clears the list at the edge when it moves the price, and not when an order only rests', async () => {
+  it('clears the list, the market, its history and its activity at the edge on every trade', async () => {
     calls.placeTrade.mockResolvedValue(tradeResult);
     await answer('POST', '/api/v1/trades', buy());
-    expect(refreshEdge).toHaveBeenCalledWith(['markets']);
+    expect(refreshEdge).toHaveBeenCalledTimes(1);
+    expect(refreshEdge).toHaveBeenCalledWith(['markets', 'market-activity']);
     refreshEdge.mockClear();
+    // An order that only rests adds a point to the history (at the same price) and a row to the book.
     calls.placeTrade.mockResolvedValue(restingOrder);
     await answer('POST', '/api/v1/trades', buy({ limitProb: '0.4' }));
-    expect(refreshEdge).not.toHaveBeenCalled();
+    expect(refreshEdge).toHaveBeenCalledTimes(1);
+    expect(refreshEdge).toHaveBeenCalledWith(['markets', 'market-activity']);
   });
 
   it('refuses, before anything runs: a limit outside 1% to 99%, an amount not above zero, an expiry that is no moment', async () => {
@@ -373,14 +377,15 @@ describe('a trade', () => {
 describe('cancelling an order', () => {
   const cancel = { marketId: MARKET, orderId: restingOrder.tradeId, requestId: REQUEST };
 
-  it('answers the signed-in person, counts against the limit, and leaves the list alone', async () => {
+  it("answers the signed-in person, counts against the limit, and clears only the market's book", async () => {
     calls.cancelOrder.mockResolvedValue(cancelOrderResult);
     const cancelled = await answer('POST', '/api/v1/orders/cancel', cancel);
     expect(cancelled.status).toBe(200);
     expect(cancelled.body).toEqual(cancelOrderResult);
     expect(calls.cancelOrder).toHaveBeenCalledWith(pool, PERSON.id, cancel);
     expect(allowTrade).toHaveBeenCalledWith(PERSON.id);
-    expect(refreshEdge).not.toHaveBeenCalled();
+    expect(refreshEdge).toHaveBeenCalledTimes(1);
+    expect(refreshEdge).toHaveBeenCalledWith(['market-activity']);
   });
 
   it('refuses an order that is not open, someone not signed in, and anyone over the limit', async () => {
@@ -435,6 +440,8 @@ describe("the console's changes clear the list at the edge", () => {
       evidence: 'The test desk recorded it.',
     });
     expect(refreshEdge).toHaveBeenCalledTimes(3);
+    for (const call of refreshEdge.mock.calls)
+      expect(call).toEqual([['markets', 'market-activity']]);
     refreshEdge.mockClear();
     await answer('POST', '/api/v1/admin/markets', {
       id: '01a1ff00-0000-7000-8000-000000000001',

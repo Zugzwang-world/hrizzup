@@ -43,6 +43,23 @@ export {
   type RevokeKeyInput,
 } from './keys.ts';
 export {
+  type HistoryRange,
+  historyRange,
+  type MarketBook,
+  type MarketHistory,
+  type MarketQuote,
+  type MarketQuoteInput,
+  type MarketTrades,
+  type PerpQuote,
+  type PerpQuoteInput,
+  type Price,
+  type PriceFeed,
+  type PriceHistory,
+  type PublicTrade,
+  type QuoteRefusal,
+  quoteRefusal,
+} from './market-data.ts';
+export {
   commonErrors,
   cursor,
   DEFAULT_PAGE,
@@ -51,6 +68,7 @@ export {
   MOST_A_PAGE,
   nextCursor,
   type PageInput,
+  pageFields,
   pageInput,
   pageLimit,
 } from './paging.ts';
