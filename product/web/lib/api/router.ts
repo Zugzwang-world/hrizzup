@@ -10,6 +10,7 @@ import {
   marketList,
   marketQuote,
   marketTrades,
+  myTrades,
   oneMarket,
   openMarket,
   openOrders,
@@ -193,6 +194,8 @@ export const router = api.router({
       const result = await asPerson(user, () =>
         tradingCall(() => placeTrade(tradingPool(), user.id, input)),
       );
+      // A dry run changes nothing anyone reads.
+      if (result.dryRun) return result;
       // Every trade changes the market's record and its history (an order that rests too: a point at
       // the same price), its book, its latest trades and its quotes: their edge copies are cleared.
       await refreshEdge([MARKETS_TAG, MARKET_ACTIVITY_TAG]);
@@ -250,6 +253,11 @@ export const router = api.router({
       const user = await person(context.headers, 'read');
       await withinReadLimit(user, context.resHeaders);
       return tradingCall(() => positions(tradingPool(), user.id, pageOf(input)));
+    }),
+    trades: api.portfolio.trades.handler(async ({ context, input }) => {
+      const user = await person(context.headers, 'read');
+      await withinReadLimit(user, context.resHeaders);
+      return tradingCall(() => myTrades(tradingPool(), user.id, pageOf(input)));
     }),
     orders: api.portfolio.orders.handler(async ({ context, input }) => {
       const user = await person(context.headers, 'read');

@@ -106,6 +106,28 @@ export const guide: Section[] = [
     ],
   },
   {
+    id: 'trading',
+    title: 'Trading for bots',
+    blocks: [
+      p(
+        'With a trading key, a bot trades as the account that made it. Every trade carries a request ID of its own (a new UUID): send the same one again on a retry, and the books answer what they did the first time, never trading twice.',
+      ),
+      list(
+        '**Buy or sell:** `POST /trades` with `"action": "buy"` and an `amount` of play money, or `"action": "sell"` and `shares`. A buy with `limitProb` is a limit order: it buys only while the probability of Yes is at most that (a Yes order) or at least it (a No order), resting until later trades reach it, and `expiresAt` ends it. `outcome` is `yes` or `no`; Manifold\'s `YES` and `NO` work too.',
+        '**A dry run:** add `"dryRun": true` (Manifold\'s name). The trade is worked out exactly as the books would do it, your own balance, position and resting orders included, then undone: nothing moves. The answer is the trade\'s, marked `dryRun`, with the nil UUID as its trade ID; the same request ID then works for the real trade. A request ID already used is refused (409). For a quote without a key, ask `GET /markets/{id}/quote`.',
+        "**Cancel a resting order:** `POST /orders/cancel` with the market, the order's ID (the trade ID its answer gave) and a request ID.",
+        "**The perp:** `POST /perps/open` with a `direction` (`long` or `short`), a `margin` and a `leverage` (up to 10 times); `POST /perps/close` with a `fraction`: `1` for all of it, or a share such as `0.5` with `expectedSize`, the position's size you saw, so a position that has changed since isn't cut by the wrong amount (Manifold's rule). Each fills at the next price, a few seconds on, and answers then.",
+        '**Your portfolio:** `GET /me/positions` (your balance and positions), `GET /me/orders` (your resting orders), `GET /me/perps` (your perp positions, valued at the price now) and `GET /me/trades` (your own trades, newest first, each with `isApi` saying whether a key placed it). A read-only key reads these too.',
+      ),
+      p(
+        "The example bot does all of it in one small file, `examples/bot/bot.ts` in the repository (github.com/Zugzwang-world/hrizzup), with your key from the environment. From the repository's folder, with Node.js 24 or later:",
+      ),
+      code(
+        'read -rs HRIZZUP_API_KEY && export HRIZZUP_API_KEY   # paste your trading key, then Return\nnode examples/bot/bot.ts',
+      ),
+    ],
+  },
+  {
     id: 'manifold',
     title: 'Moving from Manifold',
     blocks: [
@@ -117,7 +139,11 @@ export const guide: Section[] = [
         head: ['Manifold', 'Hrizzup', 'Why'],
         rows: [
           ['`contractId`', '`marketId`', 'Ours are markets'],
-          ['`"YES"`, `"NO"`', '`"yes"`, `"no"`', 'Lower case, like every value of ours'],
+          [
+            '`"YES"`, `"NO"`',
+            '`"yes"`, `"no"` (`"YES"`, `"NO"` taken too)',
+            'Lower case, like every value of ours',
+          ],
           [
             'milliseconds (`createdTime`)',
             'ISO 8601 times (`createdAt`)',
@@ -135,7 +161,12 @@ export const guide: Section[] = [
           ['`GET /v0/market/{id}`', '`GET /markets/{id}`'],
           ['`GET /v0/bets?contractId=…`', '`GET /markets/{id}/trades` (no names)'],
           ['`GET /v0/bets?kinds=open-limit`', '`GET /markets/{id}/book` (no names)'],
-          ['`POST /v0/bet`', '`POST /trades`, `"action": "buy"`'],
+          ['`POST /v0/bet`', '`POST /trades`, `"action": "buy"`, with a `requestId` of your own'],
+          [
+            '`POST /v0/bet` with `dryRun`',
+            '`POST /trades` with `dryRun`, or `GET /markets/{id}/quote`',
+          ],
+          ['`GET /v0/bets?userId=…` (your own)', '`GET /me/trades`'],
           ['`POST /v0/market/{id}/sell`', '`POST /trades`, `"action": "sell"`'],
           ['`POST /v0/bet/cancel/{id}`', '`POST /orders/cancel`'],
           ['`before` (paging)', '`cursor`, the `next` of the page before'],
@@ -163,6 +194,7 @@ export const guide: Section[] = [
     blocks: [
       p('Every change to v1 and every reset of the demo is listed here first, newest at the top.'),
       list(
+        "**11 November 2026, evening:** trading for bots: `dryRun` on `POST /trades`, Manifold's `YES` and `NO` taken as `outcome`, and your own trades at `GET /me/trades`; the example bot. Only additions.",
         "**11 November 2026, later:** a market's own reads (`GET /markets/{id}`, its history, its resting orders by price, its latest trades and a quote for any size), the perp's quote, and our own Bitcoin price and its history. Only additions.",
         '**11 November 2026:** v1 opens on staging, the demo: the markets and the perp, personal keys (read-only or trading), `limit` and `cursor` on every list (renamed from `after`), one error format, and this page.',
       ),

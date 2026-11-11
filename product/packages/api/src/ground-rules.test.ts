@@ -44,6 +44,7 @@ describe('the ground rules, for every call', () => {
         'portfolio.orders',
         'portfolio.perps',
         'portfolio.positions',
+        'portfolio.trades',
       ].sort(),
     );
     // A list takes the page's two fields and nothing else; a list of one thing's own (a market's

@@ -25,6 +25,7 @@ export {
   checkBefore,
   type Holdings,
   marketList,
+  myTrades,
   openOrders,
   PAGE_SIZE,
   placeTrade,

@@ -21,7 +21,12 @@ describe("the public API's reference, read from its OpenAPI file", () => {
     expect(call('markets.list').takes.query.map((f) => f.name)).toEqual(['cursor', 'limit']);
     expect(call('markets.list').takes.query[1]?.kind).toBe('a whole number (1 to 100)');
     const trade = call('markets.trade').takes.body;
-    expect(trade.map((v) => v.when)).toEqual(['action is "buy"', 'action is "sell"']);
+    expect(trade.map((v) => v.when)).toEqual([
+      'action is "buy"',
+      'action is "sell"',
+      `action is "buy", in Manifold's form: YES or NO, and dryRun`,
+      `action is "sell", in Manifold's form: YES or NO, and dryRun`,
+    ]);
     expect(trade[0]?.fields.find((f) => f.name === 'amount')).toMatchObject({
       required: true,
       kind: 'an amount, as text, more than 0, to 6 decimal places',

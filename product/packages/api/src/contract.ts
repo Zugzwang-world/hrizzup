@@ -61,6 +61,8 @@ import {
   cancelOrderResult,
   listedMarket,
   marketList,
+  myTradesPage,
+  myTradesPageInput,
   ordersPage,
   ordersPageInput,
   personalReadErrors,
@@ -341,7 +343,10 @@ export const contract = {
       .input(marketQuoteInput)
       .output(marketQuote),
 
-    /** Buys or sells, now or as a limit order. Refused before touching the books when it can't trade. */
+    /**
+     * Buys or sells, now or as a limit order. Refused before touching the books when it can't trade.
+     * With `dryRun`, worked out exactly as the books would, then undone: nothing moves.
+     */
     trade: call
       .route({
         method: 'POST',
@@ -497,6 +502,21 @@ export const contract = {
       .errors(personalReadErrors)
       .input(perpPositionsPageInput)
       .output(perpPositionsPage),
+
+    /**
+     * Their own trades in every market, newest first (Manifold's bets): buys, sales, limit orders and
+     * redemptions, each saying whether a bot's key placed it.
+     */
+    trades: call
+      .route({
+        method: 'GET',
+        path: '/me/trades',
+        summary: 'Your own trades',
+        tags: ['personal'],
+      })
+      .errors(personalReadErrors)
+      .input(myTradesPageInput)
+      .output(myTradesPage),
 
     /** Their resting limit orders, newest first. */
     orders: call

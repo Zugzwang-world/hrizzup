@@ -62,6 +62,42 @@ export function trade(
   return transaction(pool, (tx) => tradeIn(tx, request, params, tradeId), { account });
 }
 
+/** Carries a dry run's answer out of its transaction, which rolls back on it. */
+class RolledBack extends Error {
+  constructor(readonly result: TradeResult) {
+    super('A dry run, rolled back');
+    this.name = 'RolledBack';
+  }
+}
+
+/**
+ * A dry run (the public API's `dryRun`, Manifold's): the very trade `trade()` would run, in its own
+ * transaction, as the same account, under the same lock and checks, then rolled back, so nothing is
+ * written and nothing moves. Its answer is exactly what the trade would have answered at that moment
+ * (the trader's own balance, position and resting orders included); a request already answered gets
+ * that stored answer back, as a retry would. Its trade ID names nothing, since nothing was kept.
+ */
+export async function dryRun(
+  pool: Pick<Pool, 'connect'>,
+  account: string,
+  request: TradeRequest,
+): Promise<TradeResult> {
+  const params = paramsOf(request);
+  try {
+    await transaction(
+      pool,
+      async (tx) => {
+        throw new RolledBack(await tradeIn(tx, request, params, randomUUID()));
+      },
+      { account },
+    );
+  } catch (error) {
+    if (error instanceof RolledBack) return error.result;
+    throw error;
+  }
+  throw new Error('A dry run always rolls back');
+}
+
 /** The trade's steps, inside one transaction. */
 async function tradeIn(
   tx: Transaction,

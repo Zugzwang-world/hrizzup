@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { decimal, moment, probability, recordId } from './console.ts';
 import { nextCursor, pageFields } from './paging.ts';
 import { leverage, margin, perpAmount, perpDirection, perpRefusal } from './perps.ts';
-import { positiveAmount, refusal, side } from './trading.ts';
+import { positiveAmount, refusal, side, sideInput } from './trading.ts';
 
 /**
  * The public API's market data (PLAN.md steps 3.5c and 3.4b; docs/research/public-api.md, sections
@@ -104,7 +104,7 @@ export const marketQuoteInput = z
     id: recordId,
     /** A buy (when not sent) or a sale. */
     action: z.enum(['buy', 'sell']).optional(),
-    outcome: side,
+    outcome: sideInput,
     /** A buy's play money to spend. */
     amount: quoteSize.optional(),
     /** A sale's shares to sell. */

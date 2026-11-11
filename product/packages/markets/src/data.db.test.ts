@@ -5,7 +5,7 @@ import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { closeMarket, createMarket, openMarket } from './console.ts';
 import { marketBook, marketHistory, marketQuote, marketTrades, oneMarket } from './data.ts';
-import { cancelOrder, placeTrade, positions, TradingError } from './trading.ts';
+import { cancelOrder, myTrades, placeTrade, positions, TradingError } from './trading.ts';
 
 /**
  * The public API's market data against a real database (PLAN.md step 3.5c; the Database check): each
@@ -331,5 +331,113 @@ describe('a quote', () => {
       'select problem from ledger.problems()',
     );
     expect(rows.map((row) => row.problem)).toEqual([]);
+  });
+});
+
+describe('a dry run', () => {
+  it('answers exactly what the trade sent next answers, writing nothing, over 120 random trades', async () => {
+    const rng = random(7);
+    const pick = <T>(items: readonly T[]): T => items[Math.floor(rng() * items.length)] as T;
+    const people = await Promise.all(Array.from({ length: 4 }, () => person('300')));
+    const markets = [
+      await openedMarket({ seed: '200', probability: '0.4' }),
+      await openedMarket({ seed: '30', probability: '0.7' }),
+    ];
+    let compared = 0;
+    for (let step = 0; step < 120; step++) {
+      const who = pick(people);
+      const marketId = pick(markets);
+      const outcome = pick(['yes', 'no'] as const);
+      const held = await heldShares(who, marketId);
+      const shares = Number(outcome === 'yes' ? held.yes : held.no);
+      const requestId = randomUUID();
+      const limit = rng() < 0.4 ? (0.05 + rng() * 0.9).toFixed(2) : undefined;
+      const trade: TradeInput =
+        shares > 0 && rng() < 0.3
+          ? { marketId, requestId, action: 'sell', outcome, shares: (shares / 2).toFixed(6) }
+          : {
+              marketId,
+              requestId,
+              action: 'buy',
+              outcome,
+              amount: (1 + rng() * 30).toFixed(6),
+              ...(limit === undefined ? {} : { limitProb: limit }),
+            };
+      const before = (await positions(app, who, { limit: 100 })).balance;
+      let dry: Awaited<ReturnType<typeof placeTrade>> | TradingError;
+      try {
+        dry = await placeTrade(app, who, { ...trade, dryRun: true });
+      } catch (error) {
+        if (!(error instanceof TradingError)) throw error;
+        dry = error;
+      }
+      // Nothing written: no request stored, no money moved.
+      const { rows } = await owner.query<{ found: boolean }>(
+        'select exists (select 1 from markets.requests where id = $1) as found',
+        [requestId],
+      );
+      expect(rows[0]?.found, `step ${step}: a dry run stores nothing`).toBe(false);
+      expect((await positions(app, who, { limit: 100 })).balance).toBe(before);
+      // The real trade, with the very same request ID.
+      let real: Awaited<ReturnType<typeof placeTrade>> | TradingError;
+      try {
+        real = await placeTrade(app, who, trade);
+      } catch (error) {
+        if (!(error instanceof TradingError)) throw error;
+        real = error;
+      }
+      if (dry instanceof TradingError || real instanceof TradingError) {
+        expect(
+          dry instanceof TradingError ? { kind: dry.kind, reason: dry.reason } : 'traded',
+          `step ${step}`,
+        ).toEqual(
+          real instanceof TradingError ? { kind: real.kind, reason: real.reason } : 'traded',
+        );
+        continue;
+      }
+      const { tradeId, at, dryRun, ...dryRest } = dry;
+      const { tradeId: realId, at: realAt, ...realRest } = real;
+      expect(dryRun).toBe(true);
+      expect(tradeId).toBe('00000000-0000-0000-0000-000000000000');
+      expect(dryRest, `step ${step}: ${JSON.stringify(trade)}`).toEqual(realRest);
+      compared += 1;
+    }
+    expect(compared).toBeGreaterThan(80);
+    const { rows } = await owner.query<{ problem: string }>(
+      'select problem from ledger.problems()',
+    );
+    expect(rows.map((row) => row.problem)).toEqual([]);
+  });
+
+  it('refuses a request ID already used, and lists the account’s own trades newest first', async () => {
+    const id = await openedMarket();
+    const kai = await person('100');
+    const sent = {
+      marketId: id,
+      requestId: randomUUID(),
+      action: 'buy' as const,
+      outcome: 'yes' as const,
+      amount: '5',
+    };
+    const first = await placeTrade(app, kai, sent);
+    await expect(placeTrade(app, kai, { ...sent, dryRun: true })).rejects.toMatchObject({
+      kind: 'conflict',
+    });
+    const resting = await placeTrade(app, kai, {
+      ...sent,
+      requestId: randomUUID(),
+      outcome: 'no',
+      limitProb: '0.95',
+    });
+    const page = await myTrades(app, kai);
+    await passes(contract.portfolio.trades, page);
+    expect(
+      page.trades.map((trade) => [trade.id, trade.action, trade.isFilled, trade.isApi]),
+    ).toEqual([
+      [resting.tradeId, 'buy', false, false],
+      [first.tradeId, 'buy', true, false],
+    ]);
+    const second = await myTrades(app, kai, { limit: 1, after: page.trades[0]?.id });
+    expect(second.trades.map((trade) => trade.id)).toEqual([first.tradeId]);
   });
 });

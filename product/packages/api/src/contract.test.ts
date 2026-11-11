@@ -32,7 +32,7 @@ import {
 } from './perps.ts';
 import { procedures as callsOf } from './procedures.ts';
 import { standIn } from './stand-in.ts';
-import { marketList, tradeInput } from './trading.ts';
+import { marketList, myTradesPage, tradeInput, tradeResult } from './trading.ts';
 
 const procedures = callsOf(contract);
 
@@ -440,6 +440,7 @@ describe('the markets, for everyone', () => {
       'markets.trades',
       'portfolio.orders',
       'portfolio.positions',
+      'portfolio.trades',
     ]);
   });
 
@@ -670,9 +671,16 @@ describe("a trade's input", () => {
     }
   });
 
+  it("takes Manifold's YES and NO too, answering in lower case, and a dry run", () => {
+    expect(tradeInput.parse({ ...buy, outcome: 'YES' }).outcome).toBe('yes');
+    expect(tradeInput.parse({ ...sell, outcome: 'NO' }).outcome).toBe('no');
+    expect(tradeInput.parse({ ...buy, dryRun: true })).toMatchObject({ dryRun: true });
+    expect(takes({ ...buy, dryRun: 'yes' })).toBe(false);
+  });
+
   it('refuses anything else it was not built to take', () => {
     expect(takes({ ...buy, action: 'short' })).toBe(false);
-    expect(takes({ ...buy, outcome: 'YES' })).toBe(false);
+    expect(takes({ ...buy, outcome: 'Yes' })).toBe(false);
     expect(takes({ ...buy, outcome: 'maybe' })).toBe(false);
     expect(takes({ ...buy, requestId: 'retry-1' })).toBe(false);
     expect(takes({ ...buy, marketId: '01A1AB94-8600-7B23-BA8B-9E3174889404' })).toBe(false);
@@ -952,5 +960,43 @@ describe('the market data (step 3.5c) and our own price (step 3.4b)', () => {
         expect(keys).not.toContain(personal);
       }
     }
+  });
+});
+
+describe("a bot's own trades and dry runs (step 3.5d)", () => {
+  const api = createRouterClient(standIn());
+
+  it('are a personal list at /me/trades, never kept, that a read-only key may read', () => {
+    expect(contract.portfolio.trades['~orpc'].route).toMatchObject({
+      method: 'GET',
+      path: '/me/trades',
+    });
+    expect(contract.portfolio.trades['~orpc'].meta.caching).toEqual({ kind: 'personal' });
+    expect(
+      (contract.portfolio.trades['~orpc'].errorMap as Record<string, unknown>).FORBIDDEN,
+    ).toBeUndefined();
+  });
+
+  it("answer with examples that pass the contract: the trades, each saying a bot's key placed it, and a dry run marked so, with no trade ID", async () => {
+    const page = myTradesPage.parse(await api.portfolio.trades());
+    expect(page).toEqual(examples.myTradesPage);
+    expect(page.trades.every((trade) => trade.isApi)).toBe(true);
+    const dry = tradeResult.parse(
+      await api.markets.trade({
+        marketId: examples.tradeResult.marketId,
+        requestId: '01a1b0c4-5e00-7a10-9c3d-1f2e3d4c5b6b',
+        action: 'buy',
+        outcome: 'YES' as never,
+        amount: '25',
+        dryRun: true,
+      }),
+    );
+    expect(dry).toMatchObject({ dryRun: true, tradeId: '00000000-0000-0000-0000-000000000000' });
+    // A dry run answers what the trade did.
+    expect({ amount: dry.amount, shares: dry.shares, probAfter: dry.probAfter }).toEqual({
+      amount: examples.tradeResult.amount,
+      shares: examples.tradeResult.shares,
+      probAfter: examples.tradeResult.probAfter,
+    });
   });
 });

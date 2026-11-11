@@ -452,6 +452,24 @@
         }
       }
     },
+    "trades": {
+      "~orpc": {
+        "errorMap": {},
+        "meta": {
+          "caching": {
+            "kind": "personal"
+          }
+        },
+        "route": {
+          "method": "GET",
+          "path": "/me/trades",
+          "summary": "Your own trades",
+          "tags": [
+            "personal"
+          ]
+        }
+      }
+    },
     "orders": {
       "~orpc": {
         "errorMap": {},

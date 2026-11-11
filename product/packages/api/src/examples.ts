@@ -28,6 +28,7 @@ import type {
 import type {
   CancelOrderResult,
   MarketList,
+  MyTradesPage,
   OrdersPage,
   PositionsPage,
   TradeResult,
@@ -283,6 +284,61 @@ export const marketTrades: MarketTrades = {
     },
   ],
   next: null,
+};
+
+/** Their own trades, newest first: the limit order (cancelled), then the buy, which a bot's key placed. */
+export const myTradesPage: MyTradesPage = {
+  trades: [
+    {
+      id: restingOrder.tradeId,
+      marketId: market.id,
+      question: market.question,
+      action: 'buy',
+      outcome: 'yes',
+      amount: restingOrder.amount,
+      shares: restingOrder.shares,
+      orderAmount: restingOrder.orderAmount,
+      limitProb: restingOrder.limitProb,
+      expiresAt: null,
+      isFilled: false,
+      isCancelled: true,
+      cancelReason: 'by_owner',
+      probBefore: restingOrder.probBefore,
+      probAfter: restingOrder.probAfter,
+      requestId: restingOrder.requestId,
+      isApi: true,
+      at: restingOrder.at,
+    },
+    {
+      id: tradeResult.tradeId,
+      marketId: market.id,
+      question: market.question,
+      action: 'buy',
+      outcome: 'yes',
+      amount: tradeResult.amount,
+      shares: tradeResult.shares,
+      orderAmount: tradeResult.orderAmount,
+      limitProb: null,
+      expiresAt: null,
+      isFilled: true,
+      isCancelled: false,
+      cancelReason: null,
+      probBefore: tradeResult.probBefore,
+      probAfter: tradeResult.probAfter,
+      requestId: tradeResult.requestId,
+      isApi: true,
+      at: tradeResult.at,
+    },
+  ],
+  next: null,
+};
+
+/** The same buy as a dry run first: what it would do, nothing written, no trade ID of its own. */
+export const dryRunResult: TradeResult = {
+  ...tradeResult,
+  tradeId: '00000000-0000-0000-0000-000000000000',
+  at: '2026-11-09T07:14:58Z',
+  dryRun: true,
 };
 
 /** The example person's balance and position, with the limit order still resting. */

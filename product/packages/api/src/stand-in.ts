@@ -3,6 +3,7 @@ import type { ConsoleMarketWithLog } from './console.ts';
 import { contract } from './contract.ts';
 import * as examples from './examples.ts';
 import type { ConsolePerpWithLog } from './perps.ts';
+import { isDryRun } from './trading.ts';
 
 /**
  * A stand-in implementation of the whole contract that answers with the example answers
@@ -97,6 +98,9 @@ export function standIn(options: { signedIn?: boolean; admin?: boolean } = {}) {
       trade: api.markets.trade.handler(({ input }) => {
         asPerson();
         tradable(input.marketId);
+        if (isDryRun(input) && input.action === 'buy') {
+          return { ...examples.dryRunResult, requestId: input.requestId };
+        }
         if (input.action === 'sell') {
           // Selling the example's Yes shares back: the pool returns to 50%.
           return {
@@ -202,6 +206,10 @@ export function standIn(options: { signedIn?: boolean; admin?: boolean } = {}) {
       perps: api.portfolio.perps.handler(() => {
         asPerson();
         return examples.perpPositionsPage;
+      }),
+      trades: api.portfolio.trades.handler(() => {
+        asPerson();
+        return examples.myTradesPage;
       }),
       orders: api.portfolio.orders.handler(() => {
         asPerson();
