@@ -2,7 +2,7 @@
 
 **This brief replaces Claude Code's report:** read it after clicking **Sync now**, instead of asking the founder for a report, and attach the files under "Read for detail" from GitHub when you need more.
 
-> Rewritten 16 November 2026 by Round 5's relay R6, the round's closing record ([#PRNUM](https://github.com/Zugzwang-world/hrizzup/pull/PRNUM)), whose change to PLAN.md rewrites every brief. The Sourcing project's only file from the repository, rewritten at the end of every session that touches its part. PLAN.md wins any disagreement.
+> Rewritten 16 November 2026 by Round 5's relay R6, the round's closing record ([#141](https://github.com/Zugzwang-world/hrizzup/pull/141)), whose change to PLAN.md rewrites every brief. The Sourcing project's only file from the repository, rewritten at the end of every session that touches its part. PLAN.md wins any disagreement.
 
 **Hrizzup** is a news app built around creators, plus a website with play-money prediction markets. Our AI finds news as it breaks on X and turns it into developing stories that readers see through creators' takes. **Sourcing's job:** design and run the Grok bots that find news and creators' takes on X, keep everything they find in the sourced pool, and turn the news into stories and updates. Product shows what Sourcing produces, in the shapes the hand-over agreement (`agreement/README.md`) fixes.
 
@@ -32,7 +32,7 @@
 
 ## What changed in the latest session
 
-On 16 November 2026, Round 5's closing record (R6, [#PRNUM](https://github.com/Zugzwang-world/hrizzup/pull/PRNUM), records only) closed Product's Round 5 and added to PLAN.md three of the Product chat's settlements of 11 November 2026, which hadn't reached it. **Nothing Sourcing writes, reads or checks changes,** and the agreement is untouched.
+On 16 November 2026, Round 5's closing record (R6, [#141](https://github.com/Zugzwang-world/hrizzup/pull/141), records only) closed Product's Round 5 and added to PLAN.md three of the Product chat's settlements of 11 November 2026, which hadn't reached it. **Nothing Sourcing writes, reads or checks changes,** and the agreement is untouched.
 
 - **Added to PLAN.md, all about the public API and the perp:** when the exchanges stop answering, the perp's held price stays for staging's demo, and before production's API opens perp orders fill only at a fresh price (runbook, pre-launch checklist, P.21); the API docs keep the site's plain look until the design chat styles them; the live stream for bots (3.5e) comes later, bots asking for prices again and again meanwhile.
 - **Unchanged for Sourcing:** topics (1.2) are drafted in the Product chat, so the automatic resolvers (3.2a), which the background-jobs choice must cover, come sooner; the perp's price runs in the database on Supabase Cron, outside that choice.

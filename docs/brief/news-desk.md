@@ -2,7 +2,7 @@
 
 **This brief replaces Claude Code's report:** read it after clicking **Sync now**, instead of asking the founder for a report, and attach the files under "Read for detail" from GitHub when you need more.
 
-> Rewritten 16 November 2026 by Round 5's relay R6, the round's closing record ([#PRNUM](https://github.com/Zugzwang-world/hrizzup/pull/PRNUM)), whose change to PLAN.md rewrites every brief. The News Desk project's only file from the repository, rewritten at the end of every session that touches its part. PLAN.md wins any disagreement.
+> Rewritten 16 November 2026 by Round 5's relay R6, the round's closing record ([#141](https://github.com/Zugzwang-world/hrizzup/pull/141)), whose change to PLAN.md rewrites every brief. The News Desk project's only file from the repository, rewritten at the end of every session that touches its part. PLAN.md wins any disagreement.
 
 **Hrizzup** is a news app built around creators, plus a website with play-money prediction markets. Our AI finds news as it breaks on X and turns it into developing stories that readers see through creators' takes. **News Desk's job:** make our own content from the sourced pool and onboard creators. It produces text, images and video, which Product shows in the app and on the website, in the shape the hand-over agreement (`agreement/README.md`) fixes. **News Desk is on hold until the founder sets it up.**
 
@@ -38,7 +38,7 @@
 
 ## What changed in the latest session
 
-On 16 November 2026, Round 5's closing record (R6, [#PRNUM](https://github.com/Zugzwang-world/hrizzup/pull/PRNUM), records only) closed Product's Round 5 and added to PLAN.md three of the Product chat's settlements of 11 November 2026, which hadn't reached it. **The creation shape, the sourced item and the agreement don't change.**
+On 16 November 2026, Round 5's closing record (R6, [#141](https://github.com/Zugzwang-world/hrizzup/pull/141), records only) closed Product's Round 5 and added to PLAN.md three of the Product chat's settlements of 11 November 2026, which hadn't reached it. **The creation shape, the sourced item and the agreement don't change.**
 
 - **Added to PLAN.md, all about the public API and the perp:** the perp's held price stays for staging's demo, and before production's API opens perp orders fill only at a fresh price (runbook, pre-launch checklist, P.21); the API docs keep the site's plain look until the design chat styles them; the live stream for bots (3.5e) comes later. Nothing in them touches News Desk's content.
 - **Product's Round 6 is social,** laid out by the founder in the Product chat; anything it needs from News Desk reaches this brief.

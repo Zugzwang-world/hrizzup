@@ -2,13 +2,13 @@
 
 **This brief replaces Claude Code's report:** read it after **Sync now** instead of asking the founder for one, and attach the files under "Read for detail" from GitHub for more.
 
-> Rewritten 16 November 2026 by Round 5's relay R6, the round's closing record ([#PRNUM](https://github.com/Zugzwang-world/hrizzup/pull/PRNUM)). PLAN.md wins any disagreement.
+> Rewritten 16 November 2026 by Round 5's relay R6, the round's closing record ([#141](https://github.com/Zugzwang-world/hrizzup/pull/141)). PLAN.md wins any disagreement.
 
 **Hrizzup** is a news app built around creators, plus a website with play-money prediction markets: our AI finds news as it breaks on X and turns it into developing stories seen through creators' takes. **Product builds** the website and the app (the website a stage ahead), the markets, and the public API for bots and AI tools, showing content through the content store's tables in the hand-over agreement's shapes (`agreement/README.md`, first half Agreed).
 
 ## Where things stand
 
-- **Round 5 closed on 16 November 2026** ([#PRNUM](https://github.com/Zugzwang-world/hrizzup/pull/PRNUM)): the markets sandbox and the public API for bots are done on staging, the demo, all but the API's stream (3.5e, later).
+- **Round 5 closed on 16 November 2026** ([#141](https://github.com/Zugzwang-world/hrizzup/pull/141)): the markets sandbox and the public API for bots are done on staging, the demo, all but the API's stream (3.5e, later).
 - **Round 6 is open** (milestone "Round 6"). **It's social:** the founder lays it out in the Product chat, and its relays join the queue once the Product chat settles them. The market page (3.1), the perp's page (3.4c) and the board (2.1) still wait for the design chat's designs.
 - **Staging** (`staging.hrizzup.com`, Mumbai) is public, asking search engines to stay out; previews need Vercel's login and share staging's database; production is a quiet twin.
 - **Built:** the typed API at `/api/v1` with its OpenAPI file, docs (`/docs`, `/llms.txt`) and MCP server (`/api/v1/mcp`); the example bot (`examples/bot`); the app's sign-in test (1.6b: two of the founder's tries open); the market engine, ledger and console; play money on signup; the content store; the Bitcoin perp on our own price; the markets sandbox.
@@ -32,7 +32,7 @@
 
 ## What changed in the latest session
 
-**R6 closed Round 5 and opened Round 6** ([#PRNUM](https://github.com/Zugzwang-world/hrizzup/pull/PRNUM), records only: no code, database, settings or checks changed):
+**R6 closed Round 5 and opened Round 6** ([#141](https://github.com/Zugzwang-world/hrizzup/pull/141), records only: no code, database, settings or checks changed):
 
 - **`TRACKER.md`:** Round 5's queue final (R1 to R5 done; 3.5b cancelled, built in 3.5a; 3.5e moved to Round 6's queue, later; 3.1, 3.4c and 2.1 moved, each still waiting for its design); Round 6's queue, with every open item carried and no social rows yet.
 - **`PLAN.md`:** the Product chat's three settlements of 11 November hadn't reached it, so they're added (section 2, "The public API", and step 3.5e). The Sourcing and News Desk briefs are rewritten for it; nothing in their parts changes.
