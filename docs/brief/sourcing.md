@@ -2,7 +2,7 @@
 
 **This brief replaces Claude Code's report:** read it after clicking **Sync now**, instead of asking the founder for a report, and attach the files under "Read for detail" from GitHub when you need more.
 
-> Rewritten 11 November 2026 by Round 5's relay R3 (the public API's ground rules, keys and docs, step 3.5a, [#123](https://github.com/Zugzwang-world/hrizzup/pull/123)), whose change to PLAN.md rewrites every brief. The Sourcing project's only file from the repository, rewritten at the end of every session that touches its part. PLAN.md wins any disagreement.
+> Rewritten 16 November 2026 by Round 5's relay R6, the round's closing record ([#141](https://github.com/Zugzwang-world/hrizzup/pull/141)), whose change to PLAN.md rewrites every brief. The Sourcing project's only file from the repository, rewritten at the end of every session that touches its part. PLAN.md wins any disagreement.
 
 **Hrizzup** is a news app built around creators, plus a website with play-money prediction markets. Our AI finds news as it breaks on X and turns it into developing stories that readers see through creators' takes. **Sourcing's job:** design and run the Grok bots that find news and creators' takes on X, keep everything they find in the sourced pool, and turn the news into stories and updates. Product shows what Sourcing produces, in the shapes the hand-over agreement (`agreement/README.md`) fixes.
 
@@ -10,7 +10,7 @@
 
 - **The agreement's first half is Agreed** (9 November 2026), as Sourcing agreed it in its review ([#37](https://github.com/Zugzwang-world/hrizzup/pull/37), changes [#42](https://github.com/Zugzwang-world/hrizzup/pull/42) and [#45](https://github.com/Zugzwang-world/hrizzup/pull/45)); its shapes are fixed at format version 1.
 - **Sourcing's work runs in this project, on its own schedule** (the founder, 9 November 2026), with no xAI API, never from Product's round chat.
-- **No Sourcing work has started** (`sourcing/` holds only its README); the second half isn't drafted. The tables the pipeline will write exist on Product's side (step 1.9, [#72](https://github.com/Zugzwang-world/hrizzup/pull/72)): empty and locked until 1.1 gets its own write access. Product's Round 5 (the markets sandbox, the public API, then the screens the design chat approves) has nothing in Sourcing's part.
+- **No Sourcing work has started** (`sourcing/` holds only its README); the second half isn't drafted. The tables the pipeline will write exist on Product's side (step 1.9, [#72](https://github.com/Zugzwang-world/hrizzup/pull/72)): empty and locked until 1.1 gets its own write access. Product's Round 5 (the markets sandbox and the public API for bots) closed on 16 November 2026 with nothing in Sourcing's part; Round 6, social, is laid out by the founder in the Product chat.
 - **The shared setup is finished** (Phase 0): Supabase (staging, Mumbai), Cloudflare R2 and Upstash Redis; production is parked until launch. No inbox for the bots yet.
 
 ## Decisions in force
@@ -32,10 +32,9 @@
 
 ## What changed in the latest session
 
-On 11 November 2026, Round 5's relay R3 ([#123](https://github.com/Zugzwang-world/hrizzup/pull/123)) recorded the Product chat's settling of the public API's sixteen details in PLAN.md (all as recommended, 10 November 2026) and began step 3.5a. **Nothing Sourcing writes, reads or checks changes,** and the agreement is untouched.
+On 16 November 2026, Round 5's closing record (R6, [#141](https://github.com/Zugzwang-world/hrizzup/pull/141), records only) closed Product's Round 5 and added to PLAN.md three of the Product chat's settlements of 11 November 2026, which hadn't reached it. **Nothing Sourcing writes, reads or checks changes,** and the agreement is untouched.
 
-- **The public API's keys moved into 3.5a** (from 3.5b): bots get personal keys, read-only or trading, on staging until launch; the database records which trades a key placed.
-- **Two items joined the runbook's pre-launch checklist:** the exchanges' terms for the perp's Bitcoin price (P.19) and a second look at the API's limits for each internet address (P.20), since mobile networks in India share addresses.
+- **Added to PLAN.md, all about the public API and the perp:** when the exchanges stop answering, the perp's held price stays for staging's demo, and before production's API opens perp orders fill only at a fresh price (runbook, pre-launch checklist, P.21); the API docs keep the site's plain look until the design chat styles them; the live stream for bots (3.5e) comes later, bots asking for prices again and again meanwhile.
 - **Unchanged for Sourcing:** topics (1.2) are drafted in the Product chat, so the automatic resolvers (3.2a), which the background-jobs choice must cover, come sooner; the perp's price runs in the database on Supabase Cron, outside that choice.
 
 ## Open questions
