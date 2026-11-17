@@ -18,7 +18,8 @@
 
 - **R1, social's records:** done, [#143](https://github.com/Zugzwang-world/hrizzup/pull/143).
 - **R2, the role team and social's build plan:** done, [#144](https://github.com/Zugzwang-world/hrizzup/pull/144): the four roles, the advisor and fork mode off, a quick check of the role files, the coordinator's playbook in CLAUDE.md; the build plan and the founder's eight answers recorded. Next: Phase 1. For the founder: nothing for R2.
-- **R3 Ground and R4 Leftovers and faster checks:** not started; next, side by side.
+- **R3 Ground:** not started; side by side with R4.
+- **R4 Leftovers and faster checks:** in progress: M1's database change, [#145](https://github.com/Zugzwang-world/hrizzup/pull/145) (the open-orders read also gives each order's market closing time, adding only). Next: the read itself, so `GET /me/orders` shows a market past its closing time as closed; the stand-in seed's retirement; the four Speed warnings; the faster-checks proposals. For the founder: nothing yet.
 - **R5 Board, stories and the console and R6 Join and first post:** not started; side by side after R3. Then Review 1, the founder's.
 - **R7 to R15:** not started (Phases 2 to 4, the reviews, the closing record).
 - **Carried, unnumbered:** the market page (3.1), then the perp's page (3.4c), and the board (2.1), each when the design chat approves its design; live updates for bots (3.5e), later.
