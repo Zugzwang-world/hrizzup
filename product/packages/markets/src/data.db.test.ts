@@ -150,9 +150,12 @@ describe('the market reads', () => {
         limitProb: null,
         probBefore: bought.probBefore,
         probAfter: bought.probAfter,
-        at: bought.at,
+        at: expect.any(String),
       },
     ]);
+    // The same instant, written two ways: the database drops trailing zeros (".3Z"), the trade's
+    // answer always gives three decimals (".300Z"). So compare the instants, not the text.
+    expect(Date.parse(trades.trades[0]?.at ?? '')).toBe(Date.parse(bought.at));
     const answers = JSON.stringify([one, history, book, trades]);
     for (const personal of [ann, raj, ADMIN, bought.requestId, resting.requestId]) {
       expect(answers).not.toContain(personal);
