@@ -1,4 +1,8 @@
 {
+  "advisorModel": "claude-fable-5-2",
+  "env": {
+    "CLAUDE_CODE_FORK_SUBAGENT": "0"
+  },
   "enabledPlugins": {
     "security-guidance@claude-plugins-official": true,
     "code-review@claude-plugins-official": true,
