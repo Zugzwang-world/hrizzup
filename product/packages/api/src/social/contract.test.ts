@@ -68,6 +68,17 @@ const errorsOf = (name: string) =>
     { status?: number; data?: { safeParse: (value: unknown) => { success: boolean } } }
   >;
 
+/**
+ * The calls M3 makes live (docs/social/build.md, D4). A relay that builds a call takes `live: false`
+ * off it in its own area file and adds nothing here: the tests below read each call's own mark, so
+ * they hold for any number of live calls, and these three are only the floor.
+ */
+const LIVE_FROM_M3 = [
+  'admin.social.invites.create',
+  'admin.social.stories.save',
+  'admin.social.updates.save',
+];
+
 /** Section 5's table, by group: 41 + 15 + 5 + 13 calls. */
 const SOCIAL = [
   'social.lists',
@@ -208,12 +219,16 @@ describe("social's calls", () => {
     }
   });
 
-  it('every call outside the console is in beta, and no call is live yet', () => {
+  it('every call outside the console is in beta; a call is live (no mark) or not (`live: false`), and M3’s three are live', () => {
     for (const [name, procedure] of calls) {
-      const { beta, live } = procedure['~orpc'].meta;
-      expect(live, `${name}'s live`).toBe(false);
+      const { beta, live: isLive } = procedure['~orpc'].meta;
+      expect([false, undefined], `${name}'s live`).toContain(isLive);
       expect(beta, `${name}'s beta`).toBe(name.startsWith('admin.') ? undefined : true);
     }
+    const liveNow = calls
+      .filter(([, procedure]) => procedure['~orpc'].meta.live !== false)
+      .map(([name]) => name);
+    expect(liveNow).toEqual(expect.arrayContaining(LIVE_FROM_M3));
   });
 
   it('are in none of the published places: the OpenAPI file, the docs and MCP’s tools', () => {
