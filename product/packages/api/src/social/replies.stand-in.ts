@@ -1,5 +1,5 @@
-import type { StandInAccess } from './common.ts';
 import { api } from './implementer.ts';
+import type { StandInAccess } from './kit.ts';
 import * as examples from './replies.examples.ts';
 
 /** Replies', upvotes' and the preview's calls, answered with their examples. */

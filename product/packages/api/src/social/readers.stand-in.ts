@@ -1,5 +1,5 @@
-import type { StandInAccess } from './common.ts';
 import { api } from './implementer.ts';
+import type { StandInAccess } from './kit.ts';
 import * as examples from './readers.examples.ts';
 
 /** The reader agent's calls, answered with their examples. */

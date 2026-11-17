@@ -10,6 +10,7 @@ export * from './checkin.ts';
 export * from './common.ts';
 export { socialContract } from './contract.ts';
 export * from './files.ts';
+export * from './kit.ts';
 export * from './media.ts';
 export { joinAreas } from './merge.ts';
 export * from './readers.ts';

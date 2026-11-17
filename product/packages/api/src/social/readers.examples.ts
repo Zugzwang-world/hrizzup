@@ -1,5 +1,6 @@
-import { type CallExamples, fromJson, type StoryPage } from './common.ts';
+import type { StoryPage } from './common.ts';
 import readers from './examples/readers.json' with { type: 'json' };
+import { type CallExamples, fromJson } from './kit.ts';
 import type {
   ReaderChatPage,
   ReaderReply,

@@ -1,6 +1,6 @@
 import * as examples from './board.examples.ts';
-import type { StandInAccess } from './common.ts';
 import { api } from './implementer.ts';
+import type { StandInAccess } from './kit.ts';
 
 /** The board's and the stories' calls, answered with their examples. They are public reads: nobody need be signed in. */
 export function boardStandIn(_access: StandInAccess) {

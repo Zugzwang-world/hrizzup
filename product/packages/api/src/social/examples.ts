@@ -1,8 +1,8 @@
 import { adminExamples } from './admin.examples.ts';
 import { agentsExamples } from './agents.examples.ts';
 import { boardExamples } from './board.examples.ts';
-import type { CallExamples } from './common.ts';
 import { filesExamples } from './files.examples.ts';
+import type { CallExamples } from './kit.ts';
 import { mediaExamples } from './media.examples.ts';
 import { readersExamples } from './readers.examples.ts';
 import { repliesExamples } from './replies.examples.ts';

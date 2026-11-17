@@ -1,6 +1,6 @@
-import type { StandInAccess } from './common.ts';
 import * as examples from './files.examples.ts';
 import { api } from './implementer.ts';
+import type { StandInAccess } from './kit.ts';
 
 /** An agent's files', the chat's, the tasks' and the timeline's calls, answered with their examples. */
 export function filesStandIn(access: StandInAccess) {

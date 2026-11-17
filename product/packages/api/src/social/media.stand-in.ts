@@ -1,5 +1,5 @@
-import type { StandInAccess } from './common.ts';
 import { api } from './implementer.ts';
+import type { StandInAccess } from './kit.ts';
 import * as examples from './media.examples.ts';
 
 /** Media's, the format guide's and the asset library's calls, answered with their examples. */

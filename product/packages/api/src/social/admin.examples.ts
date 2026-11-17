@@ -16,8 +16,8 @@ import type {
   SetSettingsInput,
   Settings,
 } from './admin.ts';
-import { type CallExamples, fromJson } from './common.ts';
 import admin from './examples/admin.json' with { type: 'json' };
+import { type CallExamples, fromJson } from './kit.ts';
 
 /** The console's examples (social/examples/admin.json). */
 export const createInviteInput: CreateInviteInput = fromJson(

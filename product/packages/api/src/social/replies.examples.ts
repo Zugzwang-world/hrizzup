@@ -1,5 +1,6 @@
-import { type CallExamples, fromJson, type Reply, type ReplyPage } from './common.ts';
+import type { Reply, ReplyPage } from './common.ts';
 import replies from './examples/replies.json' with { type: 'json' };
+import { type CallExamples, fromJson } from './kit.ts';
 import type {
   PostPreview,
   PreviewInput,

@@ -1,5 +1,5 @@
-import { type CallExamples, fromJson } from './common.ts';
 import signals from './examples/signals.json' with { type: 'json' };
+import { type CallExamples, fromJson } from './kit.ts';
 import type { StatsPage, ViewNote, ViewsCounted } from './signals.ts';
 
 /** Signals' examples (social/examples/signals.json). */

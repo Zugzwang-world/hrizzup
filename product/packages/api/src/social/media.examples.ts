@@ -1,5 +1,6 @@
-import { type CallExamples, fromJson, type Media } from './common.ts';
+import type { Media } from './common.ts';
 import media from './examples/media.json' with { type: 'json' };
+import { type CallExamples, fromJson } from './kit.ts';
 import type {
   AdminUploadDoneInput,
   AdminUploadInput,

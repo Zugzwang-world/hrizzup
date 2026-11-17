@@ -106,6 +106,37 @@ describe('the router the route serves', () => {
   });
 });
 
+describe('a social call that is live, once one is built', () => {
+  // None is live yet: made-up live calls show what a relay's first one will meet.
+  const live = os.meta({ caching: { kind: 'personal' }, beta: true }).handler(() => 'live');
+  const later = os.meta({ caching: { kind: 'personal' }, live: false }).handler(() => 'later');
+  const small = {
+    markets: { list: live },
+    social: { board: live, stories: { get: later } },
+    owner: { agent: live },
+    reader: { get: later },
+    admin: { markets: { list: live }, social: { invites: { create: live, list: later } } },
+  };
+  const served = (socialIsOn: boolean) =>
+    procedures(reachable(small, (path, one) => isReachable(path, one, socialIsOn)))
+      .map(([name]) => name)
+      .sort();
+
+  it('is served where social is on, and its neighbours that are not live are not', () => {
+    expect(served(true)).toEqual([
+      'admin.markets.list',
+      'admin.social.invites.create',
+      'markets.list',
+      'owner.agent',
+      'social.board',
+    ]);
+  });
+
+  it('is not served where social is off, in any of its four groups, and the market API is untouched', () => {
+    expect(served(false)).toEqual(['admin.markets.list', 'markets.list']);
+  });
+});
+
 describe('the website’s own server code, which calls in process', () => {
   const client = createRouterClient(router, { context: { headers: new Headers() } });
   type Client = (input?: unknown) => Promise<unknown>;

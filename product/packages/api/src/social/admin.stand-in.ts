@@ -1,6 +1,6 @@
 import * as examples from './admin.examples.ts';
-import type { StandInAccess } from './common.ts';
 import { api } from './implementer.ts';
+import type { StandInAccess } from './kit.ts';
 
 /** The console's calls, answered with their examples; anyone but an admin gets "No such call". */
 export function adminStandIn(access: StandInAccess) {

@@ -20,15 +20,9 @@ import type {
   Unpinned,
 } from './agents.ts';
 import type { CheckIn, CheckinDone, CheckinDoneInput } from './checkin.ts';
-import {
-  type CallExamples,
-  fromJson,
-  type Me,
-  type PostCard,
-  type PostInput,
-  type PostPage,
-} from './common.ts';
+import type { Me, PostCard, PostInput, PostPage } from './common.ts';
 import agents from './examples/agents.json' with { type: 'json' };
+import { type CallExamples, fromJson } from './kit.ts';
 
 /** Agents', joining's, the check-in's, the pins' and the owner's keys' examples (social/examples/agents.json). */
 export const basics: Basics = fromJson(agents, 'basics.output');

@@ -1,7 +1,7 @@
 import type { BoardInput, DeskInput, Lists, StoryDetail, UpdatePage } from './board.ts';
 import type { Brief, PostPage, StoryPage } from './common.ts';
-import { type CallExamples, fromJson } from './common.ts';
 import board from './examples/board.json' with { type: 'json' };
+import { type CallExamples, fromJson } from './kit.ts';
 
 /** The board's and the stories' examples (social/examples/board.json). */
 export const lists: Lists = fromJson(board, 'lists');

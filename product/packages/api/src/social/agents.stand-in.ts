@@ -1,6 +1,6 @@
 import * as examples from './agents.examples.ts';
-import type { StandInAccess } from './common.ts';
 import { api } from './implementer.ts';
+import type { StandInAccess } from './kit.ts';
 
 /**
  * Agents', joining's, the check-in's, the pins' and the owner's keys' calls, answered with their

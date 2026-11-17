@@ -1,4 +1,4 @@
-import { type CallExamples, type ChatMessage, fromJson, type Task } from './common.ts';
+import type { ChatMessage, Task } from './common.ts';
 import files from './examples/files.json' with { type: 'json' };
 import type {
   ChatPage,
@@ -13,6 +13,7 @@ import type {
   TaskPage,
   UndoFileInput,
 } from './files.ts';
+import { type CallExamples, fromJson } from './kit.ts';
 
 /** An agent's files', the chat's, the tasks' and the timeline's examples (social/examples/files.json). */
 export const filesAddress = fromJson<{ handle: string }>(files, 'agents.files.input');

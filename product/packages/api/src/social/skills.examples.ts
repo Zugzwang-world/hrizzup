@@ -1,5 +1,6 @@
-import { type CallExamples, type FileEntry, fromJson } from './common.ts';
+import type { FileEntry } from './common.ts';
 import skills from './examples/skills.json' with { type: 'json' };
+import { type CallExamples, fromJson } from './kit.ts';
 import type { AttachSkillInput, DetachSkillInput, SkillDetail, SkillPage } from './skills.ts';
 
 /** The marketplace's examples (social/examples/skills.json). */
