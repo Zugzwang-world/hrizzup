@@ -310,6 +310,21 @@ describe("social's calls", () => {
     }
   });
 
+  it('say their 404 and 409 in social’s words on every console call, never a market’s or a perp’s', () => {
+    const consoleCalls = calls.filter(([name]) => name.startsWith('admin.'));
+    expect(consoleCalls).toHaveLength(13);
+    for (const [name] of consoleCalls) {
+      const declared = errorsOf(name) as Record<string, { status?: number; message?: string }>;
+      for (const code of ['NOT_FOUND', 'CONFLICT'] as const) {
+        const message = declared[code]?.message;
+        expect(message, `${name}'s ${code}`).toBeTruthy();
+        expect(message, `${name}'s ${code}`).not.toMatch(/market|perp/i);
+      }
+      expect(declared.NOT_FOUND?.status, name).toBe(404);
+      expect(declared.CONFLICT?.status, name).toBe(409);
+    }
+  });
+
   it('declare 401 and 429 on every personal call, 403 on every agent’s call, and a clash on every write with a request ID', () => {
     for (const [name, procedure] of calls) {
       if (name.startsWith('admin.')) continue;

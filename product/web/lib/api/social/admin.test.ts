@@ -325,6 +325,33 @@ describe('making an invite', () => {
   });
 });
 
+describe('what the live calls say when they refuse', () => {
+  it('uses social’s words for every 404 and 409 of the three calls, never a market’s or a perp’s', async () => {
+    const calls = [
+      () => api().admin.social.stories.save(story),
+      () => api().admin.social.updates.save(update),
+      () => api().admin.social.invites.create(invite),
+    ];
+    // Every refusal the database can make of them that answers a 404 or a 409.
+    for (const code of ['HZS18', '42501', 'P0002', 'HZS19', 'HZS23', 'HZS25', 'HZS27', 'HZS28']) {
+      answer = () => fault(code, 'raised by the database');
+      for (const call of calls) {
+        const error = (await call().catch((caught: unknown) => caught)) as {
+          status?: number;
+          message: string;
+        };
+        if (error.status !== 404 && error.status !== 409) continue;
+        expect(error.message, `${code}: ${error.message}`).not.toMatch(/market|perp/i);
+      }
+    }
+    // And for anyone who isn't an admin.
+    signedIn.mockResolvedValue(null);
+    for (const call of calls) {
+      await expect(call()).rejects.toMatchObject({ message: 'No such call' });
+    }
+  });
+});
+
 describe('who may make these calls', () => {
   const calls = [
     () => api().admin.social.stories.save(story),
