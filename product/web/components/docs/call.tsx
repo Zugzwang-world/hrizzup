@@ -1,9 +1,5 @@
-import { BETA_LABEL, BETA_NOTE, type Call, type Field } from '@/lib/api-docs/reference.ts';
-
-/** "Beta", beside a call in beta: plain inline text, so it wraps with whatever it sits beside. */
-export function BetaLabel() {
-  return <strong className="text-sm text-muted">{BETA_LABEL}</strong>;
-}
+import type { Call, Field } from '@/lib/api-docs/reference.ts';
+import { BetaNote } from './beta.ts';
 
 /** One call of the public API, as its docs page shows it: what it takes, answers and refuses. */
 function Fields({ heading, fields }: { heading: string; fields: Field[] }) {
@@ -34,11 +30,7 @@ export function CallEntry({ call }: { call: Call }) {
       <p>
         {call.summary}. <strong>{call.needsKey ? 'Needs your key.' : 'Public: no key.'}</strong>
       </p>
-      {call.beta && (
-        <p>
-          <BetaLabel />. {BETA_NOTE}
-        </p>
-      )}
+      <BetaNote call={call} />
       <Fields heading="In the address" fields={call.takes.path} />
       <Fields heading="Query" fields={call.takes.query} />
       {call.takes.body.map((variant) => (

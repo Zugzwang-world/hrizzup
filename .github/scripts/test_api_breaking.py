@@ -125,6 +125,44 @@ class BetaPure(unittest.TestCase):
         code, said = api_breaking.verdict(SAYS_FINE, json.dumps(base), json.dumps(head))
         self.assertEqual((code, said), (0, ""))
 
+    def test_any_other_stability_level_is_refused_before_oasdiff_is_asked(self):
+        base = small({"/a": {"get": operation("a")}})
+        for level in ("draft", "alpha", "stable", "Beta"):
+            # On a v1 call, and on a call new to the file: oasdiff skips the changes to a draft or
+            # alpha call, so either would change unchecked.
+            heads = {"/a": small({"/a": {"get": operation("a", level=level)}}),
+                     "/s": small({"/a": {"get": operation("a")}, "/s": {"get": operation("s", level=level)}})}
+            for path, head in heads.items():
+                with self.subTest(level=level, path=path):
+                    code, said = api_breaking.verdict(SAYS_FINE, json.dumps(base), json.dumps(head))
+                    self.assertEqual(code, 1, said)
+                    self.assertIn(f"GET {path}: {json.dumps(level)}", said)
+                    self.assertIn("x-stability-level", said)
+
+    def test_other_levels_are_found_by_method_and_path_with_the_level(self):
+        head = small({"/b": {"get": operation("b", level="draft"), "post": operation("bp", beta=True)},
+                      "/a": {"get": operation("a", level="alpha")},
+                      "/c": {"get": operation("c")}})
+        self.assertEqual(api_breaking.other_levels(head),
+                         [("get", "/a", "alpha"), ("get", "/b", "draft")])
+        self.assertEqual(api_breaking.other_levels(small({"/a": {"get": operation("a", beta=True)}})), [])
+
+    def test_a_value_that_is_not_text_is_another_level_too(self):
+        head = small({"/a": {"get": operation("a")}})
+        head["paths"]["/a"]["get"]["x-stability-level"] = None
+        self.assertEqual(api_breaking.other_levels(head), [("get", "/a", None)])
+        code, said = api_breaking.verdict(SAYS_FINE, json.dumps(small({"/a": {"get": operation("a")}})),
+                                          json.dumps(head))
+        self.assertEqual(code, 1, said)
+
+    def test_a_newly_marked_call_and_another_level_are_both_said(self):
+        base = small({"/a": {"get": operation("a")}, "/b": {"get": operation("b")}})
+        head = small({"/a": {"get": operation("a", beta=True)}, "/b": {"get": operation("b", level="draft")}})
+        code, said = api_breaking.verdict(SAYS_FINE, json.dumps(base), json.dumps(head))
+        self.assertEqual(code, 1)
+        self.assertIn("GET /a", said)
+        self.assertIn('GET /b: "draft"', said)
+
     def test_a_file_that_is_not_json_fails(self):
         code, said = api_breaking.verdict(SAYS_FINE, "{", "{}")
         self.assertEqual(code, 1)
@@ -331,6 +369,75 @@ class BetaWithOasdiff(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("GET /perps", said)
 
+    # Components: a schema both a v1 call and a beta call use is v1's; one only a beta call uses is
+    # the beta call's own. oasdiff 1.35.0 reports a change to a component only through a call that
+    # uses it, so what's left of a beta call's own schemas is never looked at.
+    SCHEMA = {"type": "object",
+             "properties": {"id": {"type": "string"}, "title": {"type": "string"}, "note": {"type": "string"}},
+             "required": ["id", "title", "note"]}
+
+    def without_note(self):
+        less = copy.deepcopy(self.SCHEMA)
+        del less["properties"]["note"]
+        less["required"] = ["id", "title"]
+        return less
+
+    def with_component(self, v1=False, beta=False, story=None):
+        """The published file with a `Story` component, answered by a v1 call and/or a beta one."""
+        doc = published()
+        doc["components"]["schemas"]["Story"] = copy.deepcopy(story or self.SCHEMA)
+        for used, path, name, mark in ((v1, "/stories/{id}", "stories.get", False),
+                                       (beta, self.STORY, "social.stories.get", True)):
+            if used:
+                one = copy.deepcopy(published()["paths"]["/perps/{id}"]["get"])
+                one["operationId"] = name
+                one["responses"]["200"]["content"]["application/json"]["schema"] = {
+                    "$ref": "#/components/schemas/Story"}
+                if mark:
+                    one["x-stability-level"] = "beta"
+                doc["paths"][path] = {"get": one}
+        return doc
+
+    def test_a_component_a_v1_call_and_a_beta_call_share_is_the_v1_calls_so_losing_a_property_fails(self):
+        base = self.with_component(v1=True, beta=True)
+        head = self.with_component(v1=True, beta=True, story=self.without_note())
+        code, said = self.verdict(base, head)
+        self.assertEqual(code, 1, said)
+        self.assertIn("/stories/{id}", said)
+        self.assertNotIn(self.STORY, said)
+
+    def test_a_component_only_a_beta_call_uses_may_change(self):
+        base = self.with_component(beta=True)
+        for name, story in (("a property gone", self.without_note()),
+                            ("a type changed", {**self.SCHEMA, "properties": {
+                                **self.SCHEMA["properties"], "title": {"type": "integer"}}}),
+                            ("a value gone", {**self.SCHEMA, "properties": {
+                                **self.SCHEMA["properties"], "id": {"enum": ["a"]}}})):
+            with self.subTest(name):
+                code, said = self.verdict(base, self.with_component(beta=True, story=story))
+                self.assertEqual(code, 0, said)
+
+    def test_a_component_only_a_beta_call_uses_may_go_with_it(self):
+        head = published()
+        self.assertNotIn("Story", head["components"]["schemas"])
+        code, said = self.verdict(self.with_component(beta=True), head)
+        self.assertEqual(code, 0, said)
+        # And the beta call going while its component stays.
+        head = self.with_component(beta=True)
+        del head["paths"][self.STORY]
+        code, said = self.verdict(self.with_component(beta=True), head)
+        self.assertEqual(code, 0, said)
+
+    def test_a_v1_call_that_gains_draft_or_alpha_fails_whatever_else_it_changes(self):
+        for level in ("draft", "alpha"):
+            with self.subTest(level=level):
+                head = published()
+                head["paths"]["/perps"]["get"]["x-stability-level"] = level
+                head["paths"]["/perps"]["get"]["parameters"] = []
+                code, said = self.verdict(published(), head)
+                self.assertEqual(code, 1, said)
+                self.assertIn(f"GET /perps: {json.dumps(level)}", said)
+
     def test_the_whole_run_over_a_repository_with_a_real_oasdiff(self):
         with tempfile.TemporaryDirectory() as root:
             git = ["git", "-c", "user.name=Test", "-c", "user.email=test@example.test",
@@ -343,7 +450,12 @@ class BetaWithOasdiff(unittest.TestCase):
             subprocess.run(["git", "add", "-A"], cwd=root, check=True)
             subprocess.run(git + ["commit", "-q", "-m", "base"], cwd=root, check=True)
             env = {"OASDIFF": TOOL}
-            for head, want in ((published(), 0), (self.with_story(mark=False), 0)):
+            removed = self.with_story()
+            del removed["paths"]["/perps"]
+            marked = self.with_story()
+            marked["paths"]["/perps"]["get"]["x-stability-level"] = "beta"
+            for head, want in ((published(), 0), (self.with_story(mark=False), 0), (self.with_story(), 0),
+                               (removed, 1), (marked, 1)):
                 with open(target, "w", encoding="utf-8") as f:
                     json.dump(head, f)
                 self.assertEqual(api_breaking.main(["--main", "HEAD"], environ=env, root=root), want)

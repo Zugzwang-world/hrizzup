@@ -14,7 +14,8 @@ served beside v1.
 A call in beta (`x-stability-level: beta`, which the contract's own code writes; social's calls
 while it's built, docs/social/build.md sections 2 (D9) and 7.12) may change within v1. The order:
 refuse a call that main has without the mark and the pull request marks (it's v1 already, so it
-stays v1), then leave beta operations out of both files, then oasdiff as before, then its verdict.
+stays v1), and any other stability level (oasdiff skips draft and alpha calls), then leave beta
+operations out of both files, then oasdiff as before, then its verdict.
 A call new to the file may be beta from the start; removing the mark makes the call v1, which only
 adds.
 
@@ -78,9 +79,21 @@ def newly_beta(base, head):
                   if is_beta(operation) and pair in before and not is_beta(before[pair]))
 
 
+def other_levels(doc):
+    """The (method, path, level) of every operation that carries `x-stability-level` set to anything
+    but beta, sorted. oasdiff itself skips changes to `draft` and `alpha` operations, so such a mark
+    on a v1 call would let it change unchecked."""
+    return sorted((method, path, operation[BETA_MARK])
+                  for (method, path), operation in operations(doc).items()
+                  if isinstance(operation, dict) and BETA_MARK in operation
+                  and operation[BETA_MARK] != BETA)
+
+
 def strip_beta(doc):
     """A copy of the document without its beta operations, and without the paths they leave with no
-    operation. Never touches `components`; the document given is left as it was."""
+    operation. Never touches `components` (oasdiff 1.35.0 doesn't report a component that no
+    remaining operation uses, so a beta call's own schemas may change or go: the tests hold it to
+    that); the document given is left as it was."""
     out = copy.deepcopy(doc)
     paths = out.get("paths") if isinstance(out, dict) else None
     for path in list((paths or {}).keys()):
@@ -118,18 +131,31 @@ def refusal(pairs, main_name):
             "the start.")
 
 
+def other_levels_refusal(found):
+    """What a pull request that gives calls a stability level other than beta is told."""
+    named = "\n".join(f"  {method.upper()} {path}: {json.dumps(level)}" for method, path, level in found)
+    return (f"These calls carry an {BETA_MARK} other than {BETA}:\n{named}\n\n"
+            f"Only {BETA} is a mark here: oasdiff skips the changes to a call marked draft or alpha, so "
+            "such a mark would let a v1 call change unchecked. Remove the mark (or, for a call "
+            f"that isn't v1 yet, use {BETA}).")
+
+
 def verdict(tool, base_text, head_text, main_name="main"):
     """The whole check on two files' texts: (exit code, what to say). Refuses a call newly marked
     beta before anything else (the tool isn't run), then leaves beta operations out of both files,
-    then asks oasdiff, which fails on any break of what's left."""
+    then asks oasdiff, which fails on any break of what's left. Any other stability level on a call
+    of the pull request's file is refused too, before oasdiff is asked."""
     try:
         base = json.loads(base_text)
         head = json.loads(head_text)
     except ValueError as error:
         return 1, f"{FILE} isn't JSON, in {main_name} or in this pull request: {error}"
     pairs = newly_beta(base, head)
-    if pairs:
-        return 1, refusal(pairs, main_name)
+    found = other_levels(head)
+    if pairs or found:
+        return 1, "\n\n".join(
+            ([refusal(pairs, main_name)] if pairs else [])
+            + ([other_levels_refusal(found)] if found else []))
     with tempfile.TemporaryDirectory() as work:
         head_path = os.path.join(work, "head.openapi.json")
         with open(head_path, "w", encoding="utf-8") as f:
