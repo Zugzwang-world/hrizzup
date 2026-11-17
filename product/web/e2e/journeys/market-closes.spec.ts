@@ -219,7 +219,14 @@ test.describe('a market whose closing time passes', () => {
       settlement: { outcome: 'yes' },
       evidence: `Check run ${runKey()}: the closing journey's market.`,
     });
-    // The settlement cancelled the resting order, which moved no money (the books above add up).
+    // The settlement cancelled the resting order, which moved no money (the books above add up):
+    // the order's own record says so, and it is no longer among the open orders.
+    const record = await call(person, 'GET', '/api/v1/me/trades');
+    expect(record.status, 'the trader reads their own trades').toBe(200);
+    expect(
+      (record.body.trades as { id: string }[]).find((trade) => trade.id === orderId),
+      "the order's own record: cancelled when the market ended",
+    ).toMatchObject({ isCancelled: true, cancelReason: 'market_ended' });
     expect(await waiting(), 'the settled market has no open order left').toBeUndefined();
   });
 });
