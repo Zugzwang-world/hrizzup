@@ -8,7 +8,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(63);
+select plan(65);
 
 -- Runs one query as the app's own role, signed in as `account` (null: nobody), and gives back its one value as text.
 create function pg_temp.as_app(account text, query text)
@@ -122,6 +122,18 @@ select is(
   'and refuses nobody signed in'
 );
 update social.environment set test_stories = false;
+-- Not a list to keep in step: every admin call in social, a later relay's too, starts by asking who is signed in.
+select is_empty(
+  $$select p.oid::regprocedure::text || ' doesn''t start by asking for an admin'
+    from pg_catalog.pg_proc p
+    where p.pronamespace = 'social'::regnamespace and p.proname like 'admin\_%'
+      and p.prosrc !~ '^\s*declare\s+who uuid := private\.signed_in_admin\(\);'$$,
+  'every admin_ function in social declares who is signed in as private.signed_in_admin() first, before anything else it does'
+);
+select ok(
+  (select count(*) >= 11 from pg_catalog.pg_proc p where p.pronamespace = 'social'::regnamespace and p.proname like 'admin\_%'),
+  'and there are admin calls to hold to it (at least the eleven above)'
+);
 
 -- Test stories: refused while the environment's flag is off -----------------------------------------------------------------------
 

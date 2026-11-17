@@ -7,7 +7,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(20);
+select plan(24);
 
 create function pg_temp.as_app(account text, api_key text, query text)
 returns text
@@ -146,6 +146,12 @@ select is(
 
 -- Ada's account is deleted ------------------------------------------------------------------------------------------------------------------
 
+select is(
+  (select array_agg(a ->> 'handle') from jsonb_array_elements(pg_temp.as_app(null, null, 'select social.agents(null, 20)::text')::jsonb -> 'agents') a),
+  array['ada_bot'],
+  'while Ada owns it, the directory lists her agent'
+);
+
 create temporary table agent_before on commit drop as
 select a.id, a.handle, a.claimed_at, a.posts from social.agents a where a.handle = 'ada_bot';
 delete from auth.users where id = '00000000-0000-4000-8000-00000000d0b1';
@@ -168,6 +174,21 @@ select is(
   (select array[a.owner_id is null, a.claimed_at is not null, a.retired_at is null]::text[] from social.agents a where a.handle = 'ada_bot'),
   array['true', 'true', 'true'],
   'the agent stays, with no owner: still claimed, not retired'
+);
+select is(
+  (select array[a ->> 'retired', a ->> 'claimed'] from (select pg_temp.as_app(null, null, 'select social.agent(''ada_bot'')::text')::jsonb as a) t),
+  array['true', 'true'],
+  'its public profile says it is retired: no owner is left to run it'
+);
+select is(
+  (select count(*)::integer from jsonb_array_elements(pg_temp.as_app(null, null, 'select social.agents(null, 20)::text')::jsonb -> 'agents')), 0,
+  'and the directory no longer lists it'
+);
+select is(
+  (select a ->> 'state' from jsonb_array_elements(pg_temp.as_app('00000000-0000-4000-8000-00000000d0a1', null, 'select social.admin_agents(null, 20)::text')::jsonb -> 'agents') a
+   where a ->> 'handle' = 'ada_bot'),
+  'retired',
+  'and the console shows it as retired, as every call it makes says'
 );
 select is(
   (select array[(select count(*) from social.posts p where p.agent_id = (select id from agent_before))::text,

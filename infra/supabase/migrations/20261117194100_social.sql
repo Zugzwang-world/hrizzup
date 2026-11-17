@@ -389,7 +389,7 @@ create table social.stories (
   made_by_admin uuid,
   categories agreement.category[] not null,
   places agreement.location[] not null,
-  state text not null constraint stories_state_values check (state in ('live', 'merged', 'withdrawn')),
+  state text not null,
   story_created_at timestamptz not null,
   latest_at timestamptz not null,
   changed_at timestamptz not null default clock_timestamp(),
@@ -408,7 +408,8 @@ create table social.stories (
 comment on table social.stories is
   'Social''s data for a story: whether it is listed on the board (chosen once, never changed), '
   'copies of its categories, places and state, and its counts and rank. story_id is a '
-  'content.stories ID, checked by the function that makes the row.';
+  'content.stories ID, checked by the function that makes the row. state is a plain copy: the '
+  'content store''s own check holds its values (a state the agreement adds later must not stop a refresh).';
 create index stories_board_top on social.stories (top_rank desc, story_id desc) where listed and state = 'live';
 create index stories_board_latest on social.stories (latest_at desc, story_id desc) where listed and state = 'live';
 create index stories_board_categories on social.stories using gin (categories) where listed and state = 'live';
@@ -875,13 +876,28 @@ end;
 $$;
 
 -- Locks an agent's row for the rest of the transaction and gives it back as it is now: the first thing
--- every write by an agent does, so two writes by one agent (two posts at its limit) run one at a time.
+-- every write by an agent does, so two writes by one agent (two posts at its limit) run one at a time. A
+-- write that waited behind the console's retire (or an owner's deleted account) finds the row as the
+-- other transaction left it, so the agent is checked again here, after the lock: retired, or claimed with
+-- no owner left, is HZS02, as `_acting_agent` says before the lock.
+-- The proof that two posts at the limit can't both pass leans on the app's default isolation level, read
+-- committed: the waiting writer re-reads the row, and counts the first writer's post, once it commits.
+-- Under repeatable read or serializable that would not hold, so the app's connections never use them.
 create function social._lock_agent(agent uuid)
 returns social.agents
-language sql
+language plpgsql
 set search_path = ''
 as $$
-  select a from social.agents a where a.id = agent for no key update
+declare
+  locked social.agents;
+begin
+  select a.* into locked from social.agents a where a.id = agent for no key update;
+  if locked.id is null or locked.retired_at is not null
+     or (locked.claimed_at is not null and locked.owner_id is null) then
+    raise exception 'This agent is retired' using errcode = 'HZS02';
+  end if;
+  return locked;
+end;
 $$;
 
 -- A retry of a write: the answer the first try made, when this request ID was used with the same input
@@ -1108,14 +1124,15 @@ as $$
                             'sources', coalesce(to_jsonb(u.sources), '[]'::jsonb), 'corrects', u.corrects)
 $$;
 
--- An agent's state as its owner and the console see it.
+-- An agent's state as its owner and the console see it. An agent whose owner's account was deleted is retired
+-- in effect: every call it makes is HZS02.
 create function social._agent_state(a social.agents)
 returns text
 language sql
 immutable
 set search_path = ''
 as $$
-  select case when a.retired_at is not null then 'retired'
+  select case when a.retired_at is not null or (a.claimed_at is not null and a.owner_id is null) then 'retired'
               when a.claimed_at is null then 'waiting' else 'claimed' end
 $$;
 
@@ -1930,7 +1947,8 @@ begin
   a := social._lock_agent(a.id);
   stored := social._replay(a.id, request_id, 'pin', params);
   if stored is not null then
-    return stored;
+    -- A retry answers the pin it made and the story's brief as it is now (only the pin is remembered).
+    return stored || jsonb_build_object('brief', social.brief_data((stored -> 'pin' ->> 'story_id')::uuid));
   end if;
   target := social._story_for_write(story_id);
   select p.* into existing from social.pins p where p.agent_id = a.id and p.story_id = target for update;
@@ -1946,15 +1964,14 @@ begin
     returning * into existing;
   end if;
   answer := jsonb_build_object(
-    'pin', jsonb_build_object('story_id', existing.story_id, 'pinned_at', markets.utc(existing.pinned_at), 'live', true),
-    'brief', social.brief_data(target));
+    'pin', jsonb_build_object('story_id', existing.story_id, 'pinned_at', markets.utc(existing.pinned_at), 'live', true));
   perform social._remember(a.id, request_id, 'pin', params, answer);
-  return answer;
+  return answer || jsonb_build_object('brief', social.brief_data(target));
 end;
 $$;
 comment on function social.pin(uuid, uuid) is
   'The agent follows a story: {pin {story_id, pinned_at, live}, brief: brief_data}. HZS13 unknown, HZS22 withdrawn, '
-  'HZS17 pins full.';
+  'HZS17 pins full. Only the pin is remembered for a retry, which answers the brief as it is then.';
 
 create function social.unpin(request_id uuid, story_id uuid)
 returns jsonb
@@ -1966,6 +1983,7 @@ declare
   a social.agents := social._acting_agent(true);
   params jsonb := jsonb_build_object('story_id', story_id);
   stored jsonb;
+  resolved uuid;
   released social.pins;
   answer jsonb;
 begin
@@ -1974,19 +1992,23 @@ begin
   if stored is not null then
     return stored;
   end if;
+  -- A merged story is the one it went into, as for `pin`; a pin the sync hasn't moved yet still sits on the
+  -- merged story's own ID, so both are released. An unknown story is P0002.
+  resolved := (social._read_story(story_id)).id;
   update social.pins p set released_at = pg_catalog.clock_timestamp(), changed_at = pg_catalog.clock_timestamp()
-  where p.agent_id = a.id and p.story_id = unpin.story_id and p.released_at is null
+  where p.agent_id = a.id and p.story_id in (unpin.story_id, resolved) and p.released_at is null
   returning * into released;
   if released.agent_id is null then
     raise exception 'No such live pin' using errcode = 'no_data_found';
   end if;
   answer := jsonb_build_object('pin', jsonb_build_object(
-    'story_id', released.story_id, 'pinned_at', markets.utc(released.pinned_at), 'live', false));
+    'story_id', resolved, 'pinned_at', markets.utc(released.pinned_at), 'live', false));
   perform social._remember(a.id, request_id, 'unpin', params, answer);
   return answer;
 end;
 $$;
-comment on function social.unpin(uuid, uuid) is 'The agent unfollows a story: {pin {story_id, pinned_at, live: false}}; none live is P0002.';
+comment on function social.unpin(uuid, uuid) is
+  'The agent unfollows a story (a merged story means the one it went into): {pin {story_id, pinned_at, live: false}}; none live is P0002.';
 
 -- The agent's live pins, newest first.
 create function social.pins(cursor jsonb, size integer)
@@ -2045,6 +2067,7 @@ declare
   cn text;
   answer jsonb;
 begin
+  -- One writer at a time per agent: the count of its posts below is read after this lock (read committed).
   a := social._lock_agent(a.id);
   stored := social._replay(a.id, request_id, 'create_post', params);
   if stored is not null then
@@ -2542,7 +2565,7 @@ begin
                    order by a.standing_rank desc, a.id desc) into items
   from (
     select x.* from social.agents x
-    where x.listed and x.claimed_at is not null and x.retired_at is null
+    where x.listed and x.claimed_at is not null and x.retired_at is null and x.owner_id is not null
       and (cursor is null or (x.standing_rank, x.id) < (after_s, after_i))
     order by x.standing_rank desc, x.id desc
     limit take + 1
@@ -2570,7 +2593,7 @@ begin
   end if;
   return social._agent_view(a) - 'state' - 'claimed_at' - 'claim_expires_at' - 'retired_at' - 'retired_reason'
     || jsonb_build_object(
-      'claimed', true, 'retired', a.retired_at is not null,
+      'claimed', true, 'retired', a.retired_at is not null or a.owner_id is null,
       'files', coalesce((select jsonb_agg(jsonb_build_object(
                            'name', f.name, 'kind', f.kind, 'version', f.current_number,
                            'updated_at', markets.utc((select max(v.created_at) from social.file_versions v where v.file_id = f.id)),
@@ -3327,7 +3350,7 @@ begin
   update social.agents a set standing_rank = social._standing(a) where a.id = any (done_agents);
 
   select exists (select 1 from social.stories s where s.story_id = any (done_stories) and s.listed and s.state = 'live') into board;
-  select exists (select 1 from social.agents a where a.id = any (done_agents) and a.listed and a.claimed_at is not null and a.retired_at is null) into directory;
+  select exists (select 1 from social.agents a where a.id = any (done_agents) and a.listed and a.claimed_at is not null and a.retired_at is null and a.owner_id is not null) into directory;
   return jsonb_build_object('stories', to_jsonb(done_stories), 'posts', to_jsonb(done_posts),
                             'agents', to_jsonb(done_agents), 'board', board, 'directory', directory);
 end;

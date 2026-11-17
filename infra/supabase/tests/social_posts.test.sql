@@ -7,7 +7,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(46);
+select plan(56);
 
 -- Runs one query as the app's own role, signed in as `account` (null: nobody), with `api_key` as the key that
 -- signed the request (null: none), and gives back its one value as text.
@@ -48,6 +48,19 @@ exception when others then
   reset role;
   perform set_config('hrizzup.api_key', '', true);
   return sqlstate || coalesce(' ' || nullif(cn, ''), '') || case when sqlstate like 'HZ%' then coalesce(':' || nullif(detail, ''), '') else '' end;
+end;
+$$;
+
+-- What an owner-run query fails with (its SQLSTATE), or 'ok'.
+create function pg_temp.owner_fails(query text)
+returns text
+language plpgsql
+as $$
+begin
+  execute query;
+  return 'ok';
+exception when others then
+  return sqlstate;
 end;
 $$;
 
@@ -307,6 +320,14 @@ select is_empty(
       and p.prosrc not like '%social._lock_agent(%'$$,
   'every write by an agent takes its row''s lock first, so two posts at the limit run one at a time'
 );
+select is(
+  pg_temp.owner_fails($$select social._lock_agent((select id from social.agents where handle = 'ada_bot'))$$), 'ok',
+  'locking a live agent gives it back'
+);
+select ok(
+  (select p.prosrc ~ 'for no key update.*retired_at.*owner_id is null.*HZS02' from pg_catalog.pg_proc p where p.oid = 'social._lock_agent(uuid)'::regprocedure),
+  'the lock checks the agent again after it is taken, so a write that waited behind a retire is refused'
+);
 select ok(
   (select p.prosrc ~ 'social\._lock_agent\(.*social\._replay\(.*_story_for_write\(.*social\._limits\(' from pg_catalog.pg_proc p where p.oid = 'social.create_post(uuid,uuid,text,text,text[],text,uuid,uuid)'::regprocedure),
   'a post locks the agent, then looks for a retry, then checks the story and the limit, in that order'
@@ -385,6 +406,30 @@ select is(
   array['019a6c00-0000-7000-8000-0000000001a1', 'true', 'The first story', '2'],
   'an agent pins a story and gets its brief''s data in the same answer'
 );
+-- Only the pin is remembered for a retry; the retry answers the brief as it is then.
+select is(
+  (select r.result ? 'brief' from social.requests r
+   where r.request_id = pg_temp.req(401)::uuid and r.actor = (select id from social.agents where handle = 'ada_bot')),
+  false,
+  'a pin''s request remembers only the pin, not the whole brief'
+);
+select intake.save_update(jsonb_build_object('format', 'update/1', 'id', '019a6c00-0000-7000-8000-0000000001b4',
+  'story_id', '019a6c00-0000-7000-8000-0000000001a1', 'headline', 'A third development', 'reported_at', '2026-11-17T11:00:00Z',
+  'sources', jsonb_build_array('https://example.com/a'), 'state', 'live', 'created_at', '2026-11-17T11:00:00Z', 'updated_at', '2026-11-17T11:00:00Z'));
+select is(
+  (select array[x -> 'pin' ->> 'pinned_at' = (select answer -> 'pin' ->> 'pinned_at' from pinned),
+                jsonb_array_length(x -> 'brief' -> 'updates')::text]::text[]
+   from (select pg_temp.as_app(null, (select key from keys_ where who = 'ada'),
+           format('select social.pin(%L, ''019a6c00-0000-7000-8000-0000000001a1'')::text', pg_temp.req(401)))::jsonb as x) t),
+  array['true', '3'],
+  'a retry of the same pin answers the same pin and the brief as it is now (three updates, not the two it had)'
+);
+select is(
+  (select r.result ? 'brief' from social.requests r
+   where r.request_id = pg_temp.req(401)::uuid and r.actor = (select id from social.agents where handle = 'ada_bot')),
+  false,
+  'and still remembers none of it'
+);
 select is(
   pg_temp.as_app(null, (select key from keys_ where who = 'ada'),
     format('select social.pin(%L, ''019a6c00-0000-7000-8000-0000000001a1'')::text', pg_temp.req(402)))::jsonb -> 'pin' ->> 'pinned_at',
@@ -420,6 +465,28 @@ select is(
   pg_temp.fails(null, (select key from keys_ where who = 'ada'), format('select social.unpin(%L, ''019a6c00-0000-7000-8000-0000000001a1'')::text', pg_temp.req(408))),
   'P0002',
   'unpinning what isn''t pinned is P0002'
+);
+-- Unpinning a merged story: the story it went into (a pin the sync hasn't moved yet sits on the merged story itself).
+select pg_temp.as_app(null, (select key from keys_ where who = 'ben'), format('select social.pin(%L, ''019a6c00-0000-7000-8000-0000000001a3'')::text', pg_temp.req(411)));
+select is(
+  (select array[x -> 'pin' ->> 'story_id', x -> 'pin' ->> 'live']
+   from (select pg_temp.as_app(null, (select key from keys_ where who = 'ben'),
+           format('select social.unpin(%L, ''019a6c00-0000-7000-8000-0000000001a3'')::text', pg_temp.req(412)))::jsonb as x) t),
+  array['019a6c00-0000-7000-8000-0000000001a2', 'false'],
+  'unpinning a merged story unpins the one it went into, as pinning it pinned that one'
+);
+select is(
+  (select (p.released_at is not null) from social.pins p
+   where p.story_id = '019a6c00-0000-7000-8000-0000000001a2' and p.agent_id = (select id from social.agents where handle = 'ben_bot')),
+  true,
+  'and the pin on the story that stays is released'
+);
+insert into social.pins (agent_id, story_id) select a.id, '019a6c00-0000-7000-8000-0000000001a3' from social.agents a where a.handle = 'hub_bot';
+select is(
+  pg_temp.as_app(null, (select key from keys_ where who = 'hub'),
+    format('select social.unpin(%L, ''019a6c00-0000-7000-8000-0000000001a3'')::text', pg_temp.req(413)))::jsonb -> 'pin' ->> 'live',
+  'false',
+  'a pin still sitting on the merged story itself (the sync hasn''t moved it) is released too'
 );
 select is(
   pg_temp.as_app(null, (select key from keys_ where who = 'ada'),
@@ -480,6 +547,18 @@ select is(
     '{"picture_media_id": "01a1a0e7-0000-7000-8000-0000000002b4", "bio": null}'))::jsonb -> 'agent' -> 'picture' ->> 'width',
   '800',
   'its picture is its own ready image, and a null clears an optional field'
+);
+
+-- A write that waited behind a retire, or behind an owner's deleted account, finds the agent as that left it.
+update social.agents set retired_at = now(), retired_reason = 'A test' where handle = 'hub_bot';
+select is(
+  pg_temp.owner_fails($$select social._lock_agent((select id from social.agents where handle = 'hub_bot'))$$), 'HZS02',
+  'locking an agent that was retired meanwhile is refused (HZS02), not let through'
+);
+delete from auth.users where id = (select owner_id from social.agents where handle = 'ben_bot');
+select is(
+  pg_temp.owner_fails($$select social._lock_agent((select id from social.agents where handle = 'ben_bot'))$$), 'HZS02',
+  'and so is one whose owner''s account was deleted meanwhile'
 );
 
 select * from finish();
