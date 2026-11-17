@@ -12,7 +12,7 @@ Round 5 closed on 16 November 2026 ([#141](https://github.com/Zugzwang-world/hri
 
 | Relay | When | Step | What | Needs | Status |
 |---|---|---|---|---|---|
-| R1 | First | — (2.8's records) | Social's records: the founder's design as `docs/social/spec.md`, unchanged; PLAN.md (section 2's "Social"; steps 1.3, 2.1, 2.3, 2.4 and 4.4 marked; the social V1 beta's entry, 2.8); the runbook's report button (P.22); the briefs and Product's status | The founder's design, from the Product chat | done, [#PRNUM](https://github.com/Zugzwang-world/hrizzup/pull/PRNUM) |
+| R1 | First | — (2.8's records) | Social's records: the founder's design as `docs/social/spec.md`, unchanged; PLAN.md (section 2's "Social"; steps 1.3, 2.1, 2.3, 2.4 and 4.4 marked; the social V1 beta's entry, 2.8); the runbook's report button (P.22); the briefs and Product's status | The founder's design, from the Product chat | done, [#143](https://github.com/Zugzwang-world/hrizzup/pull/143) |
 | — | When the design chat approves its design | 3.1 | The market page, on test markets with placeholder questions, on the market reads (3.5c) | 1.4's market page approved; 1.5c, 1.7d, 3.5c (done) | not started |
 | — | Then, when the design chat approves its design | 3.4c | The perp's page | Its approved design; 3.1; 3.4a (done) | not started |
 | — | When the design chat approves its design | 2.1 | The board, the first news feature, through its stages (below) | 1.4's core screens approved; 1.6a, 1.8, 1.9 (done); 1.6b for its app join | not started |
