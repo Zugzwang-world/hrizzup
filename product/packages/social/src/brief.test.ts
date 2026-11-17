@@ -505,8 +505,7 @@ describe('a brief of at most 20,000 characters', () => {
         { length: 10 },
         (_, s) => `https://example.com/${i}/${s}/${'p'.repeat(100)}`,
       ),
-      corrects:
-        i > 0 && i % 2 === 0 ? `01a00000-0000-7000-8000-${String(i - 1).padStart(12, '0')}` : null,
+      corrects: i > 0 ? `01a00000-0000-7000-8000-${String(i - 1).padStart(12, '0')}` : null,
     }));
     data.story.latest_at = data.updates[199]?.reported_at ?? '';
     return data;
@@ -538,17 +537,23 @@ describe('a brief of at most 20,000 characters', () => {
     expect(brief.version).toBe(sha16(brief.markdown));
   });
 
-  it('is the same file for the same data, and a dropped correction points at an earlier update', () => {
+  it('is the same file for the same data', () => {
+    expect(built(bigStory())).toEqual(built(bigStory()));
+  });
+
+  it("still names the time of a correction's target when the cap has left the target out", () => {
+    // Every update corrects the one before it, so the oldest update kept corrects one that is gone.
     const data = bigStory();
-    expect(built(data)).toEqual(built(bigStory()));
-    const lines = built(data).markdown.split('\n');
-    const oldestKept = lines.find((l) => l.startsWith('- 2026-')) as string;
-    expect(oldestKept).toBeDefined();
-    const droppedTarget = built(data).markdown;
-    // The oldest update kept might correct one that is gone: it then says "an earlier update".
-    expect(droppedTarget).toMatch(
-      /\(corrects (an earlier update|the 2026-\d\d-\d\d \d\d:\d\d update)\)/,
+    const markdown = built(data).markdown;
+    const left = Number(/^- (\d+) earlier updates are left out/m.exec(markdown)?.[1]);
+    expect(left).toBeGreaterThan(0);
+    const oldestKept = markdown.split('\n').find((l) => l.startsWith('- 2026-')) as string;
+    const target = (data.updates[left - 1] as BriefUpdate).reported_at;
+    expect(oldestKept).toContain(`Update number ${left} `);
+    expect(oldestKept).toContain(
+      `(corrects the ${target.slice(0, 10)} ${target.slice(11, 16)} update)`,
     );
+    expect(markdown).not.toContain(`Update number ${left - 1} `);
   });
 
   it('says it left out one update, not "updates", when only one goes', () => {

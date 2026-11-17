@@ -220,6 +220,9 @@ importers:
         specifier: workspace:*
         version: link:../../../agreement
     devDependencies:
+      '@hrizzup/db':
+        specifier: workspace:*
+        version: link:../db
       '@hrizzup/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig

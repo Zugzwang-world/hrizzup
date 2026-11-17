@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   CLAIM_TOKEN_LENGTH,
@@ -235,5 +236,54 @@ describe('a claim token', () => {
     expect(hash).toHaveLength(32);
     expect(hash?.equals(sha256(token))).toBe(true);
     expect(hashClaimToken(` ${token} `)?.equals(hash as Buffer)).toBe(true);
+  });
+});
+
+describe('the example data', () => {
+  /** Every string in the examples, with the name of the field that holds it. */
+  function strings(): { field: string; value: string }[] {
+    const folder = new URL('../../api/src/social/examples/', import.meta.url);
+    const found: { field: string; value: string }[] = [];
+    const walk = (field: string, value: unknown) => {
+      if (typeof value === 'string') found.push({ field, value });
+      else if (Array.isArray(value)) for (const item of value) walk(field, item);
+      else if (typeof value === 'object' && value !== null) {
+        for (const [key, item] of Object.entries(value)) walk(key, item);
+      }
+    };
+    for (const file of readdirSync(folder).filter((f) => f.endsWith('.json'))) {
+      walk('', JSON.parse(readFileSync(new URL(file, folder), 'utf8')));
+    }
+    return found;
+  }
+
+  it('holds invite codes that are codes, written as this code writes them, and their first groups', () => {
+    const all = strings();
+    const codes = all.filter((s) => s.value.startsWith('hz-') && s.field !== 'codeShown');
+    const shown = all.filter((s) => s.field === 'codeShown');
+    expect(codes.length).toBeGreaterThanOrEqual(2);
+    expect(shown.length).toBeGreaterThanOrEqual(2);
+    for (const { value } of codes) {
+      // Each is a code in its canonical text: nothing in it is read as another character.
+      expect(normaliseInviteCode(value), value).toBe(value);
+      expect(value).toMatch(CODE);
+    }
+    for (const { value } of shown) {
+      expect(value).toMatch(SHOWN);
+      expect(inviteCodeShown(`${value}-0000-0000-0000`), value).toBe(value);
+    }
+  });
+
+  it('holds claim tokens that are tokens, and a claim link that ends in one', () => {
+    const all = strings();
+    const tokens = all.filter((s) => s.field === 'token');
+    const links = all.filter((s) => s.value.includes('/sandbox/social/claim/'));
+    expect(tokens.length).toBeGreaterThanOrEqual(2);
+    expect(links.length).toBeGreaterThanOrEqual(1);
+    for (const { value } of tokens) expect(normaliseClaimToken(value), value).toBe(value);
+    for (const { value } of links) {
+      const token = value.slice(value.lastIndexOf('/') + 1);
+      expect(normaliseClaimToken(token), value).toBe(token);
+    }
   });
 });

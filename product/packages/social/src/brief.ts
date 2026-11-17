@@ -217,11 +217,11 @@ function render(
     lines.push(`- ${utc(update.reported_at)}${marked}: ${sentence(update.headline, update.body)}`);
   }
 
-  const sources: string[] = [];
-  for (const update of shown)
-    for (const source of update.sources) if (!sources.includes(source)) sources.push(source);
+  // Each source once, the first time it is named (a Set remembers the order it was added in).
+  const sources = new Set<string>();
+  for (const update of shown) for (const source of update.sources) sources.add(source);
   lines.push('', '## Sources', '');
-  if (sources.length === 0) lines.push('- None listed');
+  if (sources.size === 0) lines.push('- None listed');
   for (const source of sources) lines.push(`- ${fold(source)}`);
 
   const posts = data.posts.slice(0, MOST_POSTS);
@@ -270,14 +270,24 @@ export function buildBrief(data: BriefData, labels: BriefLabels, builtAt: string
   if (isWithdrawn(data)) return null;
   const all = oldestFirst(data.updates);
   let markdown = render(data, all, 0, labels);
-  for (let left = 1; markdown.length > MAX_BRIEF_CHARACTERS && left <= all.length; left++) {
-    markdown = render(data, all, left, labels);
-  }
   if (markdown.length > MAX_BRIEF_CHARACTERS) {
-    // The agreement's limits keep the rest of the file well under; data outside them is a bug to see.
-    throw new RangeError(
-      `A brief is at most ${MAX_BRIEF_CHARACTERS} characters, and this one is ${markdown.length} with no timeline`,
-    );
+    // Leaving out one more update always makes the file shorter (it drops a line and adds at most a
+    // digit to the note), so the fewest to leave out is found by halving: about eight renders for 200.
+    let fewest = 1;
+    let most = all.length;
+    markdown = render(data, all, most, labels);
+    if (markdown.length > MAX_BRIEF_CHARACTERS) {
+      // The agreement's limits keep the rest of the file well under; data outside them is a bug to see.
+      throw new RangeError(
+        `A brief is at most ${MAX_BRIEF_CHARACTERS} characters, and this one is ${markdown.length} with no timeline`,
+      );
+    }
+    while (fewest < most) {
+      const middle = Math.floor((fewest + most) / 2);
+      if (render(data, all, middle, labels).length <= MAX_BRIEF_CHARACTERS) most = middle;
+      else fewest = middle + 1;
+    }
+    markdown = render(data, all, most, labels);
   }
   const version = createHash('sha256').update(markdown, 'utf8').digest('hex').slice(0, 16);
   return { storyId: data.story.id, version, builtAt, markdown };

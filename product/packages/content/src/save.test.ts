@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { transaction } from '@hrizzup/db';
 import { describe, expect, it } from 'vitest';
 import {
   type RunTransaction,
@@ -379,5 +380,15 @@ describe('the update target type', () => {
   it('names only the two update functions', () => {
     const targets: UpdateTarget['fn'][] = ['intake.save_update', 'social.admin_save_update'];
     expect(targets).toHaveLength(2);
+  });
+});
+
+describe("the caller's transaction", () => {
+  it('is `transaction()` of @hrizzup/db: its type fits `RunTransaction`, which `tsc` proves', () => {
+    const withPool =
+      (pool: Parameters<typeof transaction>[0]): RunTransaction =>
+      (work) =>
+        transaction(pool, work, { account: null });
+    expect(withPool).toBeTypeOf('function');
   });
 });
