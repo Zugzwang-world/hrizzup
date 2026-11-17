@@ -240,6 +240,18 @@ describe("a perp's dollar figures", () => {
     expect(fresh.ratePercent('0.0002')).toBe('0.02%');
     expect(fresh.liquidationAbout('long', 100, 4)).toBe(75);
     expect(fresh.shareOf('1000', 25)).toBe('250');
+    expect(fresh.cents('0.4812')).toBe(48);
+    expect(fresh.chance('0.4812')).toBe('48%');
+    expect(fresh.yesCents('0.4812')).toBe(48);
+    expect(fresh.noCents('0.4812')).toBe(52);
+    expect(fresh.justAbove('019a6c00-0000-7000-8000-000000000003')).toBe(
+      '019a6c00-0000-7000-8000-000000000004',
+    );
+    expect(fresh.typedAmount(' Ṁ1,250.5 ')).toBe('1250.5');
+    expect(fresh.typedPercent(' 45.5% ')).toBe('45.5');
+    expect(fresh.plainAmount(25)).toBe('25');
+    expect(fresh.mostMargin('1000', 10, '10')).toBeGreaterThan(990.09);
+    expect(fresh.lineOf([{ at: 0, value: 0.5 }], 300, 80)?.path).toMatch(/^M0 [\d.]+ H300$/);
     for (const spy of spies) expect(spy).not.toHaveBeenCalled();
   });
 

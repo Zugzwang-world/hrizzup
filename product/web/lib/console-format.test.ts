@@ -162,8 +162,17 @@ describe('play money and prices, grouped by plain arithmetic', () => {
     expect(money('999')).toBe('Ṁ999');
     expect(money('1000')).toBe('Ṁ1,000');
     expect(money('100000')).toBe('Ṁ1,00,000');
+    expect(money('1234567')).toBe('Ṁ12,34,567');
+    expect(money('1234567890')).toBe('Ṁ1,23,45,67,890');
     expect(money('1234567890123')).toBe('Ṁ12,34,56,78,90,123');
+    expect(money('123456789012345678901234567890')).toBe(
+      'Ṁ1,23,45,67,89,01,23,45,67,89,01,23,45,67,890',
+    );
     expect(money('-1234567.5')).toBe('−Ṁ12,34,567.5');
+    expect(dollars('0')).toBe('$0.00');
+    expect(dollars('999')).toBe('$999.00');
+    expect(dollars('1000')).toBe('$1,000.00');
+    expect(dollars('1234567890')).toBe('$1,234,567,890.00');
     expect(dollars('1234567')).toBe('$1,234,567.00');
     expect(dollars('1234567890123.5')).toBe('$1,234,567,890,123.50');
     expect(dollars('-1000')).toBe('-$1,000.00');
