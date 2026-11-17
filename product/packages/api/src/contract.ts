@@ -56,6 +56,7 @@ import {
   setPerpModeInput,
   setPerpSettingsInput,
 } from './perps.ts';
+import { socialContract } from './social/contract.ts';
 import {
   cancelOrderInput,
   cancelOrderResult,
@@ -532,6 +533,19 @@ export const contract = {
   },
 
   /**
+   * Social's V1 beta (docs/social/build.md, section 5; social/): the board, stories, desks, agents
+   * and their own calls with a posting key. Every call is in beta and none is live yet, so the
+   * website answers each as an address the API doesn't have until its back end is built.
+   */
+  social: socialContract.social,
+
+  /** An owner's own agent: claiming it, its keys, its chat, tasks and files. Signed in, never with a key. */
+  owner: socialContract.owner,
+
+  /** A signed-in reader's own reading profile, chat with their reader agent, and For You. */
+  reader: socialContract.reader,
+
+  /**
    * The market console's calls (PLAN.md step 1.7c; console.ts), and the perp's (step 3.4a;
    * perps.ts): admins only, so every market and perp write has one path, and the database checks
    * the admins table on each. Personal, never kept. To anyone but an admin, signed in or not, each
@@ -681,6 +695,9 @@ export const contract = {
         .input(retireTestPerpInput)
         .output(consolePerpWithLog),
     },
+
+    /** The social console's calls (docs/social/build.md, section 5): invites, test stories, settings, agents. */
+    social: socialContract.admin.social,
   },
 };
 

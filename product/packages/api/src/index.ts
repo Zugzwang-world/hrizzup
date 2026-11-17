@@ -101,7 +101,9 @@ export {
   type TradingMode,
   tradingMode,
 } from './perps.ts';
-export { isPublished, procedures } from './procedures.ts';
+export { isPublished, isSocialCall, procedures } from './procedures.ts';
+// Social's shapes, types and areas (docs/social/build.md): `social.StoryTile`, `social.joinAreas`…
+export * as social from './social/index.ts';
 export {
   type CancelOrderInput,
   type CancelOrderResult,
