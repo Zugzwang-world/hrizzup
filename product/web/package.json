@@ -16,10 +16,12 @@
   "dependencies": {
     "@hrizzup/agreement": "workspace:*",
     "@hrizzup/api": "workspace:*",
+    "@hrizzup/content": "workspace:*",
     "@hrizzup/core": "workspace:*",
     "@hrizzup/db": "workspace:*",
     "@hrizzup/markets": "workspace:*",
     "@hrizzup/perps": "workspace:*",
+    "@hrizzup/social": "workspace:*",
     "@modelcontextprotocol/server": "2.4.0",
     "@orpc/openapi": "1.16.1",
     "@orpc/server": "1.16.1",

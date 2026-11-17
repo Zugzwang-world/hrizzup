@@ -1,12 +1,18 @@
 import { createRouterClient } from '@orpc/server';
 import { describe, expect, it } from 'vitest';
 import { contract } from '../contract.ts';
+import { commonErrors } from '../paging.ts';
 import { isPublished, isSocialCall, procedures } from '../procedures.ts';
 import { standIn } from '../stand-in.ts';
+import { checkIn } from './checkin.ts';
 import { categoryCode, filterFields, placeCode, placeFilter, sortCode } from './common.ts';
 import { socialContract } from './contract.ts';
+import samples from './examples/errors.json' with { type: 'json' };
 import { callExamples } from './examples.ts';
+import { checkinOwner } from './files.ts';
 import { joinAreas } from './merge.ts';
+import { checkinInbox } from './replies.ts';
+import { checkinStats } from './signals.ts';
 
 /**
  * Social's contract (docs/social/build.md, sections 5 and 9.2): every call in section 5's table, with
@@ -432,6 +438,64 @@ describe("social's calls", () => {
     ]) {
       expect(errorsOf(name).NOT_FOUND?.status, name).toBe(404);
     }
+  });
+});
+
+describe("social's errors", () => {
+  type Sample = {
+    defined: boolean;
+    code: string;
+    status: number;
+    message: string;
+    data?: unknown;
+  };
+
+  it('are each declared, with their status and data, by some call: the samples of section 4 in the API’s one format', () => {
+    // Two samples are the market calls' (a posting key on a market call), not social's.
+    const marketCalls = ['posting_key_on_market_read', 'posting_key_trades'];
+    const declared = (sample: Sample) =>
+      [...byName.keys()].some((name) => {
+        const own = errorsOf(name)[sample.code];
+        if (own?.status !== sample.status) return false;
+        return own.data ? own.data.safeParse(sample.data).success : sample.data === undefined;
+      }) ||
+      // The two every call may answer.
+      (sample.code === 'BAD_REQUEST' &&
+        commonErrors.BAD_REQUEST.data.safeParse(sample.data).success) ||
+      (sample.code === 'SERVICE_UNAVAILABLE' && sample.status === 503);
+    for (const [key, sample] of Object.entries(samples) as [string, Sample][]) {
+      if (!sample.defined || marketCalls.includes(key)) continue;
+      expect(declared(sample), `${key} (${sample.code} ${sample.status})`).toBe(true);
+    }
+  });
+
+  it('say what to do next, each in a sentence of its own', () => {
+    for (const [key, sample] of Object.entries(samples) as [string, Sample][]) {
+      expect(sample.message.length, key).toBeGreaterThan(5);
+      expect(sample.status, key).toBeGreaterThanOrEqual(400);
+    }
+  });
+});
+
+describe("the check-in, composed from each area's own section", () => {
+  it('takes its owner, inbox and stats sections from the areas that own them, never a copy', () => {
+    expect(checkIn.shape.owner).toBe(checkinOwner);
+    expect(checkIn.shape.inbox).toBe(checkinInbox);
+    expect(checkIn.shape.stats).toBe(checkinStats);
+    expect(Object.keys(checkIn.shape)).toEqual([
+      'asOf',
+      'since',
+      'routine',
+      'agent',
+      'owner',
+      'stories',
+      'inbox',
+      'stats',
+      'lastNote',
+      'nextStep',
+    ]);
+    // Only a list's answer has a field called `next`: a next step in words is `nextStep`.
+    expect(Object.keys(checkIn.shape)).not.toContain('next');
   });
 });
 

@@ -431,6 +431,9 @@ importers:
       '@hrizzup/api':
         specifier: workspace:*
         version: link:../packages/api
+      '@hrizzup/content':
+        specifier: workspace:*
+        version: link:../packages/content
       '@hrizzup/core':
         specifier: workspace:*
         version: link:../packages/core
@@ -443,6 +446,9 @@ importers:
       '@hrizzup/perps':
         specifier: workspace:*
         version: link:../packages/perps
+      '@hrizzup/social':
+        specifier: workspace:*
+        version: link:../packages/social
       '@modelcontextprotocol/server':
         specifier: 2.4.0
         version: 2.4.0

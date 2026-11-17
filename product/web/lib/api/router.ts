@@ -1,4 +1,3 @@
-import { contract } from '@hrizzup/api';
 import {
   cancelOrder,
   closeMarket,
@@ -34,8 +33,6 @@ import {
   setPerpMode,
   setPerpSettings,
 } from '@hrizzup/perps';
-import { implement } from '@orpc/server';
-import type { ResponseHeadersPluginContext } from '@orpc/server/plugins';
 import { currentCommit, currentEnvironment, currentRegion } from '@/lib/env.ts';
 import {
   checkAuth,
@@ -45,13 +42,13 @@ import {
   type ServiceResult,
 } from '@/lib/health/checks.ts';
 import { appAuthSettings, appEmailCode } from './auth.ts';
-import { cacheHeaders, EdgeExpiry } from './caching.ts';
-import { asAdmin, consoleCall } from './console.ts';
-import type { ApiContext } from './context.ts';
+import { admin, api } from './base.ts';
+import { consoleCall } from './console.ts';
 import { MARKET_ACTIVITY_TAG, MARKETS_TAG, refreshEdge } from './edge-cache.ts';
-import { inOneFormat, pageOf } from './ground-rules.ts';
+import { pageOf } from './ground-rules.ts';
 import { createKey, keysSetUp, listKeys, revokeKey } from './keys.ts';
 import { PERPS_TAG, perpCall, perpSource } from './perps.ts';
+import { socialRoutes } from './social/index.ts';
 import {
   asPerson,
   person,
@@ -61,30 +58,6 @@ import {
   withinTradeLimit,
 } from './trading.ts';
 
-/**
- * The typed API's real implementation (the contract is in product/packages/api). Every call
- * gets the caching headers its contract entry asks for, set in one place below, and answers a
- * refused input in the one format (ground-rules.ts), whoever refused it. A read that shows a
- * market as open is told by the call, through `context.expiry`, when it closes, and its copy at
- * the edge ends by then (caching.ts).
- */
-const api = implement(contract)
-  .$context<ApiContext & ResponseHeadersPluginContext>()
-  .use(async ({ context, procedure, next }) => {
-    const expiry = new EdgeExpiry();
-    try {
-      const result = await next({ context: { expiry } });
-      for (const [name, value] of Object.entries(
-        cacheHeaders(procedure['~orpc'].meta.caching, expiry.at),
-      )) {
-        context.resHeaders?.set(name, value);
-      }
-      return result;
-    } catch (error) {
-      throw inOneFormat(error);
-    }
-  });
-
 const state = (result: ServiceResult) => result.status;
 
 /** A console list's page, as the console's reads take it (they call the page size `max`). */
@@ -92,13 +65,6 @@ function consolePage(input: Parameters<typeof pageOf>[0]) {
   const { after, limit } = pageOf(input);
   return { after, ...(limit === undefined ? {} : { max: limit }) };
 }
-
-/**
- * The market console's calls (console.ts): admins only. The admin check wraps the whole subtree,
- * so it runs before any input is read: to anyone else, a call answers exactly as an address the
- * API doesn't have, whatever was sent. The database checks the admins table again inside each.
- */
-const admin = api.admin.use(asAdmin);
 
 /**
  * A console call that changes what the public market list shows (opening, closing or settling a
@@ -122,6 +88,11 @@ async function changesThePerps<T>(work: () => Promise<T>): Promise<T> {
   return answer;
 }
 
+/**
+ * Every call's handler. The market API's are here; social's come one file to an area
+ * (`social/<area>.ts`), joined in `social/index.ts`: each is a stub until its relay builds it, and
+ * a call not live yet is never reached (base.ts).
+ */
 export const router = api.router({
   health: api.health.handler(async () => {
     const [database, redis, storage, auth] = await Promise.all([
@@ -276,6 +247,11 @@ export const router = api.router({
     }),
   },
 
+  // Social's V1 beta: one file to an area, each a stub until built (social/index.ts).
+  social: socialRoutes.social,
+  owner: socialRoutes.owner,
+  reader: socialRoutes.reader,
+
   // The keys' calls need a signed-in session, never a key (person(…, 'session')).
   keys: {
     list: api.keys.list.handler(async ({ context }) => {
@@ -336,5 +312,6 @@ export const router = api.router({
         changesThePerps(() => retireTestPerp(context.pool, context.account, input)),
       ),
     },
+    social: socialRoutes.admin.social,
   },
 });

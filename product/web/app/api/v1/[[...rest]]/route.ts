@@ -3,7 +3,9 @@ import { ResponseHeadersPlugin } from '@orpc/server/plugins';
 import { SHARED_CACHE_HEADERS } from '@/lib/api/caching.ts';
 import { consoleAdmin, isConsoleAddress } from '@/lib/api/console.ts';
 import { crossSiteWrite } from '@/lib/api/cross-site.ts';
+import { isReachable, reachable } from '@/lib/api/reachable.ts';
 import { router } from '@/lib/api/router.ts';
+import { socialEnabled } from '@/lib/env.ts';
 
 /**
  * The typed API, served at /api/v1 (PLAN.md step 1.5c): every call in the contract
@@ -12,12 +14,34 @@ import { router } from '@/lib/api/router.ts';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const handler = new OpenAPIHandler(router, { plugins: [new ResponseHeadersPlugin()] });
+/**
+ * What the API serves, by the router it is given. A call that isn't live yet (`live: false`) is left
+ * out of it, and where social is off (production, until launch) so is every social call: such an
+ * address is then unmatched, and falls to `noSuchCall()` below, the one answer for an address the
+ * API doesn't have, before oRPC reads a body or checks an input. So a call not built, or not on, is
+ * told from an address that was never there by nothing at all: no status, header or byte differs.
+ * Which of the two is chosen when the request comes, as the other switches here are.
+ */
+const handlers = {
+  social: new OpenAPIHandler(
+    reachable(router, (path, call) => isReachable(path, call, true)),
+    {
+      plugins: [new ResponseHeadersPlugin()],
+    },
+  ),
+  noSocial: new OpenAPIHandler(
+    reachable(router, (path, call) => isReachable(path, call, false)),
+    {
+      plugins: [new ResponseHeadersPlugin()],
+    },
+  ),
+};
 
 /**
- * What the API answers for an address it doesn't have, and to anyone but an admin for every one of
- * the market console's addresses: one answer, built in one place, so the two can't be told apart
- * by their body or their headers. Its fields are in oRPC's own order, as its errors write them.
+ * What the API answers for an address it doesn't have (a call not live yet, or one of social's where
+ * social is off, is one), and to anyone but an admin for every one of the market console's addresses:
+ * one answer, built in one place, so none can be told apart from another by its body or its headers.
+ * Its fields are in oRPC's own order, as its errors write them.
  */
 function noSuchCall(): Response {
   return Response.json(
@@ -45,6 +69,7 @@ async function handle(request: Request): Promise<Response> {
   // answer differently), with exactly the answer for an address the API doesn't have.
   const admin = isConsoleAddress(request.url) ? await consoleAdmin(request.headers) : undefined;
   if (admin === null) return noSuchCall();
+  const handler = socialEnabled() ? handlers.social : handlers.noSocial;
   const { matched, response } = await handler.handle(request, {
     prefix: '/api/v1',
     context: {
