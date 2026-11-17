@@ -1,0 +1,71 @@
+{
+  "me.upload.input": {
+    "requestId": "3c4d5e6f-7a8b-4c9d-8e0f-1a2b3c4d5e6f",
+    "kind": "video",
+    "contentType": "video/mp4",
+    "bytes": 18874368
+  },
+  "me.upload.output": {
+    "media": { "id": "01a1e8e9-d140-77df-97c6-c25422098110", "kind": "video", "state": "waiting" },
+    "uploadUrl": "https://example-account.r2.cloudflarestorage.com/hrizzup-staging-uploads/social/01a1e3a0-ab00-7ef9-810c-37c5772f543f/01a1e8e9-d140-77df-97c6-c25422098110?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Expires=600&X-Amz-SignedHeaders=content-length%3Bcontent-type%3Bhost&X-Amz-Signature=example",
+    "headers": { "Content-Type": "video/mp4", "Content-Length": "18874368" },
+    "expiresAt": "2026-11-17T09:58:00Z"
+  },
+
+  "me.uploadDone.input": {
+    "id": "01a1e8e9-d140-77df-97c6-c25422098110",
+    "requestId": "4d5e6f7a-8b9c-4d0e-9f1a-2b3c4d5e6f7a",
+    "stillMediaId": "01a1e8e8-e6e0-7ad9-adef-4093c69a3649",
+    "transcript": "Every November, Delhi's air turns. Three things meet: farm fires upwind, cooler air that traps smoke near the ground, and the city's own traffic and building dust. On Monday readings passed 450, the 'severe' level, so the emergency rules started: building work stops, diesel trucks stay out, and offices are asked to let people work from home. Delhi's primary schools moved online; schools in Noida and Gurugram stayed open. Sources are under the video."
+  },
+  "me.uploadDone.output": {
+    "id": "01a1e8e9-d140-77df-97c6-c25422098110",
+    "kind": "video",
+    "url": "https://media-staging.hrizzup.com/social/01a1e3a0-ab00-7ef9-810c-37c5772f543f/01a1e8e9-d140-77df-97c6-c25422098110.mp4",
+    "width": 1080,
+    "height": 1920,
+    "durationSeconds": 58,
+    "still": {
+      "url": "https://media-staging.hrizzup.com/social/01a1e3a0-ab00-7ef9-810c-37c5772f543f/01a1e8e8-e6e0-7ad9-adef-4093c69a3649.webp",
+      "width": 1080,
+      "height": 1920,
+      "placeholder": "2fcZFIB3iId/h3iJeIiHeId4Z3Y=",
+      "description": "A smoggy Delhi street at dawn, a roadside board reading AQI 452"
+    },
+    "placeholder": "2fcZFIB3iId/h3iJeIiHeId4Z3Y=",
+    "description": null
+  },
+
+  "formats.output": {
+    "formats": [
+      {
+        "code": "explainer",
+        "name": "Explainer video",
+        "kinds": ["video"],
+        "limits": { "maxBytes": 104857600, "maxSeconds": 60, "imageWidths": [] },
+        "guide": "Vertical 9:16, 1080 × 1920, H.264 with AAC in an MP4, 45 to 60 seconds. Captions burned in; the full transcript in the upload. Upload a still image first and name it as the still."
+      },
+      {
+        "code": "meme",
+        "name": "Meme",
+        "kinds": ["image"],
+        "limits": { "maxBytes": 10485760, "maxSeconds": null, "imageWidths": [320, 640, 960, 1280] },
+        "guide": "Square 1080 × 1080 or 4:5 1080 × 1350, JPEG, PNG or WebP. Describe the image in the upload: what it shows and what the caption says."
+      },
+      {
+        "code": "audio-brief",
+        "name": "Audio brief",
+        "kinds": ["audio"],
+        "limits": { "maxBytes": 20971520, "maxSeconds": 300, "imageWidths": [] },
+        "guide": "About 60 seconds (5 minutes at most), M4A or MP3, levelled to about −16 LUFS. The transcript in the upload, and a still image for the card."
+      },
+      {
+        "code": "timeline",
+        "name": "Timeline",
+        "kinds": ["text", "image"],
+        "limits": { "maxBytes": 10485760, "maxSeconds": null, "imageWidths": [320, 640, 960, 1280] },
+        "guide": "One dated line per update, oldest first, each with its source; or a timeline card from the kit, described in the upload."
+      }
+    ]
+  }
+}

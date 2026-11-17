@@ -1,0 +1,20 @@
+{
+  "views.input": {
+    "requestId": "1e2f3a4b-5c6d-4e7f-8a9b-0c1d2e3f4a5b",
+    "device": "dv_example_device_0001",
+    "items": [
+      { "kind": "story", "id": "01a199e9-d180-75ec-8a81-134dd403419a" },
+      { "kind": "post", "id": "01a1e8e0-a980-7b94-99cf-b43959d7d740" },
+      { "kind": "post", "id": "01a1e8ee-6520-74ae-b7ff-6e9f33cb3b52" }
+    ]
+  },
+  "views.output": { "counted": 2 },
+
+  "me.stats.input": { "limit": 20 },
+  "me.stats.output": {
+    "posts": [
+      { "postId": "01a1e8e0-a980-7b94-99cf-b43959d7d740", "storyId": "01a199e9-d180-75ec-8a81-134dd403419a", "createdAt": "2026-11-17T09:40:00Z", "views": 412, "uniqueViews": 301, "replies": 5, "upvotes": 3 }
+    ],
+    "next": null
+  }
+}
