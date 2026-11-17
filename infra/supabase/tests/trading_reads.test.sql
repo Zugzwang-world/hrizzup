@@ -1,4 +1,5 @@
--- Tests for migrations/*_trading_reads.sql and *_trading_holdings_retries.sql (PLAN.md step 1.7d),
+-- Tests for migrations/*_trading_reads.sql, *_trading_holdings_retries.sql and *_orders_closing_time.sql
+-- (PLAN.md step 1.7d),
 -- run by the Database check on every
 -- pull request against a fresh database built from the migrations. Everything runs in a transaction
 -- that is rolled back, so nothing is left behind.
@@ -12,7 +13,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(74);
+select plan(75);
 
 -- Runs one query as the app's own role, signed in as `account` (null: nobody), and gives back its
 -- one value as text. The role lasts only for the query, so pgTAP's own functions (which the app's
@@ -513,9 +514,28 @@ select is(
     'amount', '0.000000',
     'shares', '0.000000',
     'limit_prob', '0.30000000',
-    'expires_at', null),
-  'each says what it is and how much of it has filled'
+    'expires_at', null,
+    'closes_at', markets.utc((select closes_at from markets.markets where id = pg_temp.market(1)::uuid))),
+  'each says what it is and how much of it has filled, with its market''s closing time'
 );
+-- Market 1's closing time passes while the desk hasn't closed it yet: its stored state stays open, and
+-- the order carries the closing time as it is, which is how the API can show it as closed. (The time is
+-- put back at once; nothing is checked on the market's dates until the transaction would commit.)
+update markets.markets set closes_at = closes_at - interval '2 days'
+where id = pg_temp.market(1)::uuid;
+select is(
+  (select jsonb_build_object('state', o ->> 'state', 'closes_at', o ->> 'closes_at',
+                             'past', (o ->> 'closes_at')::timestamptz < now())
+   from jsonb_array_elements(pg_temp.as_app('00000000-0000-4000-8000-0000000000d2',
+          'select trading.orders(null, 50)')::jsonb -> 'orders') as x (o)
+   where o ->> 'id' = '00000000-0000-4000-8000-00000000e103'),
+  jsonb_build_object('state', 'open',
+    'closes_at', markets.utc((select closes_at from markets.markets where id = pg_temp.market(1)::uuid)),
+    'past', true),
+  'an order''s closing time is its market''s own, even once it has passed while the state is still open'
+);
+update markets.markets set closes_at = closes_at + interval '2 days'
+where id = pg_temp.market(1)::uuid;
 select ok(
   (select (page #>> '{orders,1,created_at}') ~ '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$'
    from ann_orders),
