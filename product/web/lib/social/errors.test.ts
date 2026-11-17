@@ -100,6 +100,27 @@ describe("section 4's error codes", () => {
     expect(socialError(refused, 'none')).toBe(refused);
   });
 
+  it('answers a rule of a table a call has not mapped as one issue for the whole input, not a field of a record', () => {
+    expect(
+      socialError(
+        fault('23514', { constraint: 'settings_posts_per_day_range', hint: 'Use 0 to 1000' }),
+        'admin',
+      ),
+    ).toMatchObject({
+      status: 400,
+      data: { issues: [{ path: '', message: 'raised 23514: Use 0 to 1000' }] },
+    });
+    // Any other rule (23…) the same; the call's own map, asked first, can say which field.
+    expect(socialError(fault('23503'), 'agent')).toMatchObject({
+      data: { issues: [{ path: '', message: 'raised 23503' }] },
+    });
+    const own = (found: { code: string }) =>
+      found.code === '23514'
+        ? new ORPCError('BAD_REQUEST', { status: 400, message: 'On its field' })
+        : undefined;
+    expect(socialError(fault('23514'), 'admin', own)).toMatchObject({ message: 'On its field' });
+  });
+
   it('keeps the database’s words for a "No such…" and a function’s own check', () => {
     expect(
       socialError(Object.assign(fault('P0002'), { message: 'No such invite' }), 'admin'),

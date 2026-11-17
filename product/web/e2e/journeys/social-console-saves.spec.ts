@@ -117,12 +117,12 @@ test("the console's three saves answer anyone but an admin as an address the API
     [
       'POST',
       '/api/v1/admin/social/stories',
-      { record: storyRecord(id, label, new Date()), listed: false },
+      { record: storyRecord(id, label, new Date(Date.now() - 60_000)), listed: false },
     ],
     [
       'POST',
       '/api/v1/admin/social/updates',
-      { record: updateRecord(newRecordId(), id, label, new Date()) },
+      { record: updateRecord(newRecordId(), id, label, new Date(Date.now() - 60_000)) },
     ],
     [
       'POST',
@@ -172,7 +172,9 @@ test('an admin saves an unlisted test story and an update, and makes an invite: 
   });
   const label = `run ${runKey()}, ${browserName}`;
   const storyId = newRecordId();
-  const started = new Date();
+  // Every record's time is a minute in the past, so no time is ahead of the database's clock whatever the
+  // runner's own is (the later versions below add a second or two to it).
+  const started = new Date(Date.now() - 60_000);
   const story = storyRecord(storyId, label, started);
 
   // The test story: new, listed or not as chosen once, never kept by anyone.
@@ -250,7 +252,7 @@ test('an admin saves an unlisted test story and an update, and makes an invite: 
   // An update of a story that doesn't exist: the content store's rule across records, which the
   // database raises when the transaction commits, comes back as a 400 issue on the story's ID.
   const orphan = await call(request, 'POST', '/api/v1/admin/social/updates', {
-    record: updateRecord(newRecordId(), newRecordId(), label, new Date()),
+    record: updateRecord(newRecordId(), newRecordId(), label, new Date(Date.now() - 60_000)),
   });
   expect(orphan.status).toBe(400);
   expect(orphan.body).toMatchObject({

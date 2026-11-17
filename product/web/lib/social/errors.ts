@@ -252,8 +252,19 @@ const SHARED: Record<
   '22P02': () => unreadable(),
   '22007': () => unreadable(),
   '22008': () => unreadable(),
-  '23514': (fault) => recordRefusal(fault),
+  '23514': (fault) => ruleRefusal(fault),
 };
+
+/**
+ * A rule of a table (a CHECK, a reference) refused what a call sent: one 400 issue for the whole input, in
+ * the database's own words with its hint. The call that knows which field it was maps it itself (its own
+ * map, which is asked first); the saves of the content store's records never come here, they have
+ * `recordRefusal`, which says where in the record.
+ */
+function ruleRefusal(fault: DatabaseFault): ORPCError<'BAD_REQUEST', { issues: Issue[] }> {
+  const message = `${fault.message}${fault.hint ? `: ${fault.hint}` : ''}`;
+  return badRequest(message, [{ path: '', message }]);
+}
 
 function unreadable(): ORPCError<'BAD_REQUEST', { issues: Issue[] }> {
   const message = "A value isn't in a form the database can read: check the formats";
@@ -289,8 +300,8 @@ export function socialError(error: unknown, caller: Caller = 'none', own?: OwnMa
   if (mine !== undefined) return mine;
   const shared = SHARED[fault.code]?.(fault, caller);
   if (shared !== undefined) return shared;
-  // Any other rule of a table (23…): the store's own refusal of the record.
-  if (fault.code.startsWith('23')) return recordRefusal(fault);
+  // Any other rule of a table (23…) that a call hasn't mapped: one issue for the whole input.
+  if (fault.code.startsWith('23')) return ruleRefusal(fault);
   return error;
 }
 
