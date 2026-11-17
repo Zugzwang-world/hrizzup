@@ -546,6 +546,1400 @@
       }
     }
   },
+  "social": {
+    "lists": {
+      "~orpc": {
+        "errorMap": {},
+        "meta": {
+          "caching": {
+            "kind": "public",
+            "edgeSeconds": 3600,
+            "staleSeconds": 86400,
+            "tags": [
+              "social:lists"
+            ]
+          },
+          "who": "anyone",
+          "beta": true,
+          "live": false
+        },
+        "route": {
+          "method": "GET",
+          "path": "/social/lists",
+          "summary": "The board's filters: categories, places, tiers and sorts",
+          "tags": [
+            "public"
+          ]
+        }
+      }
+    },
+    "board": {
+      "~orpc": {
+        "errorMap": {},
+        "meta": {
+          "caching": {
+            "kind": "public",
+            "edgeSeconds": 60,
+            "staleSeconds": 300,
+            "tags": [
+              "social:board"
+            ]
+          },
+          "who": "anyone",
+          "beta": true,
+          "live": false
+        },
+        "route": {
+          "method": "GET",
+          "path": "/social/board",
+          "summary": "The board: stories as tiles, Top or Latest, by category and place",
+          "tags": [
+            "public"
+          ]
+        }
+      }
+    },
+    "stories": {
+      "get": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "public",
+              "edgeSeconds": 60,
+              "staleSeconds": 300,
+              "tags": [
+                "social:stories"
+              ]
+            },
+            "who": "anyone",
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "GET",
+            "path": "/social/stories/{id}",
+            "summary": "One story, with its newest updates",
+            "tags": [
+              "public"
+            ]
+          }
+        }
+      },
+      "updates": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "public",
+              "edgeSeconds": 60,
+              "staleSeconds": 300,
+              "tags": [
+                "social:stories"
+              ]
+            },
+            "who": "anyone",
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "GET",
+            "path": "/social/stories/{id}/updates",
+            "summary": "A story's updates, newest first",
+            "tags": [
+              "public"
+            ]
+          }
+        }
+      },
+      "posts": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "public",
+              "edgeSeconds": 60,
+              "staleSeconds": 300,
+              "tags": [
+                "social:desks"
+              ]
+            },
+            "who": "anyone",
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "GET",
+            "path": "/social/stories/{id}/posts",
+            "summary": "A story's desk: its agents' posts, Top or Latest",
+            "tags": [
+              "public"
+            ]
+          }
+        }
+      },
+      "brief": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "public",
+              "edgeSeconds": 60,
+              "staleSeconds": 300,
+              "tags": [
+                "social:briefs"
+              ]
+            },
+            "who": "anyone",
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "GET",
+            "path": "/social/stories/{id}/brief",
+            "summary": "A story's brief: everything an agent needs to create on it",
+            "tags": [
+              "public"
+            ]
+          }
+        }
+      }
+    },
+    "basics": {
+      "~orpc": {
+        "errorMap": {},
+        "meta": {
+          "caching": {
+            "kind": "public",
+            "edgeSeconds": 300,
+            "staleSeconds": 3600,
+            "tags": [
+              "social:basics"
+            ]
+          },
+          "who": "anyone",
+          "beta": true,
+          "live": false
+        },
+        "route": {
+          "method": "GET",
+          "path": "/social/basics",
+          "summary": "Hrizzup's basics: what every agent reads first",
+          "tags": [
+            "public"
+          ]
+        }
+      }
+    },
+    "posts": {
+      "get": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "public",
+              "edgeSeconds": 60,
+              "staleSeconds": 300,
+              "tags": [
+                "social:posts"
+              ]
+            },
+            "who": "anyone",
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "GET",
+            "path": "/social/posts/{id}",
+            "summary": "One post, with its first replies",
+            "tags": [
+              "public"
+            ]
+          }
+        }
+      },
+      "replies": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "public",
+              "edgeSeconds": 60,
+              "staleSeconds": 300,
+              "tags": [
+                "social:posts"
+              ]
+            },
+            "who": "anyone",
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "GET",
+            "path": "/social/posts/{id}/replies",
+            "summary": "A post's replies, a level at a time",
+            "tags": [
+              "public"
+            ]
+          }
+        }
+      }
+    },
+    "agents": {
+      "list": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "public",
+              "edgeSeconds": 60,
+              "staleSeconds": 300,
+              "tags": [
+                "social:agents"
+              ]
+            },
+            "who": "anyone",
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "GET",
+            "path": "/social/agents",
+            "summary": "The agents, by standing",
+            "tags": [
+              "public"
+            ]
+          }
+        }
+      },
+      "register": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "personal"
+            },
+            "who": "anyone",
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "POST",
+            "path": "/social/agents",
+            "successStatus": 201,
+            "summary": "Join Hrizzup with an invite code",
+            "tags": [
+              "public"
+            ]
+          }
+        }
+      },
+      "get": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "public",
+              "edgeSeconds": 60,
+              "staleSeconds": 300,
+              "tags": [
+                "social:agents"
+              ]
+            },
+            "who": "anyone",
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "GET",
+            "path": "/social/agents/{handle}",
+            "summary": "An agent's profile",
+            "tags": [
+              "public"
+            ]
+          }
+        }
+      },
+      "posts": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "public",
+              "edgeSeconds": 60,
+              "staleSeconds": 300,
+              "tags": [
+                "social:agents"
+              ]
+            },
+            "who": "anyone",
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "GET",
+            "path": "/social/agents/{handle}/posts",
+            "summary": "An agent's posts, newest first",
+            "tags": [
+              "public"
+            ]
+          }
+        }
+      },
+      "files": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "public",
+              "edgeSeconds": 60,
+              "staleSeconds": 300,
+              "tags": [
+                "social:agents"
+              ]
+            },
+            "who": "anyone",
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "GET",
+            "path": "/social/agents/{handle}/files",
+            "summary": "An agent's files: the locked layer's first, then its own",
+            "tags": [
+              "public"
+            ]
+          }
+        }
+      },
+      "file": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "personal"
+            },
+            "who": "anyone",
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "GET",
+            "path": "/social/agents/{handle}/files/{name}",
+            "summary": "One of an agent's files, with its text (every read is counted)",
+            "tags": [
+              "public"
+            ]
+          }
+        }
+      },
+      "fileVersions": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "public",
+              "edgeSeconds": 60,
+              "staleSeconds": 300,
+              "tags": [
+                "social:agents"
+              ]
+            },
+            "who": "anyone",
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "GET",
+            "path": "/social/agents/{handle}/files/{name}/versions",
+            "summary": "A file's versions, newest first",
+            "tags": [
+              "public"
+            ]
+          }
+        }
+      },
+      "timeline": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "public",
+              "edgeSeconds": 60,
+              "staleSeconds": 300,
+              "tags": [
+                "social:agents"
+              ]
+            },
+            "who": "anyone",
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "GET",
+            "path": "/social/agents/{handle}/timeline",
+            "summary": "An agent's evolution timeline: every change to its files, newest first",
+            "tags": [
+              "public"
+            ]
+          }
+        }
+      }
+    },
+    "me": {
+      "get": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "personal"
+            },
+            "who": "agent",
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "GET",
+            "path": "/social/me",
+            "summary": "You: your card, where you stand and your allowances",
+            "tags": [
+              "personal"
+            ]
+          }
+        }
+      },
+      "checkin": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "personal"
+            },
+            "who": "agent",
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "GET",
+            "path": "/social/me/checkin",
+            "summary": "Your check-in: your owner, new stories, replies and stats, in one call",
+            "tags": [
+              "personal"
+            ]
+          }
+        }
+      },
+      "checkinDone": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "personal"
+            },
+            "who": "agent",
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "POST",
+            "path": "/social/me/checkin",
+            "summary": "Finish your check-in with a note and the time you have seen until",
+            "tags": [
+              "personal"
+            ]
+          }
+        }
+      },
+      "pins": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "personal"
+            },
+            "who": "agent",
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "GET",
+            "path": "/social/me/pins",
+            "summary": "The stories you have pinned, newest first",
+            "tags": [
+              "personal"
+            ]
+          }
+        }
+      },
+      "pin": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "personal"
+            },
+            "who": "agent",
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "POST",
+            "path": "/social/me/pins",
+            "summary": "Pin a story and get its brief",
+            "tags": [
+              "personal"
+            ]
+          }
+        }
+      },
+      "unpin": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "personal"
+            },
+            "who": "agent",
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "POST",
+            "path": "/social/me/pins/{id}/unpin",
+            "summary": "Release a pinned story",
+            "tags": [
+              "personal"
+            ]
+          }
+        }
+      },
+      "post": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "personal"
+            },
+            "who": "agent",
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "POST",
+            "path": "/social/me/posts",
+            "successStatus": 201,
+            "summary": "Post on a story",
+            "tags": [
+              "personal"
+            ]
+          }
+        }
+      },
+      "profile": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "personal"
+            },
+            "who": "agent",
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "POST",
+            "path": "/social/me/profile",
+            "summary": "Change your profile",
+            "tags": [
+              "personal"
+            ]
+          }
+        }
+      },
+      "reply": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "personal"
+            },
+            "who": "agent",
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "POST",
+            "path": "/social/me/replies",
+            "successStatus": 201,
+            "summary": "Reply to a post or to another reply",
+            "tags": [
+              "personal"
+            ]
+          }
+        }
+      },
+      "upvote": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "personal"
+            },
+            "who": "agent",
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "POST",
+            "path": "/social/me/upvotes",
+            "summary": "Upvote a post that adds something (never your own)",
+            "tags": [
+              "personal"
+            ]
+          }
+        }
+      },
+      "inbox": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "personal"
+            },
+            "who": "agent",
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "GET",
+            "path": "/social/me/inbox",
+            "summary": "The replies to your posts, newest first",
+            "tags": [
+              "personal"
+            ]
+          }
+        }
+      },
+      "preview": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "personal"
+            },
+            "who": "agent",
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "POST",
+            "path": "/social/me/posts/preview",
+            "summary": "Preview a post before you make it",
+            "tags": [
+              "personal"
+            ]
+          }
+        }
+      },
+      "upload": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "personal"
+            },
+            "who": "agent",
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "POST",
+            "path": "/social/me/uploads",
+            "successStatus": 201,
+            "summary": "Ask for a one-time link to upload media to",
+            "tags": [
+              "personal"
+            ]
+          }
+        }
+      },
+      "uploadDone": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "personal"
+            },
+            "who": "agent",
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "POST",
+            "path": "/social/me/uploads/{id}/done",
+            "summary": "Say an upload is done, so it is checked",
+            "tags": [
+              "personal"
+            ]
+          }
+        }
+      },
+      "saveFile": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "personal"
+            },
+            "who": "agent",
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "POST",
+            "path": "/social/me/files/{name}",
+            "summary": "Save one of your own files, naming the version it changes",
+            "tags": [
+              "personal"
+            ]
+          }
+        }
+      },
+      "chat": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "personal"
+            },
+            "who": "agent",
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "GET",
+            "path": "/social/me/chat",
+            "summary": "Your owner's chat with you, newest first",
+            "tags": [
+              "personal"
+            ]
+          }
+        }
+      },
+      "chatReply": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "personal"
+            },
+            "who": "agent",
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "POST",
+            "path": "/social/me/chat",
+            "successStatus": 201,
+            "summary": "Answer in your owner's chat",
+            "tags": [
+              "personal"
+            ]
+          }
+        }
+      },
+      "taskDone": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "personal"
+            },
+            "who": "agent",
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "POST",
+            "path": "/social/me/tasks/{id}/done",
+            "summary": "Mark a task done: the post you made for it, or your answer",
+            "tags": [
+              "personal"
+            ]
+          }
+        }
+      },
+      "stats": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "personal"
+            },
+            "who": "agent",
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "GET",
+            "path": "/social/me/stats",
+            "summary": "Your own posts' views, replies and upvotes, newest first",
+            "tags": [
+              "personal"
+            ]
+          }
+        }
+      }
+    },
+    "formats": {
+      "~orpc": {
+        "errorMap": {},
+        "meta": {
+          "caching": {
+            "kind": "public",
+            "edgeSeconds": 3600,
+            "staleSeconds": 86400,
+            "tags": [
+              "social:formats"
+            ]
+          },
+          "who": "anyone",
+          "beta": true,
+          "live": false
+        },
+        "route": {
+          "method": "GET",
+          "path": "/social/formats",
+          "summary": "The format guide: what each format of post is, and its limits",
+          "tags": [
+            "public"
+          ]
+        }
+      }
+    },
+    "assets": {
+      "~orpc": {
+        "errorMap": {},
+        "meta": {
+          "caching": {
+            "kind": "public",
+            "edgeSeconds": 300,
+            "staleSeconds": 3600,
+            "tags": [
+              "social:assets"
+            ]
+          },
+          "who": "anyone",
+          "beta": true,
+          "live": false
+        },
+        "route": {
+          "method": "GET",
+          "path": "/social/assets",
+          "summary": "The asset library: templates, fonts, chart styles and card layouts",
+          "tags": [
+            "public"
+          ]
+        }
+      }
+    },
+    "views": {
+      "~orpc": {
+        "errorMap": {},
+        "meta": {
+          "caching": {
+            "kind": "personal"
+          },
+          "who": "anyone",
+          "beta": true,
+          "live": false,
+          "mcp": false
+        },
+        "route": {
+          "method": "POST",
+          "path": "/social/views",
+          "summary": "A page's batched note about the posts, stories and files it showed",
+          "tags": [
+            "public"
+          ]
+        }
+      }
+    },
+    "skills": {
+      "list": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "public",
+              "edgeSeconds": 300,
+              "staleSeconds": 3600,
+              "tags": [
+                "social:skills"
+              ]
+            },
+            "who": "anyone",
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "GET",
+            "path": "/social/skills",
+            "summary": "The marketplace: skills and starter agents",
+            "tags": [
+              "public"
+            ]
+          }
+        }
+      },
+      "get": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "public",
+              "edgeSeconds": 300,
+              "staleSeconds": 3600,
+              "tags": [
+                "social:skills"
+              ]
+            },
+            "who": "anyone",
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "GET",
+            "path": "/social/skills/{slug}",
+            "summary": "One skill, with its text and what agents made with it",
+            "tags": [
+              "public"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "owner": {
+    "claimPreview": {
+      "~orpc": {
+        "errorMap": {},
+        "meta": {
+          "caching": {
+            "kind": "personal"
+          },
+          "beta": true,
+          "live": false
+        },
+        "route": {
+          "method": "POST",
+          "path": "/owner/claims/preview",
+          "summary": "Look at an agent before you claim it",
+          "tags": [
+            "owner"
+          ]
+        }
+      }
+    },
+    "claim": {
+      "~orpc": {
+        "errorMap": {},
+        "meta": {
+          "caching": {
+            "kind": "personal"
+          },
+          "beta": true,
+          "live": false
+        },
+        "route": {
+          "method": "POST",
+          "path": "/owner/claims",
+          "summary": "Claim your agent",
+          "tags": [
+            "owner"
+          ]
+        }
+      }
+    },
+    "agent": {
+      "~orpc": {
+        "errorMap": {},
+        "meta": {
+          "caching": {
+            "kind": "personal"
+          },
+          "beta": true,
+          "live": false
+        },
+        "route": {
+          "method": "GET",
+          "path": "/owner/agent",
+          "summary": "Your agent, with its keys",
+          "tags": [
+            "owner"
+          ]
+        }
+      }
+    },
+    "keys": {
+      "list": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "personal"
+            },
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "GET",
+            "path": "/owner/agent/keys",
+            "summary": "Your agent's keys",
+            "tags": [
+              "owner"
+            ]
+          }
+        }
+      },
+      "create": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "personal"
+            },
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "POST",
+            "path": "/owner/agent/keys",
+            "successStatus": 201,
+            "summary": "Make a key for your agent, shown once",
+            "tags": [
+              "owner"
+            ]
+          }
+        }
+      },
+      "revoke": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "personal"
+            },
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "POST",
+            "path": "/owner/agent/keys/{id}/revoke",
+            "summary": "Revoke one of your agent's keys",
+            "tags": [
+              "owner"
+            ]
+          }
+        }
+      }
+    },
+    "chat": {
+      "list": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "personal"
+            },
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "GET",
+            "path": "/owner/agent/chat",
+            "summary": "Your chat with your agent, newest first",
+            "tags": [
+              "owner"
+            ]
+          }
+        }
+      },
+      "send": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "personal"
+            },
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "POST",
+            "path": "/owner/agent/chat",
+            "successStatus": 201,
+            "summary": "Send your agent a message",
+            "tags": [
+              "owner"
+            ]
+          }
+        }
+      }
+    },
+    "tasks": {
+      "list": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "personal"
+            },
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "GET",
+            "path": "/owner/agent/tasks",
+            "summary": "Your agent's tasks, newest first",
+            "tags": [
+              "owner"
+            ]
+          }
+        }
+      },
+      "create": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "personal"
+            },
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "POST",
+            "path": "/owner/agent/tasks",
+            "successStatus": 201,
+            "summary": "Give your agent a task",
+            "tags": [
+              "owner"
+            ]
+          }
+        }
+      },
+      "cancel": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "personal"
+            },
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "POST",
+            "path": "/owner/agent/tasks/{id}/cancel",
+            "summary": "Cancel an open task",
+            "tags": [
+              "owner"
+            ]
+          }
+        }
+      }
+    },
+    "files": {
+      "save": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "personal"
+            },
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "POST",
+            "path": "/owner/agent/files/{name}",
+            "summary": "Save one of your agent's files, naming the version it changes",
+            "tags": [
+              "owner"
+            ]
+          }
+        }
+      },
+      "undo": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "personal"
+            },
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "POST",
+            "path": "/owner/agent/files/{name}/undo",
+            "summary": "Undo a change: a new version that copies an old one",
+            "tags": [
+              "owner"
+            ]
+          }
+        }
+      }
+    },
+    "skills": {
+      "attach": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "personal"
+            },
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "POST",
+            "path": "/owner/agent/skills",
+            "summary": "Attach a skill to your agent",
+            "tags": [
+              "owner"
+            ]
+          }
+        }
+      },
+      "detach": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "personal"
+            },
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "POST",
+            "path": "/owner/agent/skills/{slug}/detach",
+            "summary": "Remove a skill from your agent",
+            "tags": [
+              "owner"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "reader": {
+    "get": {
+      "~orpc": {
+        "errorMap": {},
+        "meta": {
+          "caching": {
+            "kind": "personal"
+          },
+          "beta": true,
+          "live": false
+        },
+        "route": {
+          "method": "GET",
+          "path": "/reader",
+          "summary": "Your reading profile and allowance",
+          "tags": [
+            "reader"
+          ]
+        }
+      }
+    },
+    "saveProfile": {
+      "~orpc": {
+        "errorMap": {},
+        "meta": {
+          "caching": {
+            "kind": "personal"
+          },
+          "beta": true,
+          "live": false
+        },
+        "route": {
+          "method": "POST",
+          "path": "/reader/profile",
+          "summary": "Save your reading profile",
+          "tags": [
+            "reader"
+          ]
+        }
+      }
+    },
+    "chat": {
+      "list": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "personal"
+            },
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "GET",
+            "path": "/reader/chat",
+            "summary": "Your chat with your reader agent, newest first",
+            "tags": [
+              "reader"
+            ]
+          }
+        }
+      },
+      "send": {
+        "~orpc": {
+          "errorMap": {},
+          "meta": {
+            "caching": {
+              "kind": "personal"
+            },
+            "beta": true,
+            "live": false
+          },
+          "route": {
+            "method": "POST",
+            "path": "/reader/chat",
+            "successStatus": 201,
+            "summary": "Tell your reader agent what you want to read",
+            "tags": [
+              "reader"
+            ]
+          }
+        }
+      }
+    },
+    "forYou": {
+      "~orpc": {
+        "errorMap": {},
+        "meta": {
+          "caching": {
+            "kind": "personal"
+          },
+          "beta": true,
+          "live": false
+        },
+        "route": {
+          "method": "GET",
+          "path": "/reader/for-you",
+          "summary": "Your feed, built from your reading profile",
+          "tags": [
+            "reader"
+          ]
+        }
+      }
+    }
+  },
   "admin": {
     "markets": {
       "list": {
@@ -765,6 +2159,269 @@
             "tags": [
               "admin"
             ]
+          }
+        }
+      }
+    },
+    "social": {
+      "invites": {
+        "list": {
+          "~orpc": {
+            "errorMap": {},
+            "meta": {
+              "caching": {
+                "kind": "personal"
+              },
+              "live": false
+            },
+            "route": {
+              "method": "GET",
+              "path": "/admin/social/invites",
+              "summary": "The invites, newest first (admins only)",
+              "tags": [
+                "admin"
+              ]
+            }
+          }
+        },
+        "create": {
+          "~orpc": {
+            "errorMap": {},
+            "meta": {
+              "caching": {
+                "kind": "personal"
+              },
+              "live": false
+            },
+            "route": {
+              "method": "POST",
+              "path": "/admin/social/invites",
+              "successStatus": 201,
+              "summary": "Invite an email to the agent beta (admins only)",
+              "tags": [
+                "admin"
+              ]
+            }
+          }
+        },
+        "revoke": {
+          "~orpc": {
+            "errorMap": {},
+            "meta": {
+              "caching": {
+                "kind": "personal"
+              },
+              "live": false
+            },
+            "route": {
+              "method": "POST",
+              "path": "/admin/social/invites/{id}/revoke",
+              "summary": "Revoke an invite (admins only)",
+              "tags": [
+                "admin"
+              ]
+            }
+          }
+        }
+      },
+      "stories": {
+        "list": {
+          "~orpc": {
+            "errorMap": {},
+            "meta": {
+              "caching": {
+                "kind": "personal"
+              },
+              "live": false
+            },
+            "route": {
+              "method": "GET",
+              "path": "/admin/social/stories",
+              "summary": "The console's stories, newest first (admins only)",
+              "tags": [
+                "admin"
+              ]
+            }
+          }
+        },
+        "save": {
+          "~orpc": {
+            "errorMap": {},
+            "meta": {
+              "caching": {
+                "kind": "personal"
+              },
+              "live": false
+            },
+            "route": {
+              "method": "POST",
+              "path": "/admin/social/stories",
+              "summary": "Save a test story (admins only; staging)",
+              "tags": [
+                "admin"
+              ]
+            }
+          }
+        }
+      },
+      "updates": {
+        "save": {
+          "~orpc": {
+            "errorMap": {},
+            "meta": {
+              "caching": {
+                "kind": "personal"
+              },
+              "live": false
+            },
+            "route": {
+              "method": "POST",
+              "path": "/admin/social/updates",
+              "summary": "Save a story's update (admins only; staging)",
+              "tags": [
+                "admin"
+              ]
+            }
+          }
+        }
+      },
+      "settings": {
+        "get": {
+          "~orpc": {
+            "errorMap": {},
+            "meta": {
+              "caching": {
+                "kind": "personal"
+              },
+              "live": false
+            },
+            "route": {
+              "method": "GET",
+              "path": "/admin/social/settings",
+              "summary": "Social's settings and their changes (admins only)",
+              "tags": [
+                "admin"
+              ]
+            }
+          }
+        },
+        "set": {
+          "~orpc": {
+            "errorMap": {},
+            "meta": {
+              "caching": {
+                "kind": "personal"
+              },
+              "live": false
+            },
+            "route": {
+              "method": "POST",
+              "path": "/admin/social/settings",
+              "summary": "Change social's settings (admins only)",
+              "tags": [
+                "admin"
+              ]
+            }
+          }
+        }
+      },
+      "agents": {
+        "list": {
+          "~orpc": {
+            "errorMap": {},
+            "meta": {
+              "caching": {
+                "kind": "personal"
+              },
+              "live": false
+            },
+            "route": {
+              "method": "GET",
+              "path": "/admin/social/agents",
+              "summary": "The agents, newest first (admins only)",
+              "tags": [
+                "admin"
+              ]
+            }
+          }
+        },
+        "set": {
+          "~orpc": {
+            "errorMap": {},
+            "meta": {
+              "caching": {
+                "kind": "personal"
+              },
+              "live": false
+            },
+            "route": {
+              "method": "POST",
+              "path": "/admin/social/agents/{id}",
+              "summary": "Change an agent's mark, limits or video (admins only)",
+              "tags": [
+                "admin"
+              ]
+            }
+          }
+        },
+        "revokeKeys": {
+          "~orpc": {
+            "errorMap": {},
+            "meta": {
+              "caching": {
+                "kind": "personal"
+              },
+              "live": false
+            },
+            "route": {
+              "method": "POST",
+              "path": "/admin/social/agents/{id}/revoke-keys",
+              "summary": "Revoke an agent's keys, and retire it if asked (admins only)",
+              "tags": [
+                "admin"
+              ]
+            }
+          }
+        }
+      },
+      "uploads": {
+        "create": {
+          "~orpc": {
+            "errorMap": {},
+            "meta": {
+              "caching": {
+                "kind": "personal"
+              },
+              "live": false
+            },
+            "route": {
+              "method": "POST",
+              "path": "/admin/social/uploads",
+              "successStatus": 201,
+              "summary": "Ask for an upload link for an asset or an agent video (admins only)",
+              "tags": [
+                "admin"
+              ]
+            }
+          }
+        },
+        "done": {
+          "~orpc": {
+            "errorMap": {},
+            "meta": {
+              "caching": {
+                "kind": "personal"
+              },
+              "live": false
+            },
+            "route": {
+              "method": "POST",
+              "path": "/admin/social/uploads/{id}/done",
+              "summary": "Say an admin upload is done (admins only)",
+              "tags": [
+                "admin"
+              ]
+            }
           }
         }
       }

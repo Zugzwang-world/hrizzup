@@ -55,6 +55,24 @@ export function consoleEnabled(env: Env = process.env): boolean {
   return signInTestEnabled(env);
 }
 
+/**
+ * Social's V1 beta (docs/social/build.md, D14) lives on staging, its previews and this Mac, and not
+ * on production until launch: there every social call answers "No such call", and `/skill.md` is not
+ * found, as bots' keys and the MCP server already are (production starts clean).
+ */
+export function socialEnabled(env: Env = process.env): boolean {
+  return currentEnvironment(env) !== 'production';
+}
+
+/**
+ * Test stories (a story and its updates made in the console, D4) are saved only off production, and
+ * never on it: a record the code refuses before the database sees it (the database refuses too,
+ * until its own switch is on, which only staging's setup script turns on).
+ */
+export function testStoriesEnabled(env: Env = process.env): boolean {
+  return currentEnvironment(env) !== 'production';
+}
+
 /** The region the function runs in (`bom1` on Vercel), or `local` on this Mac. */
 export function currentRegion(env: Env = process.env): string {
   return env.VERCEL_REGION ?? (env.VERCEL ? 'unknown' : 'local');

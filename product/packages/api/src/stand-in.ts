@@ -3,6 +3,7 @@ import type { ConsoleMarketWithLog } from './console.ts';
 import { contract } from './contract.ts';
 import * as examples from './examples.ts';
 import type { ConsolePerpWithLog } from './perps.ts';
+import { socialStandIn } from './social/stand-in.ts';
 import { isDryRun } from './trading.ts';
 
 /**
@@ -16,6 +17,7 @@ export function standIn(options: { signedIn?: boolean; admin?: boolean } = {}) {
   const api = implement(contract);
   const signedIn = options.signedIn !== false;
   const admin = signedIn && options.admin !== false;
+  const social = socialStandIn({ signedIn, admin });
 
   /** The market console's calls answer anyone but an admin as an address the API doesn't have. */
   const asAdmin = () => {
@@ -72,6 +74,9 @@ export function standIn(options: { signedIn?: boolean; admin?: boolean } = {}) {
       if (!signedIn) throw new ORPCError('UNAUTHORIZED');
       return examples.me;
     }),
+    social: social.social,
+    owner: social.owner,
+    reader: social.reader,
     markets: {
       list: api.markets.list.handler(() => examples.marketList),
       get: api.markets.get.handler(({ input }) => {
@@ -338,6 +343,7 @@ export function standIn(options: { signedIn?: boolean; admin?: boolean } = {}) {
           throw new ORPCError('CONFLICT', { message: 'The listed perp is never retired' });
         }),
       },
+      social: social.admin.social,
     },
   });
 }

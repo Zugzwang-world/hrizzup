@@ -1,6 +1,7 @@
-import { type ContractRouterClient, oc } from '@orpc/contract';
+import type { ContractRouterClient } from '@orpc/contract';
 import { z } from 'zod';
 import { authErrors, authSettings, emailCodeInput, emailCodeSent } from './auth.ts';
+import { admin, call, noInput } from './builders.ts';
 import {
   consoleMarketWithLog,
   createMarketInput,
@@ -36,7 +37,6 @@ import {
   priceHistoryInput,
   quoteErrors,
 } from './market-data.ts';
-import { commonErrors } from './paging.ts';
 import {
   closePerpInput,
   consolePerpWithLog,
@@ -56,6 +56,7 @@ import {
   setPerpModeInput,
   setPerpSettingsInput,
 } from './perps.ts';
+import { socialContract } from './social/contract.ts';
 import {
   cancelOrderInput,
   cancelOrderResult,
@@ -73,6 +74,11 @@ import {
   tradingErrors,
 } from './trading.ts';
 
+// The meta every call carries, and what builds a call, live in builders.ts (social's files import it
+// from there); the contract's names stay where they have always been.
+export type { Caching, Meta } from './builders.ts';
+export { noInput };
+
 /**
  * The typed API's contract (PLAN.md step 1.5c; blueprint section 13): every call the website
  * and the app can make, with what it takes and what it answers. Contract first: a news
@@ -84,79 +90,6 @@ import {
  * Served at /api/v1 (the website's route handler, on Node in Mumbai). Public reads are GET with
  * clean addresses; writes will be POST.
  */
-
-/**
- * How a call's answer may be kept (blueprint section 14, "Caching in layers"). Every call says
- * which, here in the contract; the website's handler turns it into headers. Anything personal
- * is never kept by anyone but the person's own device, and only while it's open.
- */
-export type Caching =
-  | {
-      kind: 'public';
-      /** How long Vercel's edge serves its copy before asking again. */
-      edgeSeconds: number;
-      /** How long after that the edge may still serve its copy while it fetches a new one. */
-      staleSeconds: number;
-      /** Cache tags, so a change can clear every copy at once (Vercel-Cache-Tag). */
-      tags: readonly string[];
-    }
-  | { kind: 'personal' };
-
-export type Meta = {
-  caching: Caching;
-  /**
-   * The call sends email. Such a call is a POST under `/auth/email/`, so the firewall's limit on
-   * everything that sends email covers it (`/api/v1/auth/email/`: 5 requests a minute per visitor,
-   * infra/vercel/firewall.json); the contract's tests hold every one to it.
-   */
-  sendsEmail?: true;
-  /**
-   * The call is in beta (every social call outside the console, while social is built): the OpenAPI
-   * file marks it `x-stability-level: beta`, the docs show "Beta", MCP's tool summary starts with
-   * "(beta)", and the breaking-change check leaves it out, so it may change in v1. A call without
-   * it is v1, as every call is today; the check refuses a call that gains it
-   * (.github/scripts/api_breaking.py). Removed from every call when social leaves beta.
-   */
-  beta?: true;
-  /**
-   * The call is in the contract but its back end isn't built yet: never in the OpenAPI file, the
-   * docs or MCP's tools, and the website answers it exactly as an address the API doesn't have
-   * ("No such call", 404). Removed from a call when its back end lands.
-   */
-  live?: false;
-  /**
-   * Who a social call is for: `anyone` (a person, or an agent, within the call's own rules) or only
-   * an `agent` (with its posting key). MCP's tools follow it (R6); unset, as on every call today,
-   * the call is a market-API call.
-   */
-  who?: 'anyone' | 'agent';
-  /** The call is never an MCP tool, though it stays in the OpenAPI file and the docs. */
-  mcp?: false;
-};
-
-/**
- * Every call starts personal (never cached); a public read says so itself. Every call may answer the
- * common errors (paging.ts): a refused input (400, each problem in `data.issues`) and "try again in
- * a moment" (503); each adds its own below.
- */
-const call = oc.$meta<Meta>({ caching: { kind: 'personal' } }).errors(commonErrors);
-
-/**
- * What the console's calls may answer an admin: no such market or perp, a request that clashes with
- * the market's or perp's state, besides the common errors. To anyone else, each answers exactly as
- * an address the API doesn't have ("No such call", 404).
- */
-const consoleErrors = {
-  NOT_FOUND: { status: 404, message: 'No such market' },
-  CONFLICT: { status: 409, message: "That doesn't fit the market's state" },
-} as const;
-const admin = call.errors(consoleErrors);
-
-/**
- * A call that takes no input at all. Anything sent is refused (400), so a stray or random query
- * can't slip past the checks or split the edge's cache into copies nobody asked for.
- */
-export const noInput = z.strictObject({}).optional();
 
 const serviceState = z.enum(['ok', 'error', 'not_configured']);
 
@@ -600,6 +533,19 @@ export const contract = {
   },
 
   /**
+   * Social's V1 beta (docs/social/build.md, section 5; social/): the board, stories, desks, agents
+   * and their own calls with a posting key. Every call is in beta and none is live yet, so the
+   * website answers each as an address the API doesn't have until its back end is built.
+   */
+  social: socialContract.social,
+
+  /** An owner's own agent: claiming it, its keys, its chat, tasks and files. Signed in, never with a key. */
+  owner: socialContract.owner,
+
+  /** A signed-in reader's own reading profile, chat with their reader agent, and For You. */
+  reader: socialContract.reader,
+
+  /**
    * The market console's calls (PLAN.md step 1.7c; console.ts), and the perp's (step 3.4a;
    * perps.ts): admins only, so every market and perp write has one path, and the database checks
    * the admins table on each. Personal, never kept. To anyone but an admin, signed in or not, each
@@ -749,6 +695,9 @@ export const contract = {
         .input(retireTestPerpInput)
         .output(consolePerpWithLog),
     },
+
+    /** The social console's calls (docs/social/build.md, section 5): invites, test stories, settings, agents. */
+    social: socialContract.admin.social,
   },
 };
 

@@ -578,3 +578,10 @@ export const perpPositionsPage: PerpPositionsPage = {
   ],
   next: null,
 };
+
+/**
+ * Social's examples (docs/social/build.md, section 10), one file to an area under `social/`:
+ * `social.callExamples` has every call's input and answer by its dotted name, and `social.board`,
+ * `social.agents`… each area's own, named.
+ */
+export * as social from './social/examples.ts';

@@ -36,3 +36,18 @@ type HasMeta = { readonly '~orpc': { readonly meta: Partial<Meta> } };
 export function isPublished(path: readonly string[], procedure: HasMeta): boolean {
   return !UNPUBLISHED.has(path[0] ?? '') && procedure['~orpc'].meta.live !== false;
 }
+
+/**
+ * Whether a call (by its path, `['social', 'me', 'post']`) is one of social's: everything under
+ * `social`, `owner` and `reader`, and the console's `admin.social`. The website answers each of
+ * them "No such call" where social is off (production, until launch), and a call of the others never.
+ */
+export function isSocialCall(path: readonly string[]): boolean {
+  const [group, next] = path;
+  return (
+    group === 'social' ||
+    group === 'owner' ||
+    group === 'reader' ||
+    (group === 'admin' && next === 'social')
+  );
+}

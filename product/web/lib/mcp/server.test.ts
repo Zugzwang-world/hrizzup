@@ -1,4 +1,4 @@
-import { contract, type Meta, procedures } from '@hrizzup/api';
+import { contract, isSocialCall, type Meta, procedures } from '@hrizzup/api';
 import { marketQuote, positionsPage, tradeResult } from '@hrizzup/api/examples';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -192,6 +192,30 @@ describe('a call in beta, or not live yet, or kept out of MCP', () => {
         tool.procedure['~orpc'].meta.beta === true,
       );
     }
+  });
+});
+
+describe('social’s calls, none of them live yet', () => {
+  it('make no tool for any key: not a public read, an agent’s call, the registration or the file read', () => {
+    const social = procedures(contract).filter(([name]) => isSocialCall(name.split('.')));
+    expect(social.length).toBe(74);
+    expect(TOOLS.some((tool) => isSocialCall(tool.path))).toBe(false);
+    const named = new Set(
+      (['public', 'read', 'trade'] as const).flatMap((access) =>
+        toolsFor(access).map((tool) => tool.name),
+      ),
+    );
+    for (const [name] of social) {
+      expect(named.has(name.replaceAll('.', '_')), name).toBe(false);
+    }
+    // The tools of the market API are all there is, as before.
+    expect(TOOLS.length).toBe(
+      procedures(contract).filter(
+        ([name, procedure]) =>
+          !/^(admin|auth|keys|owner|reader|health|social)\b/.test(name) &&
+          procedure['~orpc'].meta.live !== false,
+      ).length,
+    );
   });
 });
 

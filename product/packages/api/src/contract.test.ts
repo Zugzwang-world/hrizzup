@@ -183,6 +183,21 @@ describe("the console's calls", () => {
       'admin.perps.retireTest',
       'admin.perps.setMode',
       'admin.perps.setSettings',
+      // Social's console (docs/social/build.md, section 5): the invites, the test stories, the
+      // settings, the agents and the console's uploads.
+      'admin.social.agents.list',
+      'admin.social.agents.revokeKeys',
+      'admin.social.agents.set',
+      'admin.social.invites.create',
+      'admin.social.invites.list',
+      'admin.social.invites.revoke',
+      'admin.social.settings.get',
+      'admin.social.settings.set',
+      'admin.social.stories.list',
+      'admin.social.stories.save',
+      'admin.social.updates.save',
+      'admin.social.uploads.create',
+      'admin.social.uploads.done',
     ]);
   });
 
