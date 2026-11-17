@@ -34,7 +34,7 @@ const url = process.env.PERPS_DATABASE_URL;
 if (!url) throw new Error('PERPS_DATABASE_URL is not set: run `pnpm test:db`');
 
 const BITCOIN = '01a1c501-ec40-78f6-87b6-3fb041143421';
-/** The environment's seed for the listed perp, in these tests only (staging's lives in Doppler). */
+/** A fallback seed for a stand-in perp without its own, in these tests only (no environment has one). */
 const SOURCE: PriceSource = { seed: 'a1b2c3d4e5f60718' };
 const STEP = STAND_IN_PRICE.intervalMs;
 
@@ -706,7 +706,7 @@ describe('the calls for everyone', () => {
     expect(shown.price).toBe(String(priceOf(walk, at).price));
 
     // The listed perp is on our own price: before the first is stored, its price isn't set up
-    // here, whatever the environment's seed.
+    // here, whatever fallback seed is given.
     await expect(listedPerps(app, SOURCE)).rejects.toBeInstanceOf(PerpNotSetUpError);
     await expect(listedPerps(app, { seed: undefined })).rejects.toBeInstanceOf(PerpNotSetUpError);
     expect(await refusalOf(perpDetails(app, newId(), SOURCE))).toMatchObject({ kind: 'not_found' });

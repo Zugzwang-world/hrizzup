@@ -173,7 +173,7 @@ export function plain(value: number): string {
 
 /**
  * A perp's price now: on our own price, the newest stored; on a stand-in, from its own walk (and
- * seed), or the environment's secret seed.
+ * seed), or the source's fallback seed.
  */
 function priceNow(perp: PublicPerp, sources: Sources, source: PriceSource, now: number) {
   const where = sources[perp.id];

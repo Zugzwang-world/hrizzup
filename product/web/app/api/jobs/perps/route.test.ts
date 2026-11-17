@@ -21,7 +21,6 @@ const { POST, carriesTheSecret } = route;
 
 /** Plainly not a key: the Secret check (gitleaks) scans every branch for anything key-like. */
 const SECRET = 'test-secret-only-for-the-jobs-tests-x';
-const SEED = '0123456789abcdef';
 const RUN = {
   job: 'tick',
   perps: 1,
@@ -46,7 +45,6 @@ async function post(query: string, headers: Record<string, string> = {}) {
 
 beforeEach(() => {
   vi.stubEnv('PERP_JOBS_SECRET', SECRET);
-  vi.stubEnv('PERP_STAND_IN_SEED', SEED);
   databaseHere = true;
   runJob.mockResolvedValue(RUN);
 });
@@ -61,10 +59,10 @@ describe("the perp's jobs address", () => {
     const ran = await post('?job=tick', { authorization: `Bearer ${SECRET}` });
     expect(ran).toMatchObject({ status: 200, body: RUN });
     expect(ran.headers['cache-control']).toBe('private, no-store');
-    expect(runJob).toHaveBeenCalledWith(pool, 'tick', { seed: SEED });
+    expect(runJob).toHaveBeenCalledWith(pool, 'tick', { seed: undefined });
     runJob.mockResolvedValueOnce({ ...RUN, job: 'funding' });
     expect((await post('?job=funding', { authorization: `Bearer ${SECRET}` })).status).toBe(200);
-    expect(runJob).toHaveBeenLastCalledWith(pool, 'funding', { seed: SEED });
+    expect(runJob).toHaveBeenLastCalledWith(pool, 'funding', { seed: undefined });
   });
 
   it('answers anyone without the secret exactly as an address the site does not have', async () => {

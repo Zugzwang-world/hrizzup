@@ -25,15 +25,13 @@ import { ORPCError } from '@orpc/server';
 export const PERPS_TAG = 'perps';
 
 /**
- * Where the listed perp's stand-in price comes from: this environment's secret seed (Doppler,
- * `PERP_STAND_IN_SEED`), read when it's needed. Without one, or with one that isn't 16 lowercase
- * hexadecimal digits, the listed perp's price isn't set up here and its calls answer 503; a check
- * run's test perp always brings its own seed.
+ * Where a perp's price comes from, besides its own record: nothing from the environment. The listed
+ * perp reads our own stored price (step 3.4b), and a stand-in perp (only a check run's test perps)
+ * brings its own seed; a stand-in perp without one answers "not set up" (503). The environment's
+ * seed for the stand-in price was retired in Round 6 (R4), so the environment is never read here.
  */
-export function perpSource(
-  env: Readonly<Record<string, string | undefined>> = process.env,
-): PriceSource {
-  return priceSource(env.PERP_STAND_IN_SEED);
+export function perpSource(): PriceSource {
+  return priceSource(undefined);
 }
 
 /** A perp call's failure as the API's answer. */

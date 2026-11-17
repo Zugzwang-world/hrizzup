@@ -108,7 +108,7 @@ export default async function ConsolePerpPage({ params }: Props) {
                 {perp.standIn.volatility} a year,{' '}
                 {perp.standIn.ownSeed
                   ? 'with a seed of its own'
-                  : "with the environment's secret seed"}
+                  : 'with no seed of its own, so its price is not set up'}
               </>
             )}
           </Detail>
