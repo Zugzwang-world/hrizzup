@@ -1,6 +1,6 @@
 /**
  * What a social fixture is given and is (docs/social/build.md, section 8.3): something the screen check
- * keeps on staging for the pages it opens (a listed test story, an agent with its posts), made once by
+ * keeps on staging for the pages it opens (an unlisted test story, an agent with its posts), made once by
  * the console's admin test account in `global-setup.ts` and only ever read after, like the markets'
  * fixtures. Each area's file lists its own; `index.ts` runs them all once.
  */

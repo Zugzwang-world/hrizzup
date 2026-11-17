@@ -60,14 +60,48 @@ describe('remember', () => {
 
   it('asks the database where Redis isn’t set up', async () => {
     resetSocialCache(null);
-    await expect(remember('k', 30, async () => 'db')).resolves.toBe('db');
+    await expect(remember('tst:cache:k', 30, async () => 'db')).resolves.toBe('db');
   });
 
   it('keeps no copy of "nothing", which would hide a later change', async () => {
     const { redis, cache } = fakeRedis();
     resetSocialCache(cache);
-    await expect(remember('k', 30, async () => null)).resolves.toBeNull();
+    await expect(remember('tst:cache:k', 30, async () => null)).resolves.toBeNull();
     expect(redis.set).not.toHaveBeenCalled();
+  });
+});
+
+describe('the names and lifetimes a caller may use', () => {
+  it('refuses a key outside the environment’s prefix, for a read and a delete, and touches nothing', async () => {
+    const { redis, cache } = fakeRedis();
+    resetSocialCache(cache);
+    const load = vi.fn(async () => 1);
+    for (const key of ['k', 'stg:cache:x', 'tst', 'tstx:cache:x', 'prd:key:v2:abc']) {
+      await expect(remember(key, 30, load), key).rejects.toThrow(/prefix/);
+      await expect(forget([key]), key).rejects.toThrow(/prefix/);
+    }
+    // One bad key among good ones deletes none of them.
+    await expect(forget(['tst:cache:a', 'k'])).rejects.toThrow(/prefix/);
+    expect(redis.get).not.toHaveBeenCalled();
+    expect(redis.set).not.toHaveBeenCalled();
+    expect(redis.del).not.toHaveBeenCalled();
+    expect(load).not.toHaveBeenCalled();
+  });
+
+  it('refuses a lifetime that is not a whole number of seconds, one or more, whether or not Redis is set up', async () => {
+    const { redis, cache } = fakeRedis();
+    for (const set of [cache, null]) {
+      resetSocialCache(set);
+      for (const seconds of [0, -5, 0.5, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+        await expect(
+          remember('tst:cache:x', seconds, async () => 1),
+          String(seconds),
+        ).rejects.toThrow(/whole number of seconds/);
+      }
+    }
+    expect(redis.set).not.toHaveBeenCalled();
+    resetSocialCache(cache);
+    await expect(remember('tst:cache:x', 1, async () => 1)).resolves.toBe(1);
   });
 });
 
@@ -75,9 +109,9 @@ describe('forget', () => {
   it('deletes keys in one command and drops a failure', async () => {
     const { redis, store, cache } = fakeRedis();
     resetSocialCache(cache);
-    store.set('a', 1);
-    store.set('b', 2);
-    await forget(['a', 'b']);
+    store.set('tst:cache:a', 1);
+    store.set('tst:cache:b', 2);
+    await forget(['tst:cache:a', 'tst:cache:b']);
     expect(redis.del).toHaveBeenCalledTimes(1);
     expect(store.size).toBe(0);
     await forget([]);
@@ -90,8 +124,8 @@ describe('forget', () => {
         }),
       }).cache,
     );
-    await expect(forget(['a'])).resolves.toBeUndefined();
+    await expect(forget(['tst:cache:a'])).resolves.toBeUndefined();
     resetSocialCache(null);
-    await expect(forget(['a'])).resolves.toBeUndefined();
+    await expect(forget(['tst:cache:a'])).resolves.toBeUndefined();
   });
 });

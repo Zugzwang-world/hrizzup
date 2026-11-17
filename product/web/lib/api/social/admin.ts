@@ -17,7 +17,7 @@ import { notBuilt } from './not-built.ts';
  * 7.10), thin and written here; the rest are stubs until R5 builds them: each is `live: false` until
  * then, so none is reached (the route and `base.ts` answer "No such call" first). R5 replaces its
  * stubs here, takes `live: false` off each call in the contract, and edits no other area's file; it
- * keeps M3's three as they are, and gives them their page.
+ * gives M3's three their page, and adds to the two saves the purge of what they changed (below).
  *
  * Every call here is an admin's: the route and `base.ts`'s `admin` middleware have already turned
  * anyone else away as an address the API doesn't have, before any input is read (the six layers: the
@@ -68,7 +68,7 @@ export const adminRoutes = {
          * the same input) reaches the same invite and answers a fresh code, the first, which nobody saw,
          * revoked (D13): `makeInvite()` runs on every call, never on the first only. A retry that finds
          * the invite already used or revoked has no code to show (the one made now was not kept), so it
-         * answers a 409 rather than a code that works for no one.
+         * answers a 409 `invite_used` or `invite_revoked` rather than a code that works for no one.
          */
         create: admin.social.invites.create.handler(async ({ context, input }) => {
           const made = makeInvite();
@@ -95,15 +95,21 @@ export const adminRoutes = {
           const { invite } = camelKeys<{ invite: social.Invite & { revokedReason?: unknown } }>(
             answer,
           );
-          if (
-            invite.usedAt !== null ||
-            invite.revokedAt !== null ||
-            invite.codeShown !== made.shown
-          ) {
+          // The retry found its invite closed: the code made now was not kept, so none is shown. A retry
+          // can never change that, so it is not a `clash` (which says "try again").
+          if (invite.usedAt !== null || invite.revokedAt !== null) {
+            const used = invite.usedAt !== null;
             throw new ORPCError('CONFLICT', {
               status: 409,
-              message:
-                "This invite was already used or revoked, so its code can't be shown again: make a new invite",
+              message: `This invite was already ${used ? 'used by an agent' : 'revoked'}, so its code can't be shown again: make a new invite`,
+              data: { reason: used ? 'invite_used' : 'invite_revoked' },
+            });
+          }
+          // Open, but not under the code made now: something else changed it at the same moment.
+          if (invite.codeShown !== made.shown) {
+            throw new ORPCError('CONFLICT', {
+              status: 409,
+              message: 'Something else changed this invite at the same moment: try again',
               data: { reason: 'clash' },
             });
           }
@@ -123,6 +129,11 @@ export const adminRoutes = {
          * (D4). The code refuses first where test stories are never allowed (production); the database
          * refuses again until its own flag is on. What the database raises at commit is mapped by
          * constraint name, like what the statement raises.
+         *
+         * R5: a console save is a rare write, so it purges its own tags at once (D6 and the caching
+         * map): when the board's reads go live, add here the purge of `social:story:<id>` and
+         * `social:board` (`invalidateByTag`) for a save that was `new` or `changed`. Nothing is kept at
+         * the edge for it yet, so nothing is purged now.
          */
         save: admin.social.stories.save.handler(async ({ context, input }) => {
           if (!testStoriesEnabled()) throw noSuchCall();
@@ -135,7 +146,11 @@ export const adminRoutes = {
         }),
       },
       updates: {
-        /** An update of a story, the same way, through `social.admin_save_update`. */
+        /**
+         * An update of a story, the same way, through `social.admin_save_update`. R5 adds the purge of
+         * the update's story (`social:story:<storyId>`, `social:board`) when the board's reads go live,
+         * as for a story's save.
+         */
         save: admin.social.updates.save.handler(async ({ context, input }) => {
           if (!testStoriesEnabled()) throw noSuchCall();
           const run = runner(context.account, { database: context.pool });

@@ -4,9 +4,17 @@ import { ensureSocialFixtures, socialFixtures } from './index.ts';
 describe('the social fixtures', () => {
   const context = { baseURL: 'https://preview.example.test', headers: { cookie: 'a=b' } };
 
-  it('are none until an area needs one, and making none fails nothing', async () => {
-    expect(socialFixtures).toEqual([]);
-    await expect(ensureSocialFixtures(context)).resolves.toBeUndefined();
+  it('each have a name of their own and a way to make them, whichever areas have added theirs', () => {
+    // No area is named here, so R5 and R6 adding their fixtures side by side edit none of this.
+    for (const fixture of socialFixtures) {
+      expect(fixture.name.length, 'a name').toBeGreaterThan(0);
+      expect(typeof fixture.ensure, fixture.name).toBe('function');
+    }
+    expect(new Set(socialFixtures.map((fixture) => fixture.name)).size).toBe(socialFixtures.length);
+  });
+
+  it('make none without failing', async () => {
+    await expect(ensureSocialFixtures(context, [])).resolves.toBeUndefined();
   });
 
   it('are made one after another in order, each given the site and the admin’s headers', async () => {

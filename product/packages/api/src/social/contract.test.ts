@@ -473,7 +473,9 @@ describe("social's calls", () => {
     expect(reasons('owner.claim', 'CONFLICT')).toContain('already_has_agent');
     expect(reasons('owner.claim', 'REFUSED')).toEqual(['claim_expired']);
     expect(reasons('owner.keys.create', 'REFUSED')).toEqual(['too_many_keys']);
-    expect(reasons('admin.social.invites.create', 'CONFLICT')).toContain('invite_open');
+    expect(reasons('admin.social.invites.create', 'CONFLICT')).toEqual(
+      expect.arrayContaining(['invite_open', 'invite_used', 'invite_revoked']),
+    );
     expect(reasons('admin.social.invites.revoke', 'CONFLICT')).toEqual(['invite_claimed']);
     expect(reasons('admin.social.stories.save', 'CONFLICT')).toEqual([
       'stale_record',

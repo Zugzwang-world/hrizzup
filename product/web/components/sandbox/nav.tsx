@@ -23,19 +23,25 @@ const LINKS = [
 ];
 
 /**
- * Social's one link, which leads to its first page: shown only once an area has added a link of its own
- * (`social/links/`), so it never points at a page that isn't there yet.
+ * Social's one link, which leads to the first page an area has added (`social/links/`, the first link of
+ * the joined menu): shown only once an area has added one, so it never points at a page that isn't
+ * there yet, whichever area's page lands first.
  */
-const SOCIAL = {
-  href: '/sandbox/social',
-  text: 'Social',
-  on: (path: string) => path.startsWith('/sandbox/social'),
-};
+const SOCIAL_HOME = socialLinks[0];
 
 /** The sandbox's sections, the one you are in marked. */
 export function SandboxNav() {
   const path = usePathname();
-  const links = socialLinks.length > 0 ? [...LINKS, SOCIAL] : LINKS;
+  const links = SOCIAL_HOME
+    ? [
+        ...LINKS,
+        {
+          href: SOCIAL_HOME.href,
+          text: 'Social',
+          on: (path: string) => path.startsWith('/sandbox/social'),
+        },
+      ]
+    : LINKS;
   return (
     <nav
       aria-label="Sandbox"

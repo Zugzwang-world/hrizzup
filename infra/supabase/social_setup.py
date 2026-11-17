@@ -108,13 +108,17 @@ def report_flag(environment, answer):
 
 
 def report_resave(environment, answer):
-    """What `apply` says of the re-save; fails when it found no social job to save."""
-    saved = answer.strip().splitlines()[-1:] if answer.strip() else []
-    if saved and saved[0].strip().isdigit():
-        if int(saved[0]) == 0:
-            print(f"FAILED: {environment}: no social job was found to save again: has the social migration reached it?")
-            return 1
-        print(f"{environment}: saved {saved[0].strip()} social jobs again, so the scheduler reloads them")
+    """What `apply` says of the re-save: it fails when no count of the jobs saved comes back (as when no
+    answer comes back from the runs, in `report_runs`), and when it found no social job to save."""
+    lines = answer.strip().splitlines()
+    saved = lines[-1].strip() if lines else ""
+    if not saved.isdigit():
+        print(f"FAILED: {environment}: the re-save of the social jobs gave no count of the jobs saved")
+        return 1
+    if int(saved) == 0:
+        print(f"FAILED: {environment}: no social job was found to save again: has the social migration reached it?")
+        return 1
+    print(f"{environment}: saved {saved} social jobs again, so the scheduler reloads them")
     return 0
 
 

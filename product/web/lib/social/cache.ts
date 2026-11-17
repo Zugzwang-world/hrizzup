@@ -54,18 +54,39 @@ function withTimeout<T>(work: Promise<T>): Promise<T | undefined> {
 }
 
 /**
+ * A key is refused unless it starts with the environment's prefix (`${prefix}:`, from `socialRedis` in
+ * `@hrizzup/social`), so no key is ever written or deleted outside this environment's own names, and a
+ * lifetime unless it is a whole number of seconds, one or more, so no key lives without an expiry.
+ * These are a caller's mistakes, never Redis failing: they throw, they are never swallowed.
+ */
+function ownKey(cache: SocialCache, key: string): void {
+  if (!key.startsWith(`${cache.prefix}:`)) {
+    throw new TypeError(`A Redis key starts with the environment's prefix, "${cache.prefix}:"`);
+  }
+}
+
+function lifetime(seconds: number): void {
+  if (!Number.isInteger(seconds) || seconds < 1) {
+    throw new TypeError('A Redis key lives a whole number of seconds, one or more');
+  }
+}
+
+/**
  * A value from Redis by its key, or what `load` makes (and keeps there for `seconds`). The value goes
  * through JSON, so it must be plain data. When Redis can't answer or write, the database is asked and
  * nothing fails. `null` is a value `load` may answer, but it isn't kept: a copy of "nothing" would hide
- * a later change.
+ * a later change. The key must start with the environment's prefix and `seconds` must be 1 or more
+ * (see above); where Redis isn't set up the lifetime is still checked.
  */
 export async function remember<T>(
   key: string,
   seconds: number,
   load: () => Promise<T>,
 ): Promise<T> {
+  lifetime(seconds);
   const cache = socialCache();
   if (cache) {
+    ownKey(cache, key);
     try {
       const found = await withTimeout(cache.redis.get<T>(key));
       if (found !== undefined && found !== null) return found;
@@ -84,10 +105,14 @@ export async function remember<T>(
   return value;
 }
 
-/** Deletes keys in one command (a write the keys' copies depend on: a save, a revocation). A failure is dropped: every key has its own expiry. */
+/**
+ * Deletes keys in one command (a write the keys' copies depend on: a save, a revocation). Every key must
+ * start with the environment's prefix. A failure of Redis is dropped: every key has its own expiry.
+ */
 export async function forget(keys: readonly string[]): Promise<void> {
   const cache = socialCache();
   if (!cache || keys.length === 0) return;
+  for (const key of keys) ownKey(cache, key);
   try {
     await withTimeout(cache.redis.del(...keys));
   } catch {

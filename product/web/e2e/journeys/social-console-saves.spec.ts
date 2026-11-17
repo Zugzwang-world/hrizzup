@@ -136,26 +136,30 @@ test("the console's three saves answer anyone but an admin as an address the API
     ['POST', '/api/v1/admin/social/stories', {}],
     ['POST', '/api/v1/admin/social/invites', {}],
   ];
+  // The signed-in stranger's context is this test's own (the `request` fixture is Playwright's), so it is
+  // disposed whatever the loop finds.
+  const signedInStranger = await playwright.request.newContext({
+    ...(baseURL ? { baseURL } : {}),
+    storageState: signedInState(browserName),
+  });
   const strangers: { who: string; as: APIRequestContext }[] = [
     { who: 'signed out', as: request },
-    {
-      who: 'signed in, not an admin',
-      as: await playwright.request.newContext({
-        ...(baseURL ? { baseURL } : {}),
-        storageState: signedInState(browserName),
-      }),
-    },
+    { who: 'signed in, not an admin', as: signedInStranger },
   ];
-  for (const { who, as } of strangers) {
-    for (const [method, path, data] of sends) {
-      const answer = await call(as, method, path, data);
-      const what = `${who}: ${method} ${path}`;
-      expect(answer.status, what).toBe(404);
-      // Byte for byte the same as an address the API doesn't have, and the same headers.
-      expect(answer.text, what).toBe(unknown.text);
-      expect(answer.headers, what).toEqual(unknown.headers);
-      expect(answer.caching, what).toBe('private, no-store');
+  try {
+    for (const { who, as } of strangers) {
+      for (const [method, path, data] of sends) {
+        const answer = await call(as, method, path, data);
+        const what = `${who}: ${method} ${path}`;
+        expect(answer.status, what).toBe(404);
+        // Byte for byte the same as an address the API doesn't have, and the same headers.
+        expect(answer.text, what).toBe(unknown.text);
+        expect(answer.headers, what).toEqual(unknown.headers);
+        expect(answer.caching, what).toBe('private, no-store');
+      }
     }
+  } finally {
+    await signedInStranger.dispose();
   }
 });
 

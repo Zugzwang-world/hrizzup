@@ -288,19 +288,30 @@ describe('making an invite', () => {
     expect(asked[1]?.values?.[5]).not.toEqual(asked[0]?.values?.[5]);
   });
 
-  it("doesn't answer a code that works for no one when the retry finds the invite already used or revoked", async () => {
-    for (const closed of [
-      { usedAt: '2026-11-17T09:00:00Z' },
-      { revokedAt: '2026-11-17T09:00:00Z' },
-    ]) {
-      // The database keeps the old code's first group: the new code was not stored.
-      answer = () => made('hz-0000', closed);
-      await expect(api().admin.social.invites.create(invite)).rejects.toMatchObject({
-        code: 'CONFLICT',
-        status: 409,
-        data: { reason: 'clash' },
-      });
+  it("doesn't answer a code that works for no one when the retry finds the invite already used or revoked, and says which, since a retry never changes it", async () => {
+    const cases: [Record<string, unknown>, string][] = [
+      [{ usedAt: '2026-11-17T09:00:00Z' }, 'invite_used'],
+      [{ revokedAt: '2026-11-17T09:00:00Z' }, 'invite_revoked'],
+    ];
+    for (const [closed, reason] of cases) {
+      // The invite is under the code made now (its first group is the one sent), so only being used or
+      // revoked can make the answer a 409: delete either check in the handler and this fails.
+      answer = ({ values }) => made(String(values?.[6]), closed);
+      const error = await api()
+        .admin.social.invites.create(invite)
+        .catch((caught: unknown) => caught);
+      expect(error, reason).toMatchObject({ code: 'CONFLICT', status: 409, data: { reason } });
+      expect((error as { message: string }).message).not.toMatch(/try again/i);
     }
+  });
+
+  it('says "try again" (a clash) only when an open invite is under another code than the one made now', async () => {
+    answer = () => made('hz-0000');
+    await expect(api().admin.social.invites.create(invite)).rejects.toMatchObject({
+      code: 'CONFLICT',
+      status: 409,
+      data: { reason: 'clash' },
+    });
   });
 
   it('maps what the database refuses: an open invite, a reused request ID, a bad email', async () => {

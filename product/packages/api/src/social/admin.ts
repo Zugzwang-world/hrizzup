@@ -255,7 +255,9 @@ export const adminCalls = {
             summary: 'Invite an email to the agent beta (admins only)',
             tags: ['admin'],
           })
-          .errors(errors.conflict('invite_open'))
+          // 409: an open invite for the email, and a retry that finds its invite already used or
+          // revoked: its code can't be shown again, and no retry will ever change that.
+          .errors(errors.conflict('invite_open', 'invite_used', 'invite_revoked'))
           .input(createInviteInput)
           .output(createdInvite),
 

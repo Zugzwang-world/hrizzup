@@ -73,7 +73,7 @@ class Psql(unittest.TestCase):
         return code, calls, printed.getvalue()
 
     def test_apply_turns_test_stories_on_and_sends_no_secret(self):
-        code, calls, printed = self.run_main(["apply", "staging"], answers=["", "true\n"])
+        code, calls, printed = self.run_main(["apply", "staging"], answers=["2\n", "true\n"])
         self.assertEqual(code, 0)
         self.assertEqual(len(calls), 2)  # the update, then the read back
         self.assertIn("update social.environment set test_stories = true", calls[0][1]["input"])
@@ -88,12 +88,12 @@ class Psql(unittest.TestCase):
         self.assertIn("test stories are on", printed)
 
     def test_apply_needs_no_secret_without_jobs(self):
-        code, _, _ = self.run_main(["apply", "staging"], answers=["", "true\n"], secret="")
+        code, _, _ = self.run_main(["apply", "staging"], answers=["2\n", "true\n"], secret="")
         self.assertEqual(code, 0)
 
     def test_apply_with_jobs_binds_the_secret_and_never_prints_it(self):
         code, calls, printed = self.run_main(
-            ["apply", "staging", "--jobs"], answers=["", "", "true\n", "true true\n0 0 -\n"])
+            ["apply", "staging", "--jobs"], answers=["", "2\n", "true\n", "true true\n0 0 -\n"])
         self.assertEqual(code, 0)
         self.assertEqual(len(calls), 4)  # the flag, vault, the flag read back, vault read back
         vault_input = calls[1][1]["input"]
@@ -169,6 +169,15 @@ class Psql(unittest.TestCase):
         code, _, printed = self.run_main(["apply", "staging"], answers=["0\n", "true\n"])
         self.assertEqual(code, 1)
         self.assertIn("no social job was found", printed)
+
+    def test_apply_fails_when_no_count_of_the_saved_jobs_comes_back(self):
+        # As a check fails on a missing answer for the runs, apply fails on a missing count.
+        for answer in ("", "\n", "saved\n", "-1\n", "2 jobs\n"):
+            for jobs in ((), ("--jobs",)):
+                answers = ["", answer, "true\n", "true true\n0 0 -\n"] if jobs else [answer, "true\n"]
+                code, _, printed = self.run_main(["apply", "staging", *jobs], answers=answers)
+                self.assertEqual(code, 1, (answer, jobs))
+                self.assertIn("gave no count of the jobs saved", printed)
 
     def test_check_fails_unless_the_minute_job_ran_in_the_last_three_minutes(self):
         code, calls, printed = self.run_main(["check", "staging"], answers=["true\n0 0\n"])
