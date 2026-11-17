@@ -11,14 +11,17 @@ import { type Engine, stagingKeys } from '../support/test-accounts.ts';
  * Journey: a market whose closing time passes (the Product chat, 11 November 2026: the founder's run
  * of the example bot picked a test market after it closed, because every read still called it open).
  * The run's own unlisted market closes 45 seconds after it's opened, and nobody closes it in the
- * console. While it's open, with a position in it, the reads that anyone makes (one market, a quote)
- * and the trader's own positions all say open, which also leaves the edge a copy of each, kept for
- * what's left of the 45 seconds at most. Three seconds past the closing time: every read says closed
- * (one market, through the edge; the same market through the MCP server; the trader's positions),
- * a quote and a trade are refused as closed, and the console still has it stored as open, so
- * nothing waited for it. Then the console closes and settles it, and its books add up. The public
- * list's own states are checked in the markets package, where a market can be listed freely: the
- * checks' markets stay off it (CLAUDE.md, "How checks behave"). Each run on its own.
+ * console. While it's open, with a position and a resting limit order in it, the reads that anyone
+ * makes (one market, a quote) and the trader's own positions and open orders all say open, which
+ * also leaves the edge a copy of each public one, kept for what's left of the 45 seconds at most.
+ * Three seconds past the closing time: every read says closed (one market, through the edge; the
+ * same market through the MCP server; the trader's positions and the market of their open order),
+ * a quote and a trade are refused as closed, the resting order is still there (nothing cancels it
+ * at the closing time, and no money moves while it rests), and the console still has the market
+ * stored as open, so nothing waited for it. Then the console closes and settles it, and its books
+ * add up (the settlement cancels the resting order, which moved no money). The public list's own
+ * states are checked in the markets package, where a market can be listed freely: the checks'
+ * markets stay off it (CLAUDE.md, "How checks behave"). Each run on its own.
  */
 
 const environment = () => process.env.SCREEN_CHECK_ENVIRONMENT;
@@ -113,6 +116,21 @@ test.describe('a market whose closing time passes', () => {
     });
     expect(bought.status, 'a buy while the market is open').toBe(200);
 
+    // A resting limit order in it too: Ṁ2 of Yes only at 20% or lower, far below where the market
+    // stands, so none of it fills. No money moves while an order rests, so the books below are the
+    // same as without it; nothing cancels it at the closing time, only the settlement does.
+    const resting = await call(person, 'POST', '/api/v1/trades', {
+      marketId,
+      requestId: randomUUID(),
+      action: 'buy',
+      outcome: 'yes',
+      amount: '2',
+      limitProb: '0.2',
+    });
+    expect(resting.status, 'a limit order while the market is open').toBe(200);
+    expect(resting.body).toMatchObject({ status: 'resting', amount: '0.000000' });
+    const orderId = String(resting.body.tradeId);
+
     // While it's open, every read says so.
     const during = await call(anyone, 'GET', `/api/v1/markets/${marketId}`);
     expect(during.status, 'one market').toBe(200);
@@ -131,6 +149,17 @@ test.describe('a market whose closing time passes', () => {
       );
     };
     expect(await holding(), 'their position says open').toMatchObject({ state: 'open' });
+    const waiting = async () => {
+      const mine = await call(person, 'GET', '/api/v1/me/orders');
+      expect(mine.status, 'the trader reads their open orders').toBe(200);
+      return (mine.body.orders as { id: string; marketId: string; state: string }[]).find(
+        (order) => order.id === orderId,
+      );
+    };
+    expect(await waiting(), "their order's market says open").toMatchObject({
+      marketId,
+      state: 'open',
+    });
 
     // Nobody closes it. Three seconds past its closing time, for the clocks.
     await new Promise((resolve) => setTimeout(resolve, Math.max(0, closesAt + 3000 - Date.now())));
@@ -144,6 +173,10 @@ test.describe('a market whose closing time passes', () => {
       probability: bought.body.probAfter,
     });
     expect(await holding(), 'their position says closed').toMatchObject({ state: 'closed' });
+    expect(await waiting(), 'their order is still resting, its market says closed').toMatchObject({
+      marketId,
+      state: 'closed',
+    });
     const mcp = new Client({ name: `hrizzup-journey-${engine}`, version: '1.0.0' });
     await mcp.connect(
       new StreamableHTTPClientTransport(new URL(`${baseURL ?? ''}/api/v1/mcp`), {
@@ -186,5 +219,14 @@ test.describe('a market whose closing time passes', () => {
       settlement: { outcome: 'yes' },
       evidence: `Check run ${runKey()}: the closing journey's market.`,
     });
+    // The settlement cancelled the resting order, which moved no money (the books above add up):
+    // the order's own record says so, and it is no longer among the open orders.
+    const record = await call(person, 'GET', '/api/v1/me/trades');
+    expect(record.status, 'the trader reads their own trades').toBe(200);
+    expect(
+      (record.body.trades as { id: string }[]).find((trade) => trade.id === orderId),
+      "the order's own record: cancelled when the market ended",
+    ).toMatchObject({ isCancelled: true, cancelReason: 'market_ended' });
+    expect(await waiting(), 'the settled market has no open order left').toBeUndefined();
   });
 });

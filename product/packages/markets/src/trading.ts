@@ -401,6 +401,7 @@ type OrderRow = {
   market_id: string;
   question: string;
   state: OrdersPage['orders'][number]['state'];
+  closes_at: string;
   outcome: string;
   order_amount: string;
   amount: string;
@@ -422,12 +423,13 @@ export async function openOrders(
     'select trading.orders($1, $2) as answer',
     [page.after ?? null, page.limit ?? PAGE_SIZE],
   );
+  const now = Date.now();
   return {
     orders: found.orders.map((row) => ({
       id: row.id,
       marketId: row.market_id,
       question: row.question,
-      state: row.state,
+      state: shownState(row.state, row.closes_at, now),
       outcome: sideOf(row.outcome),
       orderAmount: row.order_amount,
       amount: row.amount,
