@@ -35,6 +35,7 @@ on:
       - product/web/scripts/app-journey-account.ts
       - product/web/e2e/support/**
       - infra/doppler/**
+      - infra/supabase/project/settings.json
       - pnpm-lock.yaml
       - .github/workflows/app-journeys.yml
       - .github/scripts/tools.py
@@ -98,7 +99,8 @@ jobs:
           TURBO_SCM_HEAD: ${{ github.event.pull_request.head.sha }}
         run: python3 .github/scripts/affected.py
       # The signed-in journey also runs code of the website's (its account script and the run
-      # accounts it builds on), which Turborepo doesn't count as part of the app.
+      # accounts it builds on, which read the staging project's settings), which Turborepo
+      # doesn't count as part of the app.
       - name: Does this change touch what the journeys use from the website?
         id: helpers
         if: github.event_name == 'pull_request'
@@ -106,7 +108,7 @@ jobs:
           BASE: ${{ github.event.pull_request.base.sha }}
           HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
-          if git diff --quiet "$BASE...$HEAD" -- product/web/scripts/app-journey-account.ts product/web/e2e/support/ infra/doppler/; then
+          if git diff --quiet "$BASE...$HEAD" -- product/web/scripts/app-journey-account.ts product/web/e2e/support/ infra/doppler/ infra/supabase/project/settings.json; then
             echo "touched=false" >> "$GITHUB_OUTPUT"
           else
             echo "touched=true" >> "$GITHUB_OUTPUT"
