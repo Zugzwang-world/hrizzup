@@ -2,16 +2,17 @@
 
 > Where each news feature stands on the website and in the app, what must be done before the first one starts, and where the markets track stands. Claude Code keeps it current: each step and stage moves in the pull request that finishes it, with that pull request's link. Nobody maintains this file by hand. The steps and what they need are in [PLAN.md](PLAN.md) section 5; if this file and PLAN.md disagree, PLAN.md wins.
 
-Last updated: 16 November 2026
+Last updated: 17 November 2026
 
 ---
 
 ## Round 6's queue (the founder, 16 November 2026)
 
-Round 5 closed on 16 November 2026 ([#141](https://github.com/Zugzwang-world/hrizzup/pull/141)). **Round 6 is social** (the founder, 16 November 2026): he lays it out in the Product chat, and its relays are added here as they're written, once the Product chat settles them; Round 6's first relay records what's settled inside its own first pull request. Round 6 runs in relays, attached to the GitHub milestone "Round 6". The rows below are carried from Round 5, unnumbered until each is written; each relay is numbered when it's written and moves only its own rows (CLAUDE.md, "Unattended sessions" and "How sessions work"). Each row is **not started**, **in progress**, **done** with the pull request that finished it, **later**, or **cancelled**.
+Round 5 closed on 16 November 2026 ([#141](https://github.com/Zugzwang-world/hrizzup/pull/141)). **Round 6 is social** (the founder, 16 November 2026), and **social is designed:** the founder settled its V1 beta in the Product chat on 16 and 17 November 2026, and R1 recorded it as [docs/social/spec.md](docs/social/spec.md) and in PLAN.md (section 2, "Social"; step 2.8). **Its build plan comes from the next Product chat:** the phases and tasks, what runs in order and what side by side; the build's relays are added here as they're written. Round 6 runs in relays, attached to the GitHub milestone "Round 6". The rows after R1 are carried from Round 5, unnumbered until each is written; each relay is numbered when it's written and moves only its own rows (CLAUDE.md, "Unattended sessions" and "How sessions work"). Each row is **not started**, **in progress**, **done** with the pull request that finished it, **later**, or **cancelled**.
 
 | Relay | When | Step | What | Needs | Status |
 |---|---|---|---|---|---|
+| R1 | First | — (2.8's records) | Social's records: the founder's design as `docs/social/spec.md`, unchanged; PLAN.md (section 2's "Social"; steps 1.3, 2.1, 2.3, 2.4 and 4.4 marked; the social V1 beta's entry, 2.8); the runbook's report button (P.22); the briefs and Product's status | The founder's design, from the Product chat | done, [#143](https://github.com/Zugzwang-world/hrizzup/pull/143) |
 | — | When the design chat approves its design | 3.1 | The market page, on test markets with placeholder questions, on the market reads (3.5c) | 1.4's market page approved; 1.5c, 1.7d, 3.5c (done) | not started |
 | — | Then, when the design chat approves its design | 3.4c | The perp's page | Its approved design; 3.1; 3.4a (done) | not started |
 | — | When the design chat approves its design | 2.1 | The board, the first news feature, through its stages (below) | 1.4's core screens approved; 1.6a, 1.8, 1.9 (done); 1.6b for its app join | not started |
@@ -21,6 +22,7 @@ Round 5 closed on 16 November 2026 ([#141](https://github.com/Zugzwang-world/hri
 | — | Any time | — (3.4b's leftover) | The stand-in price's unused seed retired: the listed perp is on our own price, so a pull request stops reading `PERP_STAND_IN_SEED`, the key is deleted from Doppler `stg`, and the next pull request takes its name out of `infra/doppler/app-keys.txt` (CLAUDE.md, "Environments and secrets") | 3.4b (done) | not started |
 | — | Last | — | The round's closing record | Every other relay | not started |
 
+- **Social's build (step 2.8):** its phases and tasks come from the next Product chat, which settles the build's relays; they're numbered here as they're written. Nothing about the build is planned until then.
 - **1.6b** stays open on the founder's two tries: an email code, and still signed in after reopening the app (Google worked on his phone, 10 November 2026). His report to the Product chat is the record; no session watches for it (CLAUDE.md, "How sessions work").
 - **1.2, unparked** (the founder, 10 November 2026): the Product chat drafts the first topics and their free sources for the founder's approval; it's not a relay. Once he approves them, the relay that builds their markets records them.
 - **The markets' next steps** (1.2, 3.2a and 3.2b) stay in "Markets track", below, as they are (the founder, 16 November 2026).
@@ -159,6 +161,7 @@ Each cell is **not started**, **in progress**, or **done** with the pull request
 | Posting: text for everyone, creators' media, reporting and blocking | 2.4 | not started | not started | not started | not started | not started | not started | not started |
 | Paid tier: RevenueCat in the app, Razorpay with UPI on the website | 2.7 | not started | not started | not started | not started | not started | not started | not started |
 
+- **Social's design changes three rows** (the founder, 17 November 2026; PLAN.md section 2, "Social", and step 2.8): the board's For You (2.1) becomes the reader agent's feed, and feed and ranking (2.3) and posting (2.4) become the agent desk. Social is built back end first, in a plain sandbox on staging, so its parts don't follow the stages above until their screens; its build plan comes from the next Product chat.
 - **The board (2.1)** needs the website's sign-in (1.6a) for favourites and bookmarks, and joins the app only once the app's sign-in (1.6b) is done (founder's decision, 9 November 2026).
 - **Posting (2.4)** joins the app only once the app's sign-in (1.6b) is done.
 - **Every feature's back end** (stage 3) builds on the content store's tables (step 1.9; founder's decision, 9 November 2026), which follow the agreement's first half, Agreed on 9 November 2026.

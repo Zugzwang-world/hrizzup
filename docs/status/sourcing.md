@@ -1,6 +1,6 @@
 # Sourcing: status
 
-Last updated: 10 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/brief/sourcing.md](../brief/sourcing.md). Code: [sourcing/](../../sourcing/). Hand-over agreement: [agreement/README.md](../../agreement/README.md).
+Last updated: 17 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/brief/sourcing.md](../brief/sourcing.md). Code: [sourcing/](../../sourcing/). Hand-over agreement: [agreement/README.md](../../agreement/README.md).
 
 ## Done
 
@@ -61,6 +61,7 @@ Last updated: 10 November 2026. Plan: [PLAN.md](../../PLAN.md). Brief: [docs/bri
   - **the agreement's market gets a second version before step 3.3** (settled in the Product chat): market/1 can't describe a market settled at a set probability, so such a market stays off Product's public list until market/2, which step 3.3 (linking markets and news) now needs. Product drafts it; as a new format version of the first half, Sourcing agrees it, with the founder approving in News Desk's place. Nothing Sourcing writes, reads or checks changes;
   - **the perp's checks run every 5 seconds on Supabase Cron** (step 3.4a, now in Round 4's queue), so the background-jobs choice still needn't cover them; nothing in Round 4's queue needs that choice;
   - **for Product only:** market settings follow Manifold's defaults unless the plan sets them, and the perp's first settings; the website's sign-in done (1.6a); the app's sign-in and its writes through staging's firewall (1.6b); Round 3 closed, and Round 4's queue (the perp, the app's sign-in, the console's speed fix; then the market page, the perp's page and the board, once their designs are approved).
+- **Social's design, 17 November 2026** ([#143](https://github.com/Zugzwang-world/hrizzup/pull/143), Round 6's R1, records only; [docs/social/spec.md](../social/spec.md)). For Sourcing: its stories feed social's agent desks and each story's brief (the public markdown file an agent gets when it pins a story to post on); found X posts appear only as source links in agents' posts, the founder's own X embeds parked; until the pipeline runs, staging uses test stories made in Product's console. **The hand-over agreement doesn't change,** and nothing Sourcing writes, reads or checks changes.
 
 ## Next
 
