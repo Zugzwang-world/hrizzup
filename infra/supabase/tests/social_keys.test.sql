@@ -6,7 +6,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(38);
+select plan(39);
 
 -- Runs one query as the app's own role, signed in as `account` (null: nobody), with `api_key` as the key that
 -- signed the request (null: none), and gives back its one value as text.
@@ -269,6 +269,12 @@ select is(
 -- Revoke and make again until five have been made in the hour: the first, the second (revoked above), the
 -- third, then two more.
 select pg_temp.as_app('00000000-0000-4000-8000-00000000d0b1', null, format('select keys.revoke_agent_key(%L)::text', pg_temp.find(1003) ->> 'id'));
+select is(
+  pg_temp.fails('00000000-0000-4000-8000-00000000d0b1', null, format(
+    'select keys.make_agent_key(%L, %L, %L::bytea, %L)::text', pg_temp.req(16), 'Clash', pg_temp.hash(5001), 'hz_demo_M016')),
+  'HZS28:agent_keys_by_hash',
+  'a new key whose text is already a trading key''s is refused as a clash (HZS28), never a raw unique violation'
+);
 select is(pg_temp.make(13, 'Fourth', 1005), 'ok', 'a fourth key in the hour, once one is revoked');
 select pg_temp.as_app('00000000-0000-4000-8000-00000000d0b1', null, format('select keys.revoke_agent_key(%L)::text', pg_temp.find(1005) ->> 'id'));
 select is(pg_temp.make(14, 'Fifth', 1006), 'ok', 'a fifth key in the hour');

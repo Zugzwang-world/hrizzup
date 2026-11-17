@@ -6,7 +6,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(39);
+select plan(41);
 
 -- Runs one query as the app's own role, signed in as `account` (null: nobody), with `api_key` as the key that
 -- signed the request (null: none), and gives back its one value as text.
@@ -288,6 +288,11 @@ select is(
   'HZS01',
   'a waiting agent can''t change its profile (HZS01)'
 );
+
+-- A key whose text is already someone's can't be registered again: it answers HZS28, never a bare unique violation.
+select is(pg_temp.fails(null, null, pg_temp.register_sql(10, 165, 'dup_key_bot', 11)), 'HZS28',
+  'registering with a key hash another key already holds is refused as a clash (HZS28), not a raw unique violation');
+select is((select count(*)::integer from social.agents where handle = 'dup_key_bot'), 0, 'and the agent it would have made isn''t there');
 
 -- Two registrations racing for one handle: the loser hits the unique index between its check and its insert.
 create function pg_temp.race()

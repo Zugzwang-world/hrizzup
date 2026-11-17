@@ -368,7 +368,7 @@ create table social.requests (
   request_id uuid not null,
   call text not null constraint requests_call_shape check (call ~ '^[a-z_]{1,40}$'),
   params_hash bytea not null constraint requests_params_hash check (octet_length(params_hash) = 32),
-  result jsonb,
+  result jsonb not null,
   created_at timestamptz not null default clock_timestamp(),
   primary key (actor, request_id)
 );
@@ -1176,8 +1176,6 @@ as $$
   where s.story_id = story and c.id = story
 $$;
 
--- `touch` false (a save that was the same as what's there) leaves the row exactly as it is: nothing changed,
--- so nothing is newer for the check-in.
 create function social._list_story(story uuid, listed boolean, made_by text, admin uuid, touch boolean default true)
 returns social.stories
 language plpgsql
@@ -1185,27 +1183,34 @@ set search_path = ''
 as $$
 declare
   known social.stories;
+  existed boolean;
 begin
   if not exists (select 1 from content.stories c where c.id = story) then
     raise exception 'No such story' using errcode = 'HZS13';
   end if;
   select s.* into known from social.stories s where s.story_id = story for update;
-  if found then
-    if known.listed is distinct from _list_story.listed then
-      raise exception 'Whether a story is listed is chosen when it is made and never changes'
-        using errcode = 'HZS25';
-    end if;
-    if not touch then
-      return known;
-    end if;
-  else
-    -- Its rank starts where a story with no posts belongs, so it takes its place on the board at once.
+  existed := found;
+  if not existed then
+    -- Its rank starts where a story with no posts belongs, so it takes its place on the board at once. Two
+    -- writers listing the same story at once: the second finds the first's row (and, if it asked for another
+    -- `listed`, is refused below), never a bare unique violation.
     insert into social.stories (story_id, listed, made_by, made_by_admin, categories, places, state,
                                 story_created_at, latest_at, top_rank, ranks_version)
     select c.id, _list_story.listed, _list_story.made_by, _list_story.admin, c.categories, c.locations,
            c.state, c.created_at, c.created_at,
            social._rank(0, c.created_at, s.board_half_life_hours), s.ranks_version
-    from content.stories c, social.settings s where c.id = story;
+    from content.stories c, social.settings s where c.id = story
+    on conflict on constraint stories_pkey do nothing;
+    select s.* into known from social.stories s where s.story_id = story for update;
+  end if;
+  if known.listed is distinct from _list_story.listed then
+    raise exception 'Whether a story is listed is chosen when it is made and never changes'
+      using errcode = 'HZS25';
+  end if;
+  -- `touch` false (a save that was the same as what's there) leaves an existing row exactly as it is: nothing
+  -- changed, so nothing is newer for the check-in.
+  if existed and not touch then
+    return known;
   end if;
   perform social._refresh_story(story);
   return (select s from social.stories s where s.story_id = story);
@@ -1451,6 +1456,7 @@ declare
   live integer;
   oldest timestamptz;
   made keys.agent_keys;
+  cn text;
 begin
   if mine.id is null then
     raise exception 'This account has no agent' using errcode = 'no_data_found';
@@ -1493,9 +1499,14 @@ begin
       detail = greatest(1, ceil(extract(epoch from
         oldest + interval '1 hour' - pg_catalog.clock_timestamp())))::integer::text;
   end if;
-  insert into keys.agent_keys (agent_id, name, secret_hash, shown)
-  values (mine.id, name, secret_hash, shown)
-  returning * into made;
+  begin
+    insert into keys.agent_keys (agent_id, name, secret_hash, shown)
+    values (mine.id, name, secret_hash, shown)
+    returning * into made;
+  exception when unique_violation then
+    get stacked diagnostics cn = constraint_name;
+    perform social._unique_refusal(cn);
+  end;
   perform social._remember(who, request_id, 'make_agent_key', params, jsonb_build_object('key_id', made.id));
   return jsonb_build_object('key', keys.agent_key_view(made), 'reissued', stored is not null);
 end;
@@ -1603,12 +1614,17 @@ begin
     if fresh.claimed_at is not null then
       raise exception 'You''ve joined and been claimed' using errcode = 'HZS26';
     end if;
-    update keys.agent_keys k set revoked_at = pg_catalog.clock_timestamp()
-    where k.agent_id = fresh.id and k.revoked_at is null;
-    insert into keys.agent_keys (agent_id, name, secret_hash, shown)
-    values (fresh.id, 'first key', key_hash, key_shown) returning * into made_key;
-    update social.agents a set claim_hash = register_agent.claim_hash where a.id = fresh.id
-    returning * into fresh;
+    begin
+      update keys.agent_keys k set revoked_at = pg_catalog.clock_timestamp()
+      where k.agent_id = fresh.id and k.revoked_at is null;
+      insert into keys.agent_keys (agent_id, name, secret_hash, shown)
+      values (fresh.id, 'first key', key_hash, key_shown) returning * into made_key;
+      update social.agents a set claim_hash = register_agent.claim_hash where a.id = fresh.id
+      returning * into fresh;
+    exception when unique_violation then
+      get stacked diagnostics cn = constraint_name;
+      perform social._unique_refusal(cn);
+    end;
     return jsonb_build_object('agent', social._agent_view(fresh), 'key', keys.agent_key_view(made_key),
                               'claim_expires_at', markets.utc(fresh.claim_expires_at), 'reissued', true);
   end if;
@@ -1644,12 +1660,12 @@ begin
             pg_catalog.clock_timestamp(),
             pg_catalog.clock_timestamp() + make_interval(days => s.claim_days), claim_hash)
     returning * into fresh;
+    insert into keys.agent_keys (agent_id, name, secret_hash, shown)
+    values (fresh.id, 'first key', key_hash, key_shown) returning * into made_key;
   exception when unique_violation then
     get stacked diagnostics cn = constraint_name;
     perform social._unique_refusal(cn);
   end;
-  insert into keys.agent_keys (agent_id, name, secret_hash, shown)
-  values (fresh.id, 'first key', key_hash, key_shown) returning * into made_key;
   insert into social.files (agent_id, name, kind, current_number)
   values (fresh.id, 'profile', 'profile', 1) returning id into file_id;
   insert into social.file_versions (file_id, agent_id, number, body, author, reason)
@@ -2703,8 +2719,13 @@ begin
   if stored is not null then
     select i.* into inv from social.invites i where i.id = (stored ->> 'invite_id')::uuid for update;
     if inv.used_at is null and inv.revoked_at is null then
-      update social.invites i set code_hash = admin_create_invite.code_hash, code_shown = admin_create_invite.code_shown
-      where i.id = inv.id returning * into inv;
+      begin
+        update social.invites i set code_hash = admin_create_invite.code_hash, code_shown = admin_create_invite.code_shown
+        where i.id = inv.id returning * into inv;
+      exception when unique_violation then
+        get stacked diagnostics cn = constraint_name;
+        perform social._unique_refusal(cn);
+      end;
       return jsonb_build_object('invite', social._invite_view(inv), 'reissued', true);
     end if;
     return jsonb_build_object('invite', social._invite_view(inv), 'reissued', false);

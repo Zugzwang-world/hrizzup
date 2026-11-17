@@ -108,10 +108,10 @@ insert into private.admins (user_id, note) values ('00000000-0000-4000-8000-0000
 
 select results_eq(
   $$select jobname::text, schedule::text, command::text, username::text, active
-    from cron.job where jobname like 'social-%' order by jobname$$,
+    from cron.job where jobname in ('social-minute', 'social-tidy') order by jobname$$,
   $$values ('social-minute', '* * * * *', 'select social._call_job(''minute'')', 'postgres', true),
            ('social-tidy', '41 3 * * *', 'select social._tidy()', 'postgres', true)$$,
-  'Supabase Cron runs the minute job every minute and tidies at 03:41 UTC'
+  'Supabase Cron runs the minute job every minute and tidies at 03:41 UTC (a later relay''s own schedules are its own to test)'
 );
 
 -- The lease ---------------------------------------------------------------------------------------------------------------------------

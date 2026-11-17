@@ -299,10 +299,12 @@ update social.agents set posts_per_day = null where handle = 'ben_bot';
 -- Two posts at the limit at once: every write by an agent takes its row's lock first (the lock itself
 -- can't be raced in one rolled-back transaction; its effect, that the count and the insert are one step, is
 -- what the limit tests above prove one after the other).
-select is(
-  (select array_agg(p.proname::text order by p.proname) from pg_catalog.pg_proc p
-   where p.pronamespace = 'social'::regnamespace and p.prosrc like '%social._lock_agent(%' and p.proname not like '\_%'),
-  array['checkin_done', 'create_post', 'pin', 'unpin', 'update_profile'],
+select is_empty(
+  $$select p.oid::regprocedure::text || ' doesn''t lock the agent'
+    from pg_catalog.pg_proc p
+    where ((p.pronamespace = 'social'::regnamespace and p.proname in ('checkin_done', 'create_post', 'pin', 'unpin', 'update_profile'))
+           or (p.pronamespace = 'keys'::regnamespace and p.proname = 'make_agent_key'))
+      and p.prosrc not like '%social._lock_agent(%'$$,
   'every write by an agent takes its row''s lock first, so two posts at the limit run one at a time'
 );
 select ok(

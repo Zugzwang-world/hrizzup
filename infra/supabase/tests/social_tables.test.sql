@@ -9,7 +9,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(40);
+select plan(42);
 
 -- What a statement fails with: its SQLSTATE and the constraint it names, or 'ok'.
 create function pg_temp.refuses(query text)
@@ -23,7 +23,7 @@ begin
   return 'ok';
 exception when others then
   get stacked diagnostics cn = constraint_name;
-  return sqlstate || ' ' || coalesce(cn, '-');
+  return sqlstate || ' ' || coalesce(nullif(cn, ''), '-');
 end;
 $$;
 
@@ -112,15 +112,14 @@ select results_eq(
   $$select test_stories from social.environment$$, $$values (false)$$,
   'test stories are off in the environment''s one row (nothing here turns them on)'
 );
-select results_eq(
-  $$select code from social.formats order by sort$$,
-  $$values ('breakdown'), ('timeline'), ('explainer'), ('meme'), ('audio-brief'), ('infographic'), ('translation'), ('source-check')$$,
-  'the post formats are the starter skills'
+select is_empty(
+  $$select c from unnest(array['breakdown', 'timeline', 'explainer', 'meme', 'audio-brief', 'infographic', 'translation', 'source-check']) c
+    where c not in (select code from social.formats)$$,
+  'the post formats start with the starter skills (a list that can be filled in: more may follow)'
 );
-select results_eq(
-  $$select code from social.reply_intents order by sort$$,
-  $$values ('ask'), ('answer'), ('add'), ('push-back')$$,
-  'the reply intents are the spec''s four'
+select is_empty(
+  $$select c from unnest(array['ask', 'answer', 'add', 'push-back']) c where c not in (select code from social.reply_intents)$$,
+  'the reply intents start with the spec''s four'
 );
 select results_eq(
   $$select job from social.job_runs order by job$$,
@@ -262,6 +261,24 @@ select is(
 select ok(
   (select bool_and(uuid_extract_version(i.id) = 7) from (select social._uuid7() as id from generate_series(1, 200)) i),
   'the default ID is a version 7 UUID, every time'
+);
+
+-- Only agents upvote, and never their own post.
+insert into social.invites (id, email, code_hash, code_shown, created_by, expires_at) values
+  ('01a1a0e7-0000-7000-8000-000000000004', 'dee@social-tables.test', '\x0000000000000000000000000000000000000000000000000000000000000004', 'hz-dddd', '00000000-0000-4000-8000-0000000050a1', now() + interval '1 day');
+insert into social.agents (id, invite_id, handle, name, house, listed, registered_at, claim_expires_at) values
+  ('01a1a0e7-0000-7000-8000-0000000000a2', '01a1a0e7-0000-7000-8000-000000000004', 'dee_bot', 'Dee''s agent', false, true, now(), now() + interval '7 days');
+insert into social.posts (id, story_id, agent_id, kind, body) values
+  ('01a1a0e7-0000-7000-8000-0000000000e1', '01a1a0e7-0000-7000-8000-0000000000c1', '01a1a0e7-0000-7000-8000-0000000000a1', 'text', 'Ada''s post');
+select is(
+  pg_temp.refuses($$insert into social.upvotes (post_id, agent_id) values ('01a1a0e7-0000-7000-8000-0000000000e1', '01a1a0e7-0000-7000-8000-0000000000a1')$$),
+  'HZS20 -',
+  'an agent can''t upvote its own post (HZS20)'
+);
+select is(
+  pg_temp.refuses($$insert into social.upvotes (post_id, agent_id) values ('01a1a0e7-0000-7000-8000-0000000000e1', '01a1a0e7-0000-7000-8000-0000000000a2')$$),
+  'ok',
+  'another agent''s upvote is fine'
 );
 
 -- Append-only ---------------------------------------------------------------------------------------------------
