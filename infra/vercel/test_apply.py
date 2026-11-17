@@ -72,18 +72,20 @@ class TheRepoRules(unittest.TestCase):
             "Rate limit: staging's typed API calls that send email",
             "Rate limit: staging's typed API",
             "Rate limit: staging's perp jobs",
+            "Rate limit: staging's social jobs",
             "Rate limit: staging's API docs",
             "Staging's typed API: no bot challenge",
             "Staging's typed API: the app's writes, no bot challenge",
             "Staging's perp jobs: no bot challenge",
+            "Staging's social jobs: no bot challenge",
             "Staging's API docs: no bot challenge",
         ])
 
     def test_the_bypasses_come_last_and_after_their_rate_limits(self):
         actions = [r["action"]["mitigate"]["action"] for r in WANT["rules"]]
         self.assertEqual(actions, ["rate_limit", "rate_limit", "rate_limit", "bypass",
-                                   "rate_limit", "rate_limit", "rate_limit", "rate_limit", "bypass",
-                                   "bypass", "bypass", "bypass"])
+                                   "rate_limit", "rate_limit", "rate_limit", "rate_limit", "rate_limit", "bypass",
+                                   "bypass", "bypass", "bypass", "bypass"])
 
     def test_every_description_fits_vercels_limit(self):
         # Vercel refuses a rule whose description is longer than 256 characters (HTTP 400).
@@ -122,13 +124,38 @@ class TheRepoRules(unittest.TestCase):
         self.assertLess(names.index("Rate limit: staging's perp jobs"),
                         names.index("Staging's perp jobs: no bot challenge"))
 
+    def test_the_social_jobs_bypass_covers_only_posts_to_stagings_social_jobs_address(self):
+        # docs/social/build.md, D7: Supabase Cron calls the social jobs address from the database once a
+        # minute, so it skips the bot challenge there alone, by POST, behind its own per-IP limit (the
+        # address itself needs the jobs' secret: product/web/app/api/jobs/social). It copies the perp
+        # jobs' two rules, with a limit sized for one call a minute.
+        address = {"type": "path", "op": "eq", "value": "/api/jobs/social"}
+        [group] = staging_rule(WANT, "Staging's social jobs: no bot challenge")["conditionGroup"]
+        self.assertEqual(group["conditions"], [
+            {"type": "host", "op": "eq", "value": "staging.hrizzup.com"},
+            address,
+            {"type": "method", "op": "eq", "value": "POST"},
+        ])
+        limit = staging_rule(WANT, "Rate limit: staging's social jobs")
+        self.assertEqual([g["conditions"] for g in limit["conditionGroup"]],
+                         [[{"type": "host", "op": "eq", "value": "staging.hrizzup.com"}, address]])
+        self.assertEqual(limit["action"]["mitigate"]["rateLimit"]["limit"], 10)
+        self.assertEqual(limit["action"]["mitigate"]["rateLimit"]["keys"], ["ip"])
+        self.assertEqual(limit["action"]["mitigate"]["rateLimit"]["window"], 60)
+        names = [r["name"] for r in WANT["rules"]]
+        self.assertLess(names.index("Rate limit: staging's social jobs"),
+                        names.index("Staging's social jobs: no bot challenge"))
+        # Its own rules, never the perp jobs' address.
+        self.assertNotIn({"type": "path", "op": "eq", "value": "/api/jobs/perps"}, group["conditions"])
+
     def test_the_docs_bypass_covers_only_reads_of_stagings_api_docs(self):
-        # PLAN.md step 3.5a: AI tools and bots read the API's docs, llms.txt and llms-full.txt
-        # without a browser, so those skip the bot challenge on staging alone, by GET, behind their
-        # own per-IP limit.
+        # PLAN.md step 3.5a: AI tools and bots read the API's docs, llms.txt and llms-full.txt, and
+        # (docs/social/build.md, section 7.14) the agents' skill file /skill.md, without a browser, so
+        # those skip the bot challenge on staging alone, by GET, behind their own per-IP limit.
         paths = [{"type": "path", "op": "pre", "value": "/docs"},
                  {"type": "path", "op": "eq", "value": "/llms.txt"},
-                 {"type": "path", "op": "eq", "value": "/llms-full.txt"}]
+                 {"type": "path", "op": "eq", "value": "/llms-full.txt"},
+                 {"type": "path", "op": "eq", "value": "/skill.md"}]
         host = {"type": "host", "op": "eq", "value": "staging.hrizzup.com"}
         bypass = staging_rule(WANT, "Staging's API docs: no bot challenge")["conditionGroup"]
         self.assertEqual([g["conditions"] for g in bypass],
@@ -177,14 +204,16 @@ class TheChange(unittest.TestCase):
     def test_empty_fields_in_vercels_report_still_count_as_staging(self):
         live = live_config(with_staging=True)
         for name in ("Staging's typed API: no bot challenge", "Staging's typed API: the app's writes, no bot challenge",
-                     "Staging's perp jobs: no bot challenge", "Staging's API docs: no bot challenge"):
+                     "Staging's perp jobs: no bot challenge", "Staging's social jobs: no bot challenge",
+                     "Staging's API docs: no bot challenge"):
             staging_rule(live, name)["action"]["mitigate"].update(redirect={}, actionDuration="", bypassSystem=None)
         for name in ("Rate limit: staging's typed API calls that send email", "Rate limit: staging's typed API",
-                     "Rate limit: staging's perp jobs", "Rate limit: staging's API docs"):
+                     "Rate limit: staging's perp jobs", "Rate limit: staging's social jobs",
+                     "Rate limit: staging's API docs"):
             staging_rule(live, name)["action"]["mitigate"]["rateLimit"]["action"] = None
         self.assertEqual([r["name"] for r in live["rules"] if is_staging(r)],
                          [r["name"] for r in WANT["rules"] if is_staging(r)])
-        self.assertEqual(len([r for r in live["rules"] if is_staging(r)]), 8)
+        self.assertEqual(len([r for r in live["rules"] if is_staging(r)]), 10)
 
     def test_empty_fields_in_vercels_report_are_not_a_change(self):
         live = live_config(with_staging=True)

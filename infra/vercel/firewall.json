@@ -146,8 +146,33 @@
       }
     },
     {
+      "name": "Rate limit: staging's social jobs",
+      "description": "At most 10 requests a minute per IP to staging's social jobs address (/api/jobs/social on staging.hrizzup.com), which Supabase Cron calls once a minute. Staging only.",
+      "active": true,
+      "conditionGroup": [
+        {
+          "conditions": [
+            { "type": "host", "op": "eq", "value": "staging.hrizzup.com" },
+            { "type": "path", "op": "eq", "value": "/api/jobs/social" }
+          ]
+        }
+      ],
+      "action": {
+        "mitigate": {
+          "action": "rate_limit",
+          "rateLimit": {
+            "algo": "fixed_window",
+            "window": 60,
+            "limit": 10,
+            "keys": ["ip"],
+            "action": "rate_limit"
+          }
+        }
+      }
+    },
+    {
       "name": "Rate limit: staging's API docs",
-      "description": "At most 60 requests a minute per IP to staging's public API docs (/docs, /llms.txt and /llms-full.txt on staging.hrizzup.com), which AI tools read without a browser. Staging only.",
+      "description": "At most 60 requests a minute per IP to staging's public API docs (/docs, /llms.txt, /llms-full.txt and /skill.md on staging.hrizzup.com), which AI tools read without a browser. Staging only.",
       "active": true,
       "conditionGroup": [
         {
@@ -166,6 +191,12 @@
           "conditions": [
             { "type": "host", "op": "eq", "value": "staging.hrizzup.com" },
             { "type": "path", "op": "eq", "value": "/llms-full.txt" }
+          ]
+        },
+        {
+          "conditions": [
+            { "type": "host", "op": "eq", "value": "staging.hrizzup.com" },
+            { "type": "path", "op": "eq", "value": "/skill.md" }
           ]
         }
       ],
@@ -228,8 +259,23 @@
       "action": { "mitigate": { "action": "bypass" } }
     },
     {
+      "name": "Staging's social jobs: no bot challenge",
+      "description": "Supabase Cron calls staging's social jobs address from the database, not a browser (docs/social/build.md, D7). POST only; the address needs the jobs' secret, and the rule above limits it. Staging only. Keep bypasses last.",
+      "active": true,
+      "conditionGroup": [
+        {
+          "conditions": [
+            { "type": "host", "op": "eq", "value": "staging.hrizzup.com" },
+            { "type": "path", "op": "eq", "value": "/api/jobs/social" },
+            { "type": "method", "op": "eq", "value": "POST" }
+          ]
+        }
+      ],
+      "action": { "mitigate": { "action": "bypass" } }
+    },
+    {
       "name": "Staging's API docs: no bot challenge",
-      "description": "AI tools and bots read staging's API docs (/docs, /llms.txt, /llms-full.txt) without a browser (PLAN.md step 3.5a). Reads only (GET), rate-limited by the rule above. Staging only. Keep bypasses last.",
+      "description": "AI tools and bots read staging's API docs (/docs, /llms.txt, /llms-full.txt) and the agents' skill file (/skill.md) without a browser (PLAN.md step 3.5a). Reads only (GET), rate-limited by the rule above. Staging only. Keep bypasses last.",
       "active": true,
       "conditionGroup": [
         {
@@ -250,6 +296,13 @@
           "conditions": [
             { "type": "host", "op": "eq", "value": "staging.hrizzup.com" },
             { "type": "path", "op": "eq", "value": "/llms-full.txt" },
+            { "type": "method", "op": "eq", "value": "GET" }
+          ]
+        },
+        {
+          "conditions": [
+            { "type": "host", "op": "eq", "value": "staging.hrizzup.com" },
+            { "type": "path", "op": "eq", "value": "/skill.md" },
             { "type": "method", "op": "eq", "value": "GET" }
           ]
         }
