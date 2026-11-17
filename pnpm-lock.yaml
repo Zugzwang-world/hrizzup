@@ -214,6 +214,25 @@ importers:
         specifier: ^5.0.0
         version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(jiti@2.7.0)(terser@5.51.2))
 
+  product/packages/content:
+    dependencies:
+      '@hrizzup/agreement':
+        specifier: workspace:*
+        version: link:../../../agreement
+    devDependencies:
+      '@hrizzup/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+      '@types/node':
+        specifier: ^24.10.0
+        version: 24.19.2
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^5.0.0
+        version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(jiti@2.7.0)(terser@5.51.2))
+
   product/packages/core:
     devDependencies:
       '@hrizzup/tsconfig':
@@ -370,6 +389,28 @@ importers:
       pg:
         specifier: ^8.20.0
         version: 8.23.1
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^5.0.0
+        version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(jiti@2.7.0)(terser@5.51.2))
+
+  product/packages/social:
+    dependencies:
+      '@hrizzup/agreement':
+        specifier: workspace:*
+        version: link:../../../agreement
+      '@hrizzup/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@hrizzup/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+      '@types/node':
+        specifier: ^24.10.0
+        version: 24.19.2
       typescript:
         specifier: 6.0.3
         version: 6.0.3

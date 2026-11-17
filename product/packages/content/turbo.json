@@ -1,0 +1,15 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "test": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/agreement/definitions/**",
+        "$TURBO_ROOT$/agreement/examples/**",
+        "$TURBO_ROOT$/agreement/src/**",
+        "$TURBO_ROOT$/agreement/package.json"
+      ]
+    }
+  }
+}

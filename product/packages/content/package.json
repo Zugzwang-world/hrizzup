@@ -1,0 +1,22 @@
+{
+  "name": "@hrizzup/content",
+  "private": true,
+  "description": "The checked save of the content store's records (docs/social/build.md, D4): a story or an update goes through the agreement's own check first, so an invalid record never reaches the database, then through one database function in a transaction the caller gives (the console's, now; the news pipeline's, later). Server only.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@hrizzup/agreement": "workspace:*"
+  },
+  "devDependencies": {
+    "@hrizzup/tsconfig": "workspace:*",
+    "@types/node": "^24.10.0",
+    "typescript": "6.0.3",
+    "vitest": "^5.0.0"
+  }
+}
