@@ -142,6 +142,12 @@ export async function readSignInCode(keys: Keys, email: string): Promise<string>
 
 export type SessionCookie = { name: string; value: string };
 
+/** How many times `sessionFor` asks for a token, when another run keeps cancelling it. */
+export const TOKEN_ATTEMPTS = 8;
+
+/** The wait before asking again, in milliseconds: random, so callers that collided don't again. */
+export const tokenRetryWait = (): number => 500 + Math.random() * 6000;
+
 /** A session for a test account: the website's own cookies, and the app's tokens. */
 export type TestSession = { cookies: SessionCookie[]; accessToken: string; refreshToken: string };
 
@@ -152,8 +158,15 @@ export type TestSession = { cookies: SessionCookie[]; accessToken: string; refre
  *
  * Each account has one one-time token at a time: asking for a new one cancels the last. Runs share
  * only the console's admin test account, so another run may cancel its token between asking and
- * using it. Staging then refuses it (403), and this asks again, a few times, after a short random
- * wait.
+ * using it. Staging then refuses it (403), and for that account only this asks again, up to
+ * `TOKEN_ATTEMPTS` times, after a random wait (`tokenRetryWait`). Any other account's first refusal
+ * is reported: nothing else can have cancelled its token.
+ *
+ * The Screen check's four parts each sign in the admin account in their setup, often within seconds
+ * of each other, and so do the parts of every other pull request's check running at the time. Of
+ * any group of callers at least one (the last to ask) always gets through, so a group of four can
+ * never use up the attempts; the number of attempts and the length of the wait are sized for several
+ * pull requests' checks starting together (about eight callers, or twelve a few seconds apart).
  */
 export async function sessionFor(
   keys: Keys,
@@ -161,7 +174,7 @@ export async function sessionFor(
   options: { create?: boolean } = {},
 ): Promise<TestSession> {
   if (options.create) await createRunAccount(keys, email);
-  const attempts = 5;
+  const attempts = TOKEN_ATTEMPTS;
   for (let attempt = 1; ; attempt++) {
     const { data, error } = await admin(keys).auth.admin.generateLink({ type: 'magiclink', email });
     if (error || !data.properties?.hashed_token) {
@@ -183,8 +196,10 @@ export async function sessionFor(
       token_hash: data.properties.hashed_token,
       type: 'magiclink',
     });
-    if (verifyError?.status === 403 && attempt < attempts) {
-      await new Promise((resolve) => setTimeout(resolve, 500 + Math.random() * 2000));
+    // Only the shared admin account's token can be cancelled by someone else; any other address
+    // is one of this run's own, so a refusal there is a real one and is reported at once.
+    if (verifyError?.status === 403 && email === ADMIN_TEST_ACCOUNT && attempt < attempts) {
+      await new Promise((resolve) => setTimeout(resolve, tokenRetryWait()));
       continue;
     }
     if (verifyError) throw new Error(`Staging refused the one-time token (${verifyError.status})`);
