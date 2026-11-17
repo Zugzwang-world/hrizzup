@@ -39,13 +39,13 @@
   "assets.output": {
     "assets": [
       {
-        "path": "assets/card-layout/timeline-card-v1.svg",
-        "url": "https://media-staging.hrizzup.com/assets/card-layout/timeline-card-v1.svg",
+        "path": "assets/card-layout/timeline-card-v1.png",
+        "url": "https://media-staging.hrizzup.com/assets/card-layout/timeline-card-v1.png",
         "kind": "card-layout",
         "name": "Timeline card",
         "description": "A 1080 × 1350 card with a dated line for each update, for the Timeline skill's kit.",
-        "contentType": "image/svg+xml",
-        "bytes": 18432
+        "contentType": "image/png",
+        "bytes": 48213
       },
       {
         "path": "assets/font/inter-variable-v1.woff2",
