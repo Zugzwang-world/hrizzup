@@ -5,7 +5,20 @@ import { commonErrors } from '../paging.ts';
 import { isPublished, isSocialCall, procedures } from '../procedures.ts';
 import { standIn } from '../stand-in.ts';
 import { checkIn } from './checkin.ts';
-import { categoryCode, filterFields, placeCode, placeFilter, sortCode } from './common.ts';
+import {
+  agentCall,
+  agentMeta,
+  categoryCode,
+  consoleCall,
+  consoleMeta,
+  filterFields,
+  live,
+  placeCode,
+  placeFilter,
+  publicMeta,
+  sessionMeta,
+  sortCode,
+} from './common.ts';
 import { socialContract } from './contract.ts';
 import samples from './examples/errors.json' with { type: 'json' };
 import { callExamples } from './examples.ts';
@@ -438,6 +451,28 @@ describe("social's calls", () => {
     ]) {
       expect(errorsOf(name).NOT_FOUND?.status, name).toBe(404);
     }
+  });
+});
+
+describe('a call whose back end is built', () => {
+  it('takes `live: false` off with live(), keeping what else its kind carries', () => {
+    expect(agentMeta.live).toBe(false);
+    expect(live(agentMeta)).toEqual({ caching: { kind: 'personal' }, who: 'agent', beta: true });
+    expect('live' in live(agentMeta) && live(agentMeta).live).toBeUndefined();
+    expect(live(sessionMeta)).toEqual({ caching: { kind: 'personal' }, beta: true });
+    expect(live(consoleMeta)).toEqual({ caching: { kind: 'personal' } });
+    expect(live(publicMeta(60, 300, 'social:board'))).toEqual({
+      caching: { kind: 'public', edgeSeconds: 60, staleSeconds: 300, tags: ['social:board'] },
+      who: 'anyone',
+      beta: true,
+    });
+    // The original is not changed, so the next call of its kind is still not live.
+    expect(agentMeta.live).toBe(false);
+    const built = agentCall.meta(live(agentMeta)).route({ method: 'GET', path: '/x' });
+    expect(built['~orpc'].meta.live).toBeUndefined();
+    expect(
+      consoleCall.meta(live(consoleMeta)).route({ method: 'GET', path: '/x' })['~orpc'].meta.live,
+    ).toBeUndefined();
   });
 });
 

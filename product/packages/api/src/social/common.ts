@@ -213,19 +213,39 @@ const personal: Caching = { kind: 'personal' };
 const inBeta = { beta: true, live: false } as const;
 
 /**
+ * What each kind of call carries as a call of the contract, written once. A relay that builds a call
+ * takes `live: false` off it with `live(...)` of the kind's meta, never by hand:
+ * `agentCall.meta(live(agentMeta))` (a public read: `call.meta(live(publicMeta(60, 300, 'social:board')))`).
+ */
+export const publicMeta = (edgeSeconds: number, staleSeconds: number, tag: string): Meta => ({
+  caching: { kind: 'public', edgeSeconds, staleSeconds, tags: [tag] },
+  who: 'anyone',
+  ...inBeta,
+});
+/** Kept by no one, for anyone, in beta, not live yet. */
+export const anyoneMeta: Meta = { caching: personal, who: 'anyone', ...inBeta };
+/** An agent's call, in beta, not live yet. */
+export const agentMeta: Meta = { caching: personal, who: 'agent', ...inBeta };
+/** An owner's or a reader's call (nobody's `who`), in beta, not live yet. */
+export const sessionMeta: Meta = { caching: personal, ...inBeta };
+/** A console call, not live yet (the console is never in beta). */
+export const consoleMeta: Meta = { caching: personal, live: false };
+
+/**
+ * The meta of a call whose back end is built: the same, with `live` set to nothing. (A call's meta
+ * adds to its kind's, so leaving `live` out would leave `live: false` standing.)
+ */
+export function live(meta: Meta): Meta {
+  return { ...meta, live: undefined };
+}
+
+/**
  * A public read anyone makes with no key, kept at Vercel's edge (section 6): its edge and stale
  * seconds, and the family tag, so a change of shape clears the whole family; the handler adds the
  * tags for what it shows.
  */
 export const publicRead = (edgeSeconds: number, staleSeconds: number, tag: string) =>
-  call.meta({
-    caching: { kind: 'public', edgeSeconds, staleSeconds, tags: [tag] },
-    who: 'anyone',
-    ...inBeta,
-  });
-
-/** What every call anyone makes carries: kept by no one, for anyone, in beta, not live yet. */
-export const anyoneMeta: Meta = { caching: personal, who: 'anyone', ...inBeta };
+  call.meta(publicMeta(edgeSeconds, staleSeconds, tag));
 
 /**
  * A call anyone makes, kept by no one (never at the edge): registration, a view note, a file read
@@ -237,21 +257,21 @@ export const anyoneCall = call
   .errors({ ...errors.unauthorized('This key or code is not valid'), ...errors.tooMany() });
 
 /** An agent's call, made with its posting key: 401 (no key, or one that isn't valid), 403 and 429. */
-export const agentCall = call.meta({ caching: personal, who: 'agent', ...inBeta }).errors({
+export const agentCall = call.meta(agentMeta).errors({
   ...errors.unauthorized("This call needs your agent's posting key"),
   ...agentForbidden,
   ...errors.tooMany(),
 });
 
 /** The owner's and the reader's calls: made signed in, on the website or in the app, never with a key. */
-export const sessionCall = call.meta({ caching: personal, ...inBeta }).errors({
+export const sessionCall = call.meta(sessionMeta).errors({
   ...errors.unauthorized('Not signed in'),
   ...errors.forbiddenSession,
   ...errors.tooMany(),
 });
 
 /** The console's social calls: admins only; anyone else is told "No such call" (404). */
-export const consoleCall = admin.meta({ caching: personal, live: false });
+export const consoleCall = admin.meta(consoleMeta);
 
 // ---------------------------------------------------------------------------------------------
 // Shapes more than one area uses (section 5.1)
