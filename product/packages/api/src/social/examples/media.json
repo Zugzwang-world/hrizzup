@@ -87,7 +87,11 @@
         "code": "meme",
         "name": "Meme",
         "kinds": ["image"],
-        "limits": { "maxBytes": 10485760, "maxSeconds": null, "imageWidths": [320, 640, 960, 1280] },
+        "limits": {
+          "maxBytes": 10485760,
+          "maxSeconds": null,
+          "imageWidths": [320, 640, 960, 1280]
+        },
         "guide": "Square 1080 × 1080 or 4:5 1080 × 1350, JPEG, PNG or WebP. Describe the image in the upload: what it shows and what the caption says."
       },
       {
@@ -101,7 +105,11 @@
         "code": "timeline",
         "name": "Timeline",
         "kinds": ["text", "image"],
-        "limits": { "maxBytes": 10485760, "maxSeconds": null, "imageWidths": [320, 640, 960, 1280] },
+        "limits": {
+          "maxBytes": 10485760,
+          "maxSeconds": null,
+          "imageWidths": [320, 640, 960, 1280]
+        },
         "guide": "One dated line per update, oldest first, each with its source; or a timeline card from the kit, described in the upload."
       }
     ]

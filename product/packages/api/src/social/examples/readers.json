@@ -10,18 +10,41 @@
     "body": "# Reading profile\n\n## More of\n- AI\n- the Philippines\n- Bengaluru\n\n## Less of\n- crypto\n\n## Formats\n- timelines\n- memes"
   },
 
-  "reader.chat.send.input": { "requestId": "3a4b5c6d-7e8f-4a9b-8c0d-1e2f3a4b5c6d", "body": "AI news from the Philippines, mostly timelines and memes, no crypto" },
+  "reader.chat.send.input": {
+    "requestId": "3a4b5c6d-7e8f-4a9b-8c0d-1e2f3a4b5c6d",
+    "body": "AI news from the Philippines, mostly timelines and memes, no crypto"
+  },
   "reader.chat.send.output": {
-    "message": { "id": "01a1e897-6b80-7d7a-be25-3bd4aac5a876", "author": "reader", "body": "AI news from the Philippines, mostly timelines and memes, no crypto", "createdAt": "2026-11-17T08:20:00Z" },
-    "reply": { "id": "01a1e897-7738-7ac7-8ddc-27e9129fb371", "author": "agent", "body": "Done: I added AI and the Philippines, timelines and memes, and I'll keep crypto out. You can change the list any time.", "createdAt": "2026-11-17T08:20:03Z" },
+    "message": {
+      "id": "01a1e897-6b80-7d7a-be25-3bd4aac5a876",
+      "author": "reader",
+      "body": "AI news from the Philippines, mostly timelines and memes, no crypto",
+      "createdAt": "2026-11-17T08:20:00Z"
+    },
+    "reply": {
+      "id": "01a1e897-7738-7ac7-8ddc-27e9129fb371",
+      "author": "agent",
+      "body": "Done: I added AI and the Philippines, timelines and memes, and I'll keep crypto out. You can change the list any time.",
+      "createdAt": "2026-11-17T08:20:03Z"
+    },
     "profileChanged": true,
     "profile": "# Reading profile\n\n## More of\n- AI\n- the Philippines\n\n## Less of\n- crypto\n\n## Formats\n- timelines\n- memes"
   },
 
   "reader.chat.list.output": {
     "messages": [
-      { "id": "01a1e897-7738-7ac7-8ddc-27e9129fb371", "author": "agent", "body": "Done: I added AI and the Philippines, timelines and memes, and I'll keep crypto out. You can change the list any time.", "createdAt": "2026-11-17T08:20:03Z" },
-      { "id": "01a1e897-6b80-7d7a-be25-3bd4aac5a876", "author": "reader", "body": "AI news from the Philippines, mostly timelines and memes, no crypto", "createdAt": "2026-11-17T08:20:00Z" }
+      {
+        "id": "01a1e897-7738-7ac7-8ddc-27e9129fb371",
+        "author": "agent",
+        "body": "Done: I added AI and the Philippines, timelines and memes, and I'll keep crypto out. You can change the list any time.",
+        "createdAt": "2026-11-17T08:20:03Z"
+      },
+      {
+        "id": "01a1e897-6b80-7d7a-be25-3bd4aac5a876",
+        "author": "reader",
+        "body": "AI news from the Philippines, mostly timelines and memes, no crypto",
+        "createdAt": "2026-11-17T08:20:00Z"
+      }
     ],
     "next": null
   },
@@ -46,7 +69,14 @@
         "createdAt": "2026-11-03T10:15:00Z",
         "latestAt": "2026-11-04T05:20:00Z",
         "latestHeadline": "The team says it will publish its training recipe and open an office in Pune",
-        "counts": { "posts": 1, "replies": 2, "upvotes": 1, "views": 96, "uniqueViews": 71, "pins": 2 }
+        "counts": {
+          "posts": 1,
+          "replies": 2,
+          "upvotes": 1,
+          "views": 96,
+          "uniqueViews": 71,
+          "pins": 2
+        }
       }
     ],
     "next": "eyJiIjoiN2YzZTlhMjEiLCJvIjoxfQ"
@@ -57,6 +87,10 @@
     "code": "BAD_REQUEST",
     "status": 400,
     "message": "The request was refused: see data.issues",
-    "data": { "issues": [{ "path": "cursor", "message": "Your For You was rebuilt: start again from the first page" }] }
+    "data": {
+      "issues": [
+        { "path": "cursor", "message": "Your For You was rebuilt: start again from the first page" }
+      ]
+    }
   }
 }

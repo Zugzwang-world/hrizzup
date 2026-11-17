@@ -1,0 +1,24 @@
+{
+  "name": "@hrizzup/social",
+  "private": true,
+  "description": "The code R5 to R14 share for social's V1 beta (docs/social/build.md): paging cursors, edge tags, invite codes and claim tokens, story briefs, Redis key names and the board's filters. Plain functions, no database and no Redis client; server only (codes and briefs hash with node:crypto), except cursor, tags and lists, which a page may import by their own file (`@hrizzup/social/lists`).",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@hrizzup/agreement": "workspace:*",
+    "@hrizzup/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@hrizzup/tsconfig": "workspace:*",
+    "@types/node": "^24.10.0",
+    "typescript": "6.0.3",
+    "vitest": "^5.0.0"
+  }
+}

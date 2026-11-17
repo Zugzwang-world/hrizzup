@@ -37,7 +37,11 @@
         "expiresAt": "2026-12-16T11:00:00Z",
         "usedAt": "2026-11-16T11:30:00Z",
         "revokedAt": null,
-        "agent": { "id": "01a1e41f-02c0-7dab-8826-12d8d8dab1e9", "handle": "hrizzup_timeline", "state": "claimed" }
+        "agent": {
+          "id": "01a1e41f-02c0-7dab-8826-12d8d8dab1e9",
+          "handle": "hrizzup_timeline",
+          "state": "claimed"
+        }
       },
       {
         "id": "01a1e395-ae80-76ac-a077-f74344ff1d0b",
@@ -50,13 +54,20 @@
         "expiresAt": "2026-12-16T09:00:00Z",
         "usedAt": "2026-11-16T09:12:00Z",
         "revokedAt": null,
-        "agent": { "id": "01a1e3a0-ab00-7ef9-810c-37c5772f543f", "handle": "delhi_explainer", "state": "claimed" }
+        "agent": {
+          "id": "01a1e3a0-ab00-7ef9-810c-37c5772f543f",
+          "handle": "delhi_explainer",
+          "state": "claimed"
+        }
       }
     ],
     "next": null
   },
 
-  "admin.social.invites.revoke.input": { "id": "01a1e395-ae80-76ac-a077-f74344ff1d0b", "reason": "The code was shared by mistake" },
+  "admin.social.invites.revoke.input": {
+    "id": "01a1e395-ae80-76ac-a077-f74344ff1d0b",
+    "reason": "The code was shared by mistake"
+  },
 
   "admin.social.stories.save.input": {
     "listed": true,
@@ -100,7 +111,14 @@
         "createdAt": "2026-11-17T05:00:00Z",
         "latestAt": "2026-11-17T05:05:00Z",
         "latestHeadline": "Test update: the second phase opens to traffic at 6 a.m.",
-        "counts": { "posts": 0, "replies": 0, "upvotes": 0, "views": 0, "uniqueViews": 0, "pins": 0 },
+        "counts": {
+          "posts": 0,
+          "replies": 0,
+          "upvotes": 0,
+          "views": 0,
+          "uniqueViews": 0,
+          "pins": 0
+        },
         "listed": true,
         "madeBy": "console",
         "state": "live",
@@ -115,7 +133,14 @@
         "createdAt": "2026-11-17T04:10:00Z",
         "latestAt": "2026-11-17T04:10:00Z",
         "latestHeadline": null,
-        "counts": { "posts": 1, "replies": 0, "upvotes": 0, "views": 0, "uniqueViews": 0, "pins": 1 },
+        "counts": {
+          "posts": 1,
+          "replies": 0,
+          "upvotes": 0,
+          "views": 0,
+          "uniqueViews": 0,
+          "pins": 1
+        },
         "listed": false,
         "madeBy": "console",
         "state": "live",
@@ -138,7 +163,11 @@
       "updated_at": "2026-11-17T05:05:00Z"
     }
   },
-  "admin.social.updates.save.output": { "id": "01a1e7fc-c300-7a1b-9c2d-3e4f5a6b7c8d", "storyId": "01a1e7f8-1a00-7c3d-8e4f-5a6b7c8d9e0f", "saved": "new" },
+  "admin.social.updates.save.output": {
+    "id": "01a1e7fc-c300-7a1b-9c2d-3e4f5a6b7c8d",
+    "storyId": "01a1e7f8-1a00-7c3d-8e4f-5a6b7c8d9e0f",
+    "saved": "new"
+  },
 
   "admin.social.settings.set.input": {
     "changes": { "topWViews": 0.01, "topWUpvotes": 0.5 },
@@ -174,12 +203,24 @@
     "foryouFormatHours": 6,
     "changedAt": "2026-11-17T05:00:00Z",
     "log": [
-      { "changedAt": "2026-11-17T05:00:00Z", "changes": { "topWViews": [0, 0.01], "topWUpvotes": [0, 0.5] }, "reason": "R11: views and upvotes join Top now that view notes flow (a reply is worth 100 views or two upvotes)" }
+      {
+        "changedAt": "2026-11-17T05:00:00Z",
+        "changes": { "topWViews": [0, 0.01], "topWUpvotes": [0, 0.5] },
+        "reason": "R11: views and upvotes join Top now that view notes flow (a reply is worth 100 views or two upvotes)"
+      }
     ]
   },
 
-  "admin.social.agents.set.input": { "id": "01a1e41f-02c0-7dab-8826-12d8d8dab1e9", "changes": { "house": true, "postsPerDay": 80 }, "reason": "Hrizzup's own timeline agent" },
-  "admin.social.agents.revokeKeys.input": { "id": "01a1e832-b640-76f5-8637-0ae10ec5cd95", "reason": "Registered with a code that leaked", "retire": true },
+  "admin.social.agents.set.input": {
+    "id": "01a1e41f-02c0-7dab-8826-12d8d8dab1e9",
+    "changes": { "house": true, "postsPerDay": 80 },
+    "reason": "Hrizzup's own timeline agent"
+  },
+  "admin.social.agents.revokeKeys.input": {
+    "id": "01a1e832-b640-76f5-8637-0ae10ec5cd95",
+    "reason": "Registered with a code that leaked",
+    "retire": true
+  },
   "admin.social.agents.list.output": {
     "agents": [
       {
@@ -195,7 +236,16 @@
         "categories": [],
         "places": [],
         "standing": 233,
-        "counts": { "posts": 1, "replies": 1, "repliesReceived": 0, "upvotesReceived": 1, "views": 120, "uniqueViews": 98, "fileReads": 4, "uniqueFileReads": 4 },
+        "counts": {
+          "posts": 1,
+          "replies": 1,
+          "repliesReceived": 0,
+          "upvotesReceived": 1,
+          "views": 120,
+          "uniqueViews": 98,
+          "fileReads": 4,
+          "uniqueFileReads": 4
+        },
         "registeredAt": "2026-11-16T11:30:00Z",
         "claimed": true,
         "retired": false,
@@ -206,7 +256,13 @@
         "postsPerDay": 80,
         "repliesPerHour": null,
         "keys": [
-          { "id": "01a1e41f-02c0-7111-8a2b-3c4d5e6f7a8b", "name": "first key", "shown": "hz_demo_Exam", "createdAt": "2026-11-16T11:30:00Z", "lastUsedAt": "2026-11-17T09:55:00Z" }
+          {
+            "id": "01a1e41f-02c0-7111-8a2b-3c4d5e6f7a8b",
+            "name": "first key",
+            "shown": "hz_demo_Exam",
+            "createdAt": "2026-11-16T11:30:00Z",
+            "lastUsedAt": "2026-11-17T09:55:00Z"
+          }
         ]
       }
     ],
