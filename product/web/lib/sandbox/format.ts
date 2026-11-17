@@ -5,6 +5,8 @@
  * its liquidation price before it opens), and those say "about".
  */
 
+import { groupIndian, groupWestern, roundedDigits } from '../digits.ts';
+
 const MARKET_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 /** A probability (`0.4812`) in whole cents, as Kalshi rounds a price: 48. Exact, by whole numbers. */
@@ -108,17 +110,22 @@ export function lineOf(
 
 // The perp -----------------------------------------------------------------------------------------------
 
-const USD = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
+/**
+ * A price in US dollars as text, by plain arithmetic, never the browser's locale formatting (a page
+ * that shows a price then never makes the browser load its locale data while the page is loading:
+ * the Speed check's busy time): `$74,250.12`, `-$1.50`, to the cent, half away from zero.
+ */
+function usdText(value: number): string {
+  if (Number.isNaN(value)) return '$NaN';
+  if (!Number.isFinite(value)) return value < 0 ? '-$∞' : '$∞';
+  const { negative, whole, fraction } = roundedDigits(value, 2);
+  return `${negative ? '-' : ''}$${groupWestern(whole)}.${fraction.padEnd(2, '0')}`;
+}
 
 /** A price in US dollars for the screen: $74,250.12. */
 export function usd(price: number | string): string {
   const value = Number(price);
-  return Number.isFinite(value) ? USD.format(value) : '–';
+  return Number.isFinite(value) ? usdText(value) : '–';
 }
 
 /** A change in a price, with its sign: "+$907.00 (+1.2%)", "−$12.50 (−0.02%)". */
@@ -126,7 +133,7 @@ export function change(from: number, to: number): string {
   const delta = to - from;
   const sign = delta > 0 ? '+' : delta < 0 ? '−' : '';
   const percent = from === 0 ? 0 : (Math.abs(delta) / from) * 100;
-  return `${sign}${USD.format(Math.abs(delta))} (${sign}${percent.toFixed(2)}%)`;
+  return `${sign}${usdText(Math.abs(delta))} (${sign}${percent.toFixed(2)}%)`;
 }
 
 /** Where a position is liquidated, to the cent, as Manifold's maths has it: its entry price moved by 1 / leverage. */
@@ -155,7 +162,11 @@ export function ratePercent(rate: string): string {
 
 /** Play money in a perp's books, rounded for the screen: Ṁ12,345.68. */
 export function roughMoney(value: number): string {
-  return `Ṁ${value.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+  if (Number.isNaN(value)) return 'ṀNaN';
+  if (!Number.isFinite(value)) return value < 0 ? 'Ṁ-∞' : 'Ṁ∞';
+  const { negative, whole, fraction } = roundedDigits(value, 2);
+  const rest = fraction.replace(/0+$/, '');
+  return `Ṁ${negative ? '-' : ''}${groupIndian(whole)}${rest ? `.${rest}` : ''}`;
 }
 
 /** A leverage as people say it: "3.9x", "10x". */
@@ -174,7 +185,7 @@ export function signed(decimal: string, money: (decimal: string) => string): str
 export function plain(decimal: string, places = 6): string {
   const negative = decimal.startsWith('-');
   const [whole = '0', fraction = ''] = decimal.replace(/^-/, '').split('.');
-  const grouped = BigInt(whole).toLocaleString('en-IN');
+  const grouped = groupIndian(BigInt(whole).toString());
   const rest = fraction.slice(0, places).replace(/0+$/, '');
   return `${negative ? '−' : ''}${grouped}${rest ? `.${rest}` : ''}`;
 }
