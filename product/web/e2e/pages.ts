@@ -1,4 +1,5 @@
 import type { Environment } from '@hrizzup/core';
+import { socialPages } from './pages/social/index.ts';
 
 /**
  * Every page of the website, the address each check opens, and its speed budget. The screen
@@ -80,7 +81,7 @@ export const SANDBOX_FIXTURE_QUESTION =
 export const FIXTURE_PERP_NAME =
   "Screen check: a test perp kept on staging for the console's screen check";
 
-export const pages: readonly Page[] = [
+const sitePages: readonly Page[] = [
   { route: '/', name: 'home', path: '/', budget: 'standard' },
   { route: '/privacy', name: 'privacy', path: '/privacy', budget: 'standard' },
   { route: '/terms', name: 'terms', path: '/terms', budget: 'standard' },
@@ -198,6 +199,13 @@ export const pages: readonly Page[] = [
     absentOn: ['production'],
   },
 ];
+
+/**
+ * Every page: the site's own, then the social sandbox's, joined from each area's own file under
+ * `pages/social/` (docs/social/build.md, section 8.3), so a relay that builds a social page adds its
+ * entry in its own file and none edits this one.
+ */
+export const pages: readonly Page[] = [...sitePages, ...socialPages];
 
 /** The pages that exist in an environment (staging, previews and this Mac have them all). */
 export function pagesIn(environment: string | undefined): Page[] {

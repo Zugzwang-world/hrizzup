@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import type { FullConfig } from '@playwright/test';
+import { ensureSocialFixtures } from './fixtures/social/index.ts';
 import {
   CONSOLE_FIXTURE_MARKET,
   CONSOLE_FIXTURE_PERP,
@@ -77,6 +78,9 @@ export default async function globalSetup(config: FullConfig) {
     await ensureFixtureMarket(baseURL, { ...headers, cookie }, CONSOLE_MARKET);
     await ensureFixtureMarket(baseURL, { ...headers, cookie }, SANDBOX_MARKET);
     await ensureFixturePerp(baseURL, { ...headers, cookie });
+    // The social sandbox's fixtures, each area's own (docs/social/build.md, section 8.3): none until
+    // an area's pages need one.
+    await ensureSocialFixtures({ baseURL, headers: { ...headers, cookie } });
   }
 }
 
