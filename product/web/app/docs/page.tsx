@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { BetaLabel } from '@/components/docs/call.tsx';
 import { GuideBlock } from '@/components/docs/guide-block.tsx';
 import { SiteFooter, SiteHeader } from '@/components/site-shell.tsx';
 import { guide, OVERVIEW, site } from '@/lib/api-docs/guide.ts';
@@ -75,6 +76,12 @@ export default function ApiDocs() {
                   >
                     {`${call.method} ${call.path}`}
                   </Link>
+                  {call.beta && (
+                    <>
+                      {' '}
+                      <BetaLabel />
+                    </>
+                  )}
                   <span className="block text-sm text-muted">
                     {call.summary}. {call.needsKey ? 'Needs your key.' : 'Public: no key.'}
                   </span>

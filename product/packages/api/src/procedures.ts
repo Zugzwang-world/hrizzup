@@ -18,13 +18,21 @@ export function procedures(router: object, prefix = ''): [string, AnyProcedure][
 }
 
 /**
- * The calls the public API publishes (in the OpenAPI file, the docs and the MCP server's tools): all
- * but the console's (admin), the app's sign-in (auth) and the keys' own, which need a signed-in
- * person on the website or in the app.
+ * The calls the public API doesn't publish: the console's (admin), the app's sign-in (auth), the
+ * keys' own, which need a signed-in person on the website or in the app, and social's calls for
+ * one's own agent (owner) and one's own reading (reader), which are made in the app and on the
+ * website only.
  */
-const UNPUBLISHED = new Set(['admin', 'auth', 'keys']);
+const UNPUBLISHED = new Set(['admin', 'auth', 'keys', 'owner', 'reader']);
 
-/** Whether a call, by its path in the contract, is published. */
-export function isPublished(path: readonly string[]): boolean {
-  return !UNPUBLISHED.has(path[0] ?? '');
+/** What `isPublished` reads of a call: its meta (the `~orpc` of oRPC's contract procedures). */
+type HasMeta = { readonly '~orpc': { readonly meta: Partial<Meta> } };
+
+/**
+ * Whether a call is published: in the public API's OpenAPI file, the docs and the MCP server's tools.
+ * The one switch for all three. Not the groups above, and not a call in the contract whose back end
+ * isn't built yet (`live: false`).
+ */
+export function isPublished(path: readonly string[], procedure: HasMeta): boolean {
+  return !UNPUBLISHED.has(path[0] ?? '') && procedure['~orpc'].meta.live !== false;
 }

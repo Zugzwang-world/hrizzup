@@ -30,13 +30,15 @@ type Operation = {
   operationId: string;
   summary?: string;
   tags?: string[];
+  /** `beta` on a call in beta (written by the API's own code, packages/api/src/openapi.ts). */
+  'x-stability-level'?: string;
   security?: unknown[];
   parameters?: { name: string; in: string; required?: boolean; schema: Schema }[];
   requestBody?: { content: Record<string, { schema: Schema }> };
   responses: Record<string, { content?: Record<string, { schema: Schema }> }>;
 };
 
-type Document = {
+export type Document = {
   info: { title: string; version: string; description: string };
   servers: { url: string; description?: string }[];
   paths: Record<string, Record<string, Operation>>;
@@ -60,6 +62,8 @@ export type Call = {
   summary: string;
   /** Needs a key (a personal call); public reads need none. */
   needsKey: boolean;
+  /** In beta: the file marks it `x-stability-level: beta`, and the docs say so. */
+  beta: boolean;
   /** Where its inputs go: the address's query (a read) or a JSON body (a write). */
   takes: { query: Field[]; path: Field[]; body: Variant[] };
   answers: Field[];
@@ -71,22 +75,24 @@ const AMOUNT = /^\^\(\?:0\|\[1-9\]\[0-9\]\{0,13\}\)/;
 const PROBABILITY = /^\^0\\\.\[0-9\]\{1,8\}\$$/;
 const RECORD_ID = /7\[0-9a-f\]\{3\}/;
 
-function resolve(schema: Schema): Schema {
+type Schemas = Record<string, Schema>;
+
+function resolve(schema: Schema, schemas: Schemas = doc.components.schemas): Schema {
   if (!schema.$ref) return schema;
   const name = schema.$ref.replace('#/components/schemas/', '');
-  return doc.components.schemas[name] ?? {};
+  return schemas[name] ?? {};
 }
 
 /** A schema's kind, in words. */
-export function kindOf(schema: Schema): string {
+export function kindOf(schema: Schema, schemas: Schemas = doc.components.schemas): string {
   if (schema.$ref === '#/components/schemas/Market')
     return 'a market, as the hand-over agreement writes it (market/1)';
-  const s = resolve(schema);
+  const s = resolve(schema, schemas);
   const options = s.anyOf ?? s.oneOf;
   if (options) {
     const nullable = options.some((option) => option.type === 'null');
     const rest = options.filter((option) => option.type !== 'null');
-    const words = [...new Set(rest.map(kindOf))].join(' or ');
+    const words = [...new Set(rest.map((option) => kindOf(option, schemas)))].join(' or ');
     return nullable ? `${words}, or null` : words;
   }
   if (s.const !== undefined) return JSON.stringify(s.const);
@@ -111,7 +117,7 @@ export function kindOf(schema: Schema): string {
     case 'boolean':
       return 'true or false';
     case 'array':
-      return s.items ? `a list of ${plural(kindOf(s.items))}` : 'a list';
+      return s.items ? `a list of ${plural(kindOf(s.items, schemas))}` : 'a list';
     case 'object':
       return 'an object';
     default:
@@ -124,40 +130,40 @@ function plural(kind: string): string {
 }
 
 /** An object's fields, one level of nesting named with dots, lists of objects with `[]`. */
-function fieldsOf(schema: Schema, prefix = '', depth = 0): Field[] {
-  const s = resolve(schema);
+function fieldsOf(schema: Schema, schemas: Schemas, prefix = '', depth = 0): Field[] {
+  const s = resolve(schema, schemas);
   if (s.$ref === undefined && schema.$ref === '#/components/schemas/Market') return [];
   const fields: Field[] = [];
   for (const [name, inner] of Object.entries(s.properties ?? {})) {
     const full = `${prefix}${name}`;
     const required = s.required?.includes(name) ?? false;
-    const field = resolve(inner);
-    const items = field.type === 'array' && field.items ? resolve(field.items) : undefined;
+    const field = resolve(inner, schemas);
+    const items = field.type === 'array' && field.items ? resolve(field.items, schemas) : undefined;
     const nested = inner.$ref === '#/components/schemas/Market' ? undefined : field;
     fields.push({
       name: full,
-      kind: kindOf(inner),
+      kind: kindOf(inner, schemas),
       required,
       ...(inner.description ? { note: inner.description } : {}),
     });
     if (depth < 2 && nested?.type === 'object' && nested.properties) {
-      fields.push(...fieldsOf(nested, `${full}.`, depth + 1));
+      fields.push(...fieldsOf(nested, schemas, `${full}.`, depth + 1));
     } else if (
       depth < 2 &&
       items?.type === 'object' &&
       items.properties &&
       field.items?.$ref !== '#/components/schemas/Market'
     ) {
-      fields.push(...fieldsOf(items, `${full}[].`, depth + 1));
+      fields.push(...fieldsOf(items, schemas, `${full}[].`, depth + 1));
     }
   }
   return fields;
 }
 
-function bodyOf(operation: Operation): Variant[] {
+function bodyOf(operation: Operation, schemas: Schemas): Variant[] {
   const schema = operation.requestBody?.content['application/json']?.schema;
   if (!schema) return [];
-  const s = resolve(schema);
+  const s = resolve(schema, schemas);
   const options = s.anyOf ?? s.oneOf;
   if (options) {
     return options.map((option) => {
@@ -169,11 +175,11 @@ function bodyOf(operation: Operation): Variant[] {
               when: `${tag[0]} is ${JSON.stringify(tag[1].const)}${option.title ? `, in ${option.title}` : ''}`,
             }
           : {}),
-        fields: fieldsOf(option),
+        fields: fieldsOf(option, schemas),
       };
     });
   }
-  return [{ fields: fieldsOf(s) }];
+  return [{ fields: fieldsOf(s, schemas) }];
 }
 
 function errorsOf(operation: Operation): ErrorAnswer[] {
@@ -194,34 +200,45 @@ function errorsOf(operation: Operation): ErrorAnswer[] {
   return found.sort((a, b) => a.status - b.status);
 }
 
+/** Every call of an OpenAPI file, in the file's order. */
+export function callsOf(document: Document): Call[] {
+  const schemas = document.components.schemas;
+  return Object.entries(document.paths).flatMap(([path, item]) =>
+    Object.entries(item).map(([method, operation]) => {
+      const parameters = operation.parameters ?? [];
+      const field = (p: (typeof parameters)[number]): Field => ({
+        name: p.name,
+        kind: kindOf(p.schema, schemas),
+        required: p.required ?? false,
+        ...(p.schema.description ? { note: p.schema.description } : {}),
+      });
+      const ok = Object.entries(operation.responses).find(([status]) => status.startsWith('2'));
+      const answer = ok?.[1].content?.['application/json']?.schema;
+      return {
+        id: operation.operationId,
+        method: method.toUpperCase(),
+        path,
+        summary: operation.summary ?? operation.operationId,
+        needsKey: (operation.security?.length ?? 0) > 0,
+        beta: operation['x-stability-level'] === 'beta',
+        takes: {
+          query: parameters.filter((p) => p.in === 'query').map(field),
+          path: parameters.filter((p) => p.in === 'path').map(field),
+          body: bodyOf(operation, schemas),
+        },
+        answers: answer ? fieldsOf(answer, schemas) : [],
+        errors: errorsOf(operation),
+      };
+    }),
+  );
+}
+
 /** Every public call, in the file's order. */
-export const calls: Call[] = Object.entries(doc.paths).flatMap(([path, item]) =>
-  Object.entries(item).map(([method, operation]) => {
-    const parameters = operation.parameters ?? [];
-    const field = (p: (typeof parameters)[number]): Field => ({
-      name: p.name,
-      kind: kindOf(p.schema),
-      required: p.required ?? false,
-      ...(p.schema.description ? { note: p.schema.description } : {}),
-    });
-    const ok = Object.entries(operation.responses).find(([status]) => status.startsWith('2'));
-    const answer = ok?.[1].content?.['application/json']?.schema;
-    return {
-      id: operation.operationId,
-      method: method.toUpperCase(),
-      path,
-      summary: operation.summary ?? operation.operationId,
-      needsKey: (operation.security?.length ?? 0) > 0,
-      takes: {
-        query: parameters.filter((p) => p.in === 'query').map(field),
-        path: parameters.filter((p) => p.in === 'path').map(field),
-        body: bodyOf(operation),
-      },
-      answers: answer ? fieldsOf(answer) : [],
-      errors: errorsOf(operation),
-    };
-  }),
-);
+export const calls: Call[] = callsOf(doc);
+
+/** What the docs say of a call in beta, beside its name (the label) and in a sentence. */
+export const BETA_LABEL = 'Beta';
+export const BETA_NOTE = 'This call may still change, or go, without a new version.';
 
 /** Where the API is, and what the file says of itself. */
 export const server = doc.servers[0]?.url ?? 'https://staging.hrizzup.com/api/v1';

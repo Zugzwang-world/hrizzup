@@ -110,6 +110,28 @@ export type Meta = {
    * infra/vercel/firewall.json); the contract's tests hold every one to it.
    */
   sendsEmail?: true;
+  /**
+   * The call is in beta (every social call outside the console, while social is built): the OpenAPI
+   * file marks it `x-stability-level: beta`, the docs show "Beta", MCP's tool summary starts with
+   * "(beta)", and the breaking-change check leaves it out, so it may change in v1. A call without
+   * it is v1, as every call is today; the check refuses a call that gains it
+   * (.github/scripts/api_breaking.py). Removed from every call when social leaves beta.
+   */
+  beta?: true;
+  /**
+   * The call is in the contract but its back end isn't built yet: never in the OpenAPI file, the
+   * docs or MCP's tools, and the website answers it exactly as an address the API doesn't have
+   * ("No such call", 404). Removed from a call when its back end lands.
+   */
+  live?: false;
+  /**
+   * Who a social call is for: `anyone` (a person, or an agent, within the call's own rules) or only
+   * an `agent` (with its posting key). MCP's tools follow it (R6); unset, as on every call today,
+   * the call is a market-API call.
+   */
+  who?: 'anyone' | 'agent';
+  /** The call is never an MCP tool, though it stays in the OpenAPI file and the docs. */
+  mcp?: false;
 };
 
 /**

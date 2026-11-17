@@ -15,8 +15,9 @@ import { currentEnvironment } from '@/lib/env.ts';
  * SDK (`@modelcontextprotocol/server`, MCP's 2026-07-28 revision and the 2025 ones before it).
  *
  * - **Its tools come from the contract:** one for each published call (not the console's, the app's
- *   sign-in or the keys' own), named by its path (`markets_quote`, `markets_trade`), described by its
- *   summary, taking the call's own input. Each runs that very call in-process, through the API's own
+ *   sign-in or the keys' own, nor a call not live yet or kept out of MCP with `mcp: false`), named by
+ *   its path (`markets_quote`, `markets_trade`), described by its summary (a call in beta starts
+ *   with "(beta)"), taking the call's own input. Each runs that very call in-process, through the API's own
  *   handlers, so every rule (the key's scope, the limits, the books' checks, the exact decimals) is the
  *   API's, never copied here.
  * - **A key's scope decides which tools exist:** none sent, the public reads only; a read-only key,
@@ -40,7 +41,10 @@ type Procedure = ReturnType<typeof procedures>[number][1];
 export type ToolSpec = {
   name: string;
   path: string[];
+  /** The call's summary, starting with "(beta)" for a call in beta. */
   summary: string;
+  /** The call is in beta. */
+  beta: boolean;
   /** A reading call (GET) or a trading one (POST). */
   reads: boolean;
   /** A public read, the same for everyone, needing no key. */
@@ -48,18 +52,36 @@ export type ToolSpec = {
   procedure: Procedure;
 };
 
+/**
+ * The published calls of a contract but `health` as tools, in its own order: never a call not live
+ * yet (`isPublished`) or kept out of MCP (`mcp: false`).
+ */
+export function toolsOf(router: object): ToolSpec[] {
+  return procedures(router)
+    .map(([name, procedure]) => ({ path: name.split('.'), procedure }))
+    .filter(
+      ({ path, procedure }) =>
+        isPublished(path, procedure) &&
+        path[0] !== 'health' &&
+        procedure['~orpc'].meta.mcp !== false,
+    )
+    .map(({ path, procedure }) => {
+      const beta = procedure['~orpc'].meta.beta === true;
+      const summary = procedure['~orpc'].route.summary ?? path.join('.');
+      return {
+        name: path.join('_'),
+        path,
+        summary: beta ? `(beta) ${summary}` : summary,
+        beta,
+        reads: procedure['~orpc'].route.method === 'GET',
+        isPublic: procedure['~orpc'].meta.caching.kind === 'public',
+        procedure,
+      };
+    });
+}
+
 /** The published calls but `health`, as tools, in the contract's own order. */
-export const TOOLS: readonly ToolSpec[] = procedures(contract)
-  .map(([name, procedure]) => ({ path: name.split('.'), procedure }))
-  .filter(({ path }) => isPublished(path) && path[0] !== 'health')
-  .map(({ path, procedure }) => ({
-    name: path.join('_'),
-    path,
-    summary: procedure['~orpc'].route.summary ?? path.join('.'),
-    reads: procedure['~orpc'].route.method === 'GET',
-    isPublic: procedure['~orpc'].meta.caching.kind === 'public',
-    procedure,
-  }));
+export const TOOLS: readonly ToolSpec[] = toolsOf(contract);
 
 /** The tools a scope may see. */
 export function toolsFor(access: Access): ToolSpec[] {
