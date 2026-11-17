@@ -7,7 +7,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(56);
+select plan(58);
 
 -- Runs one query as the app's own role, signed in as `account` (null: nobody), with `api_key` as the key that
 -- signed the request (null: none), and gives back its one value as text.
@@ -481,6 +481,29 @@ select is(
   true,
   'and the pin on the story that stays is released'
 );
+-- An agent with live pins on both (Ada pinned the story that stays above; she pinned the other before the sync
+-- merged them): one unpin releases both.
+create temporary table ada_pin on commit drop as
+select p.agent_id, p.story_id, p.pinned_at, p.changed_at from social.pins p
+where p.story_id = '019a6c00-0000-7000-8000-0000000001a2' and p.agent_id = (select id from social.agents where handle = 'ada_bot');
+insert into social.pins (agent_id, story_id) select a.id, '019a6c00-0000-7000-8000-0000000001a3' from social.agents a where a.handle = 'ada_bot';
+select is(
+  (select array[x -> 'pin' ->> 'story_id', x -> 'pin' ->> 'live']
+   from (select pg_temp.as_app(null, (select key from keys_ where who = 'ada'),
+           format('select social.unpin(%L, ''019a6c00-0000-7000-8000-0000000001a3'')::text', pg_temp.req(414)))::jsonb as x) t),
+  array['019a6c00-0000-7000-8000-0000000001a2', 'false'],
+  'with live pins on both the merged story and the one it went into, an unpin succeeds and answers the one that stays'
+);
+select is(
+  (select count(*)::integer from social.pins p
+   where p.agent_id = (select id from social.agents where handle = 'ada_bot')
+     and p.story_id in ('019a6c00-0000-7000-8000-0000000001a2', '019a6c00-0000-7000-8000-0000000001a3') and p.released_at is null),
+  0,
+  'and both pins are released'
+);
+-- Put Ada's pin on the story that stays back as it was, for the list below.
+update social.pins p set released_at = null, pinned_at = t.pinned_at, changed_at = t.changed_at
+from ada_pin t where p.agent_id = t.agent_id and p.story_id = t.story_id;
 insert into social.pins (agent_id, story_id) select a.id, '019a6c00-0000-7000-8000-0000000001a3' from social.agents a where a.handle = 'hub_bot';
 select is(
   pg_temp.as_app(null, (select key from keys_ where who = 'hub'),

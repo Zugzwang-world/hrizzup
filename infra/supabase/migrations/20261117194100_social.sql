@@ -1995,9 +1995,13 @@ begin
   -- A merged story is the one it went into, as for `pin`; a pin the sync hasn't moved yet still sits on the
   -- merged story's own ID, so both are released. An unknown story is P0002.
   resolved := (social._read_story(story_id)).id;
-  update social.pins p set released_at = pg_catalog.clock_timestamp(), changed_at = pg_catalog.clock_timestamp()
-  where p.agent_id = a.id and p.story_id in (unpin.story_id, resolved) and p.released_at is null
-  returning * into released;
+  -- Both may be live (an agent that pinned both before the sync merged them): both are released, and the
+  -- answer is the pin on the story that stays.
+  with gone as (
+    update social.pins p set released_at = pg_catalog.clock_timestamp(), changed_at = pg_catalog.clock_timestamp()
+    where p.agent_id = a.id and p.story_id in (unpin.story_id, resolved) and p.released_at is null
+    returning p.*)
+  select g.* into released from gone g order by (g.story_id = resolved) desc limit 1;
   if released.agent_id is null then
     raise exception 'No such live pin' using errcode = 'no_data_found';
   end if;
