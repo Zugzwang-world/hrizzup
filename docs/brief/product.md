@@ -2,13 +2,13 @@
 
 **This brief replaces Claude Code's report:** read it after **Sync now** instead of asking the founder for one, and attach the files under "Read for detail" from GitHub for more.
 
-> Rewritten 17 November 2026 by Round 6's relay R2, the role team and social's build plan ([#144](https://github.com/Zugzwang-world/hrizzup/pull/144)). PLAN.md wins any disagreement.
+> Rewritten 18 November 2026 by Round 6's relay R3, social's technical design ([#151](https://github.com/Zugzwang-world/hrizzup/pull/151)), keeping R4's updates. PLAN.md wins any disagreement.
 
 **Hrizzup** is a news app built around creators, plus a website with play-money prediction markets: our AI finds news as it breaks on X and turns it into developing stories. **Product builds** the website and the app (the website a stage ahead), the markets, the public API for bots and AI tools, and now social, where AI agents post their takes on every story; it shows Sourcing's stories through the content store's tables, in the hand-over agreement's shapes (`agreement/README.md`, first half Agreed).
 
 ## Where things stand
 
-- **Social is designed and planned** (the founder, 16 and 17 November 2026): the design is `docs/social/spec.md`; **its build plan** is PLAN.md step 2.8, "Social's build plan", and TRACKER.md's Round 6 queue: four phases, each ending with the founder's own review of the sandbox on staging. None of it is built yet; **Phase 1 starts next** (R3 and R4, side by side).
+- **Social is designed and planned** (the founder, 16 and 17 November 2026): the design is `docs/social/spec.md`; **its build plan** is PLAN.md step 2.8, "Social's build plan", and TRACKER.md's Round 6 queue: four phases, each ending with the founder's own review of the sandbox on staging. **Phase 1 is under way** (R3 and R4, side by side): the technical design is written (`docs/social/build.md`); nothing of social is built yet.
 - **Relays now run as a role team** (the founder, 17 November 2026): each relay is a coordinator session with four roles in `.claude/agents/` (scout, expert, builder, reviewer), each with its own model and effort, and Fable 5.2 as the advisor (CLAUDE.md, "How relays run: the role team").
 - **Round 6 is open** (milestone "Round 6"): social, plus Round 5's carried items, now R4's. The market page (3.1), the perp's page (3.4c) and the board (2.1) still wait for the design chat's designs.
 - **Staging** (`staging.hrizzup.com`, Mumbai) is public, asking search engines to stay out; previews need Vercel's login and share staging's database; production is a quiet twin.
@@ -18,7 +18,7 @@
 
 - **R1, social's records:** done, [#143](https://github.com/Zugzwang-world/hrizzup/pull/143).
 - **R2, the role team and social's build plan:** done, [#144](https://github.com/Zugzwang-world/hrizzup/pull/144): the four roles, the advisor and fork mode off, a quick check of the role files, the coordinator's playbook in CLAUDE.md; the build plan and the founder's eight answers recorded. Next: Phase 1. For the founder: nothing for R2.
-- **R3 Ground:** not started; side by side with R4.
+- **R3 Ground:** in progress. M1, the technical design ([docs/social/build.md](../social/build.md), with example data for every shape), [#151](https://github.com/Zugzwang-world/hrizzup/pull/151): posting keys in a sibling table of the key system, so a posting key never trades and a trading key never posts; invites single-use and tied to an email; one checked save for stories (`intake`), test stories on staging only; lists paged by key, Top starting as most replies, fading with age; one job a minute recounts, re-ranks and refreshes the edge; beta marks with their own breaking-change rule; one file per relay area, so side-by-side relays never share one. Next: M2, every table in one database change, then M3, the shared shapes and code. For the founder: the items below.
 - **R4 Leftovers and faster checks:** in progress: M1 (`GET /me/orders` shows a market past its closing time as closed): its database change merged, [#145](https://github.com/Zugzwang-world/hrizzup/pull/145), and the read, [#147](https://github.com/Zugzwang-world/hrizzup/pull/147). M3 done (the stand-in price's unused seed, `PERP_STAND_IN_SEED`, retired): the website stopped reading it, [#146](https://github.com/Zugzwang-world/hrizzup/pull/146); the key left Doppler `stg` on 18 November 2026; its name left `app-keys.txt`, [#148](https://github.com/Zugzwang-world/hrizzup/pull/148). M2 (the Speed warnings): the sandbox market page's first-run warning (24 of 37 checks) is traced to the first use of the browser's locale formatting on a fresh test machine; an experiment tests it first, [#149](https://github.com/Zugzwang-world/hrizzup/pull/149); the other three pages' rare warnings come from the test machine, not the pages (open question). M4: the faster-checks research, [#150](https://github.com/Zugzwang-world/hrizzup/pull/150) ([docs/research/faster-checks.md](../research/faster-checks.md)): six cuts, a push's median wait 19.1 → 7.5 minutes, every test and budget kept (open questions). For the founder: approve the faster-checks list (2, 3, 4 and 6 need your yes).
 - **R5 Board, stories and the console and R6 Join and first post:** not started; side by side after R3. Then Review 1, the founder's.
 - **R7 to R15:** not started (Phases 2 to 4, the reviews, the closing record).
@@ -41,10 +41,13 @@
 
 ## What changed in the latest session
 
-**R2 set up the role team and recorded social's build plan** ([#144](https://github.com/Zugzwang-world/hrizzup/pull/144); no product code, database, workflow, key or Doppler change):
+**R3 wrote social's technical design** ([#151](https://github.com/Zugzwang-world/hrizzup/pull/151); `docs/social/build.md` and `docs/social/examples/`; no code, database or key change). It sets every table, call, cached read and scheduled job of the beta, which relay builds what, and the tests each must pass. Three calls were taken in the relay, each recorded there:
 
-- **The role team:** the four roles in `.claude/agents/`, each pinned by full model ID with its effort; in `.claude/settings.json`, the advisor (Fable 5.2 by full ID, which the desktop app's Claude Code, 2.1.325, recognises) and fork mode off, background tasks on, plugins unchanged; `.claude/worktrees/` ignored; a quick check of the role files (`.github/scripts/test_role_team.py`) with tests proving it fails on broken ones; the coordinator's playbook in CLAUDE.md, whose round references are now current ("Round <n>").
-- **Social's build plan** in PLAN.md step 2.8 and TRACKER.md (R2 to R15, Round 5's three carried rows folded into R4), and **the eight answers** in the spec (sections 7, 8, 9, 11, 16, 17), PLAN.md (sections 2 and 7) and the status file.
+- **File reads all count** (spec, section 10): the API's file read is kept briefly in Redis rather than at the edge, so every read is counted; the spec wins over the Product chat's "files at the edge" for that one call.
+- **R6 doesn't wait for R5:** journeys reach staging's database only through a preview, so R3 makes three console calls live early (test-story save, update save, invite creation): admins only, unlisted, staging only.
+- **A retry never stores a secret:** a retried registration, key or invite answers a fresh secret and revokes the unseen first one.
+
+R4's milestones are in its progress line above.
 
 ## Open questions
 
@@ -55,12 +58,13 @@ One line each; the detail, and the rest, are in the status file.
 - **CLAUDE.md says four required checks; GitHub requires six** (Speed check and App journeys too, as `docs/setup.md` records; R4). Recommendation: the Product chat asks for a records change to CLAUDE.md saying six.
 - **Next 16.4.3** (R4): a medium security advisory (fixed from 16.4.5; 16.4.6 is past the 3-day wait), and its dev server stops with an upgrade message when an AI agent starts it, so no relay can run the website or its journeys in its slot. Recommendation: a small pull request moving to 16.4.6, after R4's Speed samples.
 - **Speed warnings from the test machine, not the page** (R4, M2): `/`, `/sign-in-test` and `/sandbox` warned in 1 or 2 of 37 checks each, from work before their code runs. Recommendation: record such a warning in the status file as "test machine, not page" with its log line, and queue a page fix only when the page's own scripts hold the excess or it warns in 2 of 5 checks in a row; the check doesn't change.
+- **Social's design, six small questions** (R3; `docs/social/build.md`, section 11). Recommendation, each yes: tasks stay private to the owner and the agent; the board's Latest orders stories by their newest update; agents upvote posts, not replies; a video or audio post needs its still image; the owner's name on a profile is what they type at the claim; Sourcing's pipeline saves stories through the same checked save (`intake`) as the console's test stories.
 - **Also in the status file:** two database tests that fail now and then (R4); editing a request's existing forms within v1; the pipeline's write access; pg_net's grants; node-forge in the Expo tool only; Vercel Pro's function billing; Vercel's toolbar; sign-ups waiting for the house; the Hermes rewrite; shared code.
 
 ## For the founder
 
-- **Create the public repository `hrizzup-skills` on GitHub before Phase 2** (R10 fills it). Recommendation: under your account, public, empty (no README), so R10's first pull request sets it up.
-- **The Workers AI token before Phase 3** (R12, readers). Recommendation: a Cloudflare API token limited to Workers AI on the free allowance, added to Doppler `stg` once its name is listed in `infra/doppler/app-keys.txt`; Claude Code lists the name first and gives you the clicks when R12 nears.
+- **Create the public repository `hrizzup-skills` on GitHub before Phase 2** (R10 fills it). Recommendation: under your account, public, empty (no README), MIT licence (any creator may reuse the kits), so R10's first pull request sets it up.
+- **The Workers AI token before Phase 3** (R12, readers). Recommendation: a Cloudflare API token limited to Workers AI on the free allowance, added to Doppler `stg` once its name is listed in `infra/doppler/app-keys.txt`; Claude Code lists the name first and gives you the clicks when R12 nears. The free 10,000 neurons a day are per Cloudflare account, so at launch production's reader agent should use an account of its own.
 - **Approve the faster-checks list** in this chat ([docs/research/faster-checks.md](../research/faster-checks.md)): 1 and 5 need nothing from you; 2, 3, 4 and 6 each touch one of your rules. Recommendation: all six, 1 and 5 first.
 - **Review 1, after R5 and R6:** look at the sandbox on staging (the board, a story's desk, an agent's first post) and tell this chat what to change; that shapes Phase 2.
 - **Optionally, set up News Desk after Review 1,** so Hrizzup's own agents post when invited owners arrive.
