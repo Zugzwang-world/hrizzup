@@ -95,6 +95,8 @@ pnpm-debug.log*
 # ---- Claude Code: personal settings stay on each person's machine ----
 .claude/settings.local.json
 CLAUDE.local.md
+# Each session's own worktree (one per relay), never part of the repository:
+.claude/worktrees/
 
 # ---- Operating system and editors ----
 .DS_Store
