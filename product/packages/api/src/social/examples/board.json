@@ -37,7 +37,14 @@
         "createdAt": "2026-11-03T10:15:00Z",
         "latestAt": "2026-11-04T05:20:00Z",
         "latestHeadline": "The team says it will publish its training recipe and open an office in Pune",
-        "counts": { "posts": 1, "replies": 2, "upvotes": 1, "views": 96, "uniqueViews": 71, "pins": 2 }
+        "counts": {
+          "posts": 1,
+          "replies": 2,
+          "upvotes": 1,
+          "views": 96,
+          "uniqueViews": 71,
+          "pins": 2
+        }
       },
       {
         "id": "01a1a57b-8ca0-7c96-8905-93eb7d0b0d54",
@@ -48,7 +55,14 @@
         "createdAt": "2026-11-04T07:35:00Z",
         "latestAt": "2026-11-04T16:20:00Z",
         "latestHeadline": "The series is level at 1-1, with the decider in Chennai on Sunday",
-        "counts": { "posts": 0, "replies": 0, "upvotes": 0, "views": 18, "uniqueViews": 15, "pins": 0 }
+        "counts": {
+          "posts": 0,
+          "replies": 0,
+          "upvotes": 0,
+          "views": 18,
+          "uniqueViews": 15,
+          "pins": 0
+        }
       }
     ],
     "next": "eyJyIjoiMjg3ODEyOTA0NDgiLCJpIjoiMDFhMWE1N2ItOGNhMC03Yzk2LTg5MDUtOTNlYjdkMGIwZDU0In0"
@@ -65,7 +79,14 @@
     "createdAt": "2026-11-02T01:40:00Z",
     "latestAt": "2026-11-03T03:50:00Z",
     "latestHeadline": "Correction: only Delhi's primary schools moved online; schools in Noida and Gurugram stay open",
-    "counts": { "posts": 2, "replies": 7, "upvotes": 4, "views": 1280, "uniqueViews": 944, "pins": 3 },
+    "counts": {
+      "posts": 2,
+      "replies": 7,
+      "upvotes": 4,
+      "views": 1280,
+      "uniqueViews": 944,
+      "pins": 3
+    },
     "state": "live",
     "withdrawnReason": null,
     "listed": true,
@@ -91,7 +112,10 @@
         "headline": "Schools across Delhi NCR move classes online until Friday",
         "body": null,
         "reportedAt": "2026-11-02T06:05:00Z",
-        "sources": ["https://example.com/sources/delhi-schools-notice", "https://example.org/posts/noida-parents-group"],
+        "sources": [
+          "https://example.com/sources/delhi-schools-notice",
+          "https://example.org/posts/noida-parents-group"
+        ],
         "corrects": null
       },
       {
@@ -106,7 +130,11 @@
     "moreUpdates": false
   },
 
-  "stories.updates.input": { "id": "01a199e9-d180-75ec-8a81-134dd403419a", "limit": 2, "cursor": "eyJ0IjoiMjAyNi0xMS0wMlQwOTo0MDowMFoiLCJpIjoiMDFhMTliYTctYWUyMC03ZmI4LWE4NDctMzU0MzhlZGRmMDExIn0" },
+  "stories.updates.input": {
+    "id": "01a199e9-d180-75ec-8a81-134dd403419a",
+    "limit": 2,
+    "cursor": "eyJ0IjoiMjAyNi0xMS0wMlQwOTo0MDowMFoiLCJpIjoiMDFhMTliYTctYWUyMC03ZmI4LWE4NDctMzU0MzhlZGRmMDExIn0"
+  },
   "stories.updates.output": {
     "updates": [
       {
@@ -114,7 +142,10 @@
         "headline": "Schools across Delhi NCR move classes online until Friday",
         "body": null,
         "reportedAt": "2026-11-02T06:05:00Z",
-        "sources": ["https://example.com/sources/delhi-schools-notice", "https://example.org/posts/noida-parents-group"],
+        "sources": [
+          "https://example.com/sources/delhi-schools-notice",
+          "https://example.org/posts/noida-parents-group"
+        ],
         "corrects": null
       },
       {
@@ -129,7 +160,11 @@
     "next": null
   },
 
-  "stories.posts.input": { "id": "01a199e9-d180-75ec-8a81-134dd403419a", "sort": "top", "limit": 1 },
+  "stories.posts.input": {
+    "id": "01a199e9-d180-75ec-8a81-134dd403419a",
+    "sort": "top",
+    "limit": 1
+  },
   "stories.posts.output": {
     "posts": [
       {
@@ -151,7 +186,10 @@
         },
         "kind": "video",
         "body": "A minute on why Delhi's air turns every November, and what the emergency rules change for you",
-        "sources": ["https://example.com/sources/delhi-air-quality-monday-morning", "https://example.com/sources/delhi-emergency-rules"],
+        "sources": [
+          "https://example.com/sources/delhi-air-quality-monday-morning",
+          "https://example.com/sources/delhi-emergency-rules"
+        ],
         "format": "explainer",
         "afterUpdateId": "01a19f94-ede0-724c-8617-706149fba27c",
         "media": {

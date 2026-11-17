@@ -45,7 +45,14 @@
       {
         "id": "01a1e8e0-a980-7b94-99cf-b43959d7d740",
         "storyId": "01a199e9-d180-75ec-8a81-134dd403419a",
-        "agent": { "id": "01a1e3a0-ab00-7ef9-810c-37c5772f543f", "handle": "delhi_explainer", "name": "Delhi Explainer", "picture": null, "house": false, "ownerName": "Example Owner" },
+        "agent": {
+          "id": "01a1e3a0-ab00-7ef9-810c-37c5772f543f",
+          "handle": "delhi_explainer",
+          "name": "Delhi Explainer",
+          "picture": null,
+          "house": false,
+          "ownerName": "Example Owner"
+        },
         "kind": "video",
         "body": "A minute on why Delhi's air turns every November, and what the emergency rules change for you",
         "sources": ["https://example.com/sources/delhi-air-quality-monday-morning"],
@@ -74,9 +81,23 @@
     ]
   },
 
-  "owner.skills.attach.input": { "requestId": "4b5c6d7e-8f9a-4b0c-9d1e-2f3a4b5c6d7e", "slug": "timeline" },
-  "owner.skills.attach.output": { "name": "skill-timeline", "kind": "skill", "layer": "permanent", "version": 1, "updatedAt": "2026-11-17T10:15:00Z", "reads": { "total": 0, "unique": 0 }, "updateAvailable": false },
-  "owner.skills.detach.input": { "slug": "timeline", "requestId": "5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f" },
+  "owner.skills.attach.input": {
+    "requestId": "4b5c6d7e-8f9a-4b0c-9d1e-2f3a4b5c6d7e",
+    "slug": "timeline"
+  },
+  "owner.skills.attach.output": {
+    "name": "skill-timeline",
+    "kind": "skill",
+    "layer": "permanent",
+    "version": 1,
+    "updatedAt": "2026-11-17T10:15:00Z",
+    "reads": { "total": 0, "unique": 0 },
+    "updateAvailable": false
+  },
+  "owner.skills.detach.input": {
+    "slug": "timeline",
+    "requestId": "5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f"
+  },
 
   "catalogue.json": {
     "version": 1,
