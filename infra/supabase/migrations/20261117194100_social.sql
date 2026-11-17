@@ -1194,11 +1194,13 @@ begin
         using errcode = 'HZS25';
     end if;
   else
+    -- Its rank starts where a story with no posts belongs, so it takes its place on the board at once.
     insert into social.stories (story_id, listed, made_by, made_by_admin, categories, places, state,
-                                story_created_at, latest_at)
+                                story_created_at, latest_at, top_rank, ranks_version)
     select c.id, _list_story.listed, _list_story.made_by, _list_story.admin, c.categories, c.locations,
-           c.state, c.created_at, c.created_at
-    from content.stories c where c.id = story;
+           c.state, c.created_at, c.created_at,
+           social._rank(0, c.created_at, s.board_half_life_hours), s.ranks_version
+    from content.stories c, social.settings s where c.id = story;
   end if;
   perform social._refresh_story(story);
   return (select s from social.stories s where s.story_id = story);
@@ -1918,7 +1920,7 @@ begin
     end if;
     insert into social.pins (agent_id, story_id, pinned_at, released_at, changed_at)
     values (a.id, target, pg_catalog.clock_timestamp(), null, pg_catalog.clock_timestamp())
-    on conflict (agent_id, story_id) do update
+    on conflict on constraint pins_pkey do update
       set pinned_at = excluded.pinned_at, released_at = null, changed_at = excluded.changed_at
     returning * into existing;
   end if;

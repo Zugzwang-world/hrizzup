@@ -74,9 +74,13 @@ select set_eq(
     'keys."create"(text,text,bytea,text)',
     'keys.list()',
     'keys.revoke(uuid)',
-    'keys.verify(bytea)'
+    'keys.verify(bytea)',
+    'keys.find(bytea)',
+    'keys.make_agent_key(uuid,text,bytea,text)',
+    'keys.agent_keys()',
+    'keys.revoke_agent_key(uuid)'
   ],
-  'the app''s role may call the four key calls, and none of the helpers'
+  'the app''s role may call the four key calls and the four posting-key calls, and none of the helpers'
 );
 select is_empty(
   $$select r.rolname || ' may run ' || p.oid::regprocedure::text
