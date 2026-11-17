@@ -11,6 +11,7 @@ import {
   isWithdrawn,
   type LiveBriefData,
   MAX_BRIEF_CHARACTERS,
+  renderBrief,
 } from './brief.ts';
 import { briefLabels } from './lists.ts';
 
@@ -220,6 +221,43 @@ describe('a story brief', () => {
     expect(built(one).markdown.indexOf('First by ID')).toBeLessThan(
       built(one).markdown.indexOf('Second by ID'),
     );
+  });
+
+  it('puts updates of one second in the order of their instants, not of their text', () => {
+    // The database writes a time without the zeros at the end of its fraction, so as text
+    // `...:00.12Z` sorts before `...:00.1Z`, and `...:00.5Z` before `...:00Z`.
+    const at = (n: number, reportedAt: string): BriefUpdate => ({
+      id: `01a00000-0000-7000-8000-${String(n).padStart(12, '0')}`,
+      headline: `Update ${reportedAt}`,
+      body: null,
+      reported_at: reportedAt,
+      sources: [],
+      corrects: null,
+    });
+    const times = [
+      '2026-11-02T01:30:00Z',
+      '2026-11-02T01:30:00.000001Z',
+      '2026-11-02T01:30:00.1Z',
+      '2026-11-02T01:30:00.12Z',
+      '2026-11-02T01:30:00.5Z',
+      '2026-11-02T01:30:01Z',
+    ];
+    // Their text order is not their time order.
+    expect([...times].sort()).not.toEqual(times);
+    for (const order of [
+      times,
+      [...times].reverse(),
+      [times[3], times[5], times[0], times[4], times[2], times[1]],
+    ]) {
+      const data = fixture();
+      data.updates = order.map((t, i) => at(i, t as string));
+      const lines = built(data)
+        .markdown.split('\n')
+        .filter((l) => l.startsWith('- 2026-11-02 01:30 UTC:'));
+      expect(lines.map((l) => l.slice('- 2026-11-02 01:30 UTC: Update '.length, -1))).toEqual(
+        times,
+      );
+    }
   });
 
   it('reads no clock, no randomness and no locale', () => {
@@ -556,6 +594,15 @@ describe('a brief of at most 20,000 characters', () => {
     expect(markdown).not.toContain(`Update number ${left - 1} `);
   });
 
+  it('keeps as many updates as fit: leaving out one fewer would go over the limit', () => {
+    const data = bigStory();
+    const markdown = built(data).markdown;
+    const left = Number(/^- (\d+) earlier updates are left out/m.exec(markdown)?.[1]);
+    expect(renderBrief(data, labels, left)).toBe(markdown);
+    expect(renderBrief(data, labels, left).length).toBeLessThanOrEqual(MAX_BRIEF_CHARACTERS);
+    expect(renderBrief(data, labels, left - 1).length).toBeGreaterThan(MAX_BRIEF_CHARACTERS);
+  });
+
   it('says it left out one update, not "updates", when only one goes', () => {
     // Updates of about 140 characters each, added until the file first goes over the limit.
     const data = fixture();
@@ -577,6 +624,8 @@ describe('a brief of at most 20,000 characters', () => {
     );
     expect(brief.markdown.length).toBeLessThanOrEqual(MAX_BRIEF_CHARACTERS);
     expect(brief.markdown.length).toBeGreaterThan(MAX_BRIEF_CHARACTERS - 400);
+    // Keeping that one too would have gone over the limit.
+    expect(renderBrief(data, labels, 0).length).toBeGreaterThan(MAX_BRIEF_CHARACTERS);
     // The oldest update is the one that went.
     expect(brief.markdown).not.toContain('Update 000.');
     expect(brief.markdown).toContain('Update 001.');

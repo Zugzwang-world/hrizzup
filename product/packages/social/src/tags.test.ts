@@ -72,9 +72,13 @@ describe("social's edge tags", () => {
     expect(isValidTag(5)).toBe(false);
     expect(isValidTag('x'.repeat(MAX_TAG_BYTES))).toBe(true);
     expect(isValidTag('x'.repeat(MAX_TAG_BYTES + 1))).toBe(false);
-    // Bytes, not characters: 86 three-byte characters are 258 bytes.
-    expect(isValidTag('あ'.repeat(86))).toBe(false);
-    expect(isValidTag('あ'.repeat(85))).toBe(true);
+    // A header value is bytes: only printable ASCII, so no non-ASCII character is a tag, however short.
+    expect(isValidTag('あ'.repeat(85))).toBe(false);
+    expect(isValidTag('social:caf\u00e9')).toBe(false);
+    expect(isValidTag('social:\u0000')).toBe(false);
+    expect(isValidTag('social:\u007f')).toBe(false);
+    expect(isValidTag('a b')).toBe(false);
+    expect(isValidTag('!"#$%&\'()*+-./:;<=>?@[\\]^_`{|}~09azAZ')).toBe(true);
   });
 
   it('come at most 8 to a response, with no repeats', () => {

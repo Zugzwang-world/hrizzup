@@ -376,10 +376,17 @@ describe("the database's refusals", () => {
   });
 });
 
-describe('the update target type', () => {
-  it('names only the two update functions', () => {
-    const targets: UpdateTarget['fn'][] = ['intake.save_update', 'social.admin_save_update'];
-    expect(targets).toHaveLength(2);
+describe('the targets name only their own functions', () => {
+  it('is proved by the typecheck: a story function is no update function, and the other way round', () => {
+    const story: StoryTarget['fn'][] = ['intake.save_story', 'social.admin_save_story'];
+    const update: UpdateTarget['fn'][] = ['intake.save_update', 'social.admin_save_update'];
+    // @ts-expect-error a story's function is not an update's
+    const wrongUpdate: UpdateTarget['fn'] = 'intake.save_story';
+    // @ts-expect-error an update's function is not a story's
+    const wrongStory: StoryTarget['fn'] = 'intake.save_update';
+    // @ts-expect-error neither takes any other name
+    const other: StoryTarget['fn'] = 'intake.save_story; drop table content.stories';
+    expect([story, update, wrongUpdate, wrongStory, other]).toHaveLength(5);
   });
 });
 

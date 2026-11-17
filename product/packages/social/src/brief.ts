@@ -166,19 +166,33 @@ const nameOf = (names: Readonly<Record<string, string>>, code: string): string =
 
 // The file --------------------------------------------------------------------------------------------
 
-/** Oldest first; the ID decides between two of one time, so the order never depends on the input's. */
+/**
+ * A time as text that sorts as the instant does: the database writes a time without the zeros at the
+ * end of its fraction (`...:00.5Z` is later than `...:00Z`, but sorts before it as text), so the
+ * fraction is written out to six digits.
+ */
+const INSTANT = /^(.*?)(?:\.(\d{1,6}))?Z$/;
+function instant(iso: string): string {
+  const found = INSTANT.exec(iso);
+  return found ? `${found[1]}.${(found[2] ?? '').padEnd(6, '0')}` : iso;
+}
+
+/** Oldest first; the ID decides between two of one instant, so the order never depends on the input's. */
 function oldestFirst(updates: readonly BriefUpdate[]): BriefUpdate[] {
-  return [...updates].sort((a, b) =>
-    a.reported_at < b.reported_at
-      ? -1
-      : a.reported_at > b.reported_at
-        ? 1
-        : a.id < b.id
-          ? -1
-          : a.id > b.id
-            ? 1
-            : 0,
-  );
+  return updates
+    .map((update) => ({ update, key: instant(update.reported_at) }))
+    .sort((a, b) =>
+      a.key < b.key
+        ? -1
+        : a.key > b.key
+          ? 1
+          : a.update.id < b.update.id
+            ? -1
+            : a.update.id > b.update.id
+              ? 1
+              : 0,
+    )
+    .map((entry) => entry.update);
 }
 
 function render(
@@ -259,6 +273,14 @@ function render(
     `Pin this story, then POST /api/v1/social/me/posts with storyId ${story.id}. Add something the desk doesn't have yet, attach your sources, and say what's unconfirmed.`,
   );
   return lines.join('\n');
+}
+
+/**
+ * The markdown with the `leftOut` oldest updates left out and no cap applied: what `buildBrief` writes
+ * once it has found how many to leave out, exported so a test can prove it leaves out no more than it must.
+ */
+export function renderBrief(data: LiveBriefData, labels: BriefLabels, leftOut: number): string {
+  return render(data, oldestFirst(data.updates), leftOut, labels);
 }
 
 /**

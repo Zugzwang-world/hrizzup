@@ -79,7 +79,16 @@ const bigintText =
     return n >= minimum && n <= BIGINT_MAX;
   };
 
-/** A time as `markets.utc` writes it, that exists (no 31 February), so `::timestamptz` never fails. */
+/** The days in a month of the Gregorian calendar (Postgres counts years the same way, back to year 1). */
+function daysIn(year: number, month: number): number {
+  if (month === 2) return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0) ? 29 : 28;
+  return [4, 6, 9, 11].includes(month) ? 30 : 31;
+}
+
+/**
+ * A time as `markets.utc` writes it, that exists (no 31 February, and no year 0000: Postgres has no
+ * year 0), so the database's `::timestamptz` never fails on it.
+ */
 const time: Check = (v) => {
   if (typeof v !== 'string') return false;
   const m = TIME.exec(v);
@@ -92,8 +101,8 @@ const time: Check = (v) => {
     number,
     number,
   ];
-  if (month < 1 || month > 12 || hour > 23 || minute > 59 || second > 59) return false;
-  return day >= 1 && day <= new Date(Date.UTC(year, month, 0)).getUTCDate();
+  if (year < 1 || month < 1 || month > 12 || hour > 23 || minute > 59 || second > 59) return false;
+  return day >= 1 && day <= daysIn(year, month);
 };
 
 /** A name: one line, no control characters, at most 100 characters (a name's own limit is lower). */

@@ -167,6 +167,15 @@ describe("a cursor that isn't its list's is refused", () => {
     const long = 'A'.repeat(MAX_CURSOR_LENGTH + 1);
     refused('top', long);
     refused('name', handMade({ n: 'x'.repeat(200), i: ID }));
+    // The edge: this one is 200 characters and otherwise good; one name character fewer is 199 and passes.
+    const at200 = handMade({ n: 'x'.repeat(99), i: ID });
+    expect(at200).toHaveLength(MAX_CURSOR_LENGTH + 1);
+    refused('name', at200);
+    const at199 = handMade({ n: 'x'.repeat(98), i: ID });
+    expect(at199).toHaveLength(MAX_CURSOR_LENGTH);
+    expect(decodeCursor('name', at199)).toEqual({ n: 'x'.repeat(98), i: ID });
+    expect(() => encodeCursor('name', { n: 'x'.repeat(99), i: ID })).toThrow(CursorError);
+    expect(encodeCursor('name', { n: 'x'.repeat(98), i: ID })).toBe(at199);
     expect(() => encodeCursor('name', { n: 'あ'.repeat(60), i: ID })).toThrow(CursorError);
     // The longest ordinary name still fits.
     expect(encodeCursor('name', { n: 'x'.repeat(60), i: ID }).length).toBeLessThan(200);
@@ -187,6 +196,25 @@ describe("a cursor that isn't its list's is refused", () => {
     refused('time', handMade({ t: '2026-02-30T00:00:00Z', i: ID }));
     refused('time', handMade({ t: '2026-13-01T00:00:00Z', i: ID }));
     refused('time', handMade({ t: '2026-11-17T24:00:00Z', i: ID }));
+    // Postgres has no year 0, so `::timestamptz` would raise: the year 0000 is refused, year 1 is not.
+    refused('time', handMade({ t: '0000-01-01T00:00:00Z', i: ID }));
+    refused('time', handMade({ t: '0000-12-31T23:59:59.999999Z', i: ID }));
+    for (const t of ['0001-01-01T00:00:00Z', '9999-12-31T23:59:59.999999Z']) {
+      expect(decodeCursor('time', handMade({ t, i: ID }))).toEqual({ t, i: ID });
+    }
+    // Leap years as the Gregorian calendar has them, also below year 100.
+    for (const t of ['2024-02-29T00:00:00Z', '2000-02-29T00:00:00Z', '0004-02-29T00:00:00Z']) {
+      expect(decodeCursor('time', handMade({ t, i: ID }))).toEqual({ t, i: ID });
+    }
+    for (const t of [
+      '2026-02-29T00:00:00Z',
+      '1900-02-29T00:00:00Z',
+      '0100-02-29T00:00:00Z',
+      '0001-02-29T00:00:00Z',
+    ]) {
+      refused('time', handMade({ t, i: ID }));
+    }
+    refused('time', handMade({ t: '2026-04-31T00:00:00Z', i: ID }));
     refused('time', handMade({ t: '2026-11-17 04:10:00Z', i: ID }));
     refused('time', handMade({ t: '2026-11-17T04:10:00+05:30', i: ID }));
     refused('time', handMade({ t: '2026-11-17T04:10:00.1234567Z', i: ID }));

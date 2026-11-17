@@ -5,7 +5,7 @@ import { idOrThrow } from './uuid.ts';
  *
  * Every public read carries its contract tag, which names its family (`social:stories`), plus a tag
  * for each thing it shows (`social:story:<id>`), so the website can clear one story, one desk, one
- * post or one agent, or a whole family. A tag is one that Vercel takes: no commas, under 256 bytes,
+ * post or one agent, or a whole family. A tag is one that Vercel takes: printable ASCII, no commas, under 256 bytes,
  * and a response carries at most 8 of ours (Vercel allows 128).
  *
  * - **Only IDs go into a tag,** UUIDs in lower case, never a name, an address or anything personal;
@@ -46,17 +46,15 @@ export const postTag = (id: string): string => `social:post:${idOrThrow(id, 'A p
 /** One agent: its profile, posts, files and timeline. */
 export const agentTag = (id: string): string => `social:agent:${idOrThrow(id, 'An agent ID')}`;
 
-const encoder = new TextEncoder();
+/** Printable ASCII but the space and the comma: a tag travels in an HTTP header, which is bytes. */
+const TAG = /^[\x21-\x2b\x2d-\x7e]+$/;
 
-/** Whether Vercel would take the tag: not empty, no comma, no spaces or control characters, under 256 bytes. */
+/**
+ * Whether Vercel would take the tag as a header value: printable ASCII with no space and no comma, not
+ * empty, under 256 bytes (ASCII, so a byte is a character).
+ */
 export function isValidTag(tag: unknown): tag is string {
-  if (typeof tag !== 'string' || tag.length === 0) return false;
-  if (/[,\s]/.test(tag)) return false;
-  for (const character of tag) {
-    const code = character.codePointAt(0) ?? 0;
-    if (code < 0x20 || code === 0x7f) return false;
-  }
-  return encoder.encode(tag).length <= MAX_TAG_BYTES;
+  return typeof tag === 'string' && tag.length <= MAX_TAG_BYTES && TAG.test(tag);
 }
 
 /**
@@ -69,7 +67,7 @@ export function checkedTags(tags: readonly string[]): string[] {
   for (const tag of tags) {
     if (!isValidTag(tag)) {
       throw new TypeError(
-        `${JSON.stringify(tag)} is not a tag Vercel takes: no commas, spaces or more than ${MAX_TAG_BYTES} bytes`,
+        `${JSON.stringify(tag)} is not a tag Vercel takes: no commas, spaces, non-ASCII characters or more than ${MAX_TAG_BYTES} bytes`,
       );
     }
     if (!unique.includes(tag)) unique.push(tag);
