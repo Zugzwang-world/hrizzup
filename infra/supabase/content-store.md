@@ -90,11 +90,22 @@ The agreement's records aren't removed: they're merged, withdrawn or made unavai
 - **The rules' functions run as the tables' owner,** like Postgres's own foreign keys, so they see every row whatever the writer may read.
 - **Only the owner can step around the rules:** the tables' owner or a superuser can switch triggers off (`session_replication_role = replica`, or disabling them), as with any table; no role a writer uses can.
 
+## The checked save: `intake`
+
+Social's database change (`migrations/*_social.sql`; [docs/social/build.md](../../docs/social/build.md), D4) adds the schema `intake`, the one place a story or an update is saved into the content store from code, owner only (no role the app uses can run it; the console's calls reach it through their own checked functions, and the news pipeline will get a role of its own, PLAN.md step 1.1):
+
+- **`intake.save_story(record)` and `intake.save_update(record)`** take the agreement's record (`story/1`, `update/1`) after `validate()` has passed it (the server's own step: `saveStory` and `saveUpdate` in `@hrizzup/content`) and write it into the tables as it is: only the shape's fields (anything else is refused, `22023`), and the tables' own rules check it again, so a record that breaks one is refused with the rule's own name.
+- **Four outcomes:** `new` (the ID isn't there yet); `same` (the very same record: nothing changes, nothing is logged); `changed` (a later `updated_at`: every field is replaced); and, for an older `updated_at`, or the same time with other words, `HZS19` (stale: a newer version is already saved).
+- **Each change is logged** in `intake.saves` (what, which record, which story, when), which the minute job reads to list new stories and the check-in reads to count new updates; it is tidied after 30 days.
+- **The rules across records are still checked when the transaction commits,** as for every writer: a save that needs several records (a merge) can be made in any order within one transaction, so a bad reference answers at the commit, not from the save. A test brings the checks forward with `set constraints all immediate`.
+- **Social keeps its own data about a story** (whether it is listed on the board, its counts and rank) in schema `social`, never in these tables, and holds no foreign key into them: it checks a story's ID where it writes one, so the store's own refusals (its removal rules, `TRUNCATE`) stay the store's.
+
 ## Tests
 
 In the Database check, on every pull request, against a fresh database built from the migrations (`pnpm test:db`):
 
 - `tests/content_store.test.sql` (pgTAP): the four tables exist, locked, with no policies and no rights for any role but their owner;
+- `tests/intake.test.sql` (pgTAP): the checked save's four outcomes, unknown fields refused, the store's own rules still refusing (the rules across records with their checks brought forward), each change logged;
 - `tests/agreement/round-trip.test.ts`: every example in `agreement/examples/` the store holds goes in and reads back unchanged, still passing `validate()`; every shape the agreement defines is held, or the step that will hold it is named (markets: 1.7c); each table has a column for each field and nothing else;
 - `tests/agreement/in-step.test.ts`: the database's copies stay in step with the agreement: its lists' codes, in order; its patterns, character for character; each field's values; and its character rules for plain text and web addresses against `validate()`, for every character there is;
 - `tests/agreement/one-record.test.ts`: every limit's edge, worked out from the definitions, and every rule on one record: `validate()` and the database agree on each;

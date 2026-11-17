@@ -8,7 +8,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(61);
+select plan(63);
 
 -- Runs one query as the app's own role, signed in as `account` (null: nobody), and gives back its one value as text.
 create function pg_temp.as_app(account text, query text)
@@ -153,11 +153,17 @@ select is(
   array['console', '00000000-0000-4000-8000-00000000d0a1', 'true', 'live', '{general}', '{global}'],
   'social''s row for it holds who made it and the copies of its categories and places'
 );
+create temporary table stamp on commit drop as
+select s.changed_at from social.stories s where s.story_id = '019a6c00-0000-7000-8000-0000000000e1';
 select is(
   pg_temp.admin(format('select social.admin_save_story(%s, true)::text',
     pg_temp.story('019a6c00-0000-7000-8000-0000000000e1', 'A story', '2026-11-17T10:00:00Z'))) ->> 'saved',
   'same',
   'the same story again is same'
+);
+select is(
+  (select s.changed_at from social.stories s where s.story_id = '019a6c00-0000-7000-8000-0000000000e1'), (select changed_at from stamp),
+  'and changes nothing in social''s row, so nothing looks newer to an agent''s check-in'
 );
 select is((select count(*)::integer from social.console_log where action = 'save_story'), 1, 'and a same save logs nothing more');
 select is(
@@ -215,11 +221,17 @@ select is(
   array['019a6c00-0000-7000-8000-0000000000f1', '2026-11-17T10:05:00Z'],
   'and the story''s newest update and its time follow it'
 );
+delete from stamp;
+insert into stamp select s.changed_at from social.stories s where s.story_id = '019a6c00-0000-7000-8000-0000000000e1';
 select is(
   pg_temp.admin(format('select social.admin_save_update(%s)::text',
     pg_temp.update('019a6c00-0000-7000-8000-0000000000f1', '019a6c00-0000-7000-8000-0000000000e1', 'A headline', '2026-11-17T10:05:00Z'))) ->> 'saved',
   'same',
   'the same update again is same'
+);
+select is(
+  (select s.changed_at from social.stories s where s.story_id = '019a6c00-0000-7000-8000-0000000000e1'), (select changed_at from stamp),
+  'and the story''s row is left as it is'
 );
 select is(
   pg_temp.admin_fails(format('select social.admin_save_update(%s)::text',

@@ -1176,7 +1176,9 @@ as $$
   where s.story_id = story and c.id = story
 $$;
 
-create function social._list_story(story uuid, listed boolean, made_by text, admin uuid)
+-- `touch` false (a save that was the same as what's there) leaves the row exactly as it is: nothing changed,
+-- so nothing is newer for the check-in.
+create function social._list_story(story uuid, listed boolean, made_by text, admin uuid, touch boolean default true)
 returns social.stories
 language plpgsql
 set search_path = ''
@@ -1192,6 +1194,9 @@ begin
     if known.listed is distinct from _list_story.listed then
       raise exception 'Whether a story is listed is chosen when it is made and never changes'
         using errcode = 'HZS25';
+    end if;
+    if not touch then
+      return known;
     end if;
   else
     -- Its rank starts where a story with no posts belongs, so it takes its place on the board at once.
@@ -2826,7 +2831,7 @@ begin
     raise exception 'A story is listed or not' using errcode = 'invalid_parameter_value';
   end if;
   saved := intake.save_story(record);
-  made := social._list_story((saved ->> 'id')::uuid, listed, 'console', who);
+  made := social._list_story((saved ->> 'id')::uuid, listed, 'console', who, saved ->> 'saved' <> 'same');
   if saved ->> 'saved' <> 'same' then
     perform social._log(who, 'save_story', made.story_id, jsonb_build_object('saved', saved ->> 'saved', 'listed', made.listed), null);
   end if;
@@ -2852,8 +2857,8 @@ begin
   end if;
   saved := intake.save_update(record);
   select u.story_id into story from content.updates u where u.id = (saved ->> 'id')::uuid;
-  perform social._refresh_story(story);
   if saved ->> 'saved' <> 'same' then
+    perform social._refresh_story(story);
     perform social._log(who, 'save_update', (saved ->> 'id')::uuid, jsonb_build_object('saved', saved ->> 'saved', 'story_id', story), null);
   end if;
   return jsonb_build_object('id', saved ->> 'id', 'story_id', story, 'saved', saved ->> 'saved');
