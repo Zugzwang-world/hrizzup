@@ -40,6 +40,8 @@ describe("a stand-in perp's price", () => {
     const own = priceFor({ ...standIn, seed: SEED }, { seed: undefined })(T);
     expect(own.price).toBeGreaterThan(0);
     expect(priceFor({ ...standIn, seed: SEED }, { seed: OTHER_SEED })(T)).toEqual(own);
+    // The two seeds give different prices at T, so the test above can tell which one was used.
+    expect(priceFor({ ...standIn, seed: OTHER_SEED }, { seed: undefined })(T)).not.toEqual(own);
   });
 
   it("falls back to the source's seed when the perp has none of its own", () => {

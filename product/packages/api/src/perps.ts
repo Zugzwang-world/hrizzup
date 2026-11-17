@@ -94,7 +94,10 @@ export const consolePerp = z.object({
     origin: moment,
     startPrice: decimal,
     volatility: decimal,
-    /** Whether it has a seed of its own (a test perp), or uses the environment's secret one. */
+    /**
+     * Whether it has a seed of its own (a test perp). False means none of its own, so its
+     * stand-in price isn't set up (the listed perp is on our own price).
+     */
     ownSeed: z.boolean(),
   }),
   /** How many steps (trades, prices, fundings) it has run. */
