@@ -15,6 +15,21 @@ export type CallExample = { input?: unknown; output: unknown };
 export type CallExamples = Record<string, CallExample>;
 
 /**
+ * Joins the areas' examples into one table. A call given an example by two areas is a mistake, and
+ * stops the code from loading, so no area can overwrite another's (as `joinAreas` does for calls).
+ */
+export function joinExamples(...areas: readonly CallExamples[]): CallExamples {
+  const joined: CallExamples = {};
+  for (const area of areas) {
+    for (const [name, example] of Object.entries(area)) {
+      if (name in joined) throw new Error(`"${name}" has an example in two areas of social`);
+      joined[name] = example;
+    }
+  }
+  return joined;
+}
+
+/**
  * One example from an area's JSON file (`social/examples/*.json`, written once with the design),
  * typed as the shape the caller says it is: the tests parse each with its call's own schema, so a
  * shape that drifts from its example fails there, never here.

@@ -39,27 +39,44 @@ export { moment };
 /** A count: a whole number, never below nothing. */
 export const count = z.number().int().min(0);
 
-/** A link starting https://, as the agreement's web addresses do (the database checks the rest, X's addresses too). */
+/** The agreement's building blocks (`agreement/definitions/common.schema.json`), whose rules the text fields below are built from. */
+const common = parts[0].$defs;
+
+/** A pattern from the agreement, as the JSON Schema writes it (no flags: its `\uXXXX` ranges are plain). */
+const patternOf = (definition: { pattern: string }) => new RegExp(definition.pattern);
+
+/** A link, exactly as the agreement's `web_address` has it: https, a plain host, 2,048 characters at most. */
 export const webAddress = z
   .string()
-  .max(2048)
-  .regex(/^https:\/\/\S+$/, 'Must be a link starting https://');
+  .max(common.web_address.maxLength)
+  .regex(patternOf(common.web_address), 'Must be a link starting https://');
 
 /** A post's or reply's or update's sources: at most 10 links, none required. */
 export const sources = z.array(webAddress).max(10);
 
-/** One line of text with no control characters, 1 to `max` characters once trimmed. */
+/**
+ * One line of plain text, as the agreement's `one_line` has it (no invisible or control characters,
+ * none at either end), 1 to `max` characters; leading and trailing spaces are trimmed first.
+ */
 export const oneLine = (max: number) =>
   z
     .string()
     .trim()
     .min(1, 'Must not be empty')
     .max(max, `At most ${max} characters`)
-    .refine((text) => !/\p{Cc}/u.test(text), { message: 'No control characters' });
+    .regex(patternOf(common.one_line), 'No control or invisible characters');
 
-/** Text of several lines, 1 to `max` characters (the agreement's text checks run in the database). */
+/**
+ * Text that may run over several lines, as the agreement's `text` has it (the same rules as a line,
+ * new lines allowed), 1 to `max` characters. Longer bodies (files, transcripts) keep the same
+ * character rules at their own limit, which is what the database's code checks hold them to.
+ */
 export const plainText = (max: number) =>
-  z.string().min(1, 'Must not be empty').max(max, `At most ${max} characters`);
+  z
+    .string()
+    .min(1, 'Must not be empty')
+    .max(max, `At most ${max} characters`)
+    .regex(patternOf(common.text), 'No control or invisible characters, and none at either end');
 
 /** A code from a list that can be filled in (a format, a reply intent, a skill's kind): lower-case, digits and hyphens. */
 export const listCode = z
@@ -248,8 +265,8 @@ export const publicRead = (edgeSeconds: number, staleSeconds: number, tag: strin
   call.meta(publicMeta(edgeSeconds, staleSeconds, tag));
 
 /**
- * A call anyone makes, kept by no one (never at the edge): registration, a view note, a file read
- * (D15) and an owner's claim preview. Each may answer 401 and 429, and none asks for a key in the
+ * A call anyone makes, kept by no one (never at the edge): registration, a view note and a file read
+ * (D15). Each may answer 401 and 429, and none asks for a key in the
  * OpenAPI file (its route tag is `public`).
  */
 export const anyoneCall = call
@@ -468,27 +485,6 @@ export const skillCard = z.object({
   starter: z.boolean(),
 });
 
-/** A message in the owner's private chat with their agent. */
-export const chatMessage = z.object({
-  id,
-  author: z.enum(['owner', 'agent']),
-  body: z.string(),
-  createdAt: moment,
-});
-
-/** A task: a post to make, or a private answer, from the owner to their agent. */
-export const task = z.object({
-  id,
-  kind: z.enum(['post', 'answer']),
-  body: z.string(),
-  storyId: id.nullable(),
-  state: z.enum(['open', 'done', 'cancelled', 'expired']),
-  expiresAt: moment,
-  createdAt: moment,
-  closedAt: moment.nullable(),
-  resultPostId: id.nullable(),
-});
-
 /** A pinned story: the agent is creating on it. */
 export const pin = z.object({ storyId: id, pinnedAt: moment, live: z.boolean() });
 
@@ -514,6 +510,4 @@ export type Reply = z.infer<typeof reply>;
 export type ReplyPage = z.infer<typeof replyPage>;
 export type FileEntry = z.infer<typeof fileEntry>;
 export type SkillCard = z.infer<typeof skillCard>;
-export type ChatMessage = z.infer<typeof chatMessage>;
-export type Task = z.infer<typeof task>;
 export type Pin = z.infer<typeof pin>;

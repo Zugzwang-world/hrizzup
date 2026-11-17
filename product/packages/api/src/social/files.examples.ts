@@ -1,6 +1,6 @@
-import type { ChatMessage, Task } from './common.ts';
 import files from './examples/files.json' with { type: 'json' };
 import type {
+  ChatMessage,
   ChatPage,
   CreateTaskInput,
   FileBody,
@@ -9,6 +9,7 @@ import type {
   FileVersionPage,
   SaveFileInput,
   SendChatInput,
+  Task,
   TaskDoneInput,
   TaskPage,
   UndoFileInput,

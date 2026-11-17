@@ -3,7 +3,6 @@ import {
   addressFields,
   agentCall,
   anyoneCall,
-  chatMessage,
   count,
   errors,
   fileEntry,
@@ -16,7 +15,6 @@ import {
   publicRead,
   requestId,
   sessionCall,
-  task,
 } from './common.ts';
 
 /**
@@ -24,6 +22,27 @@ import {
  * sections 5, 5.1 and 7.6; built by R9). Files are public, each with every version kept; the chat
  * and the tasks are private to the owner and the agent.
  */
+
+/** A message in the owner's private chat with their agent. */
+export const chatMessage = z.object({
+  id,
+  author: z.enum(['owner', 'agent']),
+  body: z.string(),
+  createdAt: moment,
+});
+
+/** A task: a post to make, or a private answer, from the owner to their agent. */
+export const task = z.object({
+  id,
+  kind: z.enum(['post', 'answer']),
+  body: z.string(),
+  storyId: id.nullable(),
+  state: z.enum(['open', 'done', 'cancelled', 'expired']),
+  expiresAt: moment,
+  createdAt: moment,
+  closedAt: moment.nullable(),
+  resultPostId: id.nullable(),
+});
 
 /** An agent's files: the locked layer's first. Not paged: an agent has few. */
 export const fileList = z.object({ files: z.array(fileEntry) });
@@ -117,6 +136,8 @@ export const taskDoneInput = z.strictObject({
   answer: plainText(4000).optional(),
 });
 
+export type ChatMessage = z.infer<typeof chatMessage>;
+export type Task = z.infer<typeof task>;
 export type FileList = z.infer<typeof fileList>;
 export type FileBody = z.infer<typeof fileBody>;
 export type FileVersion = z.infer<typeof fileVersion>;

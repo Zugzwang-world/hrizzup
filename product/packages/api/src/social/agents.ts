@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { noInput } from '../builders.ts';
+import { call, noInput } from '../builders.ts';
 import { checkIn, checkinDone, checkinDoneInput } from './checkin.ts';
 import {
   addressFields,
@@ -30,6 +30,7 @@ import {
   reply,
   requestId,
   sessionCall,
+  sessionMeta,
   skillCard,
 } from './common.ts';
 
@@ -434,14 +435,19 @@ export const agentsCalls = {
 
   owner: {
     /** What a claim link shows before anyone signs in. At most 20 a minute from an address. */
-    claimPreview: sessionCall
+    claimPreview: call
+      .meta(sessionMeta)
+      .errors({
+        ...errors.unauthorized('Not signed in'),
+        ...errors.tooMany(),
+        ...errors.notFound('claim link'),
+      })
       .route({
         method: 'POST',
         path: '/owner/claims/preview',
         summary: 'Look at an agent before you claim it',
         tags: ['owner'],
       })
-      .errors(errors.notFound('claim link'))
       .input(z.strictObject({ token: claimToken }))
       .output(claimPreview),
 

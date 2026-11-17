@@ -1,6 +1,8 @@
-import { contract, isSocialCall, type Meta, procedures } from '@hrizzup/api';
-import { createRouterClient, isProcedure, os } from '@orpc/server';
-import { describe, expect, it } from 'vitest';
+import { contract, isSocialCall, type Meta, procedures, social as socialApi } from '@hrizzup/api';
+import { health, social as socialExamples } from '@hrizzup/api/examples';
+import { createRouterClient, isProcedure, os, Procedure } from '@orpc/server';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { api } from './base.ts';
 import { isReachable, reachable } from './reachable.ts';
 import { router } from './router.ts';
 
@@ -134,6 +136,43 @@ describe('a social call that is live, once one is built', () => {
 
   it('is not served where social is off, in any of its four groups, and the market API is untouched', () => {
     expect(served(false)).toEqual(['admin.markets.list', 'markets.list']);
+  });
+});
+
+describe('a live social call, called in process', () => {
+  // None is live yet: a made-up one (the contract's own `social.lists`, its not-live mark taken off
+  // with live()) shows base.ts's social-off choice by itself. It is made from base.ts's implementer,
+  // so its middleware is the one the website's own server code meets.
+  const built = api.social.lists.handler(() => socialExamples.board.lists);
+  const liveSocial = new Procedure({
+    ...built['~orpc'],
+    meta: { ...built['~orpc'].meta, ...socialApi.live(socialApi.anyoneMeta) },
+  });
+  const liveMarket = api.health.handler(() => health);
+  const client = createRouterClient(
+    { health: liveMarket, social: { lists: liveSocial } },
+    { context: { headers: new Headers() } },
+  );
+
+  beforeEach(() => {
+    vi.stubEnv('VERCEL', '1');
+    vi.stubEnv('VERCEL_TARGET_ENV', 'staging');
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('is called where social is on', async () => {
+    expect(liveSocial['~orpc'].meta.live).toBeUndefined();
+    await expect(client.social.lists()).resolves.toEqual(socialExamples.board.lists);
+  });
+
+  it('is told “No such call” where social is off, and a live call that is not social’s is not', async () => {
+    vi.stubEnv('VERCEL_TARGET_ENV', 'production');
+    await expect(client.social.lists()).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+      status: 404,
+      message: 'No such call',
+    });
+    await expect(client.health()).resolves.toEqual(health);
   });
 });
 

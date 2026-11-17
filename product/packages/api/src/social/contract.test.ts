@@ -4,6 +4,9 @@ import { contract } from '../contract.ts';
 import { commonErrors } from '../paging.ts';
 import { isPublished, isSocialCall, procedures } from '../procedures.ts';
 import { standIn } from '../stand-in.ts';
+import { adminExamples } from './admin.examples.ts';
+import { agentsExamples } from './agents.examples.ts';
+import { boardExamples } from './board.examples.ts';
 import { checkIn } from './checkin.ts';
 import {
   agentCall,
@@ -13,19 +16,30 @@ import {
   consoleMeta,
   filterFields,
   live,
+  oneLine,
   placeCode,
   placeFilter,
+  plainText,
   publicMeta,
   sessionMeta,
   sortCode,
+  sources,
+  webAddress,
 } from './common.ts';
 import { socialContract } from './contract.ts';
 import samples from './examples/errors.json' with { type: 'json' };
 import { callExamples } from './examples.ts';
+import { filesExamples } from './files.examples.ts';
 import { checkinOwner } from './files.ts';
+import { joinExamples } from './kit.ts';
+import { mediaExamples } from './media.examples.ts';
 import { joinAreas } from './merge.ts';
+import { readersExamples } from './readers.examples.ts';
+import { repliesExamples } from './replies.examples.ts';
 import { checkinInbox } from './replies.ts';
+import { signalsExamples } from './signals.examples.ts';
 import { checkinStats } from './signals.ts';
+import { skillsExamples } from './skills.examples.ts';
 
 /**
  * Social's contract (docs/social/build.md, sections 5 and 9.2): every call in section 5's table, with
@@ -534,6 +548,60 @@ describe("the check-in, composed from each area's own section", () => {
   });
 });
 
+describe("social's text, built from the agreement's own rules", () => {
+  it('takes a link as the agreement’s web address: https, a plain host, no name or password, 2,048 characters', () => {
+    for (const good of ['https://example.com/a?b=c#d', 'https://a-b.example.org:8443/x']) {
+      expect(webAddress.safeParse(good).success, good).toBe(true);
+    }
+    for (const bad of [
+      'http://example.com/a',
+      'https://user:pw@example.com/',
+      'https://localhost/',
+      'https://exa mple.com/',
+      `https://example.com/${'a'.repeat(2048)}`,
+    ]) {
+      expect(webAddress.safeParse(bad).success, bad).toBe(false);
+    }
+    expect(sources.safeParse(Array(10).fill('https://example.com/a')).success).toBe(true);
+    expect(sources.safeParse(Array(11).fill('https://example.com/a')).success).toBe(false);
+  });
+
+  it('takes a line as the agreement’s one line: trimmed, no control or invisible characters', () => {
+    expect(oneLine(60).parse('  A plain line  ')).toBe('A plain line');
+    for (const bad of ['', '   ', 'two\nlines', 'zero\u200bwidth', 'bell\u0007', 'x'.repeat(61)]) {
+      expect(oneLine(60).safeParse(bad).success, JSON.stringify(bad)).toBe(false);
+    }
+  });
+
+  it('takes text as the agreement’s text: new lines inside, never at an end, no invisible characters, at its own limit', () => {
+    expect(plainText(5000).safeParse('Two\nlines, and a 😀').success).toBe(true);
+    for (const bad of ['', 'ends\n', ' starts', 'zero\u200bwidth', 'x'.repeat(5001)]) {
+      expect(plainText(5000).safeParse(bad).success, JSON.stringify(bad)).toBe(false);
+    }
+    // A long body (a file, a transcript) keeps the character rules, and is checked quickly.
+    const long = `${'A line of a file.\n'.repeat(2500)}The end`;
+    const started = Date.now();
+    expect(plainText(50000).safeParse(long).success).toBe(true);
+    expect(plainText(50000).safeParse(`${long}\n`).success).toBe(false);
+    expect(Date.now() - started).toBeLessThan(500);
+  });
+
+  it('declares a claim preview’s 401 and 429 and its 404 only: nobody need be signed in, so no 403', () => {
+    const errors = errorsOf('owner.claimPreview');
+    expect(Object.keys(errors).sort()).toEqual(
+      [
+        'BAD_REQUEST',
+        'NOT_FOUND',
+        'SERVICE_UNAVAILABLE',
+        'TOO_MANY_REQUESTS',
+        'UNAUTHORIZED',
+      ].sort(),
+    );
+    expect(errors.FORBIDDEN).toBeUndefined();
+    expect(meta('owner.claimPreview').who).toBeUndefined();
+  });
+});
+
 describe("social's lists", () => {
   it('are built from the agreement’s: a category, a place or a tier, and a sort', () => {
     expect(categoryCode.safeParse('ai').success).toBe(true);
@@ -553,6 +621,32 @@ describe("social's lists", () => {
 describe("social's examples", () => {
   it('are there for every call, and for nothing else', () => {
     expect(Object.keys(callExamples).sort()).toEqual(calls.map(([name]) => name).sort());
+  });
+
+  it('are each given by one area: the areas’ own counts add up to every call, and none overwrites another', () => {
+    const areas = {
+      board: boardExamples,
+      admin: adminExamples,
+      agents: agentsExamples,
+      replies: repliesExamples,
+      media: mediaExamples,
+      files: filesExamples,
+      signals: signalsExamples,
+      readers: readersExamples,
+      skills: skillsExamples,
+    };
+    const counts = Object.values(areas).map((area) => Object.keys(area).length);
+    expect(counts.reduce((sum, count) => sum + count, 0)).toBe(calls.length);
+    expect(Object.keys(callExamples).length).toBe(calls.length);
+    // Each area's examples are its own calls' (the very ones the joined table holds).
+    for (const area of Object.values(areas)) {
+      for (const [name, example] of Object.entries(area)) {
+        expect(callExamples[name], name).toBe(example);
+      }
+    }
+    expect(() => joinExamples(boardExamples, { 'social.board': { output: {} } })).toThrow(
+      /two areas/,
+    );
   });
 
   it('pass the schemas of the call they belong to: the input a caller sends, and the answer it gets', async () => {

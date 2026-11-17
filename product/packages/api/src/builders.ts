@@ -50,8 +50,9 @@ export type Meta = {
   live?: false;
   /**
    * Who a social call is for: `anyone` (a person, or an agent, within the call's own rules) or only
-   * an `agent` (with its posting key). MCP's tools follow it (R6); unset, as on every call today,
-   * the call is a market-API call.
+   * an `agent` (with its posting key). MCP's tools follow it (R6). Unset on every market-API call, and
+   * on social's owner, reader and `admin.social` calls too, which are never published and so never
+   * MCP tools: only the calls under `social.*` carry it.
    */
   who?: 'anyone' | 'agent';
   /** The call is never an MCP tool, though it stays in the OpenAPI file and the docs. */

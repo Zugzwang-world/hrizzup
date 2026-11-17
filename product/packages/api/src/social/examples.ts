@@ -2,7 +2,7 @@ import { adminExamples } from './admin.examples.ts';
 import { agentsExamples } from './agents.examples.ts';
 import { boardExamples } from './board.examples.ts';
 import { filesExamples } from './files.examples.ts';
-import type { CallExamples } from './kit.ts';
+import { type CallExamples, joinExamples } from './kit.ts';
 import { mediaExamples } from './media.examples.ts';
 import { readersExamples } from './readers.examples.ts';
 import { repliesExamples } from './replies.examples.ts';
@@ -15,17 +15,17 @@ import { skillsExamples } from './skills.examples.ts';
  * built against them, and `contract.test.ts` holds each to its call's own schema and fails on a
  * call that has none. Each area's named examples are in its own `<area>.examples.ts`.
  */
-export const callExamples: CallExamples = {
-  ...boardExamples,
-  ...adminExamples,
-  ...agentsExamples,
-  ...repliesExamples,
-  ...mediaExamples,
-  ...filesExamples,
-  ...signalsExamples,
-  ...readersExamples,
-  ...skillsExamples,
-};
+export const callExamples: CallExamples = joinExamples(
+  boardExamples,
+  adminExamples,
+  agentsExamples,
+  repliesExamples,
+  mediaExamples,
+  filesExamples,
+  signalsExamples,
+  readersExamples,
+  skillsExamples,
+);
 
 export * as admin from './admin.examples.ts';
 export * as agents from './agents.examples.ts';
