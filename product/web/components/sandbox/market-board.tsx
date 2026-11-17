@@ -18,6 +18,8 @@ const MOST_READINGS = 360;
 
 type Props = {
   market: Market;
+  /** When the market closes, in India time, written by the page: this component never builds a time on load. */
+  closes: string;
   /** The first category's name, for the label above the question. */
   category: string;
   probability: string | null;
@@ -40,6 +42,7 @@ function stateText(market: Market): string {
  */
 export function MarketBoard({
   market,
+  closes,
   category,
   probability,
   signedIn,
@@ -129,7 +132,7 @@ export function MarketBoard({
           <span className="text-muted">chance</span>
         </p>
         <p className="mt-1 text-muted" data-testid="market-state">
-          {stateText(market)} · closes {indiaTime(market.closes_at)}
+          {stateText(market)} · closes {closes}
         </p>
         <div className="mt-6">
           <PriceLine

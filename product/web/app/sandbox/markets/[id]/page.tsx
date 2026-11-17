@@ -2,6 +2,7 @@ import { categories } from '@hrizzup/api';
 import { notFound } from 'next/navigation';
 import { MarketBoard } from '@/components/sandbox/market-board.tsx';
 import { MARKET_ID } from '@/lib/console.ts';
+import { indiaTime } from '@/lib/console-format.ts';
 import { findMarket, ordersIn, positionIn, viewer } from '@/lib/sandbox/data.ts';
 import { sandboxOnly } from '@/lib/sandbox/gate.ts';
 
@@ -26,6 +27,7 @@ export default async function SandboxMarket({ params }: Props) {
   return (
     <MarketBoard
       market={listed.market}
+      closes={indiaTime(listed.market.closes_at)}
       category={categories.find((c) => c.code === listed.market.categories[0])?.name ?? ''}
       probability={listed.probability}
       signedIn={who.signedIn}

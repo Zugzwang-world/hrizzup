@@ -108,17 +108,23 @@ export function lineOf(
 
 // The perp -----------------------------------------------------------------------------------------------
 
-const USD = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
+// Built on first use, never when the module loads (see `indiaTime` in console-format.ts).
+let dollarFormat: Intl.NumberFormat | undefined;
+
+function usdFormat(): Intl.NumberFormat {
+  dollarFormat ??= new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  return dollarFormat;
+}
 
 /** A price in US dollars for the screen: $74,250.12. */
 export function usd(price: number | string): string {
   const value = Number(price);
-  return Number.isFinite(value) ? USD.format(value) : '–';
+  return Number.isFinite(value) ? usdFormat().format(value) : '–';
 }
 
 /** A change in a price, with its sign: "+$907.00 (+1.2%)", "−$12.50 (−0.02%)". */
@@ -126,7 +132,7 @@ export function change(from: number, to: number): string {
   const delta = to - from;
   const sign = delta > 0 ? '+' : delta < 0 ? '−' : '';
   const percent = from === 0 ? 0 : (Math.abs(delta) / from) * 100;
-  return `${sign}${USD.format(Math.abs(delta))} (${sign}${percent.toFixed(2)}%)`;
+  return `${sign}${usdFormat().format(Math.abs(delta))} (${sign}${percent.toFixed(2)}%)`;
 }
 
 /** Where a position is liquidated, to the cent, as Manifold's maths has it: its entry price moved by 1 / leverage. */

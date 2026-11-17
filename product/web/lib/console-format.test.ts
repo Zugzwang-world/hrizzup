@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   dollars,
   indiaTime,
@@ -36,6 +36,21 @@ describe('times in the market console', () => {
   it('are shown in India time, and fill the fields the same way', () => {
     expect(indiaTime('2026-11-10T12:30:00Z')).toMatch(/^10 Nov 2026, 6:00\s?pm IST$/i);
     expect(utcToIndiaField(new Date('2026-11-10T12:30:00Z'))).toBe('2026-11-10T18:00');
+  });
+});
+
+describe('the India-time formatter', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('is built the first time a time is shown, once, and never when the module loads', async () => {
+    vi.resetModules();
+    const built = vi.spyOn(Intl, 'DateTimeFormat');
+    const fresh = await import('./console-format.ts');
+    expect(built).not.toHaveBeenCalled();
+    expect(fresh.indiaTime('2026-11-10T12:30:00Z')).toMatch(/^10 Nov 2026, 6:00\s?pm IST$/i);
+    expect(built).toHaveBeenCalledTimes(1);
+    expect(fresh.indiaTime('2026-11-10T12:30:00Z')).toBe(fresh.indiaTime('2026-11-10T12:30:00Z'));
+    expect(built).toHaveBeenCalledTimes(1);
   });
 });
 

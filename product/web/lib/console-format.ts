@@ -7,19 +7,26 @@
 
 const INDIA = 'Asia/Kolkata';
 
-const shown = new Intl.DateTimeFormat('en-IN', {
-  timeZone: INDIA,
-  day: 'numeric',
-  month: 'short',
-  year: 'numeric',
-  hour: 'numeric',
-  minute: '2-digit',
-  hour12: true,
-});
+// Built on first use, never when the module loads: a page that shows no time then never makes the
+// browser load its locale data while the page is loading (the Speed check's busy time).
+let shown: Intl.DateTimeFormat | undefined;
+
+function indiaFormat(): Intl.DateTimeFormat {
+  shown ??= new Intl.DateTimeFormat('en-IN', {
+    timeZone: INDIA,
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+  return shown;
+}
 
 /** A moment as people read it, in India time: "10 Nov 2026, 6:00 pm IST". */
 export function indiaTime(iso: string): string {
-  return `${shown.format(new Date(iso))} IST`;
+  return `${indiaFormat().format(new Date(iso))} IST`;
 }
 
 /**

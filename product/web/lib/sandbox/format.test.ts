@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { money } from '../console-format.ts';
 import {
   cents,
@@ -138,6 +138,22 @@ describe("a perp's figures", () => {
     expect(times(3)).toBe('3x');
     expect(times('3.9')).toBe('3.9x');
     expect(times('10.0000')).toBe('10x');
+  });
+});
+
+describe("a perp's dollar formatter", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('is built the first time a price is shown, once, and never when the module loads', async () => {
+    vi.resetModules();
+    const built = vi.spyOn(Intl, 'NumberFormat');
+    const fresh = await import('./format.ts');
+    expect(built).not.toHaveBeenCalled();
+    expect(fresh.usd(74250.123)).toBe('$74,250.12');
+    expect(built).toHaveBeenCalledTimes(1);
+    expect(fresh.change(100, 101.5)).toBe('+$1.50 (+1.50%)');
+    expect(fresh.usd('x')).toBe('–');
+    expect(built).toHaveBeenCalledTimes(1);
   });
 });
 
