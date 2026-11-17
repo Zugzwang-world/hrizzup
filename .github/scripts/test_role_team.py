@@ -14,11 +14,13 @@ founder decided:
     releases), its effort and its tools, each one a background subagent keeps;
   - the team is exactly the scout, the expert, the builder and the reviewer, each with the
     founder's model and effort; the scout can't write or run a shell, the reviewer can't
-    write, and no role gets a worktree of its own (`isolation`, or the worktree tools), since a
-    new worktree starts from `main` without the relay's work;
-  - `.claude/settings.json` keeps the advisor (Fable 5.2, by full ID) and fork mode off, so
-    roles start fresh and the coordinator waits for them; leaves background tasks on, since
-    the check watcher needs them; and sets nothing that overrides the roles' models or effort;
+    write, and neither names an MCP server's tool, which no list can prove read-only; no role
+    gets a worktree of its own (`isolation`, or the worktree tools), since a new worktree starts
+    from `main` without the relay's work;
+  - `.claude/settings.json` keeps the advisor (Fable 5.2, by full ID) and fork mode off, so a
+    call to a role starts it fresh, never as a copy of the coordinator's conversation; leaves
+    background tasks on, since the check watcher needs them; and sets nothing that overrides
+    the roles' models or effort;
   - `.gitignore` keeps the sessions' worktrees out of the repository.
 
 Python's standard library only.
@@ -55,7 +57,9 @@ WRITERS = {"Edit", "Write", "NotebookEdit"}
 SHELLS = {"Bash", "PowerShell"}
 OWN_WORKTREE = {"EnterWorktree", "ExitWorktree"}
 
-# The founder's team (17 November 2026): each role's model, its effort, and the tools it never has.
+# The founder's team (17 November 2026): each role's model, its effort, and the tools it never
+# has; the READ_ONLY roles name no MCP server's tool either, since none can be proven read-only.
+READ_ONLY = {"scout", "reviewer"}
 TEAM = {
     "scout": ("claude-sonnet-5-5", "xhigh", WRITERS | SHELLS),
     "expert": ("claude-opus-5-5", "max", set()),
@@ -180,6 +184,9 @@ def team_problems(found):
         barred = sorted(have["tools"] & (never | OWN_WORKTREE))
         if barred:
             problems.append(f"{name} has {', '.join(barred)}, which it must never have")
+        mcp = sorted(tool for tool in have["tools"] if MCP_TOOL.match(tool))
+        if name in READ_ONLY and mcp:
+            problems.append(f"{name} has {', '.join(mcp)}: an MCP tool may write or run commands")
     return problems
 
 
@@ -342,6 +349,8 @@ class TheCheckItself(unittest.TestCase):
             "a scout that writes": {"scout": {"tools": {"Read", "Edit"}}},
             "a scout with a shell": {"scout": {"tools": {"Read", "Bash"}}},
             "a reviewer that writes": {"reviewer": {"tools": {"Read", "Bash", "Write"}}},
+            "a scout with an MCP tool": {"scout": {"tools": {"Read", "mcp__terminal__run_in_terminal"}}},
+            "a reviewer with an MCP tool": {"reviewer": {"tools": {"Read", "mcp__github__push_files"}}},
             "a builder with its own worktree": {"builder": {"tools": {"Read", "EnterWorktree"}}},
         }
         for case, changes in cases.items():
