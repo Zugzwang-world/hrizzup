@@ -606,6 +606,22 @@ describe("social's text, built from the agreement's own rules", () => {
     ]) {
       expect(longText(50000).safeParse(bad).success, JSON.stringify(bad)).toBe(false);
     }
+    // No control character but tabs and new lines: NUL fails a Postgres write, an escape sequence
+    // could tamper with a terminal that prints the file, and a line has one ending.
+    for (const bad of [
+      'nul\u0000byte',
+      'escape \u001b[31mred\u001b[0m',
+      'two\r\nlines',
+      'a lone\rreturn',
+      'c1 \u0085 next line',
+      'c1 csi \u009b31m',
+      'bell\u0007',
+      'delete\u007f',
+    ]) {
+      expect(longText(50000).safeParse(bad).success, JSON.stringify(bad)).toBe(false);
+      expect(longText(50000, 0).safeParse(bad).success, JSON.stringify(bad)).toBe(false);
+    }
+    expect(longText(50000).safeParse('tabs\tand\nnew lines\n\tstill fine').success).toBe(true);
     // The limit counts characters as the database does: an emoji is one, not two.
     expect(longText(3).safeParse('😀😀😀').success).toBe(true);
     expect(longText(3).safeParse('😀😀😀😀').success).toBe(false);
@@ -667,6 +683,19 @@ describe("social's text, built from the agreement's own rules", () => {
     expect(takes('reader.saveProfile', { ...profile, body })).toBe(true);
     expect(takes('reader.saveProfile', { ...profile, body: `${body}\n` })).toBe(false);
     expect(takes('reader.saveProfile', { ...profile, body: 'x'.repeat(2001) })).toBe(false);
+  });
+
+  it('refuses every control character in a line, in plain text and in a link, as the agreement’s patterns do', () => {
+    for (const control of ['\u0000', '\u001b[31m', '\r', '\u0085', '\u009b', '\u007f']) {
+      expect(oneLine(60).safeParse(`a${control}b`).success, JSON.stringify(control)).toBe(false);
+      expect(plainText(5000).safeParse(`a${control}b`).success, JSON.stringify(control)).toBe(
+        false,
+      );
+      expect(webAddress.safeParse(`https://example.com/${control}x`).success).toBe(false);
+    }
+    // Plain text allows a new line inside, never a tab (which long text does).
+    expect(plainText(5000).safeParse('a\nb').success).toBe(true);
+    expect(plainText(5000).safeParse('a\tb').success).toBe(false);
   });
 
   it('declares a claim preview’s 401 and 429 and its 404 only: nobody need be signed in, so no 403', () => {

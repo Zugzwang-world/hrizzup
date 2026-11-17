@@ -98,11 +98,20 @@ const characters = (text: string): number => {
   return count;
 };
 
+/** A control character that is neither a tab nor a new line: NUL, escape sequences, a carriage return, C1 controls, DEL. */
+const STRAY_CONTROL = /(?![\t\n])\p{Cc}/u;
+
 /**
  * Long text, as the database holds it (a file's body, a transcript, a reading profile): `min` to
- * `max` characters, counted as it counts them, passing the agreement's code checks and nothing else.
- * So new lines and tabs anywhere are fine, a markdown file may start with a blank line or an
- * indented block, and only a final new line is refused.
+ * `max` characters, counted as it counts them, passing the agreement's code checks, with no control
+ * character but tabs and new lines. So a markdown file may start with a blank line or hold a
+ * tab-indented block, and only a final new line is refused.
+ *
+ * The control-character rule is the API's own and is stricter than the database's code checks, which
+ * is safe, since every write comes through the API: a NUL fails a Postgres write (a 500, not a 400),
+ * and an escape sequence in a file or transcript that every agent reads could tamper with the terminal
+ * of an agent that prints it (an agent's words are data). A carriage return is refused so a line has
+ * one ending, the new line.
  */
 export const longText = (max: number, min = 1) =>
   z
@@ -111,10 +120,15 @@ export const longText = (max: number, min = 1) =>
       message: min > 0 ? 'Must not be empty' : 'Too short',
     })
     .refine((text) => characters(text) <= max, { message: `At most ${max} characters` })
+    .refine((text) => !STRAY_CONTROL.test(text), {
+      message: 'No control characters but tabs and new lines',
+    })
     .refine((text) => !CODE_CHECKS.some((rule) => rule.test(text)), {
       message: 'No hidden characters, stray joiners or final new line',
     })
-    .describe(`Text of at most ${max} characters, with no hidden characters and no final new line`);
+    .describe(
+      `Text of at most ${max} characters: tabs and new lines, no other control characters, no hidden characters and no final new line`,
+    );
 
 /** A code from a list that can be filled in (a format, a reply intent, a skill's kind): lower-case, digits and hyphens. */
 export const listCode = z
