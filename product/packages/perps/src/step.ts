@@ -27,15 +27,19 @@ import {
 
 type Database = Pick<Pool, 'connect'>;
 
-/** Where a perp's prices come from: its stand-in, from its own seed or the environment's secret one. */
+/** Where a perp's prices come from besides its own record: a stand-in perp's fallback seed. */
 export type PriceSource = {
-  /** The environment's secret seed for the listed perp (Doppler, `PERP_STAND_IN_SEED`). */
+  /**
+   * A fallback seed for a stand-in perp that has none of its own. None in any environment since
+   * Round 6 (the website passes none): the listed perp reads our own stored price, and a check
+   * run's test perp always brings its own seed.
+   */
   seed: string | undefined;
 };
 
 /**
- * The environment's seed as a price source. A seed that isn't 16 lowercase hexadecimal digits counts
- * as none, so a mistyped one leaves the listed perp "not set up" rather than failing every call.
+ * A fallback seed as a price source. A seed that isn't 16 lowercase hexadecimal digits counts as
+ * none, so a mistyped one leaves a stand-in perp "not set up" rather than failing every call.
  */
 export function priceSource(seed: string | undefined): PriceSource {
   const given = seed?.trim();
@@ -43,8 +47,8 @@ export function priceSource(seed: string | undefined): PriceSource {
 }
 
 /**
- * The perp's price isn't set up here (no seed for the listed perp on its stand-in; on our own price,
- * none stored yet): reads answer "not set up".
+ * The perp's price isn't set up here (no seed for a stand-in perp; on our own price, none stored
+ * yet): reads answer "not set up".
  */
 export class PerpNotSetUpError extends Error {
   constructor() {
@@ -105,7 +109,7 @@ export function ownPriceDueAt(newest: OraclePoint | null, placed: number, now: n
 
 /**
  * A perp's price at a moment: on our own price its newest stored one, whatever the moment; on its
- * stand-in, from its own seed or the environment's.
+ * stand-in, from its own seed or the source's fallback one.
  */
 export function priceFor(perp: PerpPriceSource, source: PriceSource) {
   if (perp.feed === OWN_PRICE) {

@@ -17,7 +17,7 @@ const url = process.env.PERPS_DATABASE_URL;
 if (!url) throw new Error('PERPS_DATABASE_URL is not set: run `pnpm test:db`');
 
 const BITCOIN = '01a1c501-ec40-78f6-87b6-3fb041143421';
-/** The environment's seed for the listed perp, in these tests only (staging's lives in Doppler). */
+/** A fallback seed for a stand-in perp without its own, in these tests only (no environment has one). */
 const SOURCE: PriceSource = { seed: 'a1b2c3d4e5f60718' };
 
 let owner: pg.Pool;

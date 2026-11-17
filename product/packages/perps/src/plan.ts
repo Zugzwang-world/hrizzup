@@ -79,7 +79,7 @@ export type StepState = {
     state: 'live' | 'retired';
     tradingMode: PerpTradingMode;
     feed: string;
-    /** A test perp's own seed; null for the listed perp, whose seed is the environment's secret. */
+    /** A test perp's own seed; null for the listed perp, which is on our own price. */
     seed: string | null;
     standIn: { origin: string; startPrice: string; volatility: string };
     /** On our own price, its newest stored point as the step began (the only one it may apply). */

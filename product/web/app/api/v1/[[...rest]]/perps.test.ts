@@ -61,8 +61,6 @@ const SITE = 'https://staging.hrizzup.com';
 const PERSON = { id: '00000000-0000-4000-8000-0000000000e1', email: 'ann@perps.test' };
 const PERP = perpDetails.id;
 const REQUEST = '01a1c601-2b00-7b20-8e4f-3a2b1c0d9e8f';
-/** The environment's seed for the listed perp, in these tests only. */
-const SEED = '0123456789abcdef';
 
 async function answer(
   method: 'GET' | 'POST',
@@ -109,7 +107,6 @@ const close = (changes: Record<string, unknown> = {}) => ({
 beforeEach(() => {
   vi.stubEnv('VERCEL', '1');
   vi.stubEnv('VERCEL_TARGET_ENV', 'staging');
-  vi.stubEnv('PERP_STAND_IN_SEED', SEED);
   signedIn.mockResolvedValue(PERSON);
   allowTrade.mockResolvedValue({ allowed: true });
   refreshEdge.mockResolvedValue(undefined);
@@ -134,21 +131,18 @@ describe("the perps' prices", () => {
       );
       expect(shown.headers['vercel-cache-tag'], path).toBe('perps');
     }
-    expect(calls.listedPerps).toHaveBeenCalledWith(pool, { seed: SEED });
-    expect(calls.perpDetails).toHaveBeenCalledWith(pool, PERP, { seed: SEED });
+    expect(calls.listedPerps).toHaveBeenCalledWith(pool, { seed: undefined });
+    expect(calls.perpDetails).toHaveBeenCalledWith(pool, PERP, { seed: undefined });
     expect(signedIn).not.toHaveBeenCalled();
   });
 
-  it('without a seed here, or with one that is no seed, are "not set up", never kept', async () => {
-    for (const seed of ['', 'not-a-seed', '0123456789ABCDEF']) {
-      vi.stubEnv('PERP_STAND_IN_SEED', seed);
-      calls.listedPerps.mockRejectedValueOnce(new PerpNotSetUpError());
-      const shown = await answer('GET', '/api/v1/perps');
-      expect(shown.status, seed).toBe(503);
-      expect(shown.headers['cache-control'], seed).toBe('private, no-store');
-      expect(shown.headers['vercel-cdn-cache-control'], seed).toBeUndefined();
-      expect(calls.listedPerps).toHaveBeenLastCalledWith(pool, { seed: undefined });
-    }
+  it('without a seed or a price here are "not set up", never kept', async () => {
+    calls.listedPerps.mockRejectedValueOnce(new PerpNotSetUpError());
+    const shown = await answer('GET', '/api/v1/perps');
+    expect(shown.status).toBe(503);
+    expect(shown.headers['cache-control']).toBe('private, no-store');
+    expect(shown.headers['vercel-cdn-cache-control']).toBeUndefined();
+    expect(calls.listedPerps).toHaveBeenLastCalledWith(pool, { seed: undefined });
   });
 
   it('answer no such perp, an address that is no perp, and a busy database, none kept', async () => {
@@ -171,10 +165,10 @@ describe('a perp trade', () => {
     const opened = await answer('POST', '/api/v1/perps/open', open());
     expect(opened).toMatchObject({ status: 200, body: perpOpened });
     expect(opened.headers['cache-control']).toBe('private, no-store');
-    expect(calls.openPerp).toHaveBeenCalledWith(pool, PERSON.id, open(), { seed: SEED });
+    expect(calls.openPerp).toHaveBeenCalledWith(pool, PERSON.id, open(), { seed: undefined });
     const closed = await answer('POST', '/api/v1/perps/close', close());
     expect(closed).toMatchObject({ status: 200, body: perpClosed });
-    expect(calls.closePerp).toHaveBeenCalledWith(pool, PERSON.id, close(), { seed: SEED });
+    expect(calls.closePerp).toHaveBeenCalledWith(pool, PERSON.id, close(), { seed: undefined });
     expect(allowTrade).toHaveBeenCalledTimes(2);
     expect(allowTrade).toHaveBeenCalledWith(PERSON.id);
     // A trade changes the pools, never the price: the edge copies age out on their own.
@@ -274,9 +268,7 @@ describe("the person's own perp positions", () => {
       pool,
       PERSON.id,
       { after: undefined },
-      {
-        seed: SEED,
-      },
+      { seed: undefined },
     );
     signedIn.mockResolvedValue(null);
     expect((await answer('GET', '/api/v1/me/perps')).status).toBe(401);
