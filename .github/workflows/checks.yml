@@ -14,19 +14,28 @@
 #                   newest-migration.txt names the newest; then builds a fresh database
 #                   from infra/supabase/migrations and runs its tests, including "every
 #                   table is locked" (row-level security)
-#   Screen check    checks by name that Doppler stg_preview holds only the app's keys
-#                   (infra/doppler/app-keys.txt), then asks it for the eight its tests
-#                   use, by name, for the tests alone (infra/doppler/named_keys.py); once
-#                   Vercel's preview of the pull request is ready, opens it in
-#                   Chromium and WebKit at every screen size (CLAUDE.md, "Screens fit
-#                   every device"), signed out and signed in with a staging test account,
-#                   then runs the website's journeys (product/web/e2e/journeys: every page
-#                   opens; the test account signs in and out)
+#   Screen check    runs on four machines, "Screen check, part 1 of 4" to "part 4 of 4", each
+#                   with its own quarter of the tests (Playwright's --shard, the split balanced
+#                   by how long each test took last time: product/web/e2e/test-times.json), and
+#                   a joining job named "Screen check" that passes only when every part passed
+#                   and its records add up to every test run exactly once
+#                   (.github/scripts/screen_parts.py). Each part checks by name that Doppler
+#                   stg_preview holds only the app's keys (infra/doppler/app-keys.txt), then asks
+#                   it for the eight its tests use, by name, for the tests alone
+#                   (infra/doppler/named_keys.py); once Vercel's preview of the pull request is
+#                   ready, opens it in Chromium and WebKit at every screen size (CLAUDE.md,
+#                   "Screens fit every device"), signed out and signed in with a staging test
+#                   account, then runs the website's journeys (product/web/e2e/journeys: every
+#                   page opens; the test account signs in and out). The joining job also gathers
+#                   the parts' screenshots into the one "screenshots" download
 #   Speed check     the performance budgets (blueprint section 14): every page of the
 #                   preview with Lighthouse (mobile preset, median of 5 runs) and the app's
 #                   code size against main's; the numbers go on the pull request
 #
-# The job names are required checks in the "main" ruleset. Keep them in step.
+# The job names are required checks in the "main" ruleset. Keep them in step. A check that runs
+# in parts has a joining job with the required name, and the parts' own names differ; the joining
+# job runs whatever the parts did and fails unless every part succeeded (GitHub counts a skipped
+# required job as passed, so it must never be skipped).
 # Turborepo's Remote Cache (Vercel) skips work already done for the same inputs. It signs
 # in with GitHub's short-lived OIDC token, so no Vercel token is stored in GitHub.
 # The tools these jobs download are pinned and read from GitHub's cache by that pin (the Tool
@@ -193,10 +202,18 @@ jobs:
       - name: Fresh database from the migrations, then its tests
         run: pnpm exec turbo run test:db
 
-  screens:
-    name: Screen check
+  # One of the Screen check's four parts: the same steps on four machines at once, each running
+  # its own tests (--shard=N/4, balanced by e2e/test-times.json). A part whose change doesn't
+  # touch the website passes at once and leaves a record saying so; none is ever skipped, so the
+  # joining job always has four records to add up.
+  screen-part:
+    name: Screen check, part ${{ matrix.part }} of 4
     runs-on: ubuntu-24.04
     timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [1, 2, 3, 4]
     permissions:
       contents: read
       deployments: read # to find Vercel's preview of this pull request
@@ -302,21 +319,103 @@ jobs:
           BASE_URL: ${{ steps.preview.outputs.url }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
           SCREENSHOTS_DIR: ${{ github.workspace }}/screenshots
+          PARTS_OUT: ${{ runner.temp }}/screen-part # where this part's record goes (e2e/support/parts.ts)
           DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN_PREVIEW }} # read-only, for the eight keys below
         run: >-
           python3 ../../infra/doppler/named_keys.py
           SUPABASE_URL SUPABASE_PUBLISHABLE_KEY SUPABASE_SECRET_KEY TURNSTILE_SITE_KEY
           R2_ENDPOINT R2_BUCKET_UPLOADS R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY
-          -- pnpm exec playwright test
+          -- pnpm exec playwright test --shard=${{ matrix.part }}/4
 
-      - name: Screenshots for the founder (360, 768, 1440 and 1920 pixels)
+      - name: This part has nothing to test (the change doesn't touch the website)
+        if: steps.affected.outputs.website != 'true'
+        env:
+          PARTS_OUT: ${{ runner.temp }}/screen-part
+        run: python3 .github/scripts/screen_parts.py untouched "$PARTS_OUT" ${{ matrix.part }} 4
+
+      # This part's record, for the joining job to add up. A part that left none (it failed before
+      # its tests began, or was cancelled) is caught there: four records are expected.
+      - name: This part's record
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: screen-part-${{ matrix.part }}
+          path: ${{ runner.temp }}/screen-part/
+          if-no-files-found: ignore
+          retention-days: 30 # GitHub allows a re-run for 30 days
+
+      # Each part's own screenshots; once every part has passed, the joining job gathers them into
+      # the one "screenshots" download. On a failed run these stay as they are, for the founder.
+      - name: Screenshots for the founder (360, 768, 1440 and 1920 pixels), this part's
         if: ${{ !cancelled() && steps.affected.outputs.website == 'true' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: screenshots
+          name: screenshots-part-${{ matrix.part }}
           path: screenshots/
           if-no-files-found: ignore
           retention-days: 30
+
+  # The Screen check itself, the name the ruleset requires: it runs whatever the parts did (never
+  # skipped, because GitHub counts a skipped required job as passed), fails unless every part
+  # succeeded, and proves the parts ran every test exactly once.
+  screens:
+    name: Screen check
+    needs: screen-part
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      # First, and read through env: so the decision can't depend on any other step. The records are
+      # added up whatever it says (so the log names what is missing), and the job still fails.
+      - name: Every part passed
+        if: ${{ always() }}
+        env:
+          PARTS: ${{ needs.screen-part.result }}
+        run: |
+          if [ "$PARTS" != "success" ]; then
+            echo "::error title=The Screen check's parts::The four parts' result is '$PARTS', not 'success': a part failed, was cancelled or didn't run."
+            exit 1
+          fi
+          echo "All four parts passed."
+      - name: The checks' own scripts
+        if: ${{ always() }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+      - name: The parts' records
+        if: ${{ always() }}
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: screen-part-*
+          path: ${{ runner.temp }}/parts
+      - name: The four parts ran every test exactly once
+        id: parts
+        if: ${{ always() }}
+        run: python3 .github/scripts/screen_parts.py add-up "$RUNNER_TEMP/parts" 4 >> "$GITHUB_OUTPUT"
+      # Only after a good run: the merge deletes the parts' own copies, so after a failed attempt
+      # they must all still be there (for the founder, and for a re-run of the failed parts).
+      - name: Screenshots for the founder (360, 768, 1440 and 1920 pixels)
+        if: ${{ success() && steps.parts.outputs.website == 'true' }}
+        uses: actions/upload-artifact/merge@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: screenshots
+          pattern: screenshots-part-*
+          delete-merged: true
+          retention-days: 30
+      - name: How long each test took, for the next balance
+        if: ${{ success() && steps.parts.outputs.website == 'true' }}
+        run: python3 .github/scripts/screen_parts.py times "$RUNNER_TEMP/parts" "$RUNNER_TEMP/test-times.json"
+      - name: The times, to refresh product/web/e2e/test-times.json from
+        if: ${{ success() && steps.parts.outputs.website == 'true' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: screen-test-times
+          path: ${{ runner.temp }}/test-times.json
+          retention-days: 30
+
 
   speed:
     name: Speed check

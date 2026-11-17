@@ -109,7 +109,7 @@ Minutes of critical path over the 30 pull requests (average per pull request in 
 ### 5. The browsers' system libraries from GitHub's cache
 
 - **What:** the last download a check makes outside GitHub on every run. The Tool cache workflow, on main, fetches the exact packages with Ubuntu's own checksums into GitHub's cache, keyed by Playwright's version and the machine image's; the checks install them offline and fall back to the mirrors on a miss. That's `tools.py`'s rule (pinned, cached from main, checked, only read by the checks).
-- **Saves:** about 10 to 20 seconds a run on a normal day (the installing stays). The rest is resilience: 82 of its 95 minutes on its own come from the 10 and 11 November mirror outage, and with proposal 1 every Screen check downloads four times.
+- **Saves:** nothing measurable on a normal day (measured after it was applied, M7.1: the step took 31 to 38 seconds from the cache and 34 to 39 from the mirrors; the installing stays). Its gain is resilience: 82 of its 95 minutes on its own come from the 10 and 11 November mirror outage, and with proposal 1 every Screen check downloads four times.
 - **Risk:** after a GitHub machine-image update (about weekly), runs miss the cache until the Tool cache workflow runs again, and fall back to the mirrors, no worse than today. It adds about 114 MB to a cache already over its free 10 GB, so the package store is then saved from main only (a pull request changing the lockfile downloads only the difference).
 
 ### 6. Journeys that never open a browser run once (needs the founder's yes)

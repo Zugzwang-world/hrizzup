@@ -1253,7 +1253,8 @@ class EveryWorkflow(unittest.TestCase):
                             # The Tool cache workflow's proof that the set is complete: no fallback.
                             self.assertRegex(step, r"run: python3 \.github/scripts/tools\.py libraries install\n")
                             self.assertNotIn("||", step)
-        self.assertEqual(sorted(found), [("checks.yml", "screens"), ("tools.yml", "browser-libraries")])
+        # The Screen check's four parts (one matrix job, "screen-part") install them; its joining job ("screens") doesn't.
+        self.assertEqual(sorted(found), [("checks.yml", "screen-part"), ("tools.yml", "browser-libraries")])
 
     def test_install_deps_is_only_ever_the_fallback_after_the_cached_libraries(self):
         fallbacks = dry_runs = 0

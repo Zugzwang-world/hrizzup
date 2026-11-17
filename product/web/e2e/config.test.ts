@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
+import { parseTimesFile } from './parts.ts';
 
 /**
  * A check that retries a test must fail when a test passes only on its retry (CLAUDE.md, "How
@@ -82,6 +83,54 @@ describe('retries', () => {
     }
     for (const path of files(join(ROOT, '.github/workflows'), /\.ya?ml$/)) {
       expect(readFileSync(path, 'utf8'), relative(ROOT, path)).not.toMatch(/--retr(y|ies)\b/);
+    }
+  });
+});
+
+/**
+ * The Screen check runs on four machines in GitHub (Round 6, R4, M7.2): each runs `--shard=N/4`,
+ * and the parts reporter gives it its tests, balanced by measured times. None of that may loosen
+ * the check, so what the parts share is pinned here (the retry rules above stay as they were).
+ */
+describe('the Screen check on four machines', () => {
+  it('uses the parts reporter in GitHub, after the two it always had', async () => {
+    const config = await playwrightConfig(true);
+    expect(config.reporter).toEqual([['github'], ['list'], ['./e2e/support/parts.ts']]);
+    expect(readFileSync(join(ROOT, 'product/web/e2e/support/parts.ts'), 'utf8')).toContain(
+      'preprocess',
+    );
+  });
+
+  it('on this Mac keeps its one list reporter', async () => {
+    expect((await playwrightConfig(false)).reporter).toEqual([['list']]);
+  });
+
+  it('keeps every test, project, retry and time limit the one machine had', async () => {
+    const config = await playwrightConfig(true);
+    expect(config.fullyParallel).toBe(true);
+    expect(config.timeout).toBe(120_000);
+    expect((config.projects ?? []).map((project) => project.name)).toEqual(['chromium', 'webkit']);
+    expect(config.testMatch).toBe('**/*.spec.ts');
+  });
+
+  it('has a times file that parses: text keys with seconds above zero', () => {
+    const file = parseTimesFile(
+      readFileSync(join(ROOT, 'product/web/e2e/test-times.json'), 'utf8'),
+    );
+    for (const [key, seconds] of Object.entries(file.times)) {
+      expect(typeof key).toBe('string');
+      expect(typeof seconds).toBe('number');
+      expect(seconds).toBeGreaterThan(0);
+    }
+  });
+
+  it('has no test that needs another before it: a serial group could not be split across machines', () => {
+    const specs = files(join(ROOT, 'product/web/e2e'), /\.spec\.ts$/);
+    expect(specs.length, 'the specs were found').toBeGreaterThan(10);
+    for (const path of specs) {
+      expect(readFileSync(path, 'utf8'), relative(ROOT, path)).not.toMatch(
+        /describe\.serial|mode:\s*['"]serial['"]/,
+      );
     }
   });
 });

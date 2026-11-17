@@ -4,7 +4,7 @@
     python3 .github/scripts/wait_for_preview.py <commit sha>
 
 Vercel reports each preview to GitHub as a deployment (environment "Preview..."). This
-polls GitHub's API until that deployment succeeds, then writes `url=<address>` to
+polls GitHub's API (every 30 seconds) until that deployment succeeds, then writes `url=<address>` to
 $GITHUB_OUTPUT. It fails if the preview fails, or if none appears within 20 minutes.
 Needs GITHUB_TOKEN (with deployments: read) and GITHUB_REPOSITORY. Prints no secrets.
 """
@@ -16,6 +16,7 @@ import urllib.request
 
 API = "https://api.github.com/repos/" + os.environ["GITHUB_REPOSITORY"]
 TIMEOUT_S = 20 * 60
+POLL_S = 30  # eight jobs may wait at once (the Screen check's four parts, the Speed check's), and the API allows ~1,000 requests an hour
 
 
 def get(path):
@@ -46,7 +47,7 @@ def main():
             if state in ("failure", "error"):
                 sys.exit(f"Vercel's preview of {sha[:7]} failed ({state}); see the Vercel check on the pull request")
             print(f"Preview of {sha[:7]}: {state}")
-        time.sleep(15)
+        time.sleep(POLL_S)
     sys.exit(f"No Vercel preview of {sha[:7]} appeared within {TIMEOUT_S // 60} minutes")
 
 

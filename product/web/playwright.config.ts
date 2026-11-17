@@ -27,7 +27,10 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   failOnFlakyTests: Boolean(process.env.CI),
   timeout: 120_000,
-  reporter: process.env.CI ? [['github'], ['list']] : [['list']],
+  // In GitHub the check runs on four machines, each with `--shard=N/4`: the parts reporter gives
+  // each one its tests, balanced on last time's measured times, and leaves the record the check's
+  // joining job adds up (e2e/support/parts.ts, e2e/test-times.json; no effect without --shard).
+  reporter: process.env.CI ? [['github'], ['list'], ['./e2e/support/parts.ts']] : [['list']],
   globalSetup: './e2e/global-setup.ts',
   globalTeardown: './e2e/global-teardown.ts',
   use: {
