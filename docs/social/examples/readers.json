@@ -1,0 +1,62 @@
+{
+  "reader.get.output": {
+    "profile": "# Reading profile\n\n## More of\n- AI\n- the Philippines\n\n## Less of\n- crypto\n\n## Formats\n- timelines\n- memes",
+    "holdsSomething": true,
+    "usage": { "messagesLeftToday": 17, "pausedUntil": null }
+  },
+
+  "reader.saveProfile.input": {
+    "requestId": "2f3a4b5c-6d7e-4f8a-9b0c-1d2e3f4a5b6c",
+    "body": "# Reading profile\n\n## More of\n- AI\n- the Philippines\n- Bengaluru\n\n## Less of\n- crypto\n\n## Formats\n- timelines\n- memes"
+  },
+
+  "reader.chat.send.input": { "requestId": "3a4b5c6d-7e8f-4a9b-8c0d-1e2f3a4b5c6d", "body": "AI news from the Philippines, mostly timelines and memes, no crypto" },
+  "reader.chat.send.output": {
+    "message": { "id": "01a1e897-6b80-7d7a-be25-3bd4aac5a876", "author": "reader", "body": "AI news from the Philippines, mostly timelines and memes, no crypto", "createdAt": "2026-11-17T08:20:00Z" },
+    "reply": { "id": "01a1e897-7738-7ac7-8ddc-27e9129fb371", "author": "agent", "body": "Done: I added AI and the Philippines, timelines and memes, and I'll keep crypto out. You can change the list any time.", "createdAt": "2026-11-17T08:20:03Z" },
+    "profileChanged": true,
+    "profile": "# Reading profile\n\n## More of\n- AI\n- the Philippines\n\n## Less of\n- crypto\n\n## Formats\n- timelines\n- memes"
+  },
+
+  "reader.chat.list.output": {
+    "messages": [
+      { "id": "01a1e897-7738-7ac7-8ddc-27e9129fb371", "author": "agent", "body": "Done: I added AI and the Philippines, timelines and memes, and I'll keep crypto out. You can change the list any time.", "createdAt": "2026-11-17T08:20:03Z" },
+      { "id": "01a1e897-6b80-7d7a-be25-3bd4aac5a876", "author": "reader", "body": "AI news from the Philippines, mostly timelines and memes, no crypto", "createdAt": "2026-11-17T08:20:00Z" }
+    ],
+    "next": null
+  },
+
+  "reader.chat.send.paused": {
+    "defined": true,
+    "code": "TOO_MANY_REQUESTS",
+    "status": 429,
+    "message": "The reader agent has used today's allowance: chat pauses until 05:30 IST, and your feed keeps working",
+    "data": { "reason": "allowance_used", "retryAfterSeconds": 20400 }
+  },
+
+  "reader.forYou.input": { "limit": 1 },
+  "reader.forYou.output": {
+    "stories": [
+      {
+        "id": "01a1a0e7-aca0-71ed-94ec-7086aeb1161e",
+        "title": "A Bengaluru start-up's open AI model tops a global coding leaderboard, ahead of rival labs with far more money and staff",
+        "summary": "A small Bengaluru team's openly published model came first in a widely followed ranking of AI coding tools, which compares models on real programming tasks.",
+        "categories": ["ai", "business"],
+        "places": ["bengaluru", "india"],
+        "createdAt": "2026-11-03T10:15:00Z",
+        "latestAt": "2026-11-04T05:20:00Z",
+        "latestHeadline": "The team says it will publish its training recipe and open an office in Pune",
+        "counts": { "posts": 1, "replies": 2, "upvotes": 1, "views": 96, "uniqueViews": 71, "pins": 2 }
+      }
+    ],
+    "next": "eyJiIjoiN2YzZTlhMjEiLCJvIjoxfQ"
+  },
+
+  "reader.forYou.rebuilt": {
+    "defined": true,
+    "code": "BAD_REQUEST",
+    "status": 400,
+    "message": "The request was refused: see data.issues",
+    "data": { "issues": [{ "path": "cursor", "message": "Your For You was rebuilt: start again from the first page" }] }
+  }
+}
