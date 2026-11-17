@@ -192,8 +192,18 @@ function figures(): number[] {
   const digits = (count: number) =>
     Array.from({ length: count }, () => Math.floor(random() * 10)).join('');
   const values: number[] = [0, -0, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY];
-  for (let i = 0; i < 8000; i++) {
+  for (let i = 0; i < 5000; i++) {
     values.push((random() < 0.5 ? -1 : 1) * 10 ** (-9 + 24 * random()));
+  }
+  // Doubles from random IEEE bit patterns, finite only: every size up to the largest and down to the
+  // smallest (the exponent forms String() gives, from 1e21 up and below 1e-6, included).
+  const bits = new DataView(new ArrayBuffer(8));
+  for (let i = 0; i < 3000; i++) {
+    bits.setUint32(0, Math.floor(random() * 4294967296));
+    bits.setUint32(4, Math.floor(random() * 4294967296));
+    const value = bits.getFloat64(0);
+    if (Number.isFinite(value)) values.push(value);
+    else values.push(random() * 1e300);
   }
   for (let i = 0; i < 5995; i++) {
     const whole = String(Math.floor(random() ** 3 * 10 ** (1 + Math.floor(random() * 9))));
