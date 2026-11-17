@@ -7,7 +7,13 @@
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/infra/supabase/supabase-root-2021-ca.crt",
         "$TURBO_ROOT$/infra/supabase/project/settings.json",
-        "$TURBO_ROOT$/infra/supabase/auth/settings.json"
+        "$TURBO_ROOT$/infra/supabase/auth/settings.json",
+        "$TURBO_ROOT$/.github/workflows/**",
+        "$TURBO_ROOT$/product/app/journeys/run.sh",
+        "$TURBO_ROOT$/**/package.json",
+        "$TURBO_ROOT$/**/vitest.config.{ts,mts,js,mjs}",
+        "$TURBO_ROOT$/**/vitest.*.config.{ts,mts,js,mjs}",
+        "!$TURBO_ROOT$/**/{node_modules,.next,.git,.turbo,dist}/**"
       ]
     }
   }
