@@ -5,28 +5,35 @@
  * floating-point numbers.
  */
 
-const INDIA = 'Asia/Kolkata';
+import { groupIndian, groupWestern } from './digits.ts';
 
-// Built on first use, never when the module loads: a page that shows no time then never makes the
-// browser load its locale data while the page is loading (the Speed check's busy time).
-let shown: Intl.DateTimeFormat | undefined;
+const MONTHS = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sept',
+  'Oct',
+  'Nov',
+  'Dec',
+];
 
-function indiaFormat(): Intl.DateTimeFormat {
-  shown ??= new Intl.DateTimeFormat('en-IN', {
-    timeZone: INDIA,
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-  });
-  return shown;
-}
-
-/** A moment as people read it, in India time: "10 Nov 2026, 6:00 pm IST". */
+/**
+ * A moment as people read it, in India time: "10 Nov 2026, 6:00 pm IST". Plain arithmetic, never the
+ * browser's locale formatting (a page that shows a time then never makes the browser load its
+ * locale data while the page is loading: the Speed check's busy time). India has been at UTC+05:30,
+ * with no daylight saving, since 1945, as `utcToIndiaField` below also relies on.
+ */
 export function indiaTime(iso: string): string {
-  return `${indiaFormat().format(new Date(iso))} IST`;
+  const ms = new Date(iso).getTime();
+  if (Number.isNaN(ms)) throw new RangeError('Invalid time value');
+  const t = new Date(ms + 330 * 60_000);
+  const h = t.getUTCHours();
+  return `${t.getUTCDate()} ${MONTHS[t.getUTCMonth()]} ${t.getUTCFullYear()}, ${h % 12 || 12}:${String(t.getUTCMinutes()).padStart(2, '0')} ${h < 12 ? 'am' : 'pm'} IST`;
 }
 
 /**
@@ -49,7 +56,7 @@ export function utcToIndiaField(moment: Date): string {
 export function money(decimal: string): string {
   const negative = decimal.startsWith('-');
   const [whole = '0', fraction = ''] = decimal.replace(/^-/, '').split('.');
-  const grouped = BigInt(whole).toLocaleString('en-IN');
+  const grouped = groupIndian(BigInt(whole).toString());
   const rest = fraction.replace(/0+$/, '');
   return `${negative ? '−' : ''}Ṁ${grouped}${rest ? `.${rest}` : ''}`;
 }
@@ -98,7 +105,7 @@ export const MODE_HINTS: Record<string, string> = {
 export function dollars(decimal: string): string {
   const negative = decimal.startsWith('-');
   const [whole = '0', fraction = ''] = decimal.replace(/^-/, '').split('.');
-  const grouped = BigInt(whole).toLocaleString('en-US');
+  const grouped = groupWestern(BigInt(whole).toString());
   return `${negative ? '-' : ''}$${grouped}.${fraction.padEnd(2, '0')}`;
 }
 
