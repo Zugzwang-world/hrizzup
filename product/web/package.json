@@ -29,7 +29,7 @@
     "@upstash/redis": "^1.40.0",
     "@vercel/functions": "^3.11.0",
     "aws4fetch": "^1.0.20",
-    "next": "~16.4.3",
+    "next": "~16.4.6",
     "pg": "^8.20.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
