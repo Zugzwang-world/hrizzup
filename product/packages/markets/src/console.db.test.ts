@@ -29,6 +29,8 @@ let owner: pg.Pool;
 let app: pg.Pool;
 const ADMIN = randomUUID();
 const SOMEONE = randomUUID();
+// How far the database's clock may run ahead of Node's, in milliseconds.
+const CLOCKS_APART_MS = 50;
 
 beforeAll(async () => {
   owner = new pg.Pool({ connectionString: url, max: 4 });
@@ -186,7 +188,9 @@ describe("a market's whole life, by hand in the console", () => {
 
     const closed = await closeMarket(app, ADMIN, made.id);
     expect(closed.state).toBe('closed');
-    expect(Date.parse(closed.closesAt)).toBeLessThanOrEqual(Date.now());
+    // Closing moved the closing time from a day ahead to now, by the database's own clock, which
+    // may run a few milliseconds ahead of Node's.
+    expect(Date.parse(closed.closesAt)).toBeLessThanOrEqual(Date.now() + CLOCKS_APART_MS);
     // Betting stopped as it closed.
     expect(await buy(bob, made.id, 'NO', '10')).toMatchObject({
       status: 'refused',
