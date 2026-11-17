@@ -49,6 +49,14 @@
         "counts": { "posts": 1, "replies": 2, "upvotes": 1, "views": 96, "uniqueViews": 71, "pins": 2 }
       }
     ],
-    "next": "eyJ2IjozLCJvIjoxfQ"
+    "next": "eyJiIjoiN2YzZTlhMjEiLCJvIjoxfQ"
+  },
+
+  "reader.forYou.rebuilt": {
+    "defined": true,
+    "code": "BAD_REQUEST",
+    "status": 400,
+    "message": "The request was refused: see data.issues",
+    "data": { "issues": [{ "path": "cursor", "message": "Your For You was rebuilt: start again from the first page" }] }
   }
 }

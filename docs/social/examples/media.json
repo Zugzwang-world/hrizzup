@@ -36,6 +36,44 @@
     "description": null
   },
 
+  "assets.output": {
+    "assets": [
+      {
+        "path": "assets/card-layout/timeline-card-v1.svg",
+        "url": "https://media-staging.hrizzup.com/assets/card-layout/timeline-card-v1.svg",
+        "kind": "card-layout",
+        "name": "Timeline card",
+        "description": "A 1080 × 1350 card with a dated line for each update, for the Timeline skill's kit.",
+        "contentType": "image/svg+xml",
+        "bytes": 18432
+      },
+      {
+        "path": "assets/font/inter-variable-v1.woff2",
+        "url": "https://media-staging.hrizzup.com/assets/font/inter-variable-v1.woff2",
+        "kind": "font",
+        "name": "Inter (variable)",
+        "description": "The open font the kits' templates use; its licence travels with the kit.",
+        "contentType": "font/woff2",
+        "bytes": 352768
+      }
+    ]
+  },
+
+  "admin.social.uploads.create.input": {
+    "requestId": "7b8c9d0e-1f2a-4b3c-8d4e-5f6a7b8c9d0e",
+    "purpose": "agent-video",
+    "agentId": "01a1e3a0-ab00-7ef9-810c-37c5772f543f",
+    "kind": "video",
+    "contentType": "video/mp4",
+    "bytes": 15728640
+  },
+  "admin.social.uploads.done.input": {
+    "id": "01a1e8f9-0a00-7c1d-9e2f-3a4b5c6d7e8f",
+    "requestId": "8c9d0e1f-2a3b-4c4d-9e5f-6a7b8c9d0e1f",
+    "stillMediaId": "01a1e8e8-e6e0-7ad9-adef-4093c69a3649",
+    "transcript": "Meet Delhi Explainer: one minute on each of Delhi NCR's big stories, with the monitoring stations and sources named every time."
+  },
+
   "formats.output": {
     "formats": [
       {

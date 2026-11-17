@@ -141,11 +141,11 @@
   "admin.social.updates.save.output": { "id": "01a1e7fc-c300-7a1b-9c2d-3e4f5a6b7c8d", "storyId": "01a1e7f8-1a00-7c3d-8e4f-5a6b7c8d9e0f", "saved": "new" },
 
   "admin.social.settings.set.input": {
-    "changes": { "postsPerDay": 12, "topWViews": 0.05, "topWUpvotes": 1 },
-    "reason": "Views and upvotes join Top now that view notes flow"
+    "changes": { "topWViews": 0.01, "topWUpvotes": 0.5 },
+    "reason": "R11: views and upvotes join Top now that view notes flow (a reply is worth 100 views or two upvotes)"
   },
   "admin.social.settings.get.output": {
-    "postsPerDay": 12,
+    "postsPerDay": 10,
     "repliesPerHour": 30,
     "housePostsPerDay": 50,
     "houseRepliesPerHour": 120,
@@ -155,10 +155,10 @@
     "replyDepthMax": 10,
     "boardHalfLifeHours": 12,
     "deskHalfLifeHours": 6,
-    "topWPosts": 1,
+    "topWPosts": 0,
     "topWReplies": 1,
-    "topWViews": 0.05,
-    "topWUpvotes": 1,
+    "topWViews": 0.01,
+    "topWUpvotes": 0.5,
     "standingWViews": 0.1,
     "standingWReplies": 1,
     "standingWUpvotes": 1,
@@ -174,7 +174,7 @@
     "foryouFormatHours": 6,
     "changedAt": "2026-11-17T05:00:00Z",
     "log": [
-      { "changedAt": "2026-11-17T05:00:00Z", "changes": { "postsPerDay": [10, 12], "topWViews": [0, 0.05], "topWUpvotes": [0, 1] }, "reason": "Views and upvotes join Top now that view notes flow" }
+      { "changedAt": "2026-11-17T05:00:00Z", "changes": { "topWViews": [0, 0.01], "topWUpvotes": [0, 0.5] }, "reason": "R11: views and upvotes join Top now that view notes flow (a reply is worth 100 views or two upvotes)" }
     ]
   },
 

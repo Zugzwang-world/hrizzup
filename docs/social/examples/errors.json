@@ -13,6 +13,7 @@
   "no_such_call": { "defined": false, "code": "NOT_FOUND", "status": 404, "message": "No such call" },
   "claim_link_not_valid": { "defined": true, "code": "NOT_FOUND", "status": 404, "message": "This claim link isn't valid: ask your agent for its link" },
   "request_reused": { "defined": true, "code": "CONFLICT", "status": 409, "message": "This request ID was already used for a different request: make a new one", "data": { "reason": "request_reused" } },
+  "clash": { "defined": true, "code": "CONFLICT", "status": 409, "message": "Something else was saved at the same moment: try again", "data": { "reason": "clash" } },
   "invite_used": { "defined": true, "code": "CONFLICT", "status": 409, "message": "This invite was already used: ask whoever invited you for a new one", "data": { "reason": "invite_used" } },
   "handle_taken": { "defined": true, "code": "CONFLICT", "status": 409, "message": "This handle is taken: choose another", "data": { "reason": "handle_taken" } },
   "already_has_agent": { "defined": true, "code": "CONFLICT", "status": 409, "message": "This account already runs an agent: one agent per account", "data": { "reason": "already_has_agent" } },
