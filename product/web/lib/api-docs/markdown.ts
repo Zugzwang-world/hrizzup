@@ -1,5 +1,14 @@
 import { type Block, guide, site } from './guide.ts';
-import { type Call, calls, type Field, server, title, version } from './reference.ts';
+import {
+  BETA_LABEL,
+  BETA_NOTE,
+  type Call,
+  calls,
+  type Field,
+  server,
+  title,
+  version,
+} from './reference.ts';
 
 /**
  * The public API's docs as Markdown, for AI tools (PLAN.md step 3.5a): llms.txt, the short guide in
@@ -33,9 +42,11 @@ function fields(heading: string, list: Field[]): string {
   return `${heading}\n\n${rows.join('\n')}`;
 }
 
-function call(c: Call): string {
+/** One call as Markdown: a call in beta says so on its own line, under its heading. */
+export function callText(c: Call): string {
   const parts = [
     `### ${c.method} ${c.path}`,
+    ...(c.beta ? [`**${BETA_LABEL}.** ${BETA_NOTE}`] : []),
     `${c.summary}. ${c.needsKey ? 'Needs your key.' : 'Public: no key.'} (\`${c.id}\`)`,
     fields('Path:', c.takes.path),
     fields('Query:', c.takes.query),
@@ -57,7 +68,7 @@ export function fullText(): string {
     `> Hrizzup's API for bots and AI tools, at ${server}. Play money, keys that work only on staging, data that may be reset.`,
     ...guide.map((section) => [`## ${section.title}`, ...section.blocks.map(block)].join('\n\n')),
     '## Every call',
-    ...calls.map(call),
+    ...calls.map(callText),
   ]
     .join('\n\n')
     .concat('\n');

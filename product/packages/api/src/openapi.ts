@@ -1,9 +1,10 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import type { AnyContractRouter } from '@orpc/contract';
 import { OpenAPIGenerator, type OpenAPIGeneratorGenerateOptions } from '@orpc/openapi';
 import { JSON_SCHEMA_OUTPUT_REGISTRY, ZodToJsonSchemaConverter } from '@orpc/zod/zod4';
 import { contract } from './contract.ts';
-import { isPublished } from './procedures.ts';
+import { isPublished, procedures } from './procedures.ts';
 import { marketRecord } from './trading.ts';
 
 /**
@@ -17,8 +18,11 @@ import { marketRecord } from './trading.ts';
  * whose file breaks a v1 call that main's file has (.github/scripts/api_breaking.py, with oasdiff):
  * within v1, only additions.
  *
- * It holds the public calls only: never the console's (admins only), the app's own sign-in, or the
- * keys' own calls (made only by someone signed in on the website, never by a bot).
+ * It holds the public calls only: never the console's (admins only), the app's own sign-in, the
+ * keys' own calls (made only by someone signed in on the website, never by a bot), social's calls
+ * for one's own agent and reading, or a call whose back end isn't built yet (`isPublished`). A call
+ * in beta (`beta: true` in its meta) carries `x-stability-level: beta`, which the docs show and the
+ * breaking-change check leaves out.
  */
 export const openapiPath = fileURLToPath(new URL('../openapi.json', import.meta.url));
 
@@ -111,15 +115,33 @@ function tidy(value: unknown): unknown {
   return out;
 }
 
-/** The OpenAPI file, as written to openapi.json. */
-export async function renderOpenAPI(): Promise<string> {
+/** What the file says of a call in beta: oasdiff, the docs and the breaking-change check read it. */
+const STABILITY_KEY = 'x-stability-level';
+
+/** The operation IDs of the published calls in beta: each call's own `operationId`, or its dotted name. */
+export function betaOperations(router: object): Set<string> {
+  return new Set(
+    procedures(router)
+      .filter(
+        ([name, procedure]) =>
+          isPublished(name.split('.'), procedure) && procedure['~orpc'].meta.beta === true,
+      )
+      .map(([name, procedure]) => procedure['~orpc'].route.operationId ?? name),
+  );
+}
+
+/**
+ * The OpenAPI file, as written to openapi.json: made from the contract, or from any contract given
+ * (the tests' small ones).
+ */
+export async function renderOpenAPI(router: AnyContractRouter = contract): Promise<string> {
   // The market record is checked by the agreement's own check, not a Zod shape: the file uses the
   // agreement's JSON Schema for it.
   if (!JSON_SCHEMA_OUTPUT_REGISTRY.has(marketRecord)) {
     JSON_SCHEMA_OUTPUT_REGISTRY.add(marketRecord, { $ref: '#/components/schemas/Market' });
   }
   const generator = new OpenAPIGenerator({ schemaConverters: [new ZodToJsonSchemaConverter()] });
-  const document = await generator.generate(contract, {
+  const document = await generator.generate(router, {
     info: { title: 'Hrizzup API', version: '1.0.0', description: DESCRIPTION },
     servers: [
       {
@@ -143,17 +165,26 @@ export async function renderOpenAPI(): Promise<string> {
         },
       },
     },
-    filter: ({ path }) => isPublished(path),
+    filter: ({ contract: procedure, path }) => isPublished(path, procedure),
   });
-  // Every personal call takes the key; public reads take none.
+  // Every personal call takes the key; public reads take none. A call in beta says so, by our own
+  // code (never left to the generator passing an `x-` field on).
+  const beta = betaOperations(router);
+  const marked = new Set<string>();
   for (const item of Object.values(document.paths ?? {})) {
     for (const operation of Object.values(item ?? {})) {
-      const tags = (operation as { tags?: string[] } | undefined)?.tags;
-      if (tags?.includes('personal')) {
+      const one = operation as { operationId?: string; tags?: string[] } | undefined;
+      if (one?.tags?.includes('personal')) {
         (operation as { security?: unknown }).security = [{ apiKey: [] }];
+      }
+      if (one?.operationId && beta.has(one.operationId)) {
+        (operation as Json)[STABILITY_KEY] = 'beta';
+        marked.add(one.operationId);
       }
     }
   }
+  const missed = [...beta].filter((id) => !marked.has(id));
+  if (missed.length > 0) throw new Error(`No operation to mark beta: ${missed.join(', ')}`);
   return `${JSON.stringify(tidy(document), null, 2)}\n`;
 }
 

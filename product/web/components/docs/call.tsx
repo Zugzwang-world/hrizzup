@@ -1,4 +1,5 @@
 import type { Call, Field } from '@/lib/api-docs/reference.ts';
+import { BetaNote } from './beta.ts';
 
 /** One call of the public API, as its docs page shows it: what it takes, answers and refuses. */
 function Fields({ heading, fields }: { heading: string; fields: Field[] }) {
@@ -29,6 +30,7 @@ export function CallEntry({ call }: { call: Call }) {
       <p>
         {call.summary}. <strong>{call.needsKey ? 'Needs your key.' : 'Public: no key.'}</strong>
       </p>
+      <BetaNote call={call} />
       <Fields heading="In the address" fields={call.takes.path} />
       <Fields heading="Query" fields={call.takes.query} />
       {call.takes.body.map((variant) => (

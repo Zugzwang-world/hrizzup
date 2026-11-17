@@ -1,3 +1,4 @@
+import { contract, type Meta, procedures } from '@hrizzup/api';
 import { marketQuote, positionsPage, tradeResult } from '@hrizzup/api/examples';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -45,7 +46,7 @@ vi.mock('@hrizzup/markets', async (original) => ({
   ),
 }));
 
-const { serveMcp, toolsFor, TOOLS } = await import('./server.ts');
+const { serveMcp, toolsFor, toolsOf, TOOLS } = await import('./server.ts');
 
 const SITE = 'https://staging.hrizzup.com';
 const MCP = `${SITE}/api/v1/mcp`;
@@ -126,6 +127,71 @@ describe('the tools', () => {
       expect(trading).toContain(name);
     }
     expect(trading.length).toBe(TOOLS.length);
+  });
+});
+
+describe('a call in beta, or not live yet, or kept out of MCP', () => {
+  // The real contract has no social call yet: a small contract of every kind shows the rule.
+  // oRPC takes any object with a procedure's own fields (`~orpc`) as a call.
+  const call = (path: `/${string}`, summary: string, meta: Partial<Meta> = {}) => ({
+    '~orpc': {
+      meta: { caching: { kind: 'personal' }, ...meta },
+      route: { method: 'GET', path, summary },
+      errorMap: {},
+    },
+  });
+  const publicRead: Partial<Meta> = {
+    caching: { kind: 'public', edgeSeconds: 30, staleSeconds: 60, tags: ['x'] },
+  };
+  const small = {
+    markets: { list: call('/markets', 'The markets', publicRead) },
+    health: call('/health', 'Health', publicRead),
+    stories: {
+      list: call('/stories', 'The stories', { ...publicRead, beta: true }),
+      mine: call('/stories/mine', 'My stories', { beta: true }),
+      later: call('/stories/later', 'Not built yet', { ...publicRead, beta: true, live: false }),
+      toolless: call('/stories/toolless', 'Kept out of MCP', { beta: true, mcp: false }),
+      agentOnly: call('/stories/agent', 'For agents', { beta: true, who: 'agent' }),
+    },
+    owner: { agent: call('/owner/agent', 'Mine to own', { beta: true }) },
+    reader: { chat: call('/reader/chat', 'Chat', { beta: true }) },
+    admin: { social: { save: call('/admin/social/save', 'Save', { beta: true }) } },
+  };
+
+  it('starts a beta call’s summary with "(beta)", and no other call’s', () => {
+    const byName = new Map(toolsOf(small).map((tool) => [tool.name, tool]));
+    expect(byName.get('stories_list')).toMatchObject({
+      summary: '(beta) The stories',
+      beta: true,
+      isPublic: true,
+    });
+    expect(byName.get('stories_mine')).toMatchObject({ summary: '(beta) My stories', beta: true });
+    expect(byName.get('stories_agentOnly')?.summary).toBe('(beta) For agents');
+    expect(byName.get('markets_list')).toMatchObject({ summary: 'The markets', beta: false });
+  });
+
+  it('makes no tool of a call not live yet, one kept out of MCP, health, or the unpublished groups', () => {
+    expect(toolsOf(small).map((tool) => tool.name)).toEqual([
+      'markets_list',
+      'stories_list',
+      'stories_mine',
+      'stories_agentOnly',
+    ]);
+  });
+
+  it('holds for the real contract: a tool for each published call, "(beta)" on those in beta only', () => {
+    const expected = procedures(contract).filter(
+      ([name, procedure]) =>
+        !/^(admin|auth|keys|owner|reader|health)\b/.test(name) &&
+        procedure['~orpc'].meta.live !== false &&
+        procedure['~orpc'].meta.mcp !== false,
+    );
+    expect(TOOLS.map((tool) => tool.path.join('.'))).toEqual(expected.map(([name]) => name));
+    for (const tool of TOOLS) {
+      expect(tool.summary.startsWith('(beta)'), tool.name).toBe(
+        tool.procedure['~orpc'].meta.beta === true,
+      );
+    }
   });
 });
 
