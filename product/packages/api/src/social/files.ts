@@ -7,6 +7,7 @@ import {
   errors,
   fileEntry,
   id,
+  longText,
   moment,
   nextCursor,
   pageFields,
@@ -102,7 +103,7 @@ export const timelineInput = z.strictObject({ handle: addressFields.handle, ...p
 export const saveFileInput = z.strictObject({
   name: addressFields.name,
   requestId,
-  body: plainText(50000),
+  body: longText(50000),
   baseVersion: count,
 });
 

@@ -7,6 +7,7 @@ import {
   errors,
   id,
   listCode,
+  longText,
   media,
   moment,
   oneLine,
@@ -60,7 +61,7 @@ export const uploadDoneInput = z.strictObject({
   id,
   requestId,
   description: plainText(1000).optional(),
-  transcript: plainText(20000).optional(),
+  transcript: longText(20000).optional(),
   stillMediaId: id.optional(),
 });
 
@@ -123,7 +124,7 @@ export const adminUploadDoneInput = z.strictObject({
   requestId,
   name: oneLine(80).optional(),
   description: plainText(1000).optional(),
-  transcript: plainText(20000).optional(),
+  transcript: longText(20000).optional(),
   stillMediaId: id.optional(),
 });
 

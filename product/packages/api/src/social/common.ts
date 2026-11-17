@@ -68,8 +68,9 @@ export const oneLine = (max: number) =>
 
 /**
  * Text that may run over several lines, as the agreement's `text` has it (the same rules as a line,
- * new lines allowed), 1 to `max` characters. Longer bodies (files, transcripts) keep the same
- * character rules at their own limit, which is what the database's code checks hold them to.
+ * new lines allowed, none at either end), 1 to `max` characters. For the columns that are the
+ * agreement's `plain_text` (a post's or reply's body, a chat message, a task, a description). The long
+ * texts, which the database holds only to the code checks, are `longText`.
  */
 export const plainText = (max: number) =>
   z
@@ -77,6 +78,43 @@ export const plainText = (max: number) =>
     .min(1, 'Must not be empty')
     .max(max, `At most ${max} characters`)
     .regex(patternOf(common.text), 'No control or invisible characters, and none at either end');
+
+/**
+ * The agreement's code checks (agreement/src/validate.ts: hidden characters, stacked variation
+ * selectors, stray joiners, a final new line), which the database makes as `agreement.passes_code_checks`
+ * and compares with `validate()` for every character there is.
+ */
+const CODE_CHECKS = [
+  /(?!\u{200D}|\u{FE0E}|\u{FE0F})[\p{Cf}\p{Co}\p{Cs}\p{Default_Ignorable_Code_Point}]/u,
+  /[\u{FE00}-\u{FE0F}]{2}/u,
+  /^\u{200D}|\u{200D}$|\u{200D}\u{200D}|[\n -~]\u{200D}|\u{200D}[\n -~]/u,
+  /\n$/,
+];
+
+/** How many characters the database counts (`char_length`): code points, so an emoji is one. */
+const characters = (text: string): number => {
+  let count = 0;
+  for (const _ of text) count++;
+  return count;
+};
+
+/**
+ * Long text, as the database holds it (a file's body, a transcript, a reading profile): `min` to
+ * `max` characters, counted as it counts them, passing the agreement's code checks and nothing else.
+ * So new lines and tabs anywhere are fine, a markdown file may start with a blank line or an
+ * indented block, and only a final new line is refused.
+ */
+export const longText = (max: number, min = 1) =>
+  z
+    .string()
+    .refine((text) => characters(text) >= min, {
+      message: min > 0 ? 'Must not be empty' : 'Too short',
+    })
+    .refine((text) => characters(text) <= max, { message: `At most ${max} characters` })
+    .refine((text) => !CODE_CHECKS.some((rule) => rule.test(text)), {
+      message: 'No hidden characters, stray joiners or final new line',
+    })
+    .describe(`Text of at most ${max} characters, with no hidden characters and no final new line`);
 
 /** A code from a list that can be filled in (a format, a reply intent, a skill's kind): lower-case, digits and hyphens. */
 export const listCode = z

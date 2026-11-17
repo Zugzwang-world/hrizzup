@@ -1,3 +1,4 @@
+import { validate } from '@hrizzup/agreement';
 import { createRouterClient } from '@orpc/server';
 import { describe, expect, it } from 'vitest';
 import { contract } from '../contract.ts';
@@ -16,6 +17,7 @@ import {
   consoleMeta,
   filterFields,
   live,
+  longText,
   oneLine,
   placeCode,
   placeFilter,
@@ -584,6 +586,87 @@ describe("social's text, built from the agreement's own rules", () => {
     expect(plainText(50000).safeParse(long).success).toBe(true);
     expect(plainText(50000).safeParse(`${long}\n`).success).toBe(false);
     expect(Date.now() - started).toBeLessThan(500);
+  });
+
+  it('takes long text as the database holds it: the code checks and a length, so tabs and blank lines are fine', () => {
+    const markdown = '\n# A file\n\n\tindented with a tab\n    and four spaces\n\n```\n\tcode\n```';
+    expect(longText(50000).safeParse(markdown).success).toBe(true);
+    expect(longText(50000).safeParse('  leading spaces and a tab\t').success).toBe(true);
+    // The first character may be a new line or a space; plain text (a post's body) may not.
+    expect(plainText(5000).safeParse(markdown).success).toBe(false);
+    for (const bad of [
+      'ends in a new line\n',
+      'zero\u200bwidth',
+      'tag\u{E0041}',
+      'stacked\uFE0F\uFE0F',
+      '\u200Dleading joiner',
+      'a\u200Db',
+      '',
+      'x'.repeat(50001),
+    ]) {
+      expect(longText(50000).safeParse(bad).success, JSON.stringify(bad)).toBe(false);
+    }
+    // The limit counts characters as the database does: an emoji is one, not two.
+    expect(longText(3).safeParse('😀😀😀').success).toBe(true);
+    expect(longText(3).safeParse('😀😀😀😀').success).toBe(false);
+    // A reading profile may be empty; a transcript may not.
+    expect(longText(2000, 0).safeParse('').success).toBe(true);
+    expect(longText(50000).safeParse(`${markdown.repeat(100)}x`.slice(0, 50000)).success).toBe(
+      true,
+    );
+  });
+
+  it('agrees with the agreement’s own check on what hides in text, string by string', () => {
+    const story = callExamples['admin.social.stories.save']?.input as {
+      record: Record<string, unknown>;
+    };
+    const hides = (text: string) =>
+      validate({ ...story.record, summary: text }).some(
+        (problem) =>
+          problem.message === 'must not hide characters' ||
+          problem.message === 'must not end in a new line',
+      );
+    // Strings the record's own patterns pass, so only the code checks are in question.
+    for (const text of [
+      'A plain sentence.',
+      'An emoji family 👨‍👩‍👧 and a flag 🇮🇳',
+      'tag\u{E0041}x',
+      'stacked\uFE0F\uFE0Fselectors',
+      'a\u200Db joiner',
+      'joiner at the end\u200D',
+      'a new line\nin the middle',
+      'one selector \u2764\uFE0F is an emoji',
+    ]) {
+      expect(longText(5000).safeParse(text).success, JSON.stringify(text)).toBe(!hides(text));
+    }
+  });
+
+  it('puts every long-text field on it: a file’s body, a transcript, a reading profile', () => {
+    const body = '\n\tA markdown file with a tab and a leading blank line';
+    const takes = (name: string, value: unknown) =>
+      (byName.get(name) as Call)['~orpc'].inputSchema?.['~standard'] !== undefined &&
+      (
+        (byName.get(name) as Call)['~orpc'].inputSchema as unknown as {
+          safeParse: (v: unknown) => { success: boolean };
+        }
+      ).safeParse(value).success;
+    for (const name of ['social.me.saveFile', 'owner.files.save']) {
+      const saved = callExamples[name]?.input as Record<string, unknown>;
+      expect(takes(name, { ...saved, body }), name).toBe(true);
+      expect(takes(name, { ...saved, body: `${body}\n` }), name).toBe(false);
+      expect(takes(name, { ...saved, body: 'x'.repeat(50001) }), name).toBe(false);
+    }
+    for (const name of ['social.me.uploadDone', 'admin.social.uploads.done']) {
+      const done = callExamples[name]?.input as Record<string, unknown>;
+      expect(takes(name, { ...done, transcript: body }), name).toBe(true);
+      expect(takes(name, { ...done, transcript: `${body}\n` }), name).toBe(false);
+      expect(takes(name, { ...done, transcript: 'x'.repeat(20001) }), name).toBe(false);
+    }
+    const profile = callExamples['reader.saveProfile']?.input as Record<string, unknown>;
+    expect(takes('reader.saveProfile', { ...profile, body: '' })).toBe(true);
+    expect(takes('reader.saveProfile', { ...profile, body })).toBe(true);
+    expect(takes('reader.saveProfile', { ...profile, body: `${body}\n` })).toBe(false);
+    expect(takes('reader.saveProfile', { ...profile, body: 'x'.repeat(2001) })).toBe(false);
   });
 
   it('declares a claim preview’s 401 and 429 and its 404 only: nobody need be signed in, so no 403', () => {

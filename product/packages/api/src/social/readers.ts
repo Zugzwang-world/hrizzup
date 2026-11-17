@@ -4,6 +4,7 @@ import {
   count,
   errors,
   id,
+  longText,
   moment,
   nextCursor,
   pageInput,
@@ -44,7 +45,7 @@ export const readerMessage = z.object({
 export const readerChatPage = z.object({ messages: z.array(readerMessage), next: nextCursor });
 
 /** The reader's own edit of their reading profile; a profile that doesn't parse is refused (400). */
-export const saveProfileInput = z.strictObject({ requestId, body: z.string().max(2000) });
+export const saveProfileInput = z.strictObject({ requestId, body: longText(2000, 0) });
 
 /** A message to the reader agent. */
 export const sendReaderMessageInput = z.strictObject({ requestId, body: plainText(2000) });
