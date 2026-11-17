@@ -1,6 +1,6 @@
 # Product: status
 
-Last updated: 17 November 2026 (Round 6, R2). Plan: [PLAN.md](../../PLAN.md). Brief: [docs/brief/product.md](../brief/product.md). Code: [product/](../../product/). Hand-over agreement: [agreement/README.md](../../agreement/README.md).
+Last updated: 17 November 2026 (Round 6, R4). Plan: [PLAN.md](../../PLAN.md). Brief: [docs/brief/product.md](../brief/product.md). Code: [product/](../../product/). Hand-over agreement: [agreement/README.md](../../agreement/README.md).
 
 ## Done
 
@@ -877,6 +877,8 @@ Last updated: 17 November 2026 (Round 6, R2). Plan: [PLAN.md](../../PLAN.md). Br
   - **a quick check,** `.github/scripts/test_role_team.py` (in Quick checks through `.github/scripts`' tests): each role file parses as plain YAML and names its model by full ID, its effort and its tools (each one a background subagent keeps), the team and the settings stay as the founder set them, with tests proving it fails on broken files, a changed team and changed settings;
   - **CLAUDE.md's playbook** for the coordinator, and its round references made current ("Round <n>"); PLAN.md section 3 gains the role team.
   - **Social's build plan** (PLAN.md step 2.8, "Social's build plan"; TRACKER.md's Round 6 queue, R3 to R15 numbered and not started) and **the founder's eight answers** (spec sections 7, 8, 9, 11, 16 and 17; PLAN.md section 2's "Social" and section 7).
+- **Round 6, R4: Round 5's leftovers and faster checks, 17 November 2026** (in progress; the role team: scouts, experts, builder, reviewer).
+  - **M1, 1 of 2: an order's market closing time in the database** ([#145](https://github.com/Zugzwang-world/hrizzup/pull/145); risky, the database change first): `trading.orders` also returns each order's `closes_at`, in the positions read's UTC form (`20261117173939_orders_closing_time.sql`, same signature, body and security settings); its whole-order test expects the new key, and a new assertion checks a market past its closing time. Adding only: the website's read ignores the new key until M1's second pull request uses it.
 
 ## Next
 
