@@ -289,6 +289,36 @@ describe('trading', () => {
     expect(again).toMatchObject({ kind: 'refused', reason: 'no_open_order' });
   });
 
+  it("shows a resting order's market as closed once its closing time has passed, though the console still has it open", async () => {
+    const market = await openedMarket();
+    const trader = await person('100');
+    const resting = await placeTrade(app, trader, buy(market, { amount: '10', limitProb: '0.2' }));
+    expect(resting.status).toBe('resting');
+    expect((await openOrders(app, trader)).orders).toEqual([
+      expect.objectContaining({ id: resting.tradeId, marketId: market, state: 'open' }),
+    ]);
+    // The closing time passes (the database owner moves it with a direct write, so the test needn't
+    // wait), and nobody closes the market.
+    await owner.query(
+      `update markets.details set opens_at = now() - interval '1 hour' where market_id = $1`,
+      [market],
+    );
+    await owner.query(
+      `update markets.markets set closes_at = now() - interval '1 second' where id = $1`,
+      [market],
+    );
+    const later = await openOrders(app, trader);
+    await passes(outputOf(contract.portfolio.orders), later);
+    expect(later.orders).toEqual([
+      expect.objectContaining({ id: resting.tradeId, marketId: market, state: 'closed' }),
+    ]);
+    const { rows } = await owner.query<{ state: string }>(
+      'select state from markets.markets where id = $1',
+      [market],
+    );
+    expect(rows[0]?.state, 'stored as open until the console closes it').toBe('open');
+  });
+
   it("never cancels someone else's order", async () => {
     const market = await openedMarket();
     const [ann, raj] = [await person('100'), await person('100')];

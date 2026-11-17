@@ -3,11 +3,11 @@ import { marketList as exampleList } from '@hrizzup/api/examples';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { marketQuote, oneMarket } from './data.ts';
 import { shownMarket, shownState } from './shown.ts';
-import { marketList, positions } from './trading.ts';
+import { marketList, openOrders, positions } from './trading.ts';
 
 /**
  * Quick checks, with no database: a market that is stored as open but past its closing time is shown
- * as closed by every public read (the list, one market, the positions), at the very moment the trade
+ * as closed by every public read (the list, one market, the positions, the open orders), at the very moment the trade
  * itself starts refusing; a market with time left is shown as open and reported to the read's watcher,
  * which keeps the edge's copy from outliving the closing time. The reads against a real database are
  * in data.db.test.ts; end to end, the market-closes journey.
@@ -139,6 +139,31 @@ describe('the public reads', () => {
       '019a6b3c-0002-7000-8000-000000000002',
     );
     expect(page.positions.map((position) => position.state)).toEqual(['open', 'closed', 'settled']);
+  });
+
+  it("show a resting order's market as closed once it is past its closing time", async () => {
+    const row = (state: string, closesIn: number) => ({
+      id: '019a6b3c-0003-7000-8000-000000000003',
+      market_id: '019a6b3c-0001-7000-8000-000000000001',
+      question: 'Will test event A happen?',
+      state,
+      closes_at: at(closesIn),
+      outcome: 'YES',
+      order_amount: '10.000000',
+      amount: '0.000000',
+      shares: '0.000000',
+      limit_prob: '0.20000000',
+      expires_at: null,
+      created_at: at(-120),
+    });
+    const page = await openOrders(
+      poolAnswering({
+        orders: [row('open', 60), row('open', -60), row('settled', -60)],
+        next: null,
+      }),
+      '019a6b3c-0002-7000-8000-000000000002',
+    );
+    expect(page.orders.map((order) => order.state)).toEqual(['open', 'closed', 'settled']);
   });
 
   it('tell the watcher when the market a quote is for closes, and refuse a quote once it has', async () => {
