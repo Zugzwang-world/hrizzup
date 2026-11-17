@@ -6,6 +6,8 @@
 # The app is built as a release build, with its code inside (like the preview build people
 # install), from Expo's generated Android project (`expo prebuild`) with Gradle, for the
 # emulator's processor only. Caches keep most runs short, each saved as soon as it's ready:
+#   - pnpm's packages, read from main's store (the Tool cache workflow saves it, by the
+#     lockfile's hash; no run saves it here);
 #   - Gradle's downloads and build cache (gradle/actions/setup-gradle);
 #   - the built app itself, keyed by the app's files, so a re-run skips the build;
 #   - Maestro, the emulator and its system image, each at the version .github/scripts/tools.py
@@ -68,7 +70,19 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
-          cache: pnpm
+          package-manager-cache: false
+      # pnpm's packages come from main's store in GitHub's cache (the Tool cache workflow fills
+      # it), read only: with no exact hit, the newest store of main under the same prefix, so a
+      # pull request that changes the lockfile downloads only the difference.
+      - name: Where pnpm keeps its packages, and main's key for them
+        id: store
+        run: python3 .github/scripts/tools.py key pnpm-store >> "$GITHUB_OUTPUT"
+      - name: The packages, from GitHub's cache (read only)
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.store.outputs.pnpm_store_file }}
+          key: ${{ steps.store.outputs.pnpm_store_key }}
+          restore-keys: ${{ steps.store.outputs.pnpm_store_prefix }}
       - name: Connect the Remote Cache
         uses: vercel/setup-turborepo-remote-cache-action@49d7b1b46ba4c9251e1977986bfe18336feabc8f # v1.1.0
         continue-on-error: true

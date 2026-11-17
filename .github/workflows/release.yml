@@ -171,20 +171,25 @@ jobs:
         if: inputs.action == 'release'
         with:
           node-version-file: .node-version
-      # The packages come from main's whole store in GitHub's cache (the key setup-node uses,
-      # filled by full installs: the Tool cache workflow and App journeys), read only: this job
-      # installs one package's few dependencies, and a store saved from here would hold only
-      # those under the key every pull request reads. Anything missing comes from npm, retried.
-      - name: Where pnpm keeps its packages
+      # The packages come from main's whole store in GitHub's cache (the Tool cache workflow saves
+      # it under `tools.py key pnpm-store`, by the lockfile's hash), read only: this job installs
+      # one package's few dependencies, and a store saved from here would hold only those under
+      # the key every check reads. With no exact hit, the newest store under the same prefix;
+      # anything missing comes from npm, retried.
+      # A cache never stops a release: if the key can't be made (the commit being released may
+      # predate `tools.py key pnpm-store`), the restore is skipped and pnpm installs from npm.
+      - name: Where pnpm keeps its packages, and main's key for them
         id: store
         if: inputs.action == 'release'
-        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+        continue-on-error: true
+        run: python3 .github/scripts/tools.py key pnpm-store >> "$GITHUB_OUTPUT"
       - name: The packages, from GitHub's cache (read only)
-        if: inputs.action == 'release'
+        if: inputs.action == 'release' && steps.store.outcome == 'success'
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ${{ steps.store.outputs.path }}
-          key: node-cache-${{ runner.os }}-x64-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          path: ${{ steps.store.outputs.pnpm_store_file }}
+          key: ${{ steps.store.outputs.pnpm_store_key }}
+          restore-keys: ${{ steps.store.outputs.pnpm_store_prefix }}
       - run: pnpm install --frozen-lockfile --filter @hrizzup/database
         if: inputs.action == 'release'
 

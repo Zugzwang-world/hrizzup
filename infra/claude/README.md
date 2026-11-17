@@ -4,7 +4,7 @@
 
 ## Hrizzup brief refresh (off)
 
-**Its job:** rewrite any thinking-project brief (`docs/brief/`) that has fallen behind, following CLAUDE.md, "Thinking-project briefs", in one `[small]` pull request that merges once the four required checks pass. On days when every brief is current, it does nothing.
+**Its job:** rewrite any thinking-project brief (`docs/brief/`) that has fallen behind, following CLAUDE.md, "Thinking-project briefs", in one `[small]` pull request that merges once the six required checks pass. On days when every brief is current, it does nothing.
 
 **To switch it on:**
 
@@ -16,7 +16,7 @@
 | Schedule | Every day at 00:30 UTC (06:00 India time), cron `30 0 * * *` | After the day's work, before the founder starts |
 | Model | Sonnet 5.5 (`claude-sonnet-5-5`) | Enough for a rewrite; light on the plan's usage |
 | Environment | Anthropic's Default cloud environment (Trusted network access) | Nothing on the founder's Mac is in reach |
-| Repository | `Zugzwang-world/hrizzup` | It pushes only `claude/` branches; `main` needs the four required checks |
+| Repository | `Zugzwang-world/hrizzup` | It pushes only `claude/` branches; `main` needs the six required checks |
 | Connectors | None (`clear_mcp_connections`) | The founder's choice: nothing personal in reach |
 | Tools | Bash, Read, Write, Edit, Glob, Grep | |
 | Keys | None of any kind | It changes only `docs/brief/` |
@@ -48,11 +48,11 @@ Limits for this run (they override anything else you read):
 7. Open the pull request with the REST API:
    gh api repos/Zugzwang-world/hrizzup/pulls -f title='[small] Briefs: daily refresh (D Month YYYY)' -f head=claude/brief-refresh-YYYY-MM-DD -f base=main -f body='...'
    The body says 'Size: small (docs/brief/ only)', which briefs were rewritten, and the commits that made each fall behind. End it with the attribution line your session's instructions give.
-8. Wait for the four required checks on the head commit (Secret check, Quick checks, Database check, Screen check) with this command, run with a 10-minute timeout and repeated up to three times if they haven't finished:
-   SHA=HEAD_SHA; until gh api "repos/Zugzwang-world/hrizzup/commits/$SHA/check-runs?per_page=100" --jq '[.check_runs[] | select(.name == "Secret check" or .name == "Quick checks" or .name == "Database check" or .name == "Screen check")] | length >= 4 and all(.status == "completed")' | grep -q true; do sleep 30; done; gh api "repos/Zugzwang-world/hrizzup/commits/$SHA/check-runs?per_page=100" --jq '.check_runs[] | [.name, .conclusion] | join(": ")'
-   When all four say success, merge it: gh api -X PUT repos/Zugzwang-world/hrizzup/pulls/NUMBER/merge -f merge_method=squash
+8. Wait for the six required checks on the head commit (Secret check, Quick checks, Database check, Screen check, Speed check, App journeys) with this command, run with a 10-minute timeout and repeated up to three times if they haven't finished:
+   SHA=HEAD_SHA; until gh api "repos/Zugzwang-world/hrizzup/commits/$SHA/check-runs?per_page=100" --jq '[.check_runs[] | select(.name == "Secret check" or .name == "Quick checks" or .name == "Database check" or .name == "Screen check" or .name == "Speed check" or .name == "App journeys")] | length >= 6 and all(.status == "completed")' | grep -q true; do sleep 30; done; gh api "repos/Zugzwang-world/hrizzup/commits/$SHA/check-runs?per_page=100" --jq '.check_runs[] | [.name, .conclusion] | join(": ")'
+   When all six say success, merge it: gh api -X PUT repos/Zugzwang-world/hrizzup/pulls/NUMBER/merge -f merge_method=squash
    GitHub then deletes the branch by itself.
-9. If any of the four checks fails, or they haven't all passed after 30 minutes, leave the pull request open, change nothing else, and end your reply with 'NEEDS ATTENTION:', the pull request's link and the failing check's name.
+9. If any of the six checks fails, or they haven't all passed after 30 minutes, leave the pull request open, change nothing else, and end your reply with 'NEEDS ATTENTION:', the pull request's link and the failing check's name.
 
 Finish with two or three plain-English sentences: which briefs were rewritten (or none), the pull request's link, and whether it merged.
 ````
