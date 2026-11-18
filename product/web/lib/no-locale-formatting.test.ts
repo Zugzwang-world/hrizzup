@@ -9,6 +9,7 @@ const FILES = [
   'lib/console-format.ts',
   'lib/sandbox/format.ts',
   'lib/digits.ts',
+  'components/sandbox/classes.ts',
   'components/sandbox/market-board.tsx',
   'components/sandbox/nav.tsx',
   'components/sandbox/perp-board.tsx',

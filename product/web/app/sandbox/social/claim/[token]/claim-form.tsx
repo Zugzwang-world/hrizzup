@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useActionState } from 'react';
 import { BUTTON, FIELD } from '@/components/console/controls.tsx';
-import { PRIMARY } from '@/components/sandbox/ui.tsx';
+import { PRIMARY } from '@/components/sandbox/classes.ts';
 import { type ClaimState, claimAction } from './actions.ts';
 
 /**

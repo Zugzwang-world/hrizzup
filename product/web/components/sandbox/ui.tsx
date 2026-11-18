@@ -9,10 +9,6 @@ import { lineOf } from '@/lib/sandbox/format.ts';
  * layout of their own, like the console's controls (components/console/controls.tsx).
  */
 
-/** The one button that does the thing: Buy, Sell, Open. Ink on paper, the site's own values. */
-export const PRIMARY =
-  'min-h-11 min-w-0 rounded-md border border-ink bg-ink px-5 font-medium break-words text-paper disabled:opacity-60';
-
 const CHOICE = 'min-h-11 min-w-0 flex-1 rounded-md border px-3 font-medium break-words';
 const CHOSEN = 'border-ink bg-ink text-paper';
 const OTHER = 'border-line hover:bg-note';

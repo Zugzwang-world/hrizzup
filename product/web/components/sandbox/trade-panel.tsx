@@ -5,7 +5,8 @@ import { useState } from 'react';
 import { tradeAction } from '@/app/sandbox/actions.ts';
 import { FIELD } from '@/components/console/controls.tsx';
 import { noCents, plain, shareOf, typedAmount, yesCents } from '@/lib/sandbox/format.ts';
-import { Choice, PRIMARY, QuickAmount } from './ui.tsx';
+import { PRIMARY } from './classes.ts';
+import { Choice, QuickAmount } from './ui.tsx';
 
 type Side = 'yes' | 'no';
 
