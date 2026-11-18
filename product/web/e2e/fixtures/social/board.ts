@@ -1,14 +1,19 @@
-import type { SocialFixture } from './fixture.ts';
+import type { SocialFixture, SocialFixtureContext } from './fixture.ts';
 
 /**
- * The board area's fixture (R5; docs/social/build.md, sections 7.9 and 8.3): one unlisted test story
- * with three updates, kept on staging for the story page's screen check and journey. It is made once
- * through the console's live saves (`admin.social.stories.save`, `admin.social.updates.save`), as the
- * console's admin test account, and never changed: every record has a fixed ID and fixed times in
- * the past, so a second make finds it. It is unlisted, so it never shows on the board, and a check
- * run never makes a listed story. The third update corrects the first, so the page's corrections
- * show; each has sources, so its links show; and no post is ever written on it, so its desk is empty.
- * Nothing in it is personal: it is a placeholder story, on a placeholder source (`example.com`).
+ * The board area's fixtures (R5; docs/social/build.md, sections 7.9 and 8.3): three unlisted test stories kept
+ * on staging for the story page's screen check and journey. Each is made once through the console's live saves
+ * (`admin.social.stories.save`, `admin.social.updates.save`), as the console's admin test account, and never
+ * changed: every record has a fixed ID and fixed times in the past, so a second make finds it. All are
+ * unlisted, so none ever shows on the board, and a check run never makes a listed story.
+ * - **The live story** has three updates. The third corrects the first, so the page's corrections show; each
+ *   has sources, so its links show; and no post is ever written on it, so its desk is empty.
+ * - **The withdrawn story** was made live, then saved again withdrawn with a reason, so its page says why.
+ * - **The merged story** was made live, then saved again as merged into the live story, so its address shows the
+ *   live story with a line naming it. It has no updates: a merge moves a story's updates to the one that stays, which
+ *   a console save (one record, one transaction) can't do.
+ * Nothing in any of them is personal: they are placeholder stories, on a placeholder source (`example.com`).
+ * A desk with posts can't be fixed here until agents can post (R6's posting).
  */
 
 /** The story's ID: a version 7 UUID of a fixed time (15 November 2026), not the market fixtures' prefix. */
@@ -47,17 +52,34 @@ export const BOARD_FIXTURE_UPDATES = [
 /** When the story was made and last changed: fixed, so a second save is the same record. */
 const MADE_AT = '2026-11-15T05:00:00.000Z';
 
-function storyRecord() {
+/** When the withdrawn and merged stories were changed to what they are: fixed, after they were made. */
+const CHANGED_AT = '2026-11-15T05:30:00.000Z';
+
+/** The withdrawn story: its ID (a version 7 UUID of a fixed time), its title and the reason its page gives. */
+export const BOARD_WITHDRAWN_STORY = '01a1df6a-7700-7b84-9d96-a275e4b16c5c';
+export const BOARD_WITHDRAWN_REASON = 'Withdrawn as a test: the kept story for the withdrawn page';
+const BOARD_WITHDRAWN_TITLE =
+  'Screen check: a withdrawn test story kept on staging for the story page';
+
+/** The merged story: its ID and title. It was merged into the live story, so its address shows that one. */
+export const BOARD_MERGED_STORY = '01a1df85-ef40-7c95-ae07-b386f5c27d6d';
+const BOARD_MERGED_TITLE = 'Screen check: a merged test story kept on staging for the story page';
+
+type Change = Record<string, unknown>;
+
+/** A story/1 of the fixtures: live as it was made at `MADE_AT`, unless `change` says what it has become (and when). */
+function storyRecord(id: string, title: string, change: Change = {}) {
   return {
     format: 'story/1',
-    id: BOARD_FIXTURE_STORY,
-    title: BOARD_FIXTURE_TITLE,
+    id,
+    title,
     summary: BOARD_FIXTURE_SUMMARY,
     locations: ['mumbai'],
     categories: ['general'],
     state: 'live',
     created_at: MADE_AT,
     updated_at: MADE_AT,
+    ...change,
   };
 }
 
@@ -79,69 +101,181 @@ function updateRecord(update: (typeof BOARD_FIXTURE_UPDATES)[number]) {
 
 type Answer = { status: number; body: Record<string, unknown> };
 
+/** One call to the site as the console's admin test account; the answer's body is empty when it isn't JSON, and the status says what happened. */
+async function call(
+  { baseURL, headers }: SocialFixtureContext,
+  method: string,
+  path: string,
+  body?: unknown,
+): Promise<Answer> {
+  const response = await fetch(new URL(path, baseURL), {
+    method,
+    headers: {
+      ...headers,
+      ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+    },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+  let parsed: Record<string, unknown> = {};
+  try {
+    parsed = (await response.json()) as Record<string, unknown>;
+  } catch {
+    // Not JSON: the status says what happened.
+  }
+  return { status: response.status, body: parsed };
+}
+
+/** Whether a save went through, or the database already had what it was sent. */
+const saved = (answer: Answer) =>
+  answer.status === 200 ||
+  (answer.status === 409 &&
+    (answer.body.data as { reason?: unknown } | undefined)?.reason === 'stale_record');
+
+/** Saves a story of the fixtures, unlisted (a story's listing is fixed when it is made). A failure names the status only. */
+async function saveStory(context: SocialFixtureContext, what: string, record: unknown) {
+  const made = await call(context, 'POST', '/api/v1/admin/social/stories', {
+    record,
+    listed: false,
+  });
+  if (!saved(made)) throw new Error(`Couldn't make the board's ${what} (${made.status})`);
+}
+
+/** A fixture story's public read: 404 when it isn't there. Any other status than 200 and 404 is a failure, naming the status. */
+async function read(context: SocialFixtureContext, id: string, what: string): Promise<Answer> {
+  const found = await call(context, 'GET', `/api/v1/social/stories/${id}`);
+  if (found.status !== 200 && found.status !== 404) {
+    throw new Error(`Couldn't read the board's ${what} (${found.status})`);
+  }
+  return found;
+}
+
 /**
- * The board's fixture story: found by its public read, and made (or topped up) through the console's
+ * The board's live fixture story: found by its public read, and made (or topped up) through the console's
  * saves only when something is missing. A save the database already has answers `same`, and a story
  * that an update has since moved on answers 409 `stale_record`: both mean it is there. Another run
- * making it at the same moment gets back the same records (their IDs are fixed). A failure names the
- * status only, never what was answered.
+ * making it at the same moment gets back the same records (their IDs are fixed). A story that is there
+ * must be what it was made as (live, unlisted, its own address), or the fixture fails, naming the status only:
+ * a page checked on a story somebody has since withdrawn or listed would pass or fail for the wrong reason. A failure
+ * names the status only, never what was answered.
  */
-export const boardFixtures: readonly SocialFixture[] = [
-  {
-    name: "the board's test story",
-    ensure: async ({ baseURL, headers }) => {
-      const call = async (method: string, path: string, body?: unknown): Promise<Answer> => {
-        const response = await fetch(new URL(path, baseURL), {
-          method,
-          headers: {
-            ...headers,
-            ...(body === undefined ? {} : { 'content-type': 'application/json' }),
-          },
-          ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-        });
-        let parsed: Record<string, unknown> = {};
-        try {
-          parsed = (await response.json()) as Record<string, unknown>;
-        } catch {
-          // Not JSON: the status says what happened.
-        }
-        return { status: response.status, body: parsed };
-      };
-      /** Whether a save went through, or the database already had what it was sent. */
-      const saved = (answer: Answer) =>
-        answer.status === 200 ||
-        (answer.status === 409 &&
-          (answer.body.data as { reason?: unknown } | undefined)?.reason === 'stale_record');
-
-      const found = await call('GET', `/api/v1/social/stories/${BOARD_FIXTURE_STORY}`);
-      if (found.status !== 200 && found.status !== 404) {
-        throw new Error(`Couldn't read the board's fixture story (${found.status})`);
-      }
-      const have = new Set(
-        found.status === 200 && Array.isArray(found.body.updates)
-          ? (found.body.updates as { id?: unknown }[]).map((update) => update.id)
-          : [],
+const liveStory: SocialFixture = {
+  name: "the board's test story",
+  ensure: async (context) => {
+    const found = await read(context, BOARD_FIXTURE_STORY, 'fixture story');
+    if (
+      found.status === 200 &&
+      !(
+        found.body.state === 'live' &&
+        found.body.listed === false &&
+        found.body.requestedId === null
+      )
+    ) {
+      throw new Error(`The board's fixture story isn't as it was made (${found.status})`);
+    }
+    const have = new Set(
+      found.status === 200 && Array.isArray(found.body.updates)
+        ? (found.body.updates as { id?: unknown }[]).map((update) => update.id)
+        : [],
+    );
+    if (found.status === 404) {
+      await saveStory(
+        context,
+        'fixture story',
+        storyRecord(BOARD_FIXTURE_STORY, BOARD_FIXTURE_TITLE),
       );
-      if (found.status === 404) {
-        const made = await call('POST', '/api/v1/admin/social/stories', {
-          record: storyRecord(),
-          listed: false,
-        });
-        if (!saved(made))
-          throw new Error(`Couldn't make the board's fixture story (${made.status})`);
+    }
+    // Oldest first: a correction is saved after the update it corrects.
+    for (const update of BOARD_FIXTURE_UPDATES) {
+      if (have.has(update.id)) continue;
+      const made = await call(context, 'POST', '/api/v1/admin/social/updates', {
+        record: updateRecord(update),
+      });
+      if (!saved(made)) {
+        throw new Error(
+          `Couldn't make the board's fixture story's update ${update.id} (${made.status})`,
+        );
       }
-      // Oldest first: a correction is saved after the update it corrects.
-      for (const update of BOARD_FIXTURE_UPDATES) {
-        if (have.has(update.id)) continue;
-        const made = await call('POST', '/api/v1/admin/social/updates', {
-          record: updateRecord(update),
-        });
-        if (!saved(made)) {
-          throw new Error(
-            `Couldn't make the board's fixture story's update ${update.id} (${made.status})`,
-          );
-        }
-      }
-    },
+    }
   },
-];
+};
+
+/**
+ * The board's withdrawn fixture story: made live, then saved again withdrawn with its reason. Found by its public
+ * read, which answers a withdrawn story as `state: withdrawn` with its reason: nothing is written when it is
+ * there (a live one, from a first make that stopped half way, is withdrawn; a listed or merged one is not what
+ * it was made as, and fails the fixture).
+ */
+const withdrawnStory: SocialFixture = {
+  name: "the board's withdrawn test story",
+  ensure: async (context) => {
+    const found = await read(context, BOARD_WITHDRAWN_STORY, 'withdrawn story');
+    if (found.status === 200 && found.body.state === 'withdrawn') {
+      if (found.body.withdrawnReason !== BOARD_WITHDRAWN_REASON) {
+        throw new Error(`The board's withdrawn story isn't as it was made (${found.status})`);
+      }
+      return;
+    }
+    if (found.status === 200 && !(found.body.state === 'live' && found.body.listed === false)) {
+      throw new Error(`The board's withdrawn story isn't as it was made (${found.status})`);
+    }
+    if (found.status === 404) {
+      await saveStory(
+        context,
+        'withdrawn story',
+        storyRecord(BOARD_WITHDRAWN_STORY, BOARD_WITHDRAWN_TITLE),
+      );
+    }
+    await saveStory(
+      context,
+      'withdrawn story',
+      storyRecord(BOARD_WITHDRAWN_STORY, BOARD_WITHDRAWN_TITLE, {
+        state: 'withdrawn',
+        withdrawn_reason: BOARD_WITHDRAWN_REASON,
+        updated_at: CHANGED_AT,
+      }),
+    );
+  },
+};
+
+/**
+ * The board's merged fixture story: made live, then saved again as merged into the live fixture story (which the
+ * area's fixtures make first). Found by its public read, which answers a merged story as the one it went into,
+ * with the address asked for in `requestedId`: nothing is written when it is there.
+ */
+const mergedStory: SocialFixture = {
+  name: "the board's merged test story",
+  ensure: async (context) => {
+    const found = await read(context, BOARD_MERGED_STORY, 'merged story');
+    if (found.status === 200 && found.body.requestedId === BOARD_MERGED_STORY) {
+      if (found.body.id !== BOARD_FIXTURE_STORY) {
+        throw new Error(`The board's merged story isn't as it was made (${found.status})`);
+      }
+      return;
+    }
+    if (
+      found.status === 200 &&
+      !(
+        found.body.state === 'live' &&
+        found.body.listed === false &&
+        found.body.id === BOARD_MERGED_STORY
+      )
+    ) {
+      throw new Error(`The board's merged story isn't as it was made (${found.status})`);
+    }
+    if (found.status === 404) {
+      await saveStory(context, 'merged story', storyRecord(BOARD_MERGED_STORY, BOARD_MERGED_TITLE));
+    }
+    await saveStory(
+      context,
+      'merged story',
+      storyRecord(BOARD_MERGED_STORY, BOARD_MERGED_TITLE, {
+        state: 'merged',
+        merged_into: BOARD_FIXTURE_STORY,
+        updated_at: CHANGED_AT,
+      }),
+    );
+  },
+};
+
+/** The board area's fixtures, in the order they are made: the merged story needs the live one. */
+export const boardFixtures: readonly SocialFixture[] = [liveStory, withdrawnStory, mergedStory];
