@@ -107,14 +107,29 @@ describe('the stories step', () => {
     expect(answer.summary).toMatchObject({ counts: { stories: 0, posts: 0 } });
   });
 
-  it('refuses an answer that is not exactly {stories, posts} of UUIDs, naming the function and never quoting the answer', async () => {
+  it('accepts an answer with a key it does not name (a later migration may add one before the code reads it), and passes it on nowhere', async () => {
+    const answer = await stories.run(
+      context({ stories: [S1], posts: [P1], merged: [S2], note: 'not-a-uuid', nested: { a: 1 } })
+        .context,
+    );
+    expect(answer.ids).toEqual({ stories: [S1], posts: [P1] });
+    expect(answer.summary).toEqual({
+      counts: { stories: 1, posts: 1 },
+      sample: { stories: [S1], posts: [P1] },
+    });
+    expect(answer.data).toBeUndefined();
+    expect(JSON.stringify(answer)).not.toContain('not-a-uuid');
+    expect(JSON.stringify(answer)).not.toContain(S2);
+  });
+
+  it('refuses an answer that lacks a key or holds one of the wrong type, naming the function and never quoting the answer', async () => {
     const wrong: unknown[] = [
       null,
       [],
       'text',
       {},
       { stories: [S1] },
-      { stories: [S1], posts: [P1], extra: [] },
+      { posts: [P1] },
       { stories: S1, posts: [] },
       { stories: ['not-a-uuid'], posts: [] },
       { stories: [S1.toUpperCase()], posts: [] },
@@ -169,7 +184,21 @@ describe('the recount step', () => {
     });
   });
 
-  it('refuses an answer that is not {stories, posts, agents, board, directory}', async () => {
+  it('accepts an answer with a key it does not name, and passes it on nowhere', async () => {
+    const answer = await recount.run(
+      context({ ...recounted, replies: [P2], total: 7, note: 'not-a-uuid' }).context,
+    );
+    expect(answer.ids).toEqual({ stories: [S1], posts: [P1, P2], agents: [A1] });
+    expect(answer.data).toEqual({ board: true, directory: false });
+    expect(answer.summary).toEqual({
+      counts: { stories: 1, posts: 2, agents: 1 },
+      board: true,
+      directory: false,
+    });
+    expect(JSON.stringify(answer)).not.toContain('not-a-uuid');
+  });
+
+  it('refuses an answer that lacks a key or holds one of the wrong type', async () => {
     const wrong: unknown[] = [
       null,
       {},
@@ -177,8 +206,10 @@ describe('the recount step', () => {
       { ...recounted, board: 'yes' },
       { ...recounted, directory: 1 },
       { ...recounted, agents: undefined },
-      { ...recounted, extra: true },
+      { ...recounted, board: undefined },
       { ...recounted, posts: ['x'] },
+      { ...recounted, stories: [S1.toUpperCase()] },
+      { stories: [S1], posts: [P1], agents: [A1], board: true },
     ];
     for (const answer of wrong) {
       const error = await recount.run(context(answer).context).catch((caught: unknown) => caught);
