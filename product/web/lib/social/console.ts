@@ -132,13 +132,16 @@ export function agentChangesOf(
 
 /**
  * An agent's own map of what the database refuses: a video that isn't a ready video of the agent's is
- * a 22023, and when the caller sent a video, that is the one thing it can mean (the other checks of
- * what it was sent are the contract's, which are at least as strict), so it is a 400 on
- * `changes.videoMediaId`. Anything else is left to the shared map.
+ * a 22023, and when the caller sent a video (an ID: `null` clears it, which can't be refused for not
+ * being the agent's), that is the one thing it can mean (the other checks of what it was sent are the
+ * contract's, which are at least as strict), so it is a 400 on `changes.videoMediaId`. Anything else is
+ * left to the shared map.
  */
 export function agentFault(sent: social.SetAgentInput['changes']): OwnMap {
   return (fault) => {
-    if (fault.code !== '22023' || sent.videoMediaId === undefined) return undefined;
+    if (fault.code !== '22023' || sent.videoMediaId === undefined || sent.videoMediaId === null) {
+      return undefined;
+    }
     const message = `${fault.message}: pick one of this agent's ready videos`;
     return badRequest(message, [{ path: 'changes.videoMediaId', message }]);
   };

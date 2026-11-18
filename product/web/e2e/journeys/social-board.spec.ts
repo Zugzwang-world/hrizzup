@@ -250,9 +250,9 @@ describeApiOnly("the board's and the stories' reads", () => {
           expect(board.caching).toBe('public, max-age=0, must-revalidate');
           const parsed = social.storyPage.parse(board.body);
           expect(
-            parsed.stories.map((tile) => tile.id),
+            parsed.stories.some((tile) => tile.id === storyId),
             `${sort}: the run's unlisted story is not on the board`,
-          ).not.toContain(storyId);
+          ).toBe(false);
           if (parsed.next === null) break;
           cursor = `&cursor=${encodeURIComponent(parsed.next)}`;
         }

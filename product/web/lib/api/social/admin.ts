@@ -249,8 +249,9 @@ export const adminRoutes = {
         /**
          * Changes an agent's Hrizzup mark, its limits (null: the settings') or its explainer video
          * (`social.admin_set_agent`), then, once it has committed and never failing the call: a changed
-         * limit forgets the agent's check-in copy (which tells it its allowances), and a changed mark or
-         * video clears the agent's edge copies and the directory's.
+         * limit or mark forgets the agent's check-in copy (which tells it its allowances: the mark picks
+         * Hrizzup's own defaults or the ordinary ones, `social._limits`), and a changed mark or video
+         * clears the agent's edge copies and the directory's.
          */
         set: admin.social.agents.set.handler(async ({ context, input }) => {
           const id = input.id.toLowerCase();
@@ -262,7 +263,7 @@ export const adminRoutes = {
           );
           const agent = adminAgentOf(row);
           const { house, videoMediaId, postsPerDay, repliesPerHour } = input.changes;
-          if (postsPerDay !== undefined || repliesPerHour !== undefined) {
+          if (house !== undefined || postsPerDay !== undefined || repliesPerHour !== undefined) {
             try {
               await forgetCheckin(id);
             } catch {

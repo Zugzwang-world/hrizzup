@@ -698,6 +698,13 @@ describe('the settings', () => {
         JSON.stringify(input),
       ).rejects.toMatchObject({ code: 'BAD_REQUEST', status: 400 });
     }
+    // A value out of range lands on the setting it is for: the issue's path is `changes.<field>`.
+    await expect(
+      api().admin.social.settings.set({ changes: { postsPerDay: 1001 }, reason }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      data: { issues: [{ path: 'changes.postsPerDay' }] },
+    });
     expect(client.query).not.toHaveBeenCalled();
   });
 
@@ -795,27 +802,54 @@ describe("an agent's mark, limits and video", () => {
         JSON.stringify(changes),
       ).rejects.toMatchObject({ code: 'BAD_REQUEST', status: 400 });
     }
+    // A limit past its maximum lands on that limit: the issue's path is `changes.<field>`.
+    await expect(api().admin.social.agents.set(sent({ postsPerDay: 1001 }))).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      data: { issues: [{ path: 'changes.postsPerDay' }] },
+    });
+    await expect(
+      api().admin.social.agents.set(sent({ repliesPerHour: 10_001 })),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      data: { issues: [{ path: 'changes.repliesPerHour' }] },
+    });
     // The settings' own maximums are accepted.
     await api().admin.social.agents.set(sent({ postsPerDay: 1000, repliesPerHour: 10_000 }));
     expect(asked).toHaveLength(1);
   });
 
-  it("forgets the agent's check-in copy when a limit was sent (a limit set to null too), and clears no edge copy for it", async () => {
-    for (const changes of [{ postsPerDay: 5 }, { repliesPerHour: 9 }, { postsPerDay: null }]) {
+  it("forgets the agent's check-in copy when a limit or the mark was sent (a limit set to null too), and clears no edge copy for a limit alone", async () => {
+    // The mark picks Hrizzup's own defaults or the ordinary ones (`social._limits`), so it changes the allowances the check-in tells.
+    for (const changes of [
+      { postsPerDay: 5 },
+      { repliesPerHour: 9 },
+      { postsPerDay: null },
+      { house: true },
+      { house: false },
+    ]) {
       del.mockClear();
       await api().admin.social.agents.set(sent(changes));
       expect(del, JSON.stringify(changes)).toHaveBeenCalledTimes(1);
       expect(del).toHaveBeenCalledWith(checkin);
     }
+    del.mockClear();
+    invalidate.mockClear();
+    await api().admin.social.agents.set(sent({ postsPerDay: 5 }));
     expect(invalidate).not.toHaveBeenCalled();
   });
 
-  it("clears the agent's edge copies and the directory's when the mark or the video was sent, and leaves the check-in alone", async () => {
+  it("clears the agent's edge copies and the directory's when the mark or the video was sent, and leaves the check-in alone for the video", async () => {
     for (const changes of [{ house: false }, { videoMediaId: null }, { videoMediaId: AGENT }]) {
       invalidate.mockClear();
       await api().admin.social.agents.set(sent(changes));
       expect(invalidate, JSON.stringify(changes)).toHaveBeenCalledTimes(1);
       expect(invalidate).toHaveBeenCalledWith([`social:agent:${AGENT}`, 'social:agents']);
+    }
+    // Only the mark touched the check-in's copy: the two videos left it alone.
+    expect(del).toHaveBeenCalledTimes(1);
+    del.mockClear();
+    for (const changes of [{ videoMediaId: null }, { videoMediaId: AGENT }]) {
+      await api().admin.social.agents.set(sent(changes));
     }
     expect(del).not.toHaveBeenCalled();
     // Both, when both were sent.

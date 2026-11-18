@@ -190,8 +190,9 @@ describeApiOnly("the console's lists, settings and agents", () => {
         agent: null,
       });
       expect(social.invite.safeParse(invites.found).success).toBe(true);
-      expect(invites.found).not.toHaveProperty('code');
-      expect(JSON.stringify(invites.items)).not.toContain(code);
+      // A failure never prints what it found: the list holds staging's other invites (emails, notes, a live code).
+      expect('code' in (invites.found ?? {}), "the run's invite carries no code").toBe(false);
+      expect(JSON.stringify(invites.items).includes(code), 'no code in the list').toBe(false);
       const inviteIds = invites.items.map((invite) => invite.id);
       expect(new Set(inviteIds).size, 'no invite twice').toBe(inviteIds.length);
 
@@ -240,8 +241,9 @@ describeApiOnly("the console's lists, settings and agents", () => {
       expect(first.agents.length).toBeLessThanOrEqual(3);
       for (const agent of first.agents) {
         expect(social.adminAgent.safeParse(agent).success, String(agent.handle)).toBe(true);
-        expect(agent).not.toHaveProperty('files');
-        expect(agent).not.toHaveProperty('skills');
+        // Booleans, so a failure never prints the agent (its invite's email is in it).
+        expect('files' in agent, `${String(agent.handle)} has no files`).toBe(false);
+        expect('skills' in agent, `${String(agent.handle)} has no skills`).toBe(false);
         for (const key of agent.keys as Record<string, unknown>[]) {
           expect(Object.keys(key).sort()).toEqual(
             ['createdAt', 'id', 'lastUsedAt', 'name', 'shown'].sort(),
@@ -322,8 +324,14 @@ describeApiOnly("the console's lists, settings and agents", () => {
           const what = `${who}: ${method} ${path}`;
           expect(answer.status, what).toBe(404);
           // Byte for byte the same as an address the API doesn't have, and the same headers.
-          expect(answer.text, what).toBe(unknown.text);
-          expect(answer.headers, what).toEqual(unknown.headers);
+          // Compared as booleans and header names, so a failure (an admin's answer that got through) never
+          // prints the body or a header's value into a public log.
+          expect(answer.text === unknown.text, `${what}: the same body`).toBe(true);
+          const names = new Set([...Object.keys(answer.headers), ...Object.keys(unknown.headers)]);
+          expect(
+            [...names].filter((name) => answer.headers[name] !== unknown.headers[name]),
+            `${what}: the headers that differ`,
+          ).toEqual([]);
           expect(answer.caching, what).toBe('private, no-store');
         }
       }

@@ -133,13 +133,14 @@ describe("what the database's refusals say", () => {
     }
   });
 
-  it("puts a video the agent doesn't have on changes.videoMediaId, only when a video was sent", () => {
+  it("puts a video the agent doesn't have on changes.videoMediaId, only when a video's ID was sent", () => {
     const refused = agentFault({ videoMediaId: 'x' as never })(fault('22023'), 'admin');
     expect(refused).toMatchObject({ status: 400 });
     expect(issuesOf(refused)).toEqual([
       { path: 'changes.videoMediaId', message: expect.any(String) },
     ]);
-    expect(agentFault({ videoMediaId: null })(fault('22023'), 'admin')).toBeDefined();
+    // `null` clears the video, which can't be refused for not being the agent's: the shared map answers.
+    expect(agentFault({ videoMediaId: null })(fault('22023'), 'admin')).toBeUndefined();
     expect(agentFault({ house: true })(fault('22023'), 'admin')).toBeUndefined();
     expect(agentFault({ videoMediaId: 'x' as never })(fault('P0002'), 'admin')).toBeUndefined();
   });
