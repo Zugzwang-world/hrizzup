@@ -1,10 +1,9 @@
-import { readdirSync, readFileSync } from 'node:fs';
 import { shapes } from '@hrizzup/agreement';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { contract } from './contract.ts';
 import * as examples from './examples.ts';
-import { isPublished, isSocialCall, procedures } from './procedures.ts';
+import { isSocialCall, procedures } from './procedures.ts';
 import {
   FREE_TEXT_PATHS,
   mapTimes,
@@ -137,6 +136,39 @@ describe('how a time is found (by the schema, never by how a string looks)', () 
     expect(Object.hasOwn(printed, 'maybe')).toBe(false);
     expect(given.at).toBe('2026-11-09T06:30:00Z');
     expect(given.list[0]?.at).toBe('2026-11-09T06:30:00.3Z');
+  });
+
+  it('reads a schema once, whatever the number of answers printed with it', () => {
+    const schema = z.object({ at: time, list: z.array(z.object({ at: time })) });
+    // Count each read of the schema's own shape: the compiled plan is kept for the schema object.
+    const def = schema._zod.def as { shape: unknown };
+    const shape = def.shape;
+    let reads = 0;
+    Object.defineProperty(def, 'shape', {
+      configurable: true,
+      get: () => {
+        reads++;
+        return shape;
+      },
+    });
+    const answer = { at: '2026-11-09T06:30:00Z', list: [{ at: '2026-11-09T06:30:00.5Z' }] };
+    for (let i = 0; i < 5; i++) {
+      expect(printTimes(schema, answer)).toEqual({
+        at: '2026-11-09T06:30:00.000Z',
+        list: [{ at: '2026-11-09T06:30:00.500Z' }],
+      });
+    }
+    expect(timePlan(schema).paths).toEqual(['at', 'list[].at']);
+    expect(timesIn(schema, answer)).toHaveLength(2);
+    // The shape was read to build the plan, and by nothing after.
+    expect(reads).toBeGreaterThan(0);
+    const built = reads;
+    printTimes(schema, answer);
+    mapTimes(schema, answer, (value) => value);
+    expect(reads).toBe(built);
+    // A second schema object is its own plan, and an unreadable one is never kept.
+    expect(timePlan(z.object({ at: time })).paths).toEqual(['at']);
+    expect(timePlan(undefined).unknown).toEqual(['']);
   });
 
   it('returns the value itself when its schema holds no time', () => {
@@ -506,35 +538,5 @@ describe('printingProblems, which the database tests run real answers through', 
       ],
     };
     expect(printingProblems(contract.admin.perps.get['~orpc'].outputSchema, perp)).toEqual([]);
-  });
-});
-
-describe('the real database covers every call that prints a time', () => {
-  it("has each published one but health in some package's *.db.test.ts, so the real answers are checked", () => {
-    const packages = new URL('../../', import.meta.url);
-    const files = readdirSync(packages, { withFileTypes: true })
-      .filter((entry) => entry.isDirectory())
-      .flatMap((entry) => {
-        const src = new URL(`${entry.name}/src/`, packages);
-        try {
-          return readdirSync(src)
-            .filter((file) => file.endsWith('.db.test.ts'))
-            .map((file) => readFileSync(new URL(file, src), 'utf8'));
-        } catch {
-          return [];
-        }
-      });
-    expect(files.length).toBeGreaterThan(5);
-    const published = calls
-      .filter(([name, call]) => PRINTING.includes(name) && isPublished(name.split('.'), call))
-      .map(([name]) => name)
-      .filter((name) => name !== 'health');
-    expect(published.length).toBe(17);
-    for (const name of published) {
-      const found = files.some((file) =>
-        new RegExp(`contract\\.${name.replace('.', '\\.')}\\b`).test(file),
-      );
-      expect(found, `${name} is in no database test`).toBe(true);
-    }
   });
 });

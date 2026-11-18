@@ -217,7 +217,7 @@ export const guide: Section[] = [
     blocks: [
       p('Every change to v1 and every reset of the demo is listed here first, newest at the top.'),
       list(
-        '**18 November 2026:** every time the API prints has exactly three decimals (`2026-11-09T06:30:00.000Z`), where some had none or fewer: only the format of times already there. A time you send may still have none to six.',
+        '**18 November 2026:** every time the API prints has exactly three decimals (`2026-11-09T06:30:00.000Z`), where some had none, one or two decimals, and some six, now cut to the millisecond (never rounded): only the format of times already there. A time you send may still have none to six.',
         '**11 November 2026, late:** the example bot trades the perp only when the account holds no position there, and closes only what it opened; the docs say an account holds one position per side.',
         `**11 November 2026, night:** the MCP server, at \`${server}/mcp\`, for Claude Code, Codex and Cursor, with the same keys.`,
         "**11 November 2026, evening:** trading for bots: `dryRun` on `POST /trades`, Manifold's `YES` and `NO` taken as `outcome`, and your own trades at `GET /me/trades`; the example bot. Only additions.",

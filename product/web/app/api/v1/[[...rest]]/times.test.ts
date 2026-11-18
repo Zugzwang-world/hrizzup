@@ -1,4 +1,12 @@
-import { contract, isSocialCall, PRINTED_TIME, procedures } from '@hrizzup/api';
+import { readdirSync, readFileSync } from 'node:fs';
+import {
+  contract,
+  isPublished,
+  isSocialCall,
+  PRINTED_TIME,
+  procedures,
+  timePlan,
+} from '@hrizzup/api';
 import { apiKey, marketList, ordersPage } from '@hrizzup/api/examples';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -213,5 +221,38 @@ describe("through the MCP server, a tool's answer prints its times in both forms
     expect(structured.question).toBe(QUESTION);
     expect(text.question).toBe(QUESTION);
     await client.close();
+  });
+});
+
+describe('the real database covers every published call that prints a time', () => {
+  /** The database tests of the packages that run the calls (read here, so a change to one re-runs this: web/turbo.json). */
+  const databaseTests = [
+    new URL('../../../../../packages/markets/src/', import.meta.url),
+    new URL('../../../../../packages/perps/src/', import.meta.url),
+  ].flatMap((src) =>
+    readdirSync(src)
+      .filter((file) => file.endsWith('.db.test.ts'))
+      .map((file) => readFileSync(new URL(file, src), 'utf8')),
+  );
+
+  it("names each one but health in some package's *.db.test.ts, where the real answers are checked", () => {
+    expect(databaseTests.length).toBeGreaterThanOrEqual(5);
+    const published = procedures(contract)
+      .filter(
+        ([name, call]) =>
+          !isSocialCall(name.split('.')) &&
+          isPublished(name.split('.'), call) &&
+          timePlan(call['~orpc'].outputSchema).paths.length > 0,
+      )
+      .map(([name]) => name)
+      .filter((name) => name !== 'health');
+    expect(published.length).toBe(17);
+    for (const name of published) {
+      const named = new RegExp(`contract\\.${name.replace('.', '\\.')}\\b`);
+      expect(
+        databaseTests.some((file) => named.test(file)),
+        `${name} is in no database test`,
+      ).toBe(true);
+    }
   });
 });
