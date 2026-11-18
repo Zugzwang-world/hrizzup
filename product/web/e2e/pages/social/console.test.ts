@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import { EMPTY_PAGE_CURSOR } from '../../../lib/social/console-forms.ts';
 import type { Page } from '../../pages.ts';
 import { consoleSocialAdminChecks, consoleSocialPages } from './console.ts';
 
 /**
  * The console's social pages for the checks (docs/social/build.md, section 8.3): R5 adds each one's
- * entry in `console.ts`, and these rules hold every entry to the console's own. There are none yet,
- * so `problems` is also tried on small lists, one good and some not, to show it finds what it should.
+ * entry in `console.ts`, and these rules hold every entry to the console's own. `problems` is also
+ * tried on small lists, one good and some not, to show it finds what it should.
  */
 
 const BASE = '/console/social';
@@ -77,5 +78,18 @@ describe('the console’s social pages', () => {
       `orphan-admin: no page is at ${BASE}/a`,
       'orphan-admin: no heading to look for',
     ]);
+  });
+});
+
+describe('the pages that list people', () => {
+  it('open the invites and agents lists past their last page, so a screenshot of the check shows no email', () => {
+    // The Screen check's screenshots are a download of a public repository's check run: an invite's email
+    // and an agent's invite email must never be on one (`EMPTY_PAGE_CURSOR`, `lib/social/console-forms.ts`).
+    for (const name of ['console-social-invites', 'console-social-agents']) {
+      const page = consoleSocialPages.find((entry) => entry.name === name);
+      expect(page?.path, name).toMatch(new RegExp(`\\?after=${EMPTY_PAGE_CURSOR}$`));
+      const check = consoleSocialAdminChecks.find((entry) => entry.name === `${name}-admin`);
+      expect(check?.path, `${name}-admin`).toBe(page?.path);
+    }
   });
 });

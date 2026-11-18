@@ -5,6 +5,7 @@ import { revokeAgentKeysAction, setAgentAction } from '@/app/console/social/acti
 import { START } from '@/lib/social/console-forms.ts';
 import { BUTTON, FIELD, Field, Refusal } from '../controls.tsx';
 import { Problem, Saved } from './controls.tsx';
+import { Reveal } from './reveal.tsx';
 
 /** An agent's own limits and Hrizzup's mark, changed with a reason: a limit left blank is the settings' own. */
 export function AgentLimitsForm({
@@ -26,10 +27,7 @@ export function AgentLimitsForm({
   };
   const own = (name: string) => `${id}-${name}`;
   return (
-    <details className="mt-2">
-      <summary className="inline-flex min-h-11 cursor-pointer items-center underline">
-        Change limits and mark
-      </summary>
+    <Reveal label="Change limits and mark">
       <form
         key={JSON.stringify(shown)}
         action={run}
@@ -105,7 +103,7 @@ export function AgentLimitsForm({
           </button>
         </div>
       </form>
-    </details>
+    </Reveal>
   );
 }
 
@@ -114,10 +112,7 @@ export function AgentKeysForm({ id }: { id: string }) {
   const [state, run, pending] = useActionState(revokeAgentKeysAction, START);
   const why = `${id}-keys-why`;
   return (
-    <details className="mt-2">
-      <summary className="inline-flex min-h-11 cursor-pointer items-center underline">
-        Revoke keys
-      </summary>
+    <Reveal label="Revoke keys">
       <form
         key={state.nextId ?? ''}
         action={run}
@@ -156,6 +151,6 @@ export function AgentKeysForm({ id }: { id: string }) {
           </button>
         </div>
       </form>
-    </details>
+    </Reveal>
   );
 }

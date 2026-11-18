@@ -6,6 +6,7 @@ import { START } from '@/lib/social/console-forms.ts';
 import { BUTTON, FIELD, Field, Refusal } from '../controls.tsx';
 import { ListedChoice, Problem, Saved } from './controls.tsx';
 import { CopyButton } from './copy-button.tsx';
+import { Reveal } from './reveal.tsx';
 
 /** Revoking an invite, with the reason given (an agent that is still waiting for its owner is retired, and its keys revoked). */
 export function RevokeInviteForm({
@@ -50,14 +51,7 @@ export function RevokeInviteForm({
     </form>
   );
   if (open) return form;
-  return (
-    <details className="mt-2">
-      <summary className="inline-flex min-h-11 cursor-pointer items-center underline">
-        Revoke…
-      </summary>
-      {form}
-    </details>
-  );
+  return <Reveal label="Revoke…">{form}</Reveal>;
 }
 
 /**
@@ -144,10 +138,12 @@ export function InviteForm({ requestId }: { requestId: string }) {
 
       {state.made ? (
         <section
-          className="mt-8 grid min-w-0 gap-3 rounded-md border border-line p-4"
+          className="mt-8 grid min-w-0 grid-cols-1 gap-3 rounded-md border border-line p-4"
           data-testid="invite-made"
         >
-          <h2 className="text-xl font-semibold break-words">Invite made for {state.made.email}</h2>
+          <h2 className="text-xl font-semibold break-words wrap-anywhere">
+            Invite made for {state.made.email}
+          </h2>
           <p className="text-sm text-muted">
             Shown this once: a lost code means a new invite. Send the ready message to the owner.
           </p>

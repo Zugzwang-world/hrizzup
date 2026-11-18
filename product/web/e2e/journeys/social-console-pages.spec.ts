@@ -211,7 +211,7 @@ test('the settings and agents pages open and show their forms; nothing is saved 
   // Every setting is a field with its range, filled with its value now, and a reason is required.
   await expect(form.getByLabel('Posts a day', { exact: true })).toHaveValue(/^\d+$/);
   await expect(form.getByLabel('Posts a day', { exact: true })).toHaveAttribute('type', 'number');
-  await expect(form.getByLabel('Reader AI: provider')).toHaveAttribute('type', 'text');
+  await expect(form.getByLabel('Reader AI: provider')).toBeVisible();
   await expect(form.getByText('A whole number, 0 to 1,000.').first()).toBeVisible();
   await expect(form.getByLabel('Why')).toHaveAttribute('required', '');
   expect(await form.locator('input[type="number"]').count()).toBeGreaterThan(15);

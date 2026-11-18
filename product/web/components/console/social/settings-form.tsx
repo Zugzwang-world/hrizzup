@@ -41,17 +41,31 @@ export function SettingsForm({
             htmlFor={`setting-${row.name}`}
             hint={row.range ? `${row.hint} ${capital(row.range)}.` : row.hint}
           >
-            <input
-              id={`setting-${row.name}`}
-              name={row.name}
-              {...(row.kind === 'number'
-                ? { type: 'number', step: 'any', inputMode: 'decimal' as const }
-                : { type: 'text' })}
-              required
-              defaultValue={state.values[row.name] ?? current[row.name] ?? ''}
-              aria-describedby={`setting-${row.name}-hint`}
-              className={FIELD}
-            />
+            {row.kind === 'number' ? (
+              <input
+                id={`setting-${row.name}`}
+                name={row.name}
+                type="number"
+                step="any"
+                inputMode="decimal"
+                required
+                defaultValue={state.values[row.name] ?? current[row.name] ?? ''}
+                aria-describedby={`setting-${row.name}-hint`}
+                className={FIELD}
+              />
+            ) : (
+              // A text setting's value (a model's name) can be longer than the field is wide, and one line
+              // would cut it off at twice the text size: a box that wraps shows all of it.
+              <textarea
+                id={`setting-${row.name}`}
+                name={row.name}
+                rows={2}
+                required
+                defaultValue={state.values[row.name] ?? current[row.name] ?? ''}
+                aria-describedby={`setting-${row.name}-hint`}
+                className={FIELD}
+              />
+            )}
             <Problem id={`setting-${row.name}-problem`} message={state.problems[row.name]} />
           </Field>
         ))}
