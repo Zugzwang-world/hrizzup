@@ -3,6 +3,7 @@ import { type APIRequestContext, expect, test } from '@playwright/test';
 import { newRecordId } from '../../lib/record-id.ts';
 import { call, micros, settleAndCheckBooks } from '../support/books.ts';
 import { asBrowserCookie } from '../support/bypass.ts';
+import { quiet } from '../support/quiet-request.ts';
 import { runAddress, runKey } from '../support/run.ts';
 import { adminState } from '../support/states.ts';
 import { sessionFor, stagingKeys } from '../support/test-accounts.ts';
@@ -51,7 +52,7 @@ test("3.5a's done-test: keys, the ground rules and the docs, on staging", async 
     ([path, item]) => Object.keys(item).map((method) => `${method.toUpperCase()} ${path}`),
   );
   expect(paths.length).toBeGreaterThanOrEqual(12);
-  const docs = await anyone.get('/docs');
+  const docs = await quiet(anyone).get('/docs');
   expect(docs.status(), 'the docs page').toBe(200);
   const page = await docs.text();
   for (const entry of paths) expect(page, `the docs page lists ${entry}`).toContain(entry);
@@ -59,14 +60,14 @@ test("3.5a's done-test: keys, the ground rules and the docs, on staging", async 
     file.body.paths as Record<string, Record<string, { operationId: string }>>,
   ).flatMap((item) => Object.values(item).map((operation) => operation.operationId));
   for (const id of operations) {
-    const own = await anyone.get(`/docs/calls/${id}`);
+    const own = await quiet(anyone).get(`/docs/calls/${id}`);
     expect(own.status(), `${id} has a docs page of its own`).toBe(200);
   }
-  const llms = await (await anyone.get('/llms.txt')).text();
+  const llms = await (await quiet(anyone).get('/llms.txt')).text();
   for (const link of ['/docs', '/llms-full.txt', '/api/v1/openapi.json']) {
     expect(llms, `llms.txt points at ${link}`).toContain(`${BASE}${link}`);
   }
-  const full = await (await anyone.get('/llms-full.txt')).text();
+  const full = await (await quiet(anyone).get('/llms-full.txt')).text();
   for (const entry of paths) expect(full, `llms-full.txt has ${entry}`).toContain(`### ${entry}`);
 
   // A fresh account of the run's, signed in, makes a read-only key and a trading key.

@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import type { APIRequestContext } from '@playwright/test';
 import { runBot } from '../../../../examples/bot/bot.ts';
 import { newRecordId } from '../../lib/record-id.ts';
 import { describeApiOnly, expect, test } from '../support/api-only.ts';
 import { call, decimal, micros, settleAndCheckBooks } from '../support/books.ts';
 import { runPerp, SUBSIDY } from '../support/perps.ts';
+import { fetchThrough } from '../support/quiet-request.ts';
 import { newRunTrader, runKey } from '../support/run.ts';
 import { adminState, signedOutState } from '../support/states.ts';
 import { type Engine, stagingKeys } from '../support/test-accounts.ts';
@@ -25,21 +25,6 @@ import { type Engine, stagingKeys } from '../support/test-accounts.ts';
  */
 
 const environment = () => process.env.SCREEN_CHECK_ENVIRONMENT;
-
-/** The standard `fetch`, carried by a Playwright request context (Vercel's bypass on a preview). */
-function fetchThrough(context: APIRequestContext): typeof fetch {
-  return async (input, init) => {
-    const response = await context.fetch(String(input), {
-      method: init?.method ?? 'GET',
-      headers: (init?.headers ?? {}) as Record<string, string>,
-      ...(init?.body === undefined ? {} : { data: String(init.body) }),
-    });
-    return new Response(await response.text(), {
-      status: response.status(),
-      headers: response.headers(),
-    });
-  };
-}
 
 describeApiOnly('the example bot', () => {
   test.skip(() => environment() === 'production', 'Keys work only on staging until launch');

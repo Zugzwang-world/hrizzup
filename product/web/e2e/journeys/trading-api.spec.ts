@@ -3,6 +3,7 @@ import { type APIRequestContext, expect, test } from '@playwright/test';
 import { money } from '../../lib/console-format.ts';
 import { newRecordId } from '../../lib/record-id.ts';
 import { call, decimal, holdings, micros, settleAndCheckBooks } from '../support/books.ts';
+import { quiet } from '../support/quiet-request.ts';
 import { newRunTrader, runKey } from '../support/run.ts';
 import { adminState } from '../support/states.ts';
 import { type Engine, stagingKeys } from '../support/test-accounts.ts';
@@ -193,7 +194,7 @@ test.describe('the markets for everyone', () => {
     const signedOut = await trade(request, id, { action: 'buy', outcome: 'yes', amount: '1' });
     expect(signedOut.status, 'signed out').toBe(401);
     // A write from another site's page, riding on the session cookie, is refused before it runs.
-    const forged = await trader.fetch('/api/v1/trades', {
+    const forged = await quiet(trader).fetch('/api/v1/trades', {
       method: 'POST',
       data: { marketId: id, requestId: randomUUID(), action: 'buy', outcome: 'yes', amount: '1' },
       headers: { origin: 'https://elsewhere.example', 'sec-fetch-site': 'cross-site' },

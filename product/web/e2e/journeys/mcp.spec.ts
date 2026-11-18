@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
-import type { APIRequestContext } from '@playwright/test';
 import { newRecordId } from '../../lib/record-id.ts';
 import { describeApiOnly, expect, test } from '../support/api-only.ts';
 import { call, micros, settleAndCheckBooks } from '../support/books.ts';
+import { fetchThrough } from '../support/quiet-request.ts';
 import { newRunTrader, runKey } from '../support/run.ts';
 import { adminState, signedOutState } from '../support/states.ts';
 import { type Engine, stagingKeys } from '../support/test-accounts.ts';
@@ -21,22 +21,6 @@ import { type Engine, stagingKeys } from '../support/test-accounts.ts';
  */
 
 const environment = () => process.env.SCREEN_CHECK_ENVIRONMENT;
-
-/** The standard `fetch`, carried by a Playwright request context (Vercel's bypass on a preview). */
-function fetchThrough(context: APIRequestContext): typeof fetch {
-  return async (input, init) => {
-    const headers = Object.fromEntries(new Headers(init?.headers).entries());
-    const response = await context.fetch(String(input), {
-      method: init?.method ?? 'GET',
-      headers,
-      ...(init?.body === undefined || init.body === null ? {} : { data: String(init.body) }),
-    });
-    return new Response(response.status() === 202 ? null : await response.text(), {
-      status: response.status(),
-      headers: response.headers(),
-    });
-  };
-}
 
 describeApiOnly('the MCP server', () => {
   test.skip(() => environment() === 'production', "Production's API opens at launch");

@@ -1,6 +1,7 @@
 import type { APIRequestContext } from '@playwright/test';
 import { newRecordId } from '../../lib/record-id.ts';
 import { describeApiOnly, expect, test } from '../support/api-only.ts';
+import { quiet } from '../support/quiet-request.ts';
 import { runKey } from '../support/run.ts';
 import { adminState, signedInState } from '../support/states.ts';
 import { ADMIN_TEST_ACCOUNT } from '../support/test-accounts.ts';
@@ -56,7 +57,7 @@ async function call(
   headers: Record<string, string>,
   data?: unknown,
 ) {
-  const response = await request.fetch(path, { method, headers, ...(data ? { data } : {}) });
+  const response = await quiet(request).fetch(path, { method, headers, ...(data ? { data } : {}) });
   const text = await response.text();
   return {
     status: response.status(),
