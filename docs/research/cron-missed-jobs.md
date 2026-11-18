@@ -173,6 +173,14 @@
 - **psql older than 16:** `perps_jobs` refuses it; ubuntu-24.04 ships 16.
 - **A rollback:** it skips 4d, since the database is unchanged.
 
+**If 2c or 4d fails** (every failure line of `reload` says to read this):
+- **The state it leaves:**
+  - *2c:* staging's database has the push, but the step stops before the `staging` branch moves, so the site stays on the previous commit. The release pipeline refuses this commit, because it hasn't passed staging.
+  - *4d:* production's database has the commit's migrations, but the release stopped before the settings (step 5) and the promote (step 7), so production's site is unchanged.
+  - Both are harmless: database changes only add, so the site that is live keeps working with them.
+- **What to do:** re-run the failed job once. This is pg_cron's bug, outside our code, so CLAUDE.md allows the re-run; note it in the next pull request and the status file.
+- **If the same job fails again:** read that job's latest `cron.job_run_details` rows (a run still going from before the re-save, or `cron.log_run` off, are the two known causes) and raise it in the Product brief's open questions. A failure that says no scheduled job belongs to the connecting role isn't a re-run: the role owns none, so nothing could trigger the reload.
+
 ### Tests
 
 **Unit tests:** `infra/supabase/test_scheduled_jobs.py`, run by Quick checks, with fake `run`, `sleep` and `clock`:
@@ -191,18 +199,20 @@
    - No fast job, and no job at all.
    - Only other roles' jobs.
    - Failed runs are reported, but it still passes.
+   - Every failure line of `reload` says to re-run the workflow once and where to read ("If 2c or 4d fails"); `check`'s say what to run.
    - An unreadable answer fails, and so does a bad `since`.
 5. **The workflows:**
    - `2c.` sits between `2b.` and `3.` and runs `reload staging`.
    - `4d.` is release-only, sits between `4c.` and `5.`, and runs the `$RUNNER_TEMP/job-checks` copy.
    - The extraction step uses `${{ github.sha }}`, names both files and comes before 4d.
 
-**Real database:** `infra/supabase/tests/scheduled_jobs/reload.test.ts`, run by Vitest in `slot db test`. One test with a 120 s timeout, never retried. It's deterministic, confirmed 3 of 3 by hand, because a scheduler waiting on a lock can't read the queue.
+**Real database:** `infra/supabase/tests/scheduled_jobs/reload.test.ts`, run by Vitest in `slot db test`. One test with a 120 s timeout, never retried, and one attempt. A scheduler waiting on a lock can't read the queue, so the setup is deterministic on a fresh database, and the test refuses any other: on a database reused across runs, an autovacuum of `cron.job` can send the scheduler an ordinary message about it, which it answers by loading every job (3 spoiled runs in 79, all on one). The Database check and `slot db test` always start fresh, and a whole run leaves `cron.job` at 37 changes (`n_mod_since_analyze`) and 27 dead rows (`n_dead_tup`), against thresholds of about 50.7 and 51.4, so neither runs.
+0. Before anything: read `cron.job` in `pg_stat_all_tables`, and if `n_mod_since_analyze` or `n_dead_tup` is 25 or more, fail at once with "run it on a fresh database: `infra/slots/slot db test`". Remember `autovacuum_count` and `autoanalyze_count`.
 1. Switch off the active jobs `postgres` owns, remembering which. Create `scheduled_jobs_test.f()` and schedule `scheduled-jobs-test-tick` (`1 seconds`). Wait up to 10 s for its first run.
 2. Client A runs `begin; lock table cron.job_run_details in share mode`. Wait up to 10 s until `pg_locks` holds an ungranted `relation` lock on `cron.job_run_details`; that's the scheduler, parked. Use `pg_locks` because every role can read it in full, while `pg_stat_activity` may hide the scheduler's wait from `postgres`.
-3. Client B schedules `scheduled-jobs-test-new` (`1 seconds`, `select 'scheduled jobs test'`). Then B runs one DO block that executes `alter function scheduled_jobs_test.f() cost <i>` 5,000 times, about 10,000 messages (3,000 gave 6,000). Then A commits.
-4. Four seconds later, the new job must have no run. Otherwise the test fails with "precondition: the scheduler loaded the job without a reload: make the overflow bigger".
-5. `check local --wait 8` exits 1 and prints `FAILED: local: scheduled-jobs-test-new (1 seconds) hasn't run`.
+3. Client B schedules `scheduled-jobs-test-new` (`1 seconds`, `select 'scheduled jobs test'`) and `scheduled-jobs-test-fails` (`1 seconds`, a function that always raises an error: a run that fails still counts as run). Then B runs one DO block that executes `alter function scheduled_jobs_test.f() cost <i>` 5,000 times, about 10,000 messages (3,000 gave 6,000). Then A commits.
+4. Four seconds later, the new job must have no run. Otherwise the test fails at once, with "precondition: the scheduler loaded the jobs without a reload" and whether `autovacuum_count` or `autoanalyze_count` moved during the test (if one did, "run it on a fresh database"; if neither, "make the overflow bigger").
+5. `check local --wait 8` exits 1 and prints `FAILED: local: scheduled-jobs-test-new (1 seconds) hasn't run`, and when it has finished the jobs still have no run (the same precondition).
 6. `reload local --wait 40` exits 0, and the new job has a run with its own command.
 7. In `afterAll`: roll back A if it's still open, drop the schema, then unschedule the test jobs and switch the remembered jobs back on.
 

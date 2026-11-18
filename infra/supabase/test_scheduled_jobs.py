@@ -20,6 +20,7 @@ WORKFLOWS = os.path.join(ROOT, ".github", "workflows")
 ADDRESS = "postgresql://postgres:postgres@127.0.0.1:55332/postgres?sslmode=disable"
 SINCE = "2026-11-18 09:00:00.123456+00"
 NOTE = "docs/research/cron-missed-jobs.md"
+RE_RUN = f" Re-run the workflow once; if the same job fails again, see 'If 2c or 4d fails' in {NOTE}."
 
 
 def job(id, name, schedule="* * * * *", active=True, runs=0, current=0, failed=0):
@@ -237,7 +238,7 @@ class Decisions(unittest.TestCase):
         self.assertEqual(lines, [
             "staging: saved 3 scheduled jobs of postgres again, so Supabase Cron reloads them all",
             f"FAILED: staging: social-minute (* * * * *) hasn't run in the 180 s since the re-save: Supabase Cron "
-            f"hasn't loaded it ({NOTE})"])
+            f"hasn't loaded it ({NOTE}){RE_RUN}"])
         self.assertEqual(sum(s for kind, s in fake.log if kind == "sleep"), 5 + 180)
         self.assertEqual(len(fake.polls_made()), 37)  # every 5 s from 0 to 175, and the deadline
 
@@ -250,6 +251,31 @@ class Decisions(unittest.TestCase):
             f"hasn't loaded it ({NOTE}) Run scheduled_jobs.py reload staging.",
             f"FAILED: staging: job 9 (no longer scheduled) started 2 runs more than 10 s after this check began: "
             f"Supabase Cron is still using an old copy ({NOTE}) Run scheduled_jobs.py reload staging."])
+
+    def test_every_failure_of_a_reload_says_what_to_do_next_and_no_other_line_does(self):
+        # Step 2c and 4d run `reload`: its failures say to re-run once, and where to read if it fails again.
+        stale = [{"id": 7, "name": None, "gone": True, "runs": 3}]
+        jobs = [job(1, "tick", "5 seconds", runs=9, current=9, failed=1), job(6, "social-minute", runs=3, current=0),
+                job(8, "never")]
+        code, lines = Fake(polls=lambda s: answer(jobs, stale)).go("reload", "production", "--wait", "10")
+        self.assertEqual(code, 1)
+        failed = [line for line in lines if line.startswith("FAILED")]
+        self.assertEqual(len(failed), 3)  # an old copy, a job that never ran, and a stale run
+        for line in failed:
+            self.assertTrue(line.endswith(RE_RUN), line)
+            self.assertEqual(line.count("If 2c or 4d fails"), 1)
+        for line in lines:
+            if not line.startswith("FAILED"):
+                self.assertNotIn("If 2c or 4d fails", line)
+        # A check's failures keep their own next step, and a pass has none.
+        code, lines = Fake(polls=lambda s: answer(jobs, stale)).go("check", "production", "--wait", "10")
+        for line in lines:
+            if line.startswith("FAILED"):
+                self.assertTrue(line.endswith(" Run scheduled_jobs.py reload production."), line)
+                self.assertNotIn("Re-run the workflow", line)
+        code, lines = Fake(polls=lambda s: answer(jobs[:1])).go("reload", "production")
+        self.assertEqual(code, 0)
+        self.assertFalse([line for line in lines if "If 2c or 4d fails" in line])
 
     def test_a_job_that_ran_only_from_an_old_copy(self):
         fake = Fake(polls=lambda s: answer([job(6, "social-minute", runs=3, current=0)]))
@@ -268,11 +294,11 @@ class Decisions(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertEqual(lines[1:], [
             f"FAILED: staging: job 7 (no longer scheduled) started 3 runs more than 10 s after the re-save: Supabase "
-            f"Cron is still using an old copy ({NOTE})",
+            f"Cron is still using an old copy ({NOTE}){RE_RUN}",
             f"FAILED: staging: job 8 (old-job, switched off) started 2 runs more than 10 s after the re-save: Supabase "
-            f"Cron is still using an old copy ({NOTE})",
+            f"Cron is still using an old copy ({NOTE}){RE_RUN}",
             f"FAILED: staging: job 9 (switched off) started 1 runs more than 10 s after the re-save: Supabase "
-            f"Cron is still using an old copy ({NOTE})"])
+            f"Cron is still using an old copy ({NOTE}){RE_RUN}"])
 
     def test_a_stale_run_stops_a_pass_even_when_every_fast_job_has_run(self):
         fake = Fake(polls=lambda s: answer([job(1, "tick", "5 seconds", runs=9, current=9)],
@@ -306,7 +332,7 @@ class Decisions(unittest.TestCase):
             "staging: 2 jobs belong to other roles and weren't saved again (they reload with the rest): "
             "social-minute, job 12",
             "FAILED: staging: no scheduled job belongs to postgres, so none could be saved again to make Supabase Cron "
-            "reload"])
+            f"reload. See 'If 2c or 4d fails' in {NOTE}."])
         self.assertEqual(fake.polls_made(), [])
 
     def test_other_roles_jobs_alongside_its_own_are_named_and_the_check_goes_on(self):

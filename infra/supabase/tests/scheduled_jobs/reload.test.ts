@@ -15,16 +15,14 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
  * commits far more messages than the queue holds, so the scheduler is reset and, once it's
  * released, never learns of the jobs (pg_cron 1.6.4).
  *
- * That setup can be spoiled from outside, so it isn't taken on trust. Autovacuum of `cron.job`
- * (a long-lived database reaches it after about 50 job changes; a fresh one stays well under, with
- * 27 dead rows after a whole run) sends the scheduler an ordinary message about `cron.job`, which
- * it reads and answers by loading every job, the lost ones too: then the jobs ran without any
- * reload, and nothing is proved. So an attempt counts only if both jobs still have no run four
- * seconds on, and none when the check has finished; otherwise the two jobs are taken away and the
- * setup is made again, up to three times, and after three the test fails ("precondition: ...").
- * Only the setup is ever made again. The check's and the reload's own assertions are made once,
- * on the attempt that counts, and the test itself is never retried (`retry: 0`): a check that
- * passes while the jobs have no run, or a reload that doesn't make them run, fails the test.
+ * That setup needs a fresh database, and the test refuses any other. Auto-analyze of `cron.job`
+ * (at about 50 changes to it, the nearer trigger) and autovacuum (at about 51 dead rows) send the
+ * scheduler an ordinary message about `cron.job`, which it reads and answers by loading every job,
+ * the lost ones too: then the jobs run without any reload, and nothing is proved. A fresh database
+ * stays well under: a whole run makes 37 changes and 27 dead rows, and neither runs. A database
+ * reused across runs reaches them (3 spoiled runs in 79, all on one). So the test fails at once if
+ * `cron.job` already has 25 changes or dead rows, and makes exactly one attempt: if the jobs have a
+ * run before any reload, it fails with whether `cron.job`'s autovacuum or auto-analyze moved.
  *
  * It runs inside `@hrizzup/database#test:db`, which the markets', perps' and ledger's database
  * tests wait for (`dependsOn: ["^test:db"]`), and files run one after another (vitest.config.ts),
@@ -44,6 +42,9 @@ const scriptAddress = (() => {
   return url.toString();
 })();
 const script = fileURLToPath(new URL('../../scheduled_jobs.py', import.meta.url));
+
+/** `cron.job` changes or dead rows a fresh database stays under (autovacuum acts at about 50). */
+const FRESH_LIMIT = 25;
 
 const TICK = 'scheduled-jobs-test-tick';
 const NEW = 'scheduled-jobs-test-new';
@@ -208,60 +209,64 @@ async function lostRuns() {
   return (await runsOf(NEW)).n + (await runsOf(FAILS)).n;
 }
 
-/** Takes the two jobs away again, and waits until the scheduler is running the first one afresh. */
-async function startOver() {
-  const { rows } = await admin.query('select clock_timestamp()::text as t');
-  await admin.query(
-    `select cron.unschedule(jobid) from cron.job where jobname in ('${NEW}', '${FAILS}')`,
+/** What `cron.job` has had done to it, and what autovacuum and auto-analyze have done since. */
+async function cronJobStats() {
+  const { rows } = await admin.query(
+    `select n_mod_since_analyze::int as changes, n_dead_tup::int as dead,
+            autovacuum_count::int as vacuums, autoanalyze_count::int as analyzes
+       from pg_stat_all_tables where schemaname = 'cron' and relname = 'job'`,
   );
-  await until('the scheduler to run the first job again', 15, async () => {
-    const { rowCount } = await admin.query(
-      `select 1 from cron.job j join cron.job_run_details d using (jobid)
-         where j.jobname = $1 and d.start_time > $2::timestamptz`,
-      [TICK, rows[0].t],
-    );
-    return (rowCount ?? 0) > 0;
-  });
+  return rows[0] as { changes: number; dead: number; vacuums: number; analyzes: number };
 }
 
-// A reload can also come from the database itself: autovacuum of cron.job, which a long-lived
-// database reaches after enough job changes, sends the scheduler a message about cron.job, and
-// the scheduler, reading it normally, loads every job. Then the jobs ran without the reload, and
-// nothing was proved. So a run that appears before any reload makes the attempt invalid: the
-// jobs are taken away and the whole thing is made again, up to three times. The script's own
-// assertions are made once, on the attempt where the scheduler really lost the jobs, and the
-// test itself is never retried.
-const ATTEMPTS = 3;
+/** Refuses a database that has been used: its `cron.job` would soon be vacuumed or analyzed. */
+async function requireFreshDatabase() {
+  const stats = await cronJobStats();
+  if (stats.changes >= FRESH_LIMIT || stats.dead >= FRESH_LIMIT) {
+    throw new Error(
+      `cron.job already has ${stats.changes} changes and ${stats.dead} dead rows since it was last analyzed or vacuumed, and autovacuum or auto-analyze would soon reload the scheduler by itself and spoil this test: run it on a fresh database: infra/slots/slot db test`,
+    );
+  }
+  return stats;
+}
+
+/** The two lost jobs must still have no run: the scheduler really lost them, and nothing reloaded it. */
+async function requireStillLost(when: string, before: Awaited<ReturnType<typeof cronJobStats>>) {
+  if ((await lostRuns()) === 0) return;
+  await sleep(1500); // the statistics are flushed about once a second
+  const now = await cronJobStats();
+  const moved = now.vacuums !== before.vacuums || now.analyzes !== before.analyzes;
+  throw new Error(
+    `precondition: the scheduler loaded the jobs without a reload ${when}. cron.job's autovacuum_count went ${before.vacuums} to ${now.vacuums} and autoanalyze_count ${before.analyzes} to ${now.analyzes}: ${
+      moved
+        ? 'one of them moved during the test, so the database reloaded the scheduler itself: run it on a fresh database: infra/slots/slot db test'
+        : "neither moved, so the overflow was too small or the scheduler wasn't parked: make the overflow bigger"
+    }`,
+  );
+}
 
 describe('the reload after a push', () => {
   it('makes the scheduler run a job it lost, and the check names the job until then', {
     timeout: 120_000,
     retry: 0,
   }, async () => {
+    const before = await requireFreshDatabase();
     await setUp();
 
-    // The scheduler loses the two jobs. Valid only if they have no run four seconds on, and none
-    // when the check, which takes another eight seconds, has finished.
-    let check: { code: number | null; out: string } | null = null;
-    for (let attempt = 1; attempt <= ATTEMPTS && check === null; attempt++) {
-      await loseTwoJobs();
-      await sleep(4000);
-      if ((await lostRuns()) === 0) {
-        // The check names what the scheduler hasn't loaded.
-        const answer = await runScript('check', 'local', '--wait', '8');
-        if ((await lostRuns()) === 0) check = answer;
-      }
-      if (check === null && attempt < ATTEMPTS) await startOver();
-    }
-    expect(
-      check,
-      `precondition: the scheduler loaded the jobs without a reload in each of ${ATTEMPTS} attempts: make the overflow bigger`,
-    ).not.toBeNull();
-    expect(check?.code, check?.out).toBe(1);
-    expect(check?.out).toContain(`FAILED: local: ${NEW} (1 seconds) hasn't run`);
-    expect(check?.out).toContain(`FAILED: local: ${FAILS} (1 seconds) hasn't run`);
-    expect(check?.out).toContain('Run scheduled_jobs.py reload local.');
-    expect(check?.out).not.toContain(TICK);
+    // The scheduler loses the two jobs: they have no run four seconds on, and none when the check,
+    // which takes another eight seconds, has finished.
+    await loseTwoJobs();
+    await sleep(4000);
+    await requireStillLost('in the four seconds after it was released', before);
+
+    // The check names what the scheduler hasn't loaded.
+    const check = await runScript('check', 'local', '--wait', '8');
+    await requireStillLost('during the check', before);
+    expect(check.code, check.out).toBe(1);
+    expect(check.out).toContain(`FAILED: local: ${NEW} (1 seconds) hasn't run`);
+    expect(check.out).toContain(`FAILED: local: ${FAILS} (1 seconds) hasn't run`);
+    expect(check.out).toContain('Run scheduled_jobs.py reload local.');
+    expect(check.out).not.toContain(TICK);
 
     // The reload makes the scheduler load them: both run, as their jobs have them now. The one
     // that fails still counts as run: it's reported, not failed.

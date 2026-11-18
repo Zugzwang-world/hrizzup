@@ -18,8 +18,9 @@ change of nothing), then polls `cron.job_run_details` until every active job tha
 faster has run since the re-save with the command `cron.job` has now (a run of any status counts: the
 question is whether the scheduler loaded the job, so a job whose runs fail is only reported), and nothing
 has started soon after the re-save from a job that was deleted or switched off. Otherwise it fails, naming
-the job. `check` does the same without the re-save, from now on. A job that runs less often can't be waited
-for, so it isn't.
+the job, and says to re-run the workflow once and where to read if the same job fails again (the note's "If 2c
+or 4d fails"). `check` does the same without the re-save, from now on. A job that runs less often can't be
+waited for, so it isn't.
 
 staging, production or local only; it connects only through DATABASE_ADDRESS (set by database_url.py run
 session; a test sets it itself) and prints no value, only facts. Exit 0 passes, 1 fails, 2 is a usage error.
@@ -41,6 +42,10 @@ SETTLE = 5    # seconds `reload` waits for the push's last messages before it sa
 POLL = 5      # seconds between looks at the runs
 MINIMUM = 20  # seconds after the re-save before a check may pass: stale runs need time to show
 NOTE = "docs/research/cron-missed-jobs.md"
+# What a failed `reload` (the workflow's step 2c or 4d) tells whoever reads it: pg_cron's own bug makes a
+# second run likely to pass, and the note says what to read when it doesn't.
+RE_RUN = f" Re-run the workflow once; if the same job fails again, see 'If 2c or 4d fails' in {NOTE}."
+SEE_NOTE = f" See 'If 2c or 4d fails' in {NOTE}."
 
 # Every job the connecting role owns, saved again as it is (the shape social_setup.py ran on staging). It
 # answers how many rows it saved, not how many reloads happened: only the check proves the reload.
@@ -218,7 +223,7 @@ def poll_until_done(environment, command, since, wait, run, sleep, clock):
     was read. Passes at the first look where nothing is wrong and MINIMUM seconds (or `wait`, if shorter)
     have passed; at the deadline it fails otherwise."""
     when = "the re-save" if command == "reload" else "this check began"
-    hint = f" Run scheduled_jobs.py reload {environment}." if command == "check" else ""
+    hint = f" Run scheduled_jobs.py reload {environment}." if command == "check" else RE_RUN
     started = clock()
     looks = list(range(0, wait, POLL)) + [wait]
     for at in looks:
@@ -272,7 +277,7 @@ def main(argv, run=subprocess.run, sleep=time.sleep, clock=time.monotonic):
                   f"(they reload with the rest): {', '.join(others)}")
         if not saved and others:
             print(f"FAILED: {environment}: no scheduled job belongs to {role}, so none could be saved again to make "
-                  "Supabase Cron reload")
+                  f"Supabase Cron reload.{SEE_NOTE}")
             return 1
         if not saved:
             print(f"{environment}: no scheduled jobs")
