@@ -48,7 +48,35 @@ const CONTAINERS = new Set([
  * keeps the last would read the other: a file could carry a short `mdhd` for us and a long one for the player. So a
  * second one is not first-wins or last-wins, it is refused.
  */
-const ONCE = new Set(['mvhd', 'mvex', 'tkhd', 'mdia', 'mdhd', 'hdlr', 'minf', 'stbl', 'stts']);
+const ONCE = new Set([
+  'mvhd',
+  'mvex',
+  'tkhd',
+  'mdia',
+  'mdhd',
+  'hdlr',
+  'minf',
+  'stbl',
+  'stts',
+  'stsz',
+  'stz2',
+  'edts',
+  'elst',
+]);
+
+/**
+ * Where each box that decides a length may be. A player's parser takes a box of these types wherever it finds it
+ * (FFmpeg reads an `stts` inside `edts` as the track's own), so one anywhere else is a second answer, and is refused.
+ */
+const ONLY_IN: Record<string, string> = {
+  mvhd: 'moov',
+  tkhd: 'moov/trak',
+  mdhd: 'moov/trak/mdia',
+  stts: 'moov/trak/mdia/minf/stbl',
+  stsz: 'moov/trak/mdia/minf/stbl',
+  stz2: 'moov/trak/mdia/minf/stbl',
+  elst: 'moov/trak/edts',
+};
 
 const unreadable = (detail?: string) => new FileProblem('unreadable', detail);
 
@@ -56,7 +84,14 @@ type Track = {
   handler: string | null;
   timescale: bigint | null;
   duration: bigint | null;
+  /** The samples' total length in the media's timescale, and how many samples `stts` counts. */
   sampled: bigint | null;
+  samples: bigint | null;
+  /** How many samples `stsz` or `stz2` counts, and how many of the two the track has. */
+  table: bigint | null;
+  tables: number;
+  /** The edit list's segments added up, in the movie's timescale. */
+  edited: bigint;
   width: number | null;
   height: number | null;
   turned: boolean;
@@ -152,13 +187,6 @@ type Found = {
   mvex: boolean;
 };
 
-const PATHS = {
-  tkhd: 'moov/trak',
-  mdhd: 'moov/trak/mdia',
-  hdlr: 'moov/trak/mdia',
-  stts: 'moov/trak/mdia/minf/stbl',
-} as const;
-
 /** A movie or media header: its timescale and duration (versions 0 and 1). */
 function timing(view: View, start: number, end: number): { timescale: bigint; duration: bigint } {
   const version = view.u8(start);
@@ -189,15 +217,52 @@ function pictureOf(view: View, start: number, end: number) {
   };
 }
 
-/** The samples' total length in the media's own timescale, from `stts`: pairs of a count and a delta. */
-function sampled(view: View, start: number, end: number): bigint {
+/** What `stts` says: how many samples, and their total length in the media's own timescale (pairs of a count and a delta). */
+function sampled(view: View, start: number, end: number): { samples: bigint; total: bigint } {
   if (end - start < 8) throw unreadable('a sample table cut short');
   const entries = view.u32(start + 4);
   if (entries * 8 > end - start - 8) throw unreadable('a sample table cut short');
-  let total = 0n;
+  let [samples, total] = [0n, 0n];
   for (let entry = 0; entry < entries; entry++) {
     const at = start + 8 + entry * 8;
-    total += BigInt(view.u32(at)) * BigInt(view.u32(at + 4));
+    const count = BigInt(view.u32(at));
+    samples += count;
+    total += count * BigInt(view.u32(at + 4));
+  }
+  return { samples, total };
+}
+
+/**
+ * How many samples `stsz` (or `stz2`) holds, and that its table is really there: a player that finds the table
+ * short reads fewer samples than the count says. `stts` must count exactly this many.
+ */
+function counted(view: View, start: number, end: number, compact: boolean): bigint {
+  if (end - start < 12) throw unreadable('a sample size table cut short');
+  const count = view.u32(start + 8);
+  const room = end - start - 12;
+  if (compact) {
+    const bits = view.u8(start + 7);
+    if (![4, 8, 16].includes(bits)) throw unreadable('a sample size of an odd width');
+    if (Math.ceil((count * bits) / 8) > room) throw unreadable('a sample size table cut short');
+  } else if (view.u32(start + 4) === 0 && count * 4 > room) {
+    // No one size for every sample: a size for each follows.
+    throw unreadable('a sample size table cut short');
+  }
+  return BigInt(count);
+}
+
+/** An edit list's segments added up, in the movie's timescale (versions 0 and 1). */
+function edited(view: View, start: number, end: number): bigint {
+  if (end - start < 8) throw unreadable('an edit list cut short');
+  const version = view.u8(start);
+  const [width, wide] = version === 0 ? [12, false] : version === 1 ? [20, true] : [0, false];
+  if (width === 0) throw unreadable('an edit list of a kind we do not read');
+  const entries = view.u32(start + 4);
+  if (entries * width > end - start - 8) throw unreadable('an edit list cut short');
+  let total = 0n;
+  for (let entry = 0; entry < entries; entry++) {
+    const at = start + 8 + entry * width;
+    total += wide ? view.u64(at) : BigInt(view.u32(at));
   }
   return total;
 }
@@ -232,7 +297,9 @@ function walk(
     const inner = at + headerSize;
     const outer = at + boxSize;
     const here = path.join('/');
-    if (type === 'mvhd' && here === 'moov' && found.movie === null) {
+    const only = ONLY_IN[type];
+    if (only !== undefined && here !== only) throw unreadable(`a ${type} where it doesn't belong`);
+    if (type === 'mvhd' && found.movie === null) {
       found.movie = timing(view, inner, outer);
     } else if (type === 'mvex' && here === 'moov') {
       found.mvex = true;
@@ -242,6 +309,10 @@ function walk(
         timescale: null,
         duration: null,
         sampled: null,
+        samples: null,
+        table: null,
+        tables: 0,
+        edited: 0n,
         width: null,
         height: null,
         turned: false,
@@ -249,17 +320,23 @@ function walk(
     } else {
       const track = found.tracks.at(-1);
       if (track !== undefined) {
-        if (type === 'tkhd' && here === PATHS.tkhd)
-          Object.assign(track, pictureOf(view, inner, outer));
-        else if (type === 'mdhd' && here === PATHS.mdhd) {
+        if (type === 'tkhd') Object.assign(track, pictureOf(view, inner, outer));
+        else if (type === 'mdhd') {
           const times = timing(view, inner, outer);
           track.timescale = times.timescale;
           track.duration = times.duration;
-        } else if (type === 'hdlr' && here === PATHS.hdlr) {
+        } else if (type === 'hdlr' && here === 'moov/trak/mdia') {
           if (outer - inner < 12) throw unreadable('a handler cut short');
           track.handler = view.text(inner + 8, 4);
-        } else if (type === 'stts' && here === PATHS.stts) {
-          track.sampled = sampled(view, inner, outer);
+        } else if (type === 'stts') {
+          const counts = sampled(view, inner, outer);
+          track.sampled = counts.total;
+          track.samples = counts.samples;
+        } else if (type === 'stsz' || type === 'stz2') {
+          track.table = counted(view, inner, outer, type === 'stz2');
+          track.tables += 1;
+        } else if (type === 'elst') {
+          track.edited = edited(view, inner, outer);
         }
       }
     }
@@ -299,6 +376,26 @@ export async function readMp4(
     const { movie, tracks } = found;
     if (movie === null) throw unreadable('no movie header');
 
+    // Every track says all of what a player reads: a missing box is a fall-back the player makes (the movie's
+    // timescale for a missing `mdhd`, the last delta repeated for samples `stts` doesn't count) and plays a length
+    // we never measured. So a track without its `mdhd`, `hdlr`, `stts` and one sample size table, or whose `stts`
+    // and sample size table count different numbers of samples, is refused.
+    for (const track of tracks) {
+      if (
+        track.timescale === null ||
+        track.duration === null ||
+        track.handler === null ||
+        track.sampled === null ||
+        track.samples === null ||
+        track.table === null
+      ) {
+        throw unreadable('a track with a box missing');
+      }
+      if (track.tables !== 1) throw unreadable('a track with two sample size tables');
+      if (track.samples !== track.table)
+        throw unreadable('a track whose tables count different samples');
+    }
+
     const video = tracks.find((track) => track.handler === 'vide');
     const hasSound = tracks.some((track) => track.handler === 'soun');
     if (declared === 'video/mp4' ? video === undefined : !hasSound || video !== undefined) {
@@ -312,11 +409,13 @@ export async function readMp4(
     const movieMs = millis(movie.duration, movie.timescale);
     let trackMs = 0n;
     for (const track of tracks) {
-      if (track.timescale === null || track.duration === null) continue;
-      const longest =
-        track.sampled !== null && track.sampled > track.duration ? track.sampled : track.duration;
+      if (track.timescale === null || track.duration === null || track.sampled === null) continue;
+      const longest = track.sampled > track.duration ? track.sampled : track.duration;
       const ms = millis(longest, track.timescale);
       if (ms > trackMs) trackMs = ms;
+      // An edit list can show a track for longer than it holds (an empty edit, a slowed one).
+      if (millis(track.edited, movie.timescale) > limit + SLACK_MS)
+        throw new FileProblem('too_long');
     }
     // The second measure covers an encoder's start padding, so a true 60-second video passes, and catches a
     // header that hides a longer file.
@@ -329,7 +428,7 @@ export async function readMp4(
       if ((w ?? 0) > MOST_PIXELS || (h ?? 0) > MOST_PIXELS) throw new FileProblem('dimensions');
       if (w !== null && h !== null && w > 0 && h > 0) [width, height] = [w, h];
     }
-    return { durationMs: Number(movieMs), width, height };
+    return { durationMs: Number(movieMs < limit ? movieMs : limit), width, height };
   } catch (error) {
     if (error instanceof RangeError) throw unreadable('a read past the data');
     throw error;

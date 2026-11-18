@@ -152,7 +152,9 @@ function track(kind: 'video' | 'audio', seconds: number, id: number, options: Mp
     zeros(1),
   );
   const stts = full('stts', u32(1), u32(1), u32(units));
-  return box('trak', tkhd, box('mdia', mdhd, hdlr, box('minf', box('stbl', stts))));
+  // One sample of the whole length, a constant size (so no table of sizes follows): `stsz` counts what `stts` does.
+  const stsz = full('stsz', u32(1), u32(1));
+  return box('trak', tkhd, box('mdia', mdhd, hdlr, box('minf', box('stbl', stts, stsz))));
 }
 
 /**

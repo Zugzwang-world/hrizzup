@@ -225,6 +225,196 @@ describe('a file that is not a regular MP4', () => {
     await expect(readMp4(source, 'video/mp4')).rejects.toMatchObject({ code: 'unreadable' });
   });
 
+  describe('with the tables a player reads missing, or disagreeing', () => {
+    // A player does not stop at a missing box: FFmpeg reads a track with no `mdhd` in the movie's timescale, and
+    // repeats the last delta of `stts` for the samples `stsz` holds that it doesn't count. A file can say 30 seconds
+    // to us and play 30 minutes. Each of these shapes is refused.
+    const one = sampleMp4({ seconds: 30, width: 64, height: 64, tracks: ['video'] });
+    const u32 = (value: number) => {
+      const out = Buffer.alloc(4);
+      out.writeUInt32BE(value);
+      return out;
+    };
+
+    const startOf = (file: Buffer, type: string) => file.indexOf(type, 0, 'latin1') - 4;
+
+    /** The file with its first `type` box changed by `patch` (in place, same size). */
+    function patched(type: string, patch: (box: Buffer) => void, file = one): Buffer {
+      const made = Buffer.from(file);
+      const at = startOf(made, type);
+      patch(made.subarray(at, at + made.readUInt32BE(at)));
+      return made;
+    }
+
+    /** The file with a box put straight after its first `type` box, each parent's size grown to hold it. */
+    function after(type: string, parents: string[], added: Buffer, file = one): Buffer {
+      const at = startOf(file, type);
+      const end = at + file.readUInt32BE(at);
+      const made = Buffer.concat([file.subarray(0, end), added, file.subarray(end)]);
+      for (const parent of parents) {
+        const where = startOf(made, parent);
+        made.writeUInt32BE(made.readUInt32BE(where) + added.length, where);
+      }
+      return made;
+    }
+
+    /** The file with its first `type` box replaced by another, each parent's size changed to fit. */
+    function swapped(type: string, parents: string[], replacement: Buffer): Buffer {
+      const at = startOf(one, type);
+      const end = at + one.readUInt32BE(at);
+      const made = Buffer.concat([one.subarray(0, at), replacement, one.subarray(end)]);
+      for (const parent of parents) {
+        const where = startOf(made, parent);
+        made.writeUInt32BE(made.readUInt32BE(where) + replacement.length - (end - at), where);
+      }
+      return made;
+    }
+
+    const stbl = ['moov', 'trak', 'mdia', 'minf', 'stbl'];
+
+    it('is the sample as it is, and reads', async () => {
+      expect(await read(one)).toMatchObject({ durationMs: 30_000 });
+    });
+
+    it('refuses a track with no mdhd (the player falls back to the movie’s timescale), hdlr, stts or sample sizes', async () => {
+      for (const type of ['mdhd', 'hdlr', 'stts', 'stsz']) {
+        // The box's type changed, so its bytes stay where they were and the track simply doesn't have it.
+        expect(await read(patched(type, (box) => box.write('free', 4, 'latin1'))), type).toBe(
+          'unreadable',
+        );
+      }
+    });
+
+    it('refuses a missing box in a second track, even when the first is whole', async () => {
+      const two = sampleMp4({ seconds: 3, width: 8, height: 8, tracks: ['video', 'audio'] });
+      const at = two.lastIndexOf('mdhd') - 4;
+      const broken = Buffer.from(two);
+      broken.write('free', at + 4, 'latin1');
+      expect(await read(broken)).toBe('unreadable');
+    });
+
+    it('refuses sample tables that disagree: stts counting fewer samples than stsz holds (the last delta is repeated), or more', async () => {
+      // stts: 30 samples of 1,000 (30 seconds); stsz: 1,800 samples. FFmpeg would play 1,800 seconds.
+      const fewer = patched('stts', (box) => {
+        box.writeUInt32BE(30, 16); // the count of the one entry
+        box.writeUInt32BE(1000, 20); // its delta
+      });
+      const sizes = patched('stsz', (box) => box.writeUInt32BE(1800, 16), fewer);
+      expect(await read(sizes)).toBe('unreadable');
+      // The same shape the other way round: more samples told than sizes held.
+      const more = patched(
+        'stsz',
+        (box) => box.writeUInt32BE(5, 16),
+        patched('stts', (box) => box.writeUInt32BE(30, 16)),
+      );
+      expect(await read(more)).toBe('unreadable');
+      // They agree: 30 and 30.
+      const agree = patched(
+        'stsz',
+        (box) => box.writeUInt32BE(30, 16),
+        patched('stts', (box) => {
+          box.writeUInt32BE(30, 16);
+          box.writeUInt32BE(1000, 20);
+        }),
+      );
+      expect(await read(agree)).toMatchObject({ durationMs: 30_000 });
+    });
+
+    it('refuses a table of sample sizes that is shorter than its count says (a player reads fewer samples)', async () => {
+      // No one size for every sample (0), and a count of 10 with no sizes after it.
+      const short = patched('stsz', (box) => {
+        box.writeUInt32BE(0, 12);
+        box.writeUInt32BE(1, 16);
+      });
+      expect(await read(short)).toBe('unreadable');
+    });
+
+    it('reads a compact table (stz2), and refuses one beside an stsz, or of an odd width, or short', async () => {
+      const stz2 = (count: number, width: number, table: Buffer) =>
+        box('stz2', Buffer.alloc(4), Buffer.from([0, 0, 0, width]), u32(count), table);
+      const compact = swapped('stsz', stbl, stz2(1, 16, Buffer.from([0, 9])));
+      expect(await read(compact)).toMatchObject({ durationMs: 30_000 });
+      expect(await read(swapped('stsz', stbl, stz2(1, 12, Buffer.from([0, 9]))))).toBe(
+        'unreadable',
+      );
+      expect(await read(swapped('stsz', stbl, stz2(5, 16, Buffer.from([0, 9]))))).toBe(
+        'unreadable',
+      );
+      expect(await read(swapped('stsz', stbl, stz2(2, 16, Buffer.from([0, 9, 0, 9]))))).toBe(
+        'unreadable',
+      );
+      expect(await read(after('stsz', stbl, stz2(1, 16, Buffer.from([0, 9]))))).toBe('unreadable');
+    });
+
+    it('refuses a box that decides a length where it does not belong: an stts in edts is the one FFmpeg reads', async () => {
+      const long = box('stts', Buffer.alloc(4), u32(1), u32(1800), u32(1000));
+      const inEdts = after('tkhd', ['moov', 'trak'], box('edts', long));
+      expect(await read(inEdts)).toBe('unreadable');
+      const mdhd = box('mdhd', Buffer.alloc(4), u32(0), u32(0), u32(1000), u32(1_800_000), u32(0));
+      expect(await read(after('tkhd', ['moov', 'trak'], box('edts', mdhd)))).toBe('unreadable');
+      expect(
+        await read(after('tkhd', ['moov', 'trak'], box('edts', box('stsz', Buffer.alloc(12))))),
+      ).toBe('unreadable');
+      expect(
+        await read(after('tkhd', ['moov', 'trak'], box('edts', box('mvhd', Buffer.alloc(100))))),
+      ).toBe('unreadable');
+      // An empty edts, and a hdlr in a udta (a real file has both), are not.
+      expect(await read(after('tkhd', ['moov', 'trak'], box('edts')))).toMatchObject({
+        durationMs: 30_000,
+      });
+    });
+
+    it('refuses an edit list that shows a track for longer than the kind allows, and reads one that matches the track', async () => {
+      const elst = (...segments: [duration: number, mediaTime: number][]) =>
+        box(
+          'edts',
+          box(
+            'elst',
+            Buffer.alloc(4),
+            u32(segments.length),
+            ...segments.map(([duration, mediaTime]) =>
+              Buffer.concat([u32(duration), u32(mediaTime), u32(0x10000)]),
+            ),
+          ),
+        );
+      const parents = ['moov', 'trak'];
+      // An empty edit (media time -1) of 30 minutes before the 30 seconds: the player waits it out.
+      expect(await read(after('tkhd', parents, elst([1_800_000, 0xffffffff], [30_000, 0])))).toBe(
+        'too_long',
+      );
+      expect(await read(after('tkhd', parents, elst([30_000, 0])))).toMatchObject({
+        durationMs: 30_000,
+      });
+      // Several segments are added up.
+      expect(await read(after('tkhd', parents, elst([25_000, 0], [25_000, 0], [25_000, 0])))).toBe(
+        'too_long',
+      );
+      expect(await read(after('tkhd', parents, elst([25_000, 0], [25_000, 0])))).toMatchObject({
+        durationMs: 30_000,
+      });
+      // A list that claims more entries than it holds, and a second one.
+      const cut = after('tkhd', parents, elst([30_000, 0]));
+      cut.writeUInt32BE(9, startOf(cut, 'elst') + 12);
+      expect(await read(cut)).toBe('unreadable');
+    });
+
+    it('takes a track whose own length is a second over the limit (padding) and stores the limit: 60 s, 61 s, and 300 s for sound', async () => {
+      // The movie says 60 s; a track says 60.999 s: ready, 60,000 stored. 61.001 s is refused; so is a movie over 60 s.
+      const video = (track: number, movie: number) =>
+        sampleMp4({ seconds: track, movieSeconds: movie, width: 8, height: 8, tracks: ['video'] });
+      expect(await read(video(60.999, 60))).toMatchObject({ durationMs: 60_000 });
+      expect(await read(video(61, 60))).toMatchObject({ durationMs: 60_000 });
+      expect(await read(video(61.001, 60))).toBe('too_long');
+      expect(await read(video(60, 60))).toMatchObject({ durationMs: 60_000 });
+      expect(await read(video(60.001, 60.001))).toBe('too_long');
+      const sound = (track: number, movie: number) =>
+        sampleM4a({ seconds: track, movieSeconds: movie });
+      expect(await read(sound(300.999, 300), 'audio/mp4')).toMatchObject({ durationMs: 300_000 });
+      expect(await read(sound(301.001, 300), 'audio/mp4')).toBe('too_long');
+      expect(await read(sound(300, 300), 'audio/mp4')).toMatchObject({ durationMs: 300_000 });
+    });
+  });
+
   describe('with a box twice that a parent may hold once', () => {
     // A second `mdhd` that says 1 second beside the real one that says 3: a reader that keeps the last box reads
     // 1 second and a player that reads the first reads 3. Neither is trusted: the file is refused.

@@ -119,7 +119,9 @@ async function keepAsIs(
   if (copied.status === 'changed') throw new FileProblem('changed');
   if (copied.status === 'missing') throw new FileProblem('missing');
   if (copied.status === 'copied') {
-    if (copied.etag !== null && plainEtag(copied.etag) !== plainEtag(etag)) {
+    // An answer with no ETag proves nothing: if the bucket ignored `If-Match`, this is the only guard that the copy is
+    // the file that was checked, so no ETag is a mismatch.
+    if (copied.etag === null || plainEtag(copied.etag) !== plainEtag(etag)) {
       await storage.removeMedia(upload.media_key);
       throw new FileProblem('changed');
     }
@@ -197,7 +199,7 @@ async function checkFile(
       signal,
     });
     const stream = await storage.stream(upload.upload_key, { ifMatch: head.etag, signal });
-    const facts = await readMp3(stream, upload.bytes, trailerLength(tail, upload.bytes));
+    const facts = await readMp3(stream, upload.bytes, trailerLength(tail));
     await keepAsIs(storage, upload, head.etag, signal);
     return {
       outcome: 'ready',

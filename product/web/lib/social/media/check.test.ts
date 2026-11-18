@@ -199,6 +199,19 @@ describe('a video', () => {
     expect(storage.media.has(upload.media_key)).toBe(false);
   });
 
+  it('is refused as changed when a copy answers no ETag: nothing proves it is the file that was checked, and the copy is deleted', async () => {
+    const { storage, upload } = put(file(), 'video/mp4');
+    const silent: Storage = {
+      ...storage,
+      copyToMedia: async (uploadKey, mediaKey, options) => {
+        const copied = await storage.copyToMedia(uploadKey, mediaKey, options);
+        return copied.status === 'copied' ? { status: 'copied', etag: null } : copied;
+      },
+    };
+    expect(await checkUpload(silent, upload)).toEqual({ outcome: 'refused', reason: 'changed' });
+    expect(storage.media.has(upload.media_key)).toBe(false);
+  });
+
   it('is refused when it is the wrong kind of file, too long or fragmented', async () => {
     const png = put(await samplePng({ width: 20, height: 20 }), 'video/mp4');
     expect(await checkUpload(png.storage, png.upload)).toEqual({
@@ -268,8 +281,14 @@ describe('audio', () => {
     expect(storage.log.some((line) => line.startsWith('stream'))).toBe(true);
   });
 
-  it('an MP3 that is 5 minutes and a frame is too long, and an MP4 declared as MP3 is the wrong type', async () => {
-    const long = put(sampleMp3({ frames: 11_485 }), 'audio/mpeg');
+  it('an MP3 a little over 5 minutes (padding) is ready, and its length is stored as the limit the table allows', async () => {
+    // 300.4 s of frames: past the limit by the slack's worth, never past what the row may hold.
+    const { storage, upload } = put(sampleMp3({ frames: 11_500 }), 'audio/mpeg');
+    expect(ready(await checkUpload(storage, upload)).duration_ms).toBe(300_000);
+  });
+
+  it('an MP3 over 5 minutes and a second is too long, and an MP4 declared as MP3 is the wrong type', async () => {
+    const long = put(sampleMp3({ frames: 11_600 }), 'audio/mpeg');
     expect(await checkUpload(long.storage, long.upload)).toEqual({
       outcome: 'refused',
       reason: 'too_long',

@@ -13,10 +13,7 @@ async function* chunked(file: Uint8Array, size = 1000) {
 /** What reading a file comes to: its length, or the code it is refused with. */
 async function read(file: Uint8Array, size = 1000) {
   try {
-    const trailer = trailerLength(
-      file.subarray(Math.max(0, file.length - TAIL_BYTES)),
-      file.length,
-    );
+    const trailer = trailerLength(file.subarray(Math.max(0, file.length - TAIL_BYTES)));
     return (await readMp3(chunked(file, size), file.length, trailer)).durationMs;
   } catch (error) {
     if (error instanceof FileProblem) return error.code;
@@ -54,26 +51,40 @@ describe('an MP3', () => {
     expect(await read(big)).toBe('unreadable');
   });
 
-  it('reads MPEG-2 frames (576 samples each) and mixes of versions', async () => {
+  it('reads MPEG-2 frames (576 samples each) when the file starts with them', async () => {
     const frames = Buffer.concat(Array.from({ length: 50 }, mpeg2));
     expect(await read(frames)).toBe(Math.ceil((50 * 576 * 1000) / 22_050));
-    const mixed = Buffer.concat([sampleMp3({ frames: 10 }), frames]);
-    // Exact: 10 frames at 44.1 kHz and 50 at 22.05 kHz, added as fractions, then rounded up once.
-    expect(await read(mixed)).toBe(
-      Math.ceil((10 * 1152 * 1000) / 44_100 + (50 * 576 * 1000) / 22_050),
+  });
+
+  it('holds every frame to the first one’s version, layer and sample rate: a header that disagrees is junk, and never counts', async () => {
+    const first = sampleMp3({ frames: 10 });
+    // 50 frames of another version (13 KB) after 10 of the first: skipped as junk, and none of their time is counted.
+    const other = Buffer.concat(Array.from({ length: 50 }, mpeg2));
+    expect(await read(Buffer.concat([first, other]))).toBe(ms(10));
+    // Enough of them to pass the junk bound (64 KiB) is refused, not read as a file of two kinds.
+    const much = Buffer.concat(Array.from({ length: 400 }, mpeg2));
+    expect(await read(Buffer.concat([first, much]))).toBe('unreadable');
+    // Another sample rate of the same version is another kind too.
+    const rate48 = Buffer.concat([Buffer.from([0xff, 0xfb, 0x94, 0x00]), Buffer.alloc(380)]);
+    expect(await read(Buffer.concat([first, ...Array.from({ length: 5 }, () => rate48)]))).toBe(
+      ms(10),
     );
   });
 
-  it('skips the tags at the end: an ID3v1 tag, and an APE tag before it', async () => {
+  it('skips the ID3v1 tag at the end, and walks an APE tag like junk: any frames in it count', async () => {
     const audio = sampleMp3({ frames: 20 });
     const v1 = Buffer.concat([Buffer.from('TAG'), Buffer.alloc(125)]);
     expect(await read(Buffer.concat([audio, v1]))).toBe(ms(20));
     const footer = Buffer.alloc(32);
     footer.write('APETAGEX', 0, 'latin1');
     footer.writeUInt32LE(2000 + 32, 12);
+    // A small APE tag is 2 KB of junk, well inside the bound; the frames before it are the file's length.
     const ape = Buffer.concat([Buffer.alloc(2000, 0x41), footer]);
     expect(await read(Buffer.concat([audio, ape]))).toBe(ms(20));
     expect(await read(Buffer.concat([audio, ape, v1]))).toBe(ms(20));
+    // One that passes the junk bound (64 KiB, a cover picture's size) is refused.
+    const big = Buffer.concat([Buffer.alloc(70_000, 0x41), footer]);
+    expect(await read(Buffer.concat([audio, big]))).toBe('unreadable');
   });
 
   it('scans past junk between frames, up to 64 KiB of it in the whole file, and no more', async () => {
@@ -111,9 +122,21 @@ describe('an MP3', () => {
     expect(await read(layer2)).toBe('unreadable');
   });
 
-  it('may be 5 minutes (299.99 s here) and not a frame more', async () => {
+  it('may be 5 minutes, with a second of slack for an encoder’s padding, and the table never gets more than 300,000', async () => {
+    // 48 kHz frames last 24 ms exactly: 12,500 are 300,000 ms.
+    const frame48 = Buffer.concat([Buffer.from([0xff, 0xfb, 0x94, 0x00]), Buffer.alloc(380)]);
+    const at48 = (frames: number) => Buffer.concat(Array.from({ length: frames }, () => frame48));
+    expect(await read(at48(12_499))).toBe(299_976);
+    expect(await read(at48(12_500))).toBe(300_000);
+    // 300,984 ms: over, by the padding's worth, and stored as the limit.
+    expect(await read(at48(12_541))).toBe(300_000);
+    // 301,008 ms: past the slack.
+    expect(await read(at48(12_542))).toBe('too_long');
+    // 44.1 kHz: the same edges, whatever the frame's length.
     expect(await read(sampleMp3({ frames: 11_484 }))).toBeLessThanOrEqual(300_000);
-    expect(await read(sampleMp3({ frames: 11_485 }))).toBe('too_long');
+    expect(await read(sampleMp3({ frames: 11_485 }))).toBe(300_000);
+    expect(await read(sampleMp3({ frames: 11_522 }))).toBe(300_000); // 300,977 ms
+    expect(await read(sampleMp3({ frames: 11_523 }))).toBe('too_long'); // 301,003 ms
   });
 
   it('stops reading once it has what it needs', async () => {
@@ -159,17 +182,42 @@ describe('audio hidden where the file says there is a tag', () => {
     expect(await read(sampleMp3({ seconds: 2, id3: 150_000 }))).toBe(ms(76));
   });
 
-  it('is refused in the tags at the end that swallow frames, an APE tag’s declared size being one', async () => {
-    const audio = sampleMp3({ frames: 20 });
-    const swallowed = hidden(30);
+  it('counts frames that an APE tag’s declared size would hide: junk between them does not beat the scan, since nothing there is skipped', async () => {
+    // 5 s of real frames, then what a footer calls a 9 MB APE tag: frames with a junk byte after every third,
+    // which a four-in-a-row scan of a skipped region would miss. A player decodes them, so they are counted.
+    const frame = sampleMp3({ frames: 1 });
+    const head = sampleMp3({ frames: 191 });
+    const parts: Buffer[] = [];
+    for (let n = 1; n <= 21_566; n++) {
+      parts.push(frame);
+      if (n % 3 === 0) parts.push(Buffer.from([0x00]));
+    }
+    const hidden = Buffer.concat(parts);
     const footer = Buffer.alloc(32);
     footer.write('APETAGEX', 0, 'latin1');
-    footer.writeUInt32LE(swallowed.length + 32, 12);
-    expect(await read(Buffer.concat([audio, swallowed, footer]))).toBe('unreadable');
-    // The same tag holding no frames is skipped.
-    expect(await read(Buffer.concat([audio, Buffer.alloc(swallowed.length, 0x41), footer]))).toBe(
-      ms(20),
-    );
+    footer.writeUInt32LE(hidden.length + 32, 12);
+    expect(await read(Buffer.concat([head, hidden, footer]))).toBe('too_long');
+    // The same tag with fewer frames reads as the whole of them, junk byte and all.
+    const fewer = Buffer.concat([head, Buffer.concat(parts.slice(0, 40)), footer]);
+    expect(await read(fewer)).toBeGreaterThan(ms(191));
+  });
+
+  it('refuses frames of another rate hidden in the span of a fake header: its 19 real frames are decoded by a player', async () => {
+    // Real frames are MPEG-2.5 layer III at 8 kbit/s and 8 kHz (72 bytes, 72 ms). A fake MPEG-1 header at 320
+    // kbit/s and 32 kHz (1,441 bytes, 36 ms) spans 69 bytes and 19 of them.
+    const real = Buffer.concat([Buffer.from([0xff, 0xe3, 0x18, 0x00]), Buffer.alloc(68)]);
+    const unit = Buffer.concat([
+      Buffer.from([0xff, 0xfb, 0xea, 0x00]),
+      Buffer.alloc(69),
+      ...Array.from({ length: 19 }, () => real),
+    ]);
+    expect(unit.length).toBe(1441);
+    const make = (units: number) =>
+      Buffer.concat([real, real, ...Array.from({ length: units }, () => unit)]);
+    // 2,000 of them (73 junk bytes each) pass the junk bound: refused.
+    expect(await read(make(2000))).toBe('unreadable');
+    // A few are read as the real frames they hold, and the fake headers' own 36 ms are never counted.
+    expect(await read(make(100))).toBe(Math.ceil(((2 + 19 * 100) * 576 * 1000) / 8000));
   });
 
   it('finds frames that straddle the blocks it looks through', async () => {
@@ -194,24 +242,46 @@ describe('a header that lies about the length', () => {
     return frame;
   }
 
-  it('is never trusted: the sound’s own frames are counted, a Xing header being a frame like any other', async () => {
-    const rest = sampleMp3({ frames: 11_484 });
-    // A header claiming 10 frames over 11,485 frames of sound is over 5 minutes, whatever it claims.
+  it('is never trusted: the sound’s own frames are counted, and a leading header is not sound', async () => {
+    // A header claiming 10 frames over 11,600 frames of sound is over 5 minutes, whatever it claims.
+    const rest = sampleMp3({ frames: 11_600 });
     expect(await read(Buffer.concat([withXing('Xing', 10), rest]))).toBe('too_long');
     expect(await read(Buffer.concat([withXing('Info', 0), rest]))).toBe('too_long');
-    // And one claiming a huge count over a short file is that short file's length.
+    // One claiming a huge count over a short file is that short file's length, without its own frame.
     expect(
       await read(Buffer.concat([withXing('Xing', 4_000_000_000), sampleMp3({ frames: 9 })])),
-    ).toBe(ms(10));
+    ).toBe(ms(9));
   });
 
-  it('may be there twice, or in the middle of the file: each is a frame, none changes the count', async () => {
+  it('is not counted as sound when it leads (Xing, Info or VBRI), and a file of nothing else is refused', async () => {
+    expect(await read(Buffer.concat([withXing('Info', 1), sampleMp3({ frames: 7 })]))).toBe(ms(7));
+    const vbri = Buffer.from(sampleMp3({ frames: 1 }));
+    vbri.write('VBRI', 36, 'latin1');
+    expect(await read(Buffer.concat([vbri, sampleMp3({ frames: 7 })]))).toBe(ms(7));
+    // Behind an ID3 tag too, and for MPEG-2 (its side information is shorter, so the tag sits earlier).
+    const tagged = Buffer.concat([
+      sampleMp3({ id3: 500, frames: 0 }),
+      withXing('Xing', 1),
+      sampleMp3({ frames: 5 }),
+    ]);
+    expect(await read(tagged)).toBe(ms(5));
+    const mpeg2Info = mpeg2();
+    mpeg2Info.write('Xing', 21, 'latin1');
+    expect(await read(Buffer.concat([mpeg2Info, mpeg2(), mpeg2()]))).toBe(
+      Math.ceil((2 * 576 * 1000) / 22_050),
+    );
+    // One frame of sound under a header is a file; a header alone is not.
+    expect(await read(Buffer.concat([withXing('Xing', 1), sampleMp3({ frames: 1 })]))).toBe(ms(1));
+    expect(await read(withXing('Xing', 1))).toBe('unreadable');
+  });
+
+  it('counts a second header, or one in the middle, as the frame it is: only a leading one is dropped', async () => {
     const twice = Buffer.concat([
       withXing('Xing', 1),
       withXing('Info', 1),
       sampleMp3({ frames: 8 }),
     ]);
-    expect(await read(twice)).toBe(ms(10));
+    expect(await read(twice)).toBe(ms(9));
     const middle = Buffer.concat([
       sampleMp3({ frames: 5 }),
       withXing('Xing', 1),
@@ -222,21 +292,16 @@ describe('a header that lies about the length', () => {
 });
 
 describe('the trailer', () => {
-  it('is 128 bytes for an ID3v1 tag, the APE tag’s size (and its header) before it, and nothing else', () => {
+  it('is 128 bytes for an ID3v1 tag, and nothing else: an APE tag’s footer is not believed', () => {
     const v1 = Buffer.concat([Buffer.from('TAG'), Buffer.alloc(125)]);
-    expect(trailerLength(v1, 500)).toBe(128);
-    expect(trailerLength(Buffer.alloc(160), 500)).toBe(0);
+    expect(trailerLength(v1)).toBe(128);
+    expect(trailerLength(Buffer.alloc(128))).toBe(0);
+    expect(trailerLength(Buffer.from('TAG'))).toBe(0);
     const footer = Buffer.alloc(32);
     footer.write('APETAGEX', 0, 'latin1');
     footer.writeUInt32LE(100, 12);
-    expect(trailerLength(footer, 500)).toBe(100);
-    footer.writeUInt32LE(0x8000_0000, 20);
-    expect(trailerLength(footer, 500)).toBe(132);
-    // A tag claiming more than the file, or less than a footer, is none.
-    footer.writeUInt32LE(5000, 12);
-    expect(trailerLength(footer, 500)).toBe(0);
-    footer.writeUInt32LE(5, 12);
-    expect(trailerLength(footer, 500)).toBe(0);
-    expect(trailerLength(new Uint8Array(0), 0)).toBe(0);
+    expect(trailerLength(footer)).toBe(0);
+    expect(trailerLength(Buffer.concat([footer, Buffer.alloc(96)]))).toBe(0);
+    expect(trailerLength(new Uint8Array(0))).toBe(0);
   });
 });
