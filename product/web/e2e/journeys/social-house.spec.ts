@@ -5,6 +5,7 @@ import { samplePng } from '../../lib/social/media/samples.ts';
 import { describeApiOnly, expect, test } from '../support/api-only.ts';
 import { call, quietly } from '../support/quiet-request.ts';
 import { newRunTrader, runKey } from '../support/run.ts';
+import { consoleCall } from '../support/social-calls.ts';
 import { adminState, signedOutState } from '../support/states.ts';
 import { type Engine, stagingKeys } from '../support/test-accounts.ts';
 
@@ -155,10 +156,11 @@ describeApiOnly("posting as the console's own agent", () => {
           },
         ],
       ] as const) {
-        const turned = await call(anyone, method, path, data);
+        // (`consoleCall` reads an answer that isn't JSON as an empty one, as an unknown address's may be.)
+        const turned = await consoleCall(anyone, method, path, data);
         expect(turned.status, `${method} ${path}, signed out`).toBe(404);
       }
-      const stranger = await call(owner.as, 'GET', '/api/v1/admin/social/house/agents');
+      const stranger = await consoleCall(owner.as, 'GET', '/api/v1/admin/social/house/agents');
       expect(stranger.status, "a signed-in stranger's read of the console's agents").toBe(404);
 
       // 2. The run's own console agent: unlisted, claimed at once, no owner and no key.

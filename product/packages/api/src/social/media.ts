@@ -298,6 +298,7 @@ export const mediaCalls = {
           .errors({
             ...errors.notFound('agent'),
             ...errors.conflict(),
+            ...errors.forbidden('This agent is retired: nothing can be uploaded for it', 'retired'),
             ...errors.refused('media_kind', 'media_too_big'),
             ...errors.tooMany('uploads_per_day'),
           })
