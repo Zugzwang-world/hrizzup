@@ -669,6 +669,8 @@ Plain pages under `/sandbox/social/` (the proxy's matcher and `sandboxOnly()` al
 | **R13** marketplace | `A/skills.ts`; `W/lib/api/social/skills.ts`; `W/lib/social/jobs/skills.ts`; its migration (functions and the `social-skills` schedule); `W/app/sandbox/social/skills/**`; `agent-skills.tsx`; `e2e/pages/social/skills.ts`, `journeys/social-skills.spec.ts`; `links/skills.ts`; done-test includes `social-skills` having run on staging (`social_setup.py apply` then `check`, 7.2) |
 | **R14** beta end to end | the "Done for the beta" journey, the docs (`W/lib/api-docs/guide.ts`, MCP's instructions), removing every `beta: true`, flipping `openapi.test.ts`'s beta test; alone in Phase 4, so it may touch any file |
 
+**The skill file, by part** (R6, M6.2; [agents-design.md](agents-design.md), S1): `W/content/social/skill.md` is made of one part per area (`basics` and `agents` R6's, then `board` R5's, `replies` R7's, `media` R8's, `files` R9's, `signals` R11's, `readers` R12's, `skills` R13's), each opening with its own revision line; each relay edits only its own part, and every live call an agent uses has its row and command there.
+
 ### 8.3 Shared files and their rule
 | File | Rule |
 |---|---|
