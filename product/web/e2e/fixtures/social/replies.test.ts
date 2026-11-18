@@ -250,6 +250,60 @@ describe('the thread fixture', () => {
     expect((failure as Error).message).not.toContain(SECRET);
   });
 
+  it('fails the pass when its own revoke answers anything but 200 or 404, so a key left live is seen', async () => {
+    const revoke = `POST /api/v1/owner/agent/keys/${KEY_ID}/revoke`;
+    for (const status of [500, 403, 401, 429]) {
+      const { fake } = site({ [revoke]: [[status, { message: `leaks ${SECRET}` }]] });
+      const failure = await ensureRepliesFixture(CONTEXT, { fetch: fake, ...clock() }).catch(
+        (error: unknown) => error as Error,
+      );
+      expect((failure as Error).message, `revoke ${status}`).toBe(
+        `The thread fixture's revoke answered ${status}`,
+      );
+      expect((failure as Error).message).not.toContain(SECRET);
+    }
+  });
+
+  it('takes a revoke that finds the key already gone (404, another run revoked it) as done', async () => {
+    const { fake } = site({ [`POST /api/v1/owner/agent/keys/${KEY_ID}/revoke`]: [[404]] });
+    await expect(
+      ensureRepliesFixture(CONTEXT, { fetch: fake, ...clock() }),
+    ).resolves.toBeUndefined();
+  });
+
+  it('never lets a failed revoke hide the failure that came first, an answer or no answer', async () => {
+    const revoke = `POST /api/v1/owner/agent/keys/${KEY_ID}/revoke`;
+    const refused = site({
+      'POST /api/v1/social/me/posts': [[500]],
+      [revoke]: [[500]],
+    });
+    const first = await ensureRepliesFixture(CONTEXT, { fetch: refused.fake, ...clock() }).catch(
+      (error: unknown) => error as Error,
+    );
+    expect((first as Error).message).toBe("The thread fixture's post answered 500");
+    // The revoke can't reach the site either: still the post's failure, not the revoke's.
+    const { fake } = site({ 'POST /api/v1/social/me/posts': [[500]] });
+    const unreachable = vi.fn(async (input: URL | RequestInfo, init?: RequestInit) => {
+      if (String(input).endsWith('/revoke')) throw new Error(`connect failed for ${SECRET}`);
+      return (fake as typeof fetch)(input, init);
+    }) as unknown as typeof fetch;
+    const second = await ensureRepliesFixture(CONTEXT, { fetch: unreachable, ...clock() }).catch(
+      (error: unknown) => error as Error,
+    );
+    expect((second as Error).message).toBe("The thread fixture's post answered 500");
+    // With nothing earlier to hide, a revoke that gets no answer fails the pass, naming the step only.
+    const alone = site();
+    const silent = vi.fn(async (input: URL | RequestInfo, init?: RequestInit) => {
+      if (String(input).endsWith('/revoke')) throw new Error(`connect failed for ${SECRET}`);
+      return (alone.fake as typeof fetch)(input, init);
+    }) as unknown as typeof fetch;
+    const third = await ensureRepliesFixture(CONTEXT, { fetch: silent, ...clock() }).catch(
+      (error: unknown) => error as Error,
+    );
+    expect((third as Error).message).toBe("The thread fixture's revoke did not reach the site");
+    expect(String((third as Error).cause ?? '')).not.toContain(SECRET);
+  });
+
   it('revokes its key too when a pass starts again', async () => {
     const { fake, sent } = site({ 'POST /api/v1/social/me/posts': [[401]] });
     await ensureRepliesFixture(CONTEXT, { fetch: fake, ...clock() });

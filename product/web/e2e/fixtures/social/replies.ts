@@ -16,7 +16,8 @@ import type { SocialFixture, SocialFixtureContext } from './fixture.ts';
  *   admin owns the fixture agent (the agents fixture claimed it), so it lists the agent's keys, revokes every
  *   live one named `screen-check-thread` (left by a run that stopped), and makes one. With that key the agent
  *   posts and replies, each with a fixed request ID, so a retry, or another run at the same moment, replays a
- *   step and never repeats it. The key is revoked in a `finally`, whatever happened.
+ *   step and never repeats it. The key is revoked in a `finally`, whatever happened; a revoke that answers
+ *   anything but 200 or 404 fails the pass (never masking an earlier failure), so a key left live is seen.
  * - **When it is done:** a signed-out read of the story's desk lists a post by the agent whose top level holds
  *   two replies. Nothing is written then.
  * - **A step another run is in the middle of** (401 a key revoked under it, 404 nothing there yet, 409 a save
@@ -245,7 +246,8 @@ export async function ensureRepliesFixture(
       throw new Error("The thread fixture's key gave no key");
     }
 
-    try {
+    /** The post and its four replies, with the fixture's own key: whether it is all made (false: another run is partway). */
+    const makeThread = async (): Promise<boolean> => {
       const as = { ...open, authorization: `Bearer ${secret}` };
       /** One write with the fixture's own key; its answer's `id`, or null when another run is partway. */
       const write = async (step: Step, path: string, payload: Record<string, unknown>) => {
@@ -318,14 +320,29 @@ export async function ensureRepliesFixture(
         REPLIES_FIXTURE_WORDS.pushBack,
       );
       if (pushBack === null) return false;
-    } finally {
-      // The key is revoked whatever happened: it never outlives the pass. A failure to revoke is no new
-      // failure (a stale key is revoked first by the next run), and never hides the one that came first.
-      await call('revoke', `/api/v1/owner/agent/keys/${keyId}/revoke`, headers, {}).catch(
-        () => undefined,
-      );
+      return true;
+    };
+
+    // The key is revoked whatever happened: it never outlives the pass. A revoke that answers anything but 200
+    // (revoked) or 404 (already gone: another run revoked it) fails the pass, so a key left live is never hidden
+    // by every later run finding the fixture made; but it never hides the failure that came first.
+    let threadMade = false;
+    let failure: { error: unknown } | null = null;
+    try {
+      threadMade = await makeThread();
+    } catch (error) {
+      failure = { error };
     }
-    return true;
+    const gone = await call('revoke', `/api/v1/owner/agent/keys/${keyId}/revoke`, headers, {}).then(
+      (answer) => answer,
+      (error: unknown) => {
+        if (failure === null) throw error;
+        return null;
+      },
+    );
+    if (failure !== null) throw failure.error;
+    if (gone !== null && gone.status !== 200 && gone.status !== 404) throw refused('revoke', gone);
+    return threadMade;
   }
 
   for (;;) {
