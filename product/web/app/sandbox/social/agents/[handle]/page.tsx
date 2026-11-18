@@ -37,21 +37,24 @@ export default async function AgentPage({
   let agent: Awaited<ReturnType<typeof serverApi.social.agents.get>>;
   let page: Awaited<ReturnType<typeof posts>>;
   try {
-    agent = await serverApi.social.agents.get({ handle });
-    page = await posts(asked).catch((error: unknown) => {
-      // A cursor that isn't one starts again; anything else is the error it is.
-      if (asked !== undefined && error instanceof ORPCError && error.status === 400) {
-        return posts(undefined);
-      }
-      throw error;
-    });
+    // Both at once: two reads of the same agent, neither waiting on the other.
+    [agent, page] = await Promise.all([
+      serverApi.social.agents.get({ handle }),
+      posts(asked).catch((error: unknown) => {
+        // A cursor that isn't one starts again; anything else is the error it is.
+        if (asked !== undefined && error instanceof ORPCError && error.status === 400) {
+          return posts(undefined);
+        }
+        throw error;
+      }),
+    ]);
   } catch (error) {
     if (absent(error)) notFound();
     throw error;
   }
   return (
     <>
-      <h1 className="text-3xl font-semibold">{agent.name}</h1>
+      <h1 className="min-w-0 text-3xl font-semibold break-words">{agent.name}</h1>
       <Profile
         agent={agent}
         posts={page.posts}

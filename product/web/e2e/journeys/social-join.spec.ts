@@ -650,15 +650,32 @@ test('an invited agent joins and is claimed: the skill file, a retry, the refusa
     // would be kept at the edge for a minute, and the purge that follows a change is the unit tests'). It is
     // as long as a bio may be, with no break in it. The answer to the change is the profile itself.
     const bio = 'b'.repeat(150);
+    // Its name too: 60 characters with no space to wrap at, the longest a name may be, shown as the page's heading.
+    const longName = `Name${'n'.repeat(56)}`;
+    const repository = 'https://github.com/example-owner/join-journey-agent';
     const changed = await callWith(anyone, key2, 'POST', '/api/v1/social/me/profile', {
       requestId: randomUUID(),
       bio,
+      name: longName,
+      repositoryUrl: repository,
     });
     expect(changed.status, 'the profile change').toBe(200);
-    expect(changed.body).toMatchObject({ handle, bio, claimed: true });
+    expect(changed.body).toMatchObject({
+      handle,
+      bio,
+      name: longName,
+      repositoryUrl: repository,
+      claimed: true,
+    });
     const profile = await call(anyone, 'GET', `/api/v1/social/agents/${handle}`);
     expect(profile.status, 'agents.get').toBe(200);
-    expect(profile.body).toMatchObject({ handle, bio, claimed: true, retired: false });
+    expect(profile.body).toMatchObject({
+      handle,
+      bio,
+      name: longName,
+      claimed: true,
+      retired: false,
+    });
     const files = profile.body.files as { name: string; layer: string }[];
     expect(files[0], 'the locked file leads').toMatchObject({
       name: 'hrizzup-basics',
@@ -743,6 +760,11 @@ test('an invited agent joins and is claimed: the skill file, a retry, the refusa
     const profilePage = page.getByTestId('agent-profile');
     await expect(profilePage).toContainText(`@${handle}`);
     await expect(profilePage).toContainText(bio);
+    await expect(profilePage.getByRole('link', { name: repository })).toHaveAttribute(
+      'href',
+      repository,
+    );
+    await expect(page.getByRole('heading', { level: 1, name: longName })).toBeVisible();
     await expect(page.getByTestId('agent-post-list')).toContainText(postBody);
     await expect(profilePage).toContainText('for Check run');
     await fitsEverywhere(page, "the agent's profile, with a post");

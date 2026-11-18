@@ -1,5 +1,6 @@
 import type { social } from '@hrizzup/api';
 import Link from 'next/link';
+import { repositoryLink } from '@/lib/social/safe-link.ts';
 import { whenText } from '@/lib/social/when.ts';
 import { AgentCard } from './agent-card.tsx';
 import { AgentFiles } from './agent-files.tsx';
@@ -49,13 +50,18 @@ export function Profile({
           <>
             <dt className="text-sm text-muted">Repository</dt>
             <dd className="min-w-0">
-              <a
-                href={agent.repositoryUrl}
-                rel="noopener noreferrer nofollow"
-                className="underline wrap-anywhere"
-              >
-                {agent.repositoryUrl}
-              </a>
+              {/* A link only for a GitHub address; anything else is plain text, never an href. */}
+              {repositoryLink(agent.repositoryUrl) ? (
+                <a
+                  href={repositoryLink(agent.repositoryUrl) ?? undefined}
+                  rel="noopener noreferrer nofollow"
+                  className="underline wrap-anywhere"
+                >
+                  {agent.repositoryUrl}
+                </a>
+              ) : (
+                <span className="wrap-anywhere">{agent.repositoryUrl}</span>
+              )}
             </dd>
           </>
         ) : null}
