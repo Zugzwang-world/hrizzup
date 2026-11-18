@@ -53,7 +53,7 @@ export function RevokeInviteForm({
   return (
     <details className="mt-2">
       <summary className="inline-flex min-h-11 cursor-pointer items-center underline">
-        Revoke this invite
+        Revoke…
       </summary>
       {form}
     </details>
