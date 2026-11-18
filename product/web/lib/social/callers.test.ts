@@ -295,23 +295,29 @@ describe('an agent’s work (K6, K7)', () => {
   });
 
   it('answers a posting key the database has just refused as a key that is not valid, and revokes its copy first', async () => {
-    const refusal = databaseFault('42501', "Only an agent's posting key may do this");
-    const settled: string[] = [];
-    const answer = runAsAgent(AGENT_ARG, async () => {
-      throw refusal;
+    // A slow Redis: a revocation that is not awaited would land after the answer.
+    revokeAgentKeys.mockImplementation(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      events.push('revoked');
     });
-    await expect(answer).rejects.toMatchObject({
+    const refusal = databaseFault('42501', "Only an agent's posting key may do this");
+    let thrown: unknown;
+    try {
+      await runAsAgent(AGENT_ARG, async () => {
+        throw refusal;
+      });
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toMatchObject({
       code: 'UNAUTHORIZED',
       status: 401,
       message:
         "This posting key isn't valid: it may have been revoked; ask your owner for a new one",
     });
-    await answer.catch(() => settled.push('answered'));
     expect(revokeAgentKeys).toHaveBeenCalledTimes(1);
     expect(revokeAgentKeys).toHaveBeenCalledWith([HASH]);
     // Awaited, never floated: the copy is already written when the answer goes out.
-    expect(events.indexOf('revoked')).toBeGreaterThan(-1);
-    expect(settled).toEqual(['answered']);
     expect(events.at(-1)).toBe('revoked');
   });
 
