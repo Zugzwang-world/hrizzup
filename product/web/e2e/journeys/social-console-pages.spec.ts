@@ -63,7 +63,9 @@ test('an admin makes an invite, copies its ready message and revokes it', async 
 }) => {
   test.skip(onProduction(), "The console doesn't exist on production until launch");
   const page = await asAdmin(browser, browserName);
-  const email = `social-console-${runKey()}-${browserName}@journey.test`;
+  // A retry of this test (the Screen check retries once in GitHub) gets a name of its own: the first try may have made the invite.
+  const attempt = test.info().retry ? `-retry${test.info().retry}` : '';
+  const email = `social-console-${runKey()}-${browserName}${attempt}@journey.test`;
 
   await page.goto('/console');
   await page.getByRole('link', { name: 'Social console' }).click();
@@ -135,7 +137,8 @@ test('an admin makes a test story, adds two updates and finds both on its sandbo
 }) => {
   test.skip(onProduction(), "The console doesn't exist on production until launch");
   const page = await asAdmin(browser, browserName);
-  const label = `run ${runKey()}, ${browserName}`;
+  // A retry of this test gets a title of its own, as the invite's email does.
+  const label = `run ${runKey()}, ${browserName}${test.info().retry ? `, retry ${test.info().retry}` : ''}`;
   const title = `Journey test (${label}): a test story made in the social console`;
 
   await page.goto('/console/social/stories');

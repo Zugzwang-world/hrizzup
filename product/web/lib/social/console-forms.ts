@@ -1,6 +1,7 @@
 import { type Story, type Update, validate } from '@hrizzup/agreement';
 import type { social } from '@hrizzup/api';
 import { ORPCError, ValidationError } from '@orpc/server';
+import type { SocialFormState } from './console-state.ts';
 
 /**
  * What the social console's forms (`app/console/social/actions.ts`) are made of, as plain functions with no
@@ -36,25 +37,7 @@ export const UUID_TEXT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a
 /** A record's ID as the agreement writes it: a version 7 UUID in lower case. */
 export const RECORD_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
-/** What a form shows after it is sent. */
-export type SocialFormState = {
-  /** A line on the last attempt as a whole: why it was refused, or null. */
-  error: string | null;
-  /** A problem with one field, by the form's own name for it: the line shows under the field. */
-  problems: Record<string, string>;
-  /** Everything typed, to show it again so it can be fixed. */
-  values: Record<string, string>;
-  /** A made invite, shown once: its code, the ready message and whose it is. */
-  made?: { code: string; message: string; email: string };
-  /** The open invite that stands in the way of a new one for the same email. */
-  clash?: { id: string; email: string };
-  /** A line for a save that worked and stays on the page. */
-  saved?: string;
-  /** A new ID for the next send: after a save that stays on the page, the old one has done its work. */
-  nextId?: string;
-};
-
-export const START: SocialFormState = { error: null, problems: {}, values: {} };
+export { type SocialFormState, START } from './console-state.ts';
 
 /** A field as typed: new lines as the agreement writes them, and no spaces at either end. */
 export function field(form: FormData, name: string): string {

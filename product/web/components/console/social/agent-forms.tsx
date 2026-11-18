@@ -2,7 +2,7 @@
 
 import { useActionState } from 'react';
 import { revokeAgentKeysAction, setAgentAction } from '@/app/console/social/actions.ts';
-import { START } from '@/lib/social/console-forms.ts';
+import { START } from '@/lib/social/console-state.ts';
 import { BUTTON, FIELD, Field, Refusal } from '../controls.tsx';
 import { Problem, Saved } from './controls.tsx';
 import { Reveal } from './reveal.tsx';
