@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { socialLinks } from './social/links/index.ts';
 
 const LINKS = [
   {
@@ -21,15 +22,32 @@ const LINKS = [
   },
 ];
 
+/**
+ * Social's one link, which leads to the first page an area has added (`social/links/`, the first link of
+ * the joined menu): shown only once an area has added one, so it never points at a page that isn't
+ * there yet, whichever area's page lands first.
+ */
+const SOCIAL_HOME = socialLinks[0];
+
 /** The sandbox's sections, the one you are in marked. */
 export function SandboxNav() {
   const path = usePathname();
+  const links = SOCIAL_HOME
+    ? [
+        ...LINKS,
+        {
+          href: SOCIAL_HOME.href,
+          text: 'Social',
+          on: (path: string) => path.startsWith('/sandbox/social'),
+        },
+      ]
+    : LINKS;
   return (
     <nav
       aria-label="Sandbox"
       className="flex min-w-0 flex-wrap gap-x-6 font-semibold uppercase tracking-wide"
     >
-      {LINKS.map((link) => (
+      {links.map((link) => (
         <Link
           key={link.href}
           href={link.href}

@@ -68,6 +68,17 @@ const errorsOf = (name: string) =>
     { status?: number; data?: { safeParse: (value: unknown) => { success: boolean } } }
   >;
 
+/**
+ * The calls M3 makes live (docs/social/build.md, D4). A relay that builds a call takes `live: false`
+ * off it in its own area file and adds nothing here: the tests below read each call's own mark, so
+ * they hold for any number of live calls, and these three are only the floor.
+ */
+const LIVE_FROM_M3 = [
+  'admin.social.invites.create',
+  'admin.social.stories.save',
+  'admin.social.updates.save',
+];
+
 /** Section 5's table, by group: 41 + 15 + 5 + 13 calls. */
 const SOCIAL = [
   'social.lists',
@@ -208,12 +219,16 @@ describe("social's calls", () => {
     }
   });
 
-  it('every call outside the console is in beta, and no call is live yet', () => {
+  it('every call outside the console is in beta; a call is live (no mark) or not (`live: false`), and M3’s three are live', () => {
     for (const [name, procedure] of calls) {
-      const { beta, live } = procedure['~orpc'].meta;
-      expect(live, `${name}'s live`).toBe(false);
+      const { beta, live: isLive } = procedure['~orpc'].meta;
+      expect([false, undefined], `${name}'s live`).toContain(isLive);
       expect(beta, `${name}'s beta`).toBe(name.startsWith('admin.') ? undefined : true);
     }
+    const liveNow = calls
+      .filter(([, procedure]) => procedure['~orpc'].meta.live !== false)
+      .map(([name]) => name);
+    expect(liveNow).toEqual(expect.arrayContaining(LIVE_FROM_M3));
   });
 
   it('are in none of the published places: the OpenAPI file, the docs and MCP’s tools', () => {
@@ -292,6 +307,21 @@ describe("social's calls", () => {
       else if (name.startsWith('reader.')) expect(tags, name).toEqual(['reader']);
       else if (name.startsWith('social.me.')) expect(tags, name).toEqual(['personal']);
       else expect(tags, name).toEqual(['public']);
+    }
+  });
+
+  it('say their 404 and 409 in social’s words on every console call, never a market’s or a perp’s', () => {
+    const consoleCalls = calls.filter(([name]) => name.startsWith('admin.'));
+    expect(consoleCalls).toHaveLength(13);
+    for (const [name] of consoleCalls) {
+      const declared = errorsOf(name) as Record<string, { status?: number; message?: string }>;
+      for (const code of ['NOT_FOUND', 'CONFLICT'] as const) {
+        const message = declared[code]?.message;
+        expect(message, `${name}'s ${code}`).toBeTruthy();
+        expect(message, `${name}'s ${code}`).not.toMatch(/market|perp/i);
+      }
+      expect(declared.NOT_FOUND?.status, name).toBe(404);
+      expect(declared.CONFLICT?.status, name).toBe(409);
     }
   });
 
@@ -443,7 +473,9 @@ describe("social's calls", () => {
     expect(reasons('owner.claim', 'CONFLICT')).toContain('already_has_agent');
     expect(reasons('owner.claim', 'REFUSED')).toEqual(['claim_expired']);
     expect(reasons('owner.keys.create', 'REFUSED')).toEqual(['too_many_keys']);
-    expect(reasons('admin.social.invites.create', 'CONFLICT')).toContain('invite_open');
+    expect(reasons('admin.social.invites.create', 'CONFLICT')).toEqual(
+      expect.arrayContaining(['invite_open', 'invite_used', 'invite_revoked']),
+    );
     expect(reasons('admin.social.invites.revoke', 'CONFLICT')).toEqual(['invite_claimed']);
     expect(reasons('admin.social.stories.save', 'CONFLICT')).toEqual([
       'stale_record',

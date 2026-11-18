@@ -18,10 +18,15 @@ written here, the website checks the same one), where `social._call_job` reads t
 schedule calls nothing, so no call can fail. The secret goes only as a bound parameter (psql's `\\bind`), so
 it is never part of any statement's text, which the database would log if the statement failed.
 
-`check staging` reads the flag back; with `--jobs` it also compares the address, and the secret by its SHA-256
-worked out here (the secret itself never sent), and reports how pg_net's calls of the last 10 minutes were
-answered (the perp's jobs share pg_net, so this counts theirs too): any answer but 200 fails it. Nothing here
-prints a value: only facts.
+`apply staging` ends by re-saving every `social-%` job with its own schedule (`cron.alter_job`, a change of
+nothing), which makes Supabase Cron's scheduler reload it: on staging the scheduler missed the two jobs the
+migration made until they were saved again, so a job that exists but never runs was only found by waiting. It sends no secret and changes no job's settings.
+
+`check staging` reads the flag back and fails unless `social-minute` has run in the last 3 minutes (and none of
+those runs failed): the schedule runs every minute, so a job that exists but never runs can't pass. With
+`--jobs` it also compares the address, and the secret by its SHA-256 worked out here (the secret itself never
+sent), and reports how pg_net's calls of the last 10 minutes were answered (the perp's jobs share pg_net, so
+this counts theirs too): any answer but 200 fails it. Nothing here prints a value: only facts.
 
 Staging only: every other target is refused. Production's are set by the release pipeline at launch (runbook,
 pre-launch checklist); this Mac's and the checks' databases keep the flag off (a test turns it on inside its
@@ -42,6 +47,21 @@ RECENT = perps_jobs.RECENT
 
 FLAG_ON = "update social.environment set test_stories = true;\n"
 FLAG = "select (select test_stories from social.environment)::text;\n"
+
+# Every social job saved again with its own schedule: a change of nothing that makes the scheduler reload it.
+# It answers how many it saved. (Supabase Cron on staging missed the two jobs the migration made until they were.)
+RESAVE = """
+select count(*) from cron.job j, lateral (select cron.alter_job(j.jobid, schedule := j.schedule)) saved
+where j.jobname like 'social-%';
+"""
+
+# The minute job's runs of the last 3 minutes and how many of them failed (it is scheduled every minute).
+RECENT_RUNS = "3 minutes"
+RUNS = f"""
+select count(*) || ' ' || count(*) filter (where d.status = 'failed')
+from cron.job_run_details d join cron.job j on j.jobid = d.jobid
+where j.jobname = 'social-minute' and d.start_time > now() - interval '{RECENT_RUNS}';
+"""
 
 APPLY_JOBS = """
 select vault.update_secret(s.id, $1) from vault.secrets s where s.name = 'social_jobs_url' \\bind :url \\g
@@ -78,12 +98,43 @@ def jobs_values(environment):
 
 
 def report_flag(environment, answer):
-    on = answer.strip().splitlines()[-1:] == ["true"]
+    # The flag is the first line of the answer: a check adds the minute job's runs after it.
+    on = answer.strip().splitlines()[:1] == ["true"]
     if on:
         print(f"{environment}: test stories are on")
         return 0
     print(f"FAILED: {environment}: test stories are off (run social_setup.py apply {environment})")
     return 1
+
+
+def report_resave(environment, answer):
+    """What `apply` says of the re-save: it fails when no count of the jobs saved comes back (as when no
+    answer comes back from the runs, in `report_runs`), and when it found no social job to save."""
+    lines = answer.strip().splitlines()
+    saved = lines[-1].strip() if lines else ""
+    if not saved.isdigit():
+        print(f"FAILED: {environment}: the re-save of the social jobs gave no count of the jobs saved")
+        return 1
+    if int(saved) == 0:
+        print(f"FAILED: {environment}: no social job was found to save again: has the social migration reached it?")
+        return 1
+    print(f"{environment}: saved {saved} social jobs again, so the scheduler reloads them")
+    return 0
+
+
+def report_runs(environment, answer):
+    """The minute job must have run in the last 3 minutes, and not failed."""
+    lines = [line for line in answer.strip().splitlines() if line.strip()]
+    ran, failed = ((lines[1].split() if len(lines) > 1 else []) + ["0", "0"])[:2]
+    if ran == "0":
+        print(f"FAILED: {environment}: social-minute hasn't run in the last {RECENT_RUNS}: the scheduler may not have "
+              f"loaded it (run social_setup.py apply {environment}, which saves every social job again)")
+        return 1
+    if failed != "0":
+        print(f"FAILED: {environment}: social-minute ran {ran} times in the last {RECENT_RUNS}, {failed} failed")
+        return 1
+    print(f"{environment}: social-minute ran {ran} times in the last {RECENT_RUNS}, none failed")
+    return 0
 
 
 def report_jobs(environment, answer):
@@ -117,11 +168,20 @@ def main(argv, run=subprocess.run):
     refuse_other_targets(environment)
     code = 0
     if command == "apply":
-        perps_jobs.psql(FLAG_ON, run)
         if jobs:
             url, secret = jobs_values(environment)
-            perps_jobs.psql(perps_jobs.variables(url=url, secret=secret) + APPLY_JOBS, run)
-    code |= report_flag(environment, perps_jobs.psql(FLAG, run))
+            perps_jobs.psql(FLAG_ON, run)
+            # The last write: Vault, then every social job saved again.
+            code |= report_resave(environment, perps_jobs.psql(
+                perps_jobs.variables(url=url, secret=secret) + APPLY_JOBS + RESAVE, run))
+        else:
+            code |= report_resave(environment, perps_jobs.psql(FLAG_ON + RESAVE, run))
+        flag = perps_jobs.psql(FLAG, run)
+    else:
+        flag = perps_jobs.psql(FLAG + RUNS, run)
+    code |= report_flag(environment, flag)
+    if command == "check":
+        code |= report_runs(environment, flag)
     if jobs:
         url, secret = jobs_values(environment)
         digest = hashlib.sha256(secret.encode()).hexdigest()

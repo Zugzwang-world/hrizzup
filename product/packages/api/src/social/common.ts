@@ -1,6 +1,6 @@
 import { parts } from '@hrizzup/agreement';
 import { z } from 'zod';
-import { admin, type Caching, call, type Meta } from '../builders.ts';
+import { type Caching, call, type Meta } from '../builders.ts';
 import { categories, moment } from '../console.ts';
 import { nextCursor, pageFields, pageInput } from '../paging.ts';
 
@@ -339,8 +339,22 @@ export const sessionCall = call.meta(sessionMeta).errors({
   ...errors.tooMany(),
 });
 
+/**
+ * What a console call of social's declares by default, in social's words: the market console's own
+ * defaults (`admin` of the builders: "No such market", "That doesn't fit the market's state") would
+ * answer a story, an update or an invite with a market's wording. A call that has its own reasons
+ * says them on top, with `errors.notFound('invite')` and `errors.conflict(…)`.
+ */
+const consoleErrors = {
+  NOT_FOUND: { status: 404, message: 'No such record: check the ID, then try again' },
+  CONFLICT: {
+    status: 409,
+    message: 'This clashes with what is already saved: reload it, then try again',
+  },
+} as const;
+
 /** The console's social calls: admins only; anyone else is told "No such call" (404). */
-export const consoleCall = admin.meta(consoleMeta);
+export const consoleCall = call.errors(consoleErrors).meta(consoleMeta);
 
 // ---------------------------------------------------------------------------------------------
 // Shapes more than one area uses (section 5.1)

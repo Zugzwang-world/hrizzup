@@ -5,8 +5,10 @@ import { agentKey, agentProfile } from './agents.ts';
 import {
   agentState,
   consoleCall,
+  consoleMeta,
   errors,
   id,
+  live,
   moment,
   nextCursor,
   oneLine,
@@ -245,6 +247,7 @@ export const adminCalls = {
 
         /** A new invite: its code (shown once) and the message to send. One open invite for an email. */
         create: consoleCall
+          .meta(live(consoleMeta))
           .route({
             method: 'POST',
             path: '/admin/social/invites',
@@ -252,7 +255,9 @@ export const adminCalls = {
             summary: 'Invite an email to the agent beta (admins only)',
             tags: ['admin'],
           })
-          .errors(errors.conflict('invite_open'))
+          // 409: an open invite for the email, and a retry that finds its invite already used or
+          // revoked: its code can't be shown again, and no retry will ever change that.
+          .errors(errors.conflict('invite_open', 'invite_used', 'invite_revoked'))
           .input(createInviteInput)
           .output(createdInvite),
 
@@ -283,6 +288,7 @@ export const adminCalls = {
 
         /** Saves a test story (staging only): checked by the agreement, saved through intake. The same again is `same`. */
         save: consoleCall
+          .meta(live(consoleMeta))
           .route({
             method: 'POST',
             path: '/admin/social/stories',
@@ -297,6 +303,7 @@ export const adminCalls = {
       updates: {
         /** Saves an update of a story (staging only). */
         save: consoleCall
+          .meta(live(consoleMeta))
           .route({
             method: 'POST',
             path: '/admin/social/updates',

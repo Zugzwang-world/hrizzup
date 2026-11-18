@@ -70,7 +70,16 @@ describe('the router the route serves', () => {
       .filter(([, procedure]) => procedure['~orpc'].meta.live !== false)
       .map(([name]) => name);
     expect(served.sort()).toEqual(live.sort());
-    expect(served.some((name) => isSocialCall(name.split('.')))).toBe(false);
+    // Of social's calls, only the live ones are served: M3's three console calls, and each relay's own once built.
+    const servedSocial = served.filter((name) => isSocialCall(name.split('.')));
+    expect(servedSocial).toEqual(social.filter((name) => live.includes(name)).sort());
+    expect(servedSocial).toEqual(
+      expect.arrayContaining([
+        'admin.social.invites.create',
+        'admin.social.stories.save',
+        'admin.social.updates.save',
+      ]),
+    );
     expect(served).toEqual(
       expect.arrayContaining(['health', 'markets.list', 'admin.markets.list']),
     );
@@ -109,7 +118,7 @@ describe('the router the route serves', () => {
 });
 
 describe('a social call that is live, once one is built', () => {
-  // None is live yet: made-up live calls show what a relay's first one will meet.
+  // Made-up live calls, whatever the real ones are (M3's three console calls, then each relay's own): they show what a relay's first one meets.
   const live = os.meta({ caching: { kind: 'personal' }, beta: true }).handler(() => 'live');
   const later = os.meta({ caching: { kind: 'personal' }, live: false }).handler(() => 'later');
   const small = {

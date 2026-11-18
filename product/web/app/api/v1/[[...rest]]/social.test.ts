@@ -2,11 +2,13 @@ import { contract, isSocialCall, procedures } from '@hrizzup/api';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * The typed API's route (route.ts), for social's calls (docs/social/build.md, D9 and D14). None is
- * live yet, so every one answers exactly as an address the API doesn't have: the same status,
- * headers and body bytes, whoever asks and whatever is sent, before the request is read. On
- * production, where social is off until launch, the same. Who is signed in and whether they're an
- * admin are stood in for.
+ * The typed API's route (route.ts), for social's calls (docs/social/build.md, D9 and D14). A call
+ * not live yet answers exactly as an address the API doesn't have: the same status, headers and
+ * body bytes, whoever asks and whatever is sent, before the request is read. The calls that are
+ * live (M3's three console calls, then each relay's own as it builds them) are read from their own
+ * mark, so this holds for any number of them: to anyone but an admin, a console call is the same
+ * answer too. On production, where social is off until launch, every social call is, live or not.
+ * Who is signed in and whether they're an admin are stood in for.
  */
 
 const signedIn = vi.fn();
@@ -34,6 +36,11 @@ async function answer(method: keyof typeof route, path: string, init: RequestIni
 }
 
 const socialCalls = procedures(contract).filter(([name]) => isSocialCall(name.split('.')));
+/** Whether a call's back end is built: it carries no `live: false`. */
+const isLive = ([, procedure]: (typeof socialCalls)[number]) =>
+  procedure['~orpc'].meta.live !== false;
+const liveCalls = socialCalls.filter(isLive);
+const notLiveCalls = socialCalls.filter((call) => !isLive(call));
 
 /** A call's address, with an example for each {part}. */
 const addressOf = (path: string) =>
@@ -43,9 +50,11 @@ const addressOf = (path: string) =>
     .replace('{name}', 'voice')
     .replace('{slug}', 'timeline')}`;
 
+type Attempt = [keyof typeof route, string, RequestInit];
+
 /** Every way to send each call: as it is made, with a body that isn't JSON, and in the wrong type. */
-const attempts: [keyof typeof route, string, RequestInit][] = socialCalls.flatMap(
-  ([, procedure]) => {
+const attemptsAt = (calls: typeof socialCalls): Attempt[] =>
+  calls.flatMap(([, procedure]) => {
     const { method, path } = procedure['~orpc'].route;
     const address = addressOf(path ?? '');
     const asked = method as 'GET' | 'POST';
@@ -57,13 +66,17 @@ const attempts: [keyof typeof route, string, RequestInit][] = socialCalls.flatMa
             ['POST', address, { body: '{', headers: { 'content-type': 'application/json' } }],
             ['POST', address, { body: '{}', headers: { 'content-type': 'application/json' } }],
             ['POST', address, { body: 'x=1', headers: { 'content-type': 'text/plain' } }],
-          ] as [keyof typeof route, string, RequestInit][])
+          ] as Attempt[])
         : []),
       // The wrong method for the address is an address the API doesn't have too.
       [asked === 'GET' ? 'DELETE' : 'PUT', address, {}],
-    ];
-  },
-);
+    ] as Attempt[];
+  });
+
+const attempts = attemptsAt(socialCalls);
+const notLiveAttempts = attemptsAt(notLiveCalls);
+/** The live calls that anyone but an admin can't find: the console's (their addresses are under /admin/). */
+const liveConsoleAttempts = attemptsAt(liveCalls.filter(([name]) => name.startsWith('admin.')));
 
 beforeEach(() => {
   vi.stubEnv('VERCEL', '1');
@@ -75,7 +88,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe("social's calls, none of them live yet", () => {
+describe("social's calls, the ones not live yet", () => {
   const people = [
     ['signed out', () => signedIn.mockResolvedValue(null)],
     [
@@ -94,9 +107,17 @@ describe("social's calls, none of them live yet", () => {
     ],
   ] as const;
 
-  it('are all 74 of them in the contract, and each is tried here at its own address', () => {
+  it('are all 74 of them in the contract, each is tried here at its own address, and M3 made the console’s three live', () => {
     expect(socialCalls.length).toBe(74);
     expect(attempts.length).toBeGreaterThan(socialCalls.length * 3);
+    expect(liveCalls.length + notLiveCalls.length).toBe(74);
+    expect(liveCalls.map(([name]) => name)).toEqual(
+      expect.arrayContaining([
+        'admin.social.invites.create',
+        'admin.social.stories.save',
+        'admin.social.updates.save',
+      ]),
+    );
   });
 
   it("answer exactly as an address the API doesn't have, whoever asks and whatever is sent", async () => {
@@ -110,9 +131,30 @@ describe("social's calls, none of them live yet", () => {
     });
     for (const [who, setUp] of people) {
       setUp();
-      for (const [method, path, init] of attempts) {
+      for (const [method, path, init] of notLiveAttempts) {
         expect(await answer(method, path, init), `${who}: ${method} ${path}`).toEqual(unknown);
       }
+    }
+  });
+
+  it("answer anyone but an admin the same on the console's live calls, and an admin reaches them", async () => {
+    const unknown = await answer('GET', '/api/v1/no-such-call');
+    const [signedOut, signedInNotAdmin, admin] = people;
+    for (const [who, setUp] of [signedOut, signedInNotAdmin]) {
+      setUp();
+      for (const [method, path, init] of liveConsoleAttempts) {
+        expect(await answer(method, path, init), `${who}: ${method} ${path}`).toEqual(unknown);
+      }
+    }
+    // An admin gets past the gate: what they send is read, so an empty save is a refused input.
+    admin[1]();
+    for (const path of ['/api/v1/admin/social/stories', '/api/v1/admin/social/updates']) {
+      const refused = await answer('POST', path, {
+        body: '{}',
+        headers: { 'content-type': 'application/json' },
+      });
+      expect(refused.status, path).toBe(400);
+      expect(JSON.parse(refused.body).code, path).toBe('BAD_REQUEST');
     }
   });
 

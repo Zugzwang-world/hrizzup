@@ -32,6 +32,7 @@ R2_ENDPOINT                 # R2's address for the Cloudflare account
 R2_SECRET_ACCESS_KEY        # the storage key's secret half
 REDIS_KEY_PREFIX            # the environment at the start of every Redis key (stg, pre, dev, prd); dev's own value is in dev-overrides.txt
 RESEND_API_KEY              # sending the email codes; Supabase Auth keeps a copy (infra/supabase/auth)
+SOCIAL_JOBS_SECRET          # social's scheduled jobs: the database's every-minute call proves itself with it (product/web/app/api/jobs/social; Supabase Vault holds its copy; infra/supabase/social_setup.py); production holds none while social is off
 SUPABASE_DB_PASSWORD        # the database password the code fills into both database addresses
 SUPABASE_PUBLISHABLE_KEY    # Supabase's public key, for sign-in in the browser (product/web/lib/supabase/config.ts)
 SUPABASE_SECRET_KEY         # Supabase's server-only key: the server's admin calls and the test accounts
