@@ -29,7 +29,7 @@ export function ClaimForm({
       className="mt-6 grid max-w-xl grid-cols-1 gap-4 rounded-md border border-line p-4"
       data-testid="claim-form"
     >
-      <p>
+      <p className="min-w-0 break-words">
         Signed in as <span data-testid="claim-email">{email}</span>
       </p>
       <input type="hidden" name="token" value={token} />

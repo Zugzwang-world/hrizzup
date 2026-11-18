@@ -15,6 +15,7 @@ import {
   readSignInCode,
   stagingKeys,
 } from '../support/test-accounts.ts';
+import { views } from '../viewports.ts';
 
 /**
  * Journey: an agent joins, and its owner claims it (docs/social/agents-design.md, J1, M6.2), over HTTP as any
@@ -34,7 +35,8 @@ import {
  *    owner's name started from the sign-in; another account is 403 `wrong_email`.
  * 7. The claim leads to My agent, claimed; claiming again is 404 and registering again 409 `already_claimed`.
  * 8. On My agent: a key made there works, a third live key is refused, and a revoked key answers 401 at once.
- * 9. Both pages fit at 320 and 1280.
+ * 9. Both signed-in pages (the claim form, and My agent with its keys, one of them named as long as a name may
+ *    be) fit at every size of the screen check: the 13 widths, sideways, and the phone widths at 200% text.
  *
  * Every account, invite, handle and key is this run's own (support/run.ts); the invite is unlisted, so the
  * agent stays off the directory. A secret (a key's text, a claim link, an invite code) is only ever tested as
@@ -82,18 +84,48 @@ async function callWith(
   };
 }
 
+/** The screen check's large text, as screens.spec.ts sets it: the page's root text at 200%. */
+const LARGE_TEXT_CSS = 'html { font-size: 200% !important; }';
+
 /**
- * A page at each width: nothing overflows, overlaps or scrolls sideways. The page is named, never its
- * address: a claim link's address holds a secret.
+ * A page at every size of the screen check (e2e/viewports.ts: the 13 widths, the phones and tablets turned
+ * sideways, and the phone widths at 200% text): nothing overflows, overlaps or scrolls sideways. One pass in
+ * place, never a reload, so the page's own state stays (My agent's keys, a refusal shown); the large text is
+ * switched on for its sizes and off again after, and the window goes back to a phone's. A browser context
+ * here is the journey's own, a desktop's: the touch and mobile emulation belong to the screen check's own
+ * pass over every page. The page is named, never its address: a claim link's address holds a secret, and
+ * `layoutProblems` quotes an element's text, so no pass runs while a key is on screen.
  */
-async function fitsAt(
-  page: Page,
-  what: string,
-  widths: readonly [number, number][],
-): Promise<void> {
-  for (const [width, height] of widths) {
-    await page.setViewportSize({ width, height });
-    expect(await layoutProblems(page), `${what} at ${width}px`).toEqual([]);
+async function fitsEverywhere(page: Page, what: string): Promise<void> {
+  const problems: string[] = [];
+  let large: Awaited<ReturnType<Page['addStyleTag']>> | null = null;
+  try {
+    for (const view of views) {
+      await page.setViewportSize({ width: view.width, height: view.height });
+      if (view.largeText && large === null)
+        large = await page.addStyleTag({ content: LARGE_TEXT_CSS });
+      if (!view.largeText && large !== null) {
+        await large.evaluate((style) => style.remove());
+        large = null;
+      }
+      for (const problem of await layoutProblems(page)) problems.push(`${view.name}: ${problem}`);
+    }
+  } finally {
+    if (large !== null) await large.evaluate((style) => style.remove()).catch(() => undefined);
+    await page.setViewportSize({ width: 390, height: 844 });
+  }
+  expect(problems, `${what}: problems at some size`).toEqual([]);
+}
+
+/**
+ * Opens a path whose address holds a secret (a claim link's token). A failure says what didn't open and
+ * nothing of the address: the browser's own message and its call log hold it, so neither is passed on.
+ */
+async function openWithSecret(page: Page, path: string, what: string): Promise<void> {
+  try {
+    await page.goto(path);
+  } catch {
+    throw new Error(`${what} did not open`);
   }
 }
 
@@ -272,7 +304,7 @@ test('an invited agent joins and is claimed: the skill file, a retry, the refusa
 
     // 6. The claim page: signed out it shows who is waiting, and a way to sign in that comes back here.
     const claimPath = new URL(link2).pathname;
-    await page.goto(claimPath);
+    await openWithSecret(page, claimPath, 'the claim page');
     await expect(page.getByTestId('claim-preview')).toContainText(`@${handle}`);
     await expect(page.getByTestId('claim-preview')).toContainText(`Join journey agent (${engine})`);
     const signIn = page.getByRole('link', { name: 'Sign in with the invited email' });
@@ -291,7 +323,7 @@ test('an invited agent joins and is claimed: the skill file, a retry, the refusa
         encodeURIComponent(pendingCookieValue({ email: ownerEmail, next: claimPath })),
       ),
     ]);
-    await page.goto(signInHref);
+    await openWithSecret(page, signInHref, 'the sign-in page, as the claim link sent it');
     await expect(page.getByTestId('code-sent-to')).toHaveText(ownerEmail);
     await page.getByLabel('Code', { exact: true }).fill(await readSignInCode(keys, ownerEmail));
     await page.getByRole('button', { name: 'Sign in' }).click();
@@ -303,12 +335,18 @@ test('an invited agent joins and is claimed: the skill file, a retry, the refusa
     await expect(page.getByLabel("Your name, as it shows on your agent's profile")).toHaveValue(
       'Check run',
     );
-    // 9 (the claim page). It fits, at a phone's narrowest and a monitor's width.
-    await fitsAt(page, 'the claim page', [
-      [320, 640],
-      [1280, 800],
-    ]);
-    await page.setViewportSize({ width: 390, height: 844 });
+    // 9 (the claim page). Signed in, with the owner's email and name on it, it fits at every size, and with
+    // the longest email there is, 64 letters before the @ and nothing to break at (the run's own has hyphens
+    // to wrap at, a real one often has none): the line shown is swapped for it and back.
+    await fitsEverywhere(page, 'the claim page, signed in');
+    const longEmail = `${'a'.repeat(64)}@example.test`;
+    await page.getByTestId('claim-email').evaluate((el, text) => {
+      el.textContent = text;
+    }, longEmail);
+    await fitsEverywhere(page, 'the claim page, signed in with a long email');
+    await page.getByTestId('claim-email').evaluate((el, text) => {
+      el.textContent = text;
+    }, ownerEmail);
     // Another account of the run is refused: the invite went to another email.
     const wrong = await call(stranger.as, 'POST', '/api/v1/owner/claims', {
       requestId: randomUUID(),
@@ -325,7 +363,12 @@ test('an invited agent joins and is claimed: the skill file, a retry, the refusa
 
     // 7. The claim: it leads to My agent, claimed.
     await page.getByRole('button', { name: 'Claim this agent' }).click();
-    await expect(page).toHaveURL(/\/sandbox\/social\/me$/);
+    // The path alone is asked: a failure prints a true or false, never the claim link's address.
+    await expect
+      .poll(() => new URL(page.url()).pathname === '/sandbox/social/me', {
+        message: 'the claim leads to My agent',
+      })
+      .toBe(true);
     await expect(page.getByTestId('agent-state')).toHaveText('Claimed');
     await expect(page.getByTestId('my-agent')).toContainText(`@${handle}`);
     await expect(page.getByTestId('my-agent')).toContainText('for Check run');
@@ -344,38 +387,41 @@ test('an invited agent joins and is claimed: the skill file, a retry, the refusa
     const registerAgain = await call(anyone, 'POST', '/api/v1/social/agents', body);
     expect(registerAgain.status).toBe(409);
     expect(registerAgain.body).toMatchObject({ data: { reason: 'already_claimed' } });
-    expect(JSON.stringify(registerAgain.body)).not.toMatch(/hz_(demo|live)_/);
+    expect(
+      /hz_(demo|live)_/.test(JSON.stringify(registerAgain.body)),
+      'no key in the refusal',
+    ).toBe(false);
 
     // 8. My agent's keys: one made there works; a third is refused; a revoked one answers 401 at once.
     await expect(page.getByTestId('agent-key-list')).toContainText('first key');
-    await page.getByLabel('Name', { exact: true }).fill('Journey key');
+    // A name as long as a key's may be, with no break in it: it must wrap, never push the page sideways.
+    const keyName = `Journey-key-${'k'.repeat(48)}`;
+    await page.getByLabel('Name', { exact: true }).fill(keyName);
     await page.getByRole('button', { name: 'Make a key' }).click();
     const shown = page.getByTestId('agent-key-secret');
     await expect(shown).toBeVisible();
     const key3 = (await shown.textContent()) ?? '';
     expect(KEY_TEXT.test(key3), 'the key shown once is a key').toBe(true);
     expect((await callWith(anyone, key3, 'GET', '/api/v1/social/me')).status).toBe(200);
-    await expect(page.getByTestId('agent-key-list')).toContainText('Journey key');
+    await expect(page.getByTestId('agent-key-list')).toContainText(keyName);
     const third = await call(owner, 'POST', '/api/v1/owner/agent/keys', {
       requestId: randomUUID(),
       name: 'Third key',
     });
     expect(third.status).toBe(422);
     expect(third.body).toMatchObject({ data: { reason: 'too_many_keys' } });
-    expect(JSON.stringify(third.body)).not.toMatch(/hz_(demo|live)_/);
+    expect(/hz_(demo|live)_/.test(JSON.stringify(third.body)), 'no key in the refusal').toBe(false);
     await page.getByLabel('Name', { exact: true }).fill('Third key');
     await page.getByRole('button', { name: 'Make a key' }).click();
     await expect(page.getByTestId('agent-key-answer')).toContainText('two live keys');
-    // 9 (My agent). It fits too, with the keys and the form on it.
-    await fitsAt(page, 'My agent', [
-      [320, 640],
-      [1280, 800],
-    ]);
-    await page.setViewportSize({ width: 390, height: 844 });
+    // 9 (My agent). It fits at every size too, with its keys, the form and a refusal on it: the key shown
+    // once has been replaced by that refusal, so no key is on screen for a failure to quote.
+    await expect(page.getByTestId('agent-key-secret')).toHaveCount(0);
+    await fitsEverywhere(page, 'My agent, with its keys');
     page.once('dialog', (dialog) => void dialog.accept());
     await page
       .getByRole('listitem')
-      .filter({ hasText: 'Journey key' })
+      .filter({ hasText: keyName })
       .getByRole('button', { name: 'Revoke' })
       .click();
     await expect(page.getByTestId('agent-key-answer')).toContainText('It no longer works');
