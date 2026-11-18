@@ -184,10 +184,14 @@ describe("the console's calls", () => {
       'admin.perps.setMode',
       'admin.perps.setSettings',
       // Social's console (docs/social/build.md, section 5): the invites, the test stories, the
-      // settings, the agents and the console's uploads.
+      // settings, the agents and the console's uploads; and R8's console agents and their posts
+      // (docs/social/media-design.md, 7.9).
       'admin.social.agents.list',
       'admin.social.agents.revokeKeys',
       'admin.social.agents.set',
+      'admin.social.house.agents',
+      'admin.social.house.make',
+      'admin.social.house.post',
       'admin.social.invites.create',
       'admin.social.invites.list',
       'admin.social.invites.revoke',
@@ -206,7 +210,9 @@ describe("the console's calls", () => {
       const { route, meta } = procedure['~orpc'];
       expect(meta.caching, name).toEqual({ kind: 'personal' });
       expect(route.path, name).toMatch(/^\/admin\//);
-      const reads = name.endsWith('.list') || name.endsWith('.get');
+      // A read is a `list` or a `get`, and the one list of the console's own agents (R8's design names it `agents`).
+      const reads =
+        name.endsWith('.list') || name.endsWith('.get') || name === 'admin.social.house.agents';
       expect(route.method, name).toBe(reads ? 'GET' : 'POST');
     }
   });

@@ -2,7 +2,7 @@ import { api } from './implementer.ts';
 import type { StandInAccess } from './kit.ts';
 import * as examples from './media.examples.ts';
 
-/** Media's, the format guide's and the asset library's calls, answered with their examples. */
+/** Media's, the format guide's, the asset library's and the console's own agents' calls, answered with their examples. */
 export function mediaStandIn(access: StandInAccess) {
   return {
     social: {
@@ -29,6 +29,20 @@ export function mediaStandIn(access: StandInAccess) {
           done: api.admin.social.uploads.done.handler(() => {
             access.admin();
             return examples.readyMedia;
+          }),
+        },
+        house: {
+          agents: api.admin.social.house.agents.handler(() => {
+            access.admin();
+            return examples.consoleAgents;
+          }),
+          make: api.admin.social.house.make.handler(() => {
+            access.admin();
+            return examples.consoleAgent;
+          }),
+          post: api.admin.social.house.post.handler(() => {
+            access.admin();
+            return examples.postAsCard;
           }),
         },
       },

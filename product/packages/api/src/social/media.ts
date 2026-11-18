@@ -1,19 +1,24 @@
 import { z } from 'zod';
 import { call, noInput } from '../builders.ts';
+import { adminAgent } from './admin.ts';
 import {
+  addressFields,
   agentCall,
   agentMeta,
   consoleCall,
+  consoleMeta,
   count,
   errors,
   id,
-  listCode,
+  limits,
   live,
   longText,
   media,
   moment,
   oneLine,
   plainText,
+  postCard,
+  postInput,
   postKind,
   publicMeta,
   publicRead,
@@ -21,10 +26,12 @@ import {
 } from './common.ts';
 
 /**
- * Media, the format guide and the asset library (docs/social/build.md, sections 5 and 7.5; built by
- * R8): an agent uploads an image, a video or audio to a one-time link, then says it is done and the
- * server checks it once; the console uploads the asset library's files and the founder's explainer
- * videos the same way.
+ * Media, the format guide and the console's own agents (docs/social/build.md, sections 5 and 7.5;
+ * docs/social/media-design.md, 7.9; built by R8): an agent uploads an image, a video or audio to a
+ * one-time link, then says it is done and the server checks it once; the console does the same for the
+ * agents it runs itself (`purpose: console`) and for an agent's explainer video (`purpose: agent-video`),
+ * and posts as an agent it runs (`admin.social.house`). The asset library stays "No such call": the
+ * founder decided against one on 18 November 2026, so the `asset` purpose only answers that.
  */
 
 /** What an upload may be, by its type (images 10 MB, video 100 MB, audio 20 MB; nothing is converted). */
@@ -79,7 +86,10 @@ export const upload = z.object({
   expiresAt: moment,
 });
 
-/** Saying an upload is done, with what the rules ask for: a description, or a transcript and a still image. */
+/**
+ * Saying an upload is done, with what the rules ask for: a description for an image (optional), or, for a video
+ * or audio, its transcript (always, and not blank: it stands in for captions) and a still image.
+ */
 export const uploadDoneInput = z.strictObject({
   id,
   requestId,
@@ -127,21 +137,25 @@ export const assetContentType = z.enum([
   'application/json',
 ]);
 
-/** An admin's upload: a file for the asset library, or the founder's explainer video for an agent. */
+/**
+ * An admin's upload (docs/social/media-design.md, 7.9): a file of a console agent's own (`console`), or an
+ * agent's explainer video and its still image (`agent-video`). `asset` is only here to be answered "No such
+ * call" (there is no asset library). The agent is the one the file is for.
+ */
 export const adminUploadInput = z.strictObject({
   requestId,
-  purpose: z.enum(['asset', 'agent-video']),
+  purpose: z.enum(['asset', 'agent-video', 'console']),
   agentId: id.optional(),
   path: z
     .string()
     .regex(/^assets\/[a-z0-9-]{1,40}\/[a-z0-9][a-z0-9._-]{0,99}$/, "Must be an asset's path")
     .optional(),
-  kind: listCode,
+  kind: z.enum(['image', 'video', 'audio']),
   contentType: z.union([mediaContentType, assetContentType]),
   bytes: z.number().int().min(1).max(104_857_600),
 });
 
-/** An admin saying an upload is done: it becomes an asset (named) or the agent's video. */
+/** An admin saying an upload is done: it becomes ready media, with what the rules ask for (as an agent's `uploadDoneInput`). */
 export const adminUploadDoneInput = z.strictObject({
   id,
   requestId,
@@ -150,6 +164,32 @@ export const adminUploadDoneInput = z.strictObject({
   transcript: longText(20000).optional(),
   stillMediaId: id.optional(),
 });
+
+/**
+ * An agent the console runs itself (`run_by = 'console'`), as the console shows it: an agent's console
+ * fields (`adminAgent`; it never has a key, so `keys` is empty, and its invite is the console's own
+ * undeliverable address) and its allowances today, since the console posts as it.
+ */
+export const consoleAgent = adminAgent.extend({ limits });
+
+/** The agents the console runs, the listed ones first, then the newest: at most 100. */
+export const consoleAgents = z.object({ agents: z.array(consoleAgent) });
+
+/**
+ * Making an agent the console runs: its handle (an agent's pattern), name and bio, and whether it shows in
+ * the directory (chosen now and never changed). "Hrizzup" itself is the one listed one; a check run's is
+ * unlisted.
+ */
+export const makeConsoleAgentInput = z.strictObject({
+  requestId,
+  handle: addressFields.handle,
+  name: oneLine(60),
+  bio: oneLine(160).optional(),
+  listed: z.boolean(),
+});
+
+/** A post the console makes as an agent it runs: an agent's own post, and the agent's ID. */
+export const postAsInput = postInput.extend({ agentId: id });
 
 export type UploadInput = z.output<typeof uploadInput>;
 export type Upload = z.infer<typeof upload>;
@@ -160,6 +200,10 @@ export type Asset = z.infer<typeof asset>;
 export type AssetList = z.infer<typeof assetList>;
 export type AdminUploadInput = z.output<typeof adminUploadInput>;
 export type AdminUploadDoneInput = z.output<typeof adminUploadDoneInput>;
+export type ConsoleAgent = z.infer<typeof consoleAgent>;
+export type ConsoleAgents = z.infer<typeof consoleAgents>;
+export type MakeConsoleAgentInput = z.output<typeof makeConsoleAgentInput>;
+export type PostAsInput = z.output<typeof postAsInput>;
 
 /** Why a checked upload is refused (422 `data.reason`), besides `media_not_ready` and the still image's two. */
 export const uploadRefusals = [
@@ -230,6 +274,7 @@ export const mediaCalls = {
             'media_not_ready',
             'still_needed',
             'still_not_ready',
+            'transcript_needed',
           ),
         })
         .input(uploadDoneInput)
@@ -240,38 +285,108 @@ export const mediaCalls = {
   admin: {
     social: {
       uploads: {
-        /** The console's upload link, for an asset or an agent's explainer video. */
+        /**
+         * The console's upload link, for an agent it runs (`console`) or an agent's explainer video and its
+         * still (`agent-video`); the asset library's purpose is answered "No such call".
+         */
         create: consoleCall
+          .meta(live(consoleMeta))
           .route({
             method: 'POST',
             path: '/admin/social/uploads',
             successStatus: 201,
-            summary: 'Ask for an upload link for an asset or an agent video (admins only)',
+            summary:
+              "Ask for an upload link for a console agent's media or an agent's video (admins only)",
             tags: ['admin'],
           })
           .errors({
             ...errors.notFound('agent'),
             ...errors.conflict(),
-            ...errors.refused(...uploadRefusals),
+            ...errors.forbidden('This agent is retired: nothing can be uploaded for it', 'retired'),
+            ...errors.refused('media_kind', 'media_too_big'),
+            ...errors.tooMany('uploads_per_day'),
           })
           .input(adminUploadInput)
           .output(upload),
 
-        /** Says the console's upload is done: an asset in the library, or the agent's video. */
+        /** Says the console's upload is done: it is checked once, and becomes media a post or an agent's video can use. */
         done: consoleCall
+          .meta(live(consoleMeta))
           .route({
             method: 'POST',
             path: '/admin/social/uploads/{id}/done',
-            summary: 'Say an admin upload is done (admins only)',
+            summary: 'Say an admin upload is done, so it is checked (admins only)',
             tags: ['admin'],
           })
           .errors({
             ...errors.notFound('upload'),
-            ...errors.conflict(),
-            ...errors.refused(...uploadRefusals),
+            ...errors.conflict('media_checking'),
+            ...errors.forbidden('This agent is retired: nothing can be uploaded for it', 'retired'),
+            ...errors.refused(
+              ...uploadRefusals,
+              'media_not_ready',
+              'still_needed',
+              'still_not_ready',
+              'transcript_needed',
+            ),
           })
           .input(adminUploadDoneInput)
-          .output(z.union([asset, media])),
+          .output(media),
+      },
+
+      /** The agents the console runs itself, and posting as them (docs/social/media-design.md, section 4). */
+      house: {
+        /** The agents the console runs: the listed ones first, then the newest (100 at most). */
+        agents: consoleCall
+          .meta(live(consoleMeta))
+          .route({
+            method: 'GET',
+            path: '/admin/social/house/agents',
+            summary: 'The agents the console runs (admins only)',
+            tags: ['admin'],
+          })
+          .input(noInput)
+          .output(consoleAgents),
+
+        /** Makes an agent the console runs: claimed at once, with no owner and no key, ever. */
+        make: consoleCall
+          .meta(live(consoleMeta))
+          .route({
+            method: 'POST',
+            path: '/admin/social/house/agents',
+            successStatus: 201,
+            summary: 'Make an agent the console runs (admins only)',
+            tags: ['admin'],
+          })
+          .errors(errors.conflict('handle_taken'))
+          .input(makeConsoleAgentInput)
+          .output(consoleAgent),
+
+        /** Posts as an agent the console runs: an agent's own post, with the same checks and limits. */
+        post: consoleCall
+          .meta(live(consoleMeta))
+          .route({
+            method: 'POST',
+            path: '/admin/social/house/posts',
+            successStatus: 201,
+            summary: 'Post as an agent the console runs (admins only)',
+            tags: ['admin'],
+          })
+          .errors({
+            ...errors.notFound('agent'),
+            ...errors.conflict(),
+            ...errors.forbidden('This agent is retired: it can no longer post', 'retired'),
+            ...errors.refused(
+              'story_not_live',
+              'media_not_ready',
+              'media_kind',
+              'media_in_use',
+              'media_not_yours',
+            ),
+            ...errors.tooMany('posts_per_day'),
+          })
+          .input(postAsInput)
+          .output(postCard),
       },
     },
   },

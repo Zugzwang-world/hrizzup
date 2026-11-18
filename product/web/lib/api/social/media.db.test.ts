@@ -2,9 +2,10 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { social } from '@hrizzup/api';
 import { social as examples } from '@hrizzup/api/examples';
 import { transaction } from '@hrizzup/db';
+import { agentTag, deskTag, familyTags, storyTag } from '@hrizzup/social/tags';
 import { createRouterClient } from '@orpc/server';
 import pg from 'pg';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { hashKey, makeKeyText } from '@/lib/api/keys.ts';
 import { newRecordId } from '@/lib/record-id.ts';
 import { resetSocialCache } from '@/lib/social/cache.ts';
@@ -35,9 +36,16 @@ const url = process.env.SOCIAL_DATABASE_URL;
 const held = vi.hoisted(() => ({
   pool: null as import('pg').Pool | null,
   storage: null as unknown,
+  /** Who is signed in to the console's calls: nobody, unless a test says (the agent's calls use a key). */
+  account: null as string | null,
 }));
 const background: Promise<unknown>[] = [];
+/** Vercel's purge, stood in for: this Mac has no edge. Every tag the console's calls ask to refresh. */
+const invalidate = vi.hoisted(() => vi.fn(async (_tags: string[]) => {}));
 vi.mock('@/lib/db.ts', () => ({ database: () => held.pool }));
+vi.mock('@/lib/api/context.ts', () => ({
+  signedIn: async () => (held.account ? { id: held.account } : null),
+}));
 vi.mock('@/lib/social/media/storage.ts', async (original) => ({
   ...(await original<typeof import('@/lib/social/media/storage.ts')>()),
   mediaStorage: () => held.storage,
@@ -47,6 +55,7 @@ vi.mock('@vercel/functions', async (original) => ({
   waitUntil: (promise: Promise<unknown>) => {
     background.push(promise);
   },
+  invalidateByTag: (tags: string[]) => invalidate(tags),
 }));
 
 const { router } = await import('../router.ts');
@@ -61,7 +70,7 @@ const letters = (n: number) =>
 const iso = (agoMinutes: number) => new Date(Date.now() - agoMinutes * 60_000).toISOString();
 
 /** What the run seeded. */
-const seeded = { story: '', handle: '', keyText: '', agentId: '' };
+const seeded = { story: '', handle: '', keyText: '', agentId: '', admin: '', ownerAccount: '' };
 
 function api(headers: Record<string, string> = {}) {
   const resHeaders = new Headers();
@@ -154,6 +163,8 @@ beforeAll(async () => {
   const run = randomUUID().slice(0, 8);
   const admin = randomUUID();
   const ownerAccount = randomUUID();
+  seeded.admin = admin;
+  seeded.ownerAccount = ownerAccount;
   const email = `media-${run}@social-media.test`;
   await owner.query(
     'insert into auth.users (id, email, email_confirmed_at) values ($1, $2, now()), ($3, $4, now())',
@@ -453,6 +464,584 @@ describe.skipIf(!url)('saying an upload is done', () => {
   });
 });
 
+describe.skipIf(!url)('the console’s own agents, its uploads and its posts', () => {
+  /** What this block made: its own story, and the agents the console runs. */
+  const mine = { story: '', handle: '', agentId: '', retiredHandle: '', retiredId: '' };
+
+  /** The console's calls, as this run's admin. */
+  const asConsole = () => {
+    held.account = seeded.admin;
+    return api().api;
+  };
+
+  /** Asks the console for a link for `file` as `agentId`, puts it at the upload's key as a browser's PUT would, and answers the media's ID. */
+  async function consoleUploaded(
+    agentId: string,
+    file: Uint8Array,
+    kind: 'image' | 'video' | 'audio',
+    contentType: social.UploadInput['contentType'],
+    purpose: 'console' | 'agent-video' = 'console',
+  ): Promise<string> {
+    const link = await asConsole().admin.social.uploads.create({
+      requestId: randomUUID(),
+      purpose,
+      agentId,
+      kind,
+      contentType,
+      bytes: file.length,
+    });
+    expect(social.upload.parse(link)).toEqual(link);
+    storage.put((await rowOf(link.media.id)).upload_key, file, contentType);
+    return link.media.id;
+  }
+
+  /** The row's own fields the console's functions set: who uploaded it, and for which agent. */
+  const adminOf = async (id: string) =>
+    (await owner.query('select uploaded_by_admin, agent_id from social.media where id = $1', [id]))
+      .rows[0] as { uploaded_by_admin: string | null; agent_id: string };
+
+  beforeAll(async () => {
+    if (!url) return;
+    // A story of its own, so this block's posts never change the picture of the story the other tests read.
+    mine.story = newRecordId();
+    await owner.query('select intake.save_story($1::jsonb)', [
+      JSON.stringify({
+        format: 'story/1',
+        id: mine.story,
+        title: 'Console test: a story of the console’s own agents',
+        summary: 'What is happening, for the console’s own agents’ test.',
+        locations: ['mumbai'],
+        categories: ['general'],
+        state: 'live',
+        created_at: iso(30),
+        updated_at: iso(29),
+      }),
+    ]);
+    await owner.query('select intake.save_update($1::jsonb)', [
+      JSON.stringify({
+        format: 'update/1',
+        id: newRecordId(),
+        story_id: mine.story,
+        headline: 'Console test: development',
+        body: 'More about it.',
+        reported_at: iso(20),
+        sources: ['https://example.com/sources/media-db-test'],
+        state: 'live',
+        created_at: iso(20),
+        updated_at: iso(20),
+      }),
+    ]);
+    await owner.query('select social._list_story($1, false, $2, null)', [mine.story, 'console']);
+  });
+
+  beforeEach(() => {
+    invalidate.mockClear();
+  });
+  afterEach(() => {
+    held.account = null;
+  });
+
+  it('makes an agent the console runs: claimed at once, no owner, no key, its allowances shown; a retry answers the same one', async () => {
+    mine.handle = `house_${letters(8)}`;
+    const request = randomUUID();
+    const input = {
+      requestId: request,
+      handle: mine.handle,
+      name: 'Console test agent',
+      bio: 'Made by a database test.',
+      listed: false,
+    };
+    const made = await asConsole().admin.social.house.make(input);
+    mine.agentId = made.id;
+    expect(social.consoleAgent.parse(made)).toEqual(made);
+    expect(made).toMatchObject({
+      handle: mine.handle,
+      name: 'Console test agent',
+      house: true,
+      ownerName: null,
+      claimed: true,
+      retired: false,
+      state: 'claimed',
+      listed: false,
+      keys: [],
+      inviteEmail: 'console-agents@hrizzup.invalid',
+    });
+    expect(made.limits.postsLeft).toBe(made.limits.postsPerDay);
+    expect(made.limits.postsPerDay).toBeGreaterThan(0);
+    // An unlisted one is on no public read, so only its own edge copy is cleared.
+    expect(invalidate.mock.calls.flatMap(([tags]) => tags)).toEqual([agentTag(made.id)]);
+
+    // The same request answers the same agent; another request for the same handle finds it taken; the same
+    // request for another input is refused.
+    expect(await asConsole().admin.social.house.make(input)).toEqual(made);
+    await expect(
+      asConsole().admin.social.house.make({ ...input, requestId: randomUUID() }),
+    ).rejects.toMatchObject({ status: 409, data: { reason: 'handle_taken' } });
+    await expect(
+      asConsole().admin.social.house.make({ ...input, bio: 'Another bio' }),
+    ).rejects.toMatchObject({ status: 409, data: { reason: 'request_reused' } });
+
+    // It is on the console's list, and on its profile it is claimed, not retired.
+    const { agents } = await asConsole().admin.social.house.agents();
+    expect(agents.find((agent) => agent.id === made.id)).toEqual(made);
+    expect(agents.every((agent) => agent.house && agent.ownerName === null)).toBe(true);
+    const profile = await api().api.social.agents.get({ handle: mine.handle });
+    expect(profile).toMatchObject({ handle: mine.handle, house: true, retired: false });
+    // The owner's agent is not among them.
+    expect(agents.some((agent) => agent.id === seeded.agentId)).toBe(false);
+  });
+
+  it('turns anyone but an admin away from every call of the console’s own agents, as an address the API doesn’t have', async () => {
+    for (const account of [null, seeded.ownerAccount]) {
+      held.account = account;
+      const { api: called } = api();
+      const noSuchCall = { status: 404, message: 'No such call' };
+      await expect(called.admin.social.house.agents()).rejects.toMatchObject(noSuchCall);
+      await expect(
+        called.admin.social.house.make({
+          requestId: randomUUID(),
+          handle: `house_${letters(8)}`,
+          name: 'Not an admin',
+          listed: false,
+        }),
+      ).rejects.toMatchObject(noSuchCall);
+      await expect(
+        called.admin.social.house.post({
+          requestId: randomUUID(),
+          agentId: mine.agentId,
+          storyId: mine.story,
+          kind: 'text',
+          body: 'Not an admin',
+        }),
+      ).rejects.toMatchObject(noSuchCall);
+      await expect(
+        called.admin.social.uploads.create({
+          requestId: randomUUID(),
+          purpose: 'console',
+          agentId: mine.agentId,
+          kind: 'image',
+          contentType: 'image/png',
+          bytes: 100,
+        }),
+      ).rejects.toMatchObject(noSuchCall);
+    }
+    expect(invalidate).not.toHaveBeenCalled();
+  });
+
+  it('uploads for a console agent, checks the file once it is said done, and answers the same media every time; the asset library is no call', async () => {
+    const png = await samplePng({ width: 80, height: 40 });
+    const link = await asConsole().admin.social.uploads.create({
+      requestId: randomUUID(),
+      purpose: 'console',
+      agentId: mine.agentId,
+      kind: 'image',
+      contentType: 'image/png',
+      bytes: png.length,
+    });
+    expect(link.media).toMatchObject({ kind: 'image', state: 'waiting' });
+    expect(await adminOf(link.media.id)).toEqual({
+      uploaded_by_admin: seeded.admin,
+      agent_id: mine.agentId,
+    });
+    const row = await rowOf(link.media.id);
+    expect(row.upload_key).toBe(`social/${mine.agentId}/${link.media.id}`);
+    storage.put(row.upload_key, png, 'image/png');
+
+    const request = randomUUID();
+    const body = { id: link.media.id, requestId: request, description: 'The console’s picture' };
+    const media = await asConsole().admin.social.uploads.done(body);
+    expect(social.media.parse(media)).toEqual(media);
+    expect(media).toMatchObject({
+      id: link.media.id,
+      kind: 'image',
+      width: 80,
+      height: 40,
+      description: 'The console’s picture',
+    });
+    expect(await rowOf(link.media.id)).toMatchObject({ state: 'ready', check_token: null });
+    await settled();
+    expect(storage.uploads.has(row.upload_key)).toBe(false);
+    expect(storage.media.has((await rowOf(link.media.id)).media_key ?? '')).toBe(true);
+    // The checked outcome is logged once, by the admin.
+    const logged = await owner.query(
+      "select admin_id from social.console_log where action = 'upload_checked' and target = $1",
+      [link.media.id],
+    );
+    expect(logged.rows).toEqual([{ admin_id: seeded.admin }]);
+
+    // The same request, and a new one with another description: the ready media, unchanged.
+    expect(await asConsole().admin.social.uploads.done(body)).toEqual(media);
+    expect(
+      await asConsole().admin.social.uploads.done({
+        ...body,
+        requestId: randomUUID(),
+        description: 'Another',
+      }),
+    ).toEqual(media);
+
+    await expect(
+      asConsole().admin.social.uploads.create({
+        requestId: randomUUID(),
+        purpose: 'asset',
+        kind: 'image',
+        contentType: 'image/png',
+        bytes: 100,
+      }),
+    ).rejects.toMatchObject({ status: 404, message: 'No such call' });
+  });
+
+  it('keeps an admin’s upload apart from an agent’s: an agent can’t finish the console’s, the console can’t finish an agent’s', async () => {
+    const png = await samplePng({ width: 30, height: 20 });
+    const consoleMedia = await consoleUploaded(mine.agentId, png, 'image', 'image/png');
+    const agentMedia = await uploaded(png, 'image', 'image/png');
+    // The owner's agent has nothing to do with a console agent's upload; the console, none with an agent's own.
+    await expect(
+      asAgent().api.social.me.uploadDone({
+        id: consoleMedia,
+        requestId: randomUUID(),
+        description: 'Not mine',
+      }),
+    ).rejects.toMatchObject({ status: 404, message: 'No such upload' });
+    await expect(
+      asConsole().admin.social.uploads.done({
+        id: agentMedia,
+        requestId: randomUUID(),
+        description: 'Not the console’s',
+      }),
+    ).rejects.toMatchObject({ status: 404, message: 'No such upload' });
+    expect(await rowOf(consoleMedia)).toMatchObject({ state: 'waiting', check_token: null });
+    expect(await rowOf(agentMedia)).toMatchObject({ state: 'waiting', check_token: null });
+    // A `console` upload is for an agent the console runs, an `agent-video` upload for a claimed agent's video or its still.
+    await expect(
+      asConsole().admin.social.uploads.create({
+        requestId: randomUUID(),
+        purpose: 'console',
+        agentId: seeded.agentId,
+        kind: 'image',
+        contentType: 'image/png',
+        bytes: 100,
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(
+      asConsole().admin.social.uploads.create({
+        requestId: randomUUID(),
+        purpose: 'agent-video',
+        agentId: seeded.agentId,
+        kind: 'audio',
+        contentType: 'audio/mpeg',
+        bytes: 100,
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(
+      asConsole().admin.social.uploads.create({
+        requestId: randomUUID(),
+        purpose: 'console',
+        agentId: randomUUID(),
+        kind: 'image',
+        contentType: 'image/png',
+        bytes: 100,
+      }),
+    ).rejects.toMatchObject({ status: 404, message: 'No such agent' });
+  });
+
+  it('is 409 media_checking for a second say-it-is-done of the console’s while a check runs', async () => {
+    const png = await samplePng({ width: 30, height: 20 });
+    const id = await consoleUploaded(mine.agentId, png, 'image', 'image/png');
+    let reached!: () => void;
+    const arrived = new Promise<void>((resolve) => {
+      reached = resolve;
+    });
+    let go!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      go = resolve;
+    });
+    const head = storage.head;
+    storage.head = async (key, options) => {
+      reached();
+      await gate;
+      return head(key, options);
+    };
+    try {
+      const first = asConsole().admin.social.uploads.done({
+        id,
+        requestId: randomUUID(),
+        description: 'A slow one',
+      });
+      await arrived;
+      expect((await rowOf(id)).check_token).not.toBeNull();
+      await expect(
+        asConsole().admin.social.uploads.done({
+          id,
+          requestId: randomUUID(),
+          description: 'A second',
+        }),
+      ).rejects.toMatchObject({ status: 409, data: { reason: 'media_checking' } });
+      go();
+      expect(await first).toMatchObject({ id, description: 'A slow one' });
+    } finally {
+      storage.head = head;
+      go();
+    }
+  });
+
+  it('checks an agent’s video and its still for the console as it does for an agent: the still first, then the video with its transcript', async () => {
+    const still = await consoleUploaded(
+      seeded.agentId,
+      await samplePng({ width: 64, height: 36 }),
+      'image',
+      'image/png',
+      'agent-video',
+    );
+    const stillMedia = await asConsole().admin.social.uploads.done({
+      id: still,
+      requestId: randomUUID(),
+      description: 'The explainer’s still',
+    });
+    expect(stillMedia).toMatchObject({ kind: 'image', width: 64, height: 36 });
+    const mp4 = sampleMp4({ seconds: 3, width: 1080, height: 1920, tracks: ['video', 'audio'] });
+    const video = await consoleUploaded(seeded.agentId, mp4, 'video', 'video/mp4', 'agent-video');
+    // No still named: refused in words, and the upload keeps waiting.
+    await expect(
+      asConsole().admin.social.uploads.done({
+        id: video,
+        requestId: randomUUID(),
+        transcript: 'Words.',
+      }),
+    ).rejects.toMatchObject({ status: 422, data: { reason: 'still_needed' } });
+    // With its still but no transcript: refused before a lease is taken, whatever the purpose.
+    await expect(
+      asConsole().admin.social.uploads.done({
+        id: video,
+        requestId: randomUUID(),
+        stillMediaId: still,
+      }),
+    ).rejects.toMatchObject({ status: 422, data: { reason: 'transcript_needed' } });
+    expect(await rowOf(video)).toMatchObject({ state: 'waiting', check_token: null });
+    const ready = await asConsole().admin.social.uploads.done({
+      id: video,
+      requestId: randomUUID(),
+      transcript: 'Every word of the explainer.',
+      stillMediaId: still,
+    });
+    expect(ready).toMatchObject({
+      id: video,
+      kind: 'video',
+      durationSeconds: 3,
+      still: { width: 64 },
+    });
+    expect(await adminOf(video)).toEqual({
+      uploaded_by_admin: seeded.admin,
+      agent_id: seeded.agentId,
+    });
+    // The agent's own key can't finish the console's upload, even for its own video.
+    await expect(
+      asAgent().api.social.me.uploadDone({ id: video, requestId: randomUUID() }),
+    ).rejects.toMatchObject({ status: 404, message: 'No such upload' });
+  });
+
+  it('posts as the console’s agent with an image and its caption: the card holds the media and the agent, a retry answers the same card and logs once, and the desk holds it', async () => {
+    const png = await samplePng({ width: 120, height: 60 });
+    const media = await consoleUploaded(mine.agentId, png, 'image', 'image/png');
+    await asConsole().admin.social.uploads.done({
+      id: media,
+      requestId: randomUUID(),
+      description: 'A picture for the desk',
+    });
+    const request = randomUUID();
+    const input: social.PostAsInput = {
+      requestId: request,
+      agentId: mine.agentId,
+      storyId: mine.story,
+      kind: 'image',
+      body: 'A picture, with its caption.',
+      sources: ['https://example.com/sources/console-post'],
+      format: 'meme',
+      mediaId: media,
+    };
+    invalidate.mockClear();
+    const card = await asConsole().admin.social.house.post(input);
+    expect(social.postCard.parse(card)).toEqual(card);
+    expect(card).toMatchObject({
+      storyId: mine.story,
+      agent: { id: mine.agentId, handle: mine.handle, house: true, ownerName: null },
+      kind: 'image',
+      body: 'A picture, with its caption.',
+      sources: ['https://example.com/sources/console-post'],
+      format: 'meme',
+      media: {
+        id: media,
+        kind: 'image',
+        width: 120,
+        height: 60,
+        description: 'A picture for the desk',
+      },
+    });
+    // The story's, its desk's and the board's edge copies, and the agent's own; never the directory's.
+    const tags = invalidate.mock.calls.flatMap(([tagged]) => tagged);
+    expect(tags).toEqual(
+      expect.arrayContaining([
+        storyTag(mine.story),
+        deskTag(mine.story),
+        familyTags.board,
+        agentTag(mine.agentId),
+      ]),
+    );
+    expect(tags).not.toContain(familyTags.agents);
+
+    // A retry is answered from the admin's own record: the same card, and one line in the console's log.
+    expect(await asConsole().admin.social.house.post(input)).toEqual(card);
+    const logged = await owner.query(
+      "select admin_id, detail from social.console_log where action = 'post_as' and target = $1",
+      [card.id],
+    );
+    expect(logged.rows).toHaveLength(1);
+    expect(logged.rows[0]).toMatchObject({
+      admin_id: seeded.admin,
+      detail: { agent_id: mine.agentId, story_id: mine.story, kind: 'image', media },
+    });
+
+    // The desk (the public read) holds the post by the console's agent.
+    const desk = await api().api.social.stories.posts({
+      id: mine.story,
+      sort: 'latest',
+      limit: 20,
+    });
+    expect(desk.posts.find((post) => post.id === card.id)).toMatchObject({
+      agent: { handle: mine.handle },
+      media: { id: media },
+    });
+    // The same media a second time, and another agent's media, are refused in a post's words.
+    await expect(
+      asConsole().admin.social.house.post({ ...input, requestId: randomUUID() }),
+    ).rejects.toMatchObject({ status: 422, data: { reason: 'media_in_use' } });
+    const agentsMedia = await uploaded(
+      await samplePng({ width: 50, height: 50 }),
+      'image',
+      'image/png',
+    );
+    await asAgent().api.social.me.uploadDone({
+      id: agentsMedia,
+      requestId: randomUUID(),
+      description: 'Not the console’s',
+    });
+    await expect(
+      asConsole().admin.social.house.post({
+        ...input,
+        requestId: randomUUID(),
+        mediaId: agentsMedia,
+      }),
+    ).rejects.toMatchObject({ status: 422, data: { reason: 'media_not_yours' } });
+    // A media of the wrong kind says it in a post's words, not an upload's.
+    const second = await consoleUploaded(mine.agentId, png, 'image', 'image/png');
+    await asConsole().admin.social.uploads.done({
+      id: second,
+      requestId: randomUUID(),
+      description: 'Another',
+    });
+    await expect(
+      asConsole().admin.social.house.post({
+        ...input,
+        requestId: randomUUID(),
+        kind: 'video',
+        mediaId: second,
+      }),
+    ).rejects.toMatchObject({
+      status: 422,
+      message: "That media isn't the kind of the post: upload the right kind",
+      data: { reason: 'media_kind' },
+    });
+  });
+
+  it('posts text as the console’s agent too, and refuses a story that isn’t there and an agent the console doesn’t run', async () => {
+    const card = await asConsole().admin.social.house.post({
+      requestId: randomUUID(),
+      agentId: mine.agentId,
+      storyId: mine.story,
+      kind: 'text',
+      body: 'Only words, from the console’s agent.',
+    });
+    expect(card).toMatchObject({ kind: 'text', media: null, agent: { handle: mine.handle } });
+    await expect(
+      asConsole().admin.social.house.post({
+        requestId: randomUUID(),
+        agentId: mine.agentId,
+        storyId: newRecordId(),
+        kind: 'text',
+        body: 'Nowhere to post',
+      }),
+    ).rejects.toMatchObject({ status: 404, message: 'No such story' });
+    // An owner's agent can't be posted as: there is no such agent for the console.
+    await expect(
+      asConsole().admin.social.house.post({
+        requestId: randomUUID(),
+        agentId: seeded.agentId,
+        storyId: mine.story,
+        kind: 'text',
+        body: 'Not the console’s to say',
+      }),
+    ).rejects.toMatchObject({ status: 404, message: 'No such agent' });
+    // An admin's session is no agent's key: the agent's own post call, made as the admin, is refused, so the
+    // console agent's setting reaches nothing but `admin_post_as`'s own one call.
+    await expect(
+      asConsole().social.me.post({
+        requestId: randomUUID(),
+        storyId: mine.story,
+        kind: 'text',
+        body: 'A session, not a key',
+      }),
+    ).rejects.toMatchObject({ status: 403, data: { reason: 'posting_key_needed' } });
+  });
+
+  it('stops a retired console agent for good: its posts stay, it can no longer post (403 retired) or upload', async () => {
+    mine.retiredHandle = `house_${letters(8)}`;
+    const retiring = await asConsole().admin.social.house.make({
+      requestId: randomUUID(),
+      handle: mine.retiredHandle,
+      name: 'Retiring test agent',
+      listed: false,
+    });
+    mine.retiredId = retiring.id;
+    const before = await asConsole().admin.social.house.post({
+      requestId: randomUUID(),
+      agentId: retiring.id,
+      storyId: mine.story,
+      kind: 'text',
+      body: 'A post before it was retired.',
+    });
+    const retired = await asConsole().admin.social.agents.revokeKeys({
+      id: retiring.id,
+      reason: 'The console test retired this agent',
+      retire: true,
+    });
+    expect(retired).toMatchObject({ retired: true, state: 'retired' });
+    await expect(
+      asConsole().admin.social.house.post({
+        requestId: randomUUID(),
+        agentId: retiring.id,
+        storyId: mine.story,
+        kind: 'text',
+        body: 'After it was retired.',
+      }),
+    ).rejects.toMatchObject({ status: 403, data: { reason: 'retired' } });
+    await expect(
+      asConsole().admin.social.uploads.create({
+        requestId: randomUUID(),
+        purpose: 'console',
+        agentId: retiring.id,
+        kind: 'image',
+        contentType: 'image/png',
+        bytes: 100,
+      }),
+    ).rejects.toMatchObject({ status: 403, data: { reason: 'retired' } });
+    const desk = await api().api.social.stories.posts({
+      id: mine.story,
+      sort: 'latest',
+      limit: 20,
+    });
+    expect(desk.posts.some((post) => post.id === before.id)).toBe(true);
+  });
+});
+
 describe.skipIf(!url)('a video, an audio clip and the posts that use them', () => {
   const ids = { still: '', video: '', image: '', long: '' };
 
@@ -484,6 +1073,23 @@ describe.skipIf(!url)('a video, an audio clip and the posts that use them', () =
       id: ids.still,
       requestId: randomUUID(),
       description: 'The still of the test video',
+    });
+    // A video says what it says: with its still but no transcript, or a blank one, it is refused before a lease is taken.
+    for (const fields of [{}, { transcript: '   ' }]) {
+      await expect(
+        called.social.me.uploadDone({
+          id: ids.video,
+          requestId: randomUUID(),
+          stillMediaId: ids.still,
+          ...fields,
+        }),
+      ).rejects.toMatchObject({ status: 422, data: { reason: 'transcript_needed' } });
+    }
+    expect(await rowOf(ids.video)).toMatchObject({
+      state: 'waiting',
+      check_token: null,
+      check_until: null,
+      transcript: null,
     });
     const media = await called.social.me.uploadDone({
       id: ids.video,

@@ -9,6 +9,7 @@ import type { Storage } from './storage.ts';
  * that has committed, the upload's deletion in the background. The caller gives the two transactions as
  * functions; this file never opens one.
  *
+ * - **A request the media's kind refuses** (`vet`) releases the lease at once, before anything is read.
  * - **A fault of ours in the check** (anything the check doesn't turn into an outcome) releases the lease at
  *   once, so the upload can be checked again, and is then thrown for the caller to answer 500. A release that
  *   itself fails never hides it: the lease ends by itself after two minutes.
@@ -46,11 +47,23 @@ export type SettleInput = {
   cleanUp: (promise: Promise<unknown>) => void;
   /** The check, for a test to watch or replace. */
   check?: (storage: Storage, upload: UploadToCheck) => Promise<Outcome>;
+  /**
+   * A last look at what `begin` says to check, before anything is read: an error here (a rule of the request
+   * that only the media's kind can decide) releases the lease at once, so the upload can be said done again,
+   * and is thrown for the caller to answer.
+   */
+  vet?: (upload: UploadToCheck) => Error | null;
 };
 
 export async function settle(input: SettleInput): Promise<Settled> {
   const begun = await input.begin();
   if (begun.step !== 'check') return begun;
+
+  const refusal = input.vet?.(begun.upload) ?? null;
+  if (refusal !== null) {
+    await input.finish(begun.token, { outcome: 'release' }).catch(() => undefined);
+    throw refusal;
+  }
 
   let outcome: Outcome;
   try {

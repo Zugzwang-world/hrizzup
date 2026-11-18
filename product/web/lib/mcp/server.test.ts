@@ -343,7 +343,7 @@ describe('social’s calls follow their live marks', () => {
     .map(([name]) => name);
 
   it('are tools exactly when published and not kept out of MCP, and the market API’s tools are all else there is', () => {
-    expect(social.length).toBe(74);
+    expect(social.length).toBe(77);
     expect(
       TOOLS.filter((tool) => isSocialCall(tool.path)).map((tool) => tool.path.join('.')),
     ).toEqual(expected);

@@ -28,7 +28,8 @@ import { type Engine, stagingKeys } from '../support/test-accounts.ts';
  *    size turned upright, a placeholder and the description; its `url` downloads with no EXIF at all; saying it
  *    is done again, with the same request and with a new one, answers the same; the upload is gone from the
  *    uploads bucket.
- * 3. A video: with no still, 422 `still_needed`; with one and a transcript, ready, 3 seconds and its still. A
+ * 3. A video: with no still, 422 `still_needed`; with a still and no transcript, 422 `transcript_needed`; with both,
+ *    ready, 3 seconds and its still. A
  *    61-second video is 422 `media_too_long`, a PNG declared `video/mp4` is 422 `media_kind`. An MP3 and an M4A are
  *    ready, with their lengths.
  * 4. An image post, a video post and an audio post answer their cards with media; a media used twice is 422
@@ -379,6 +380,10 @@ describeApiOnly('images, video and audio', () => {
       const noStill = await done(videoLink.media.id, { transcript: 'Every word spoken.' });
       expect(noStill.status, 'a video with no still').toBe(422);
       expect(noStill.body).toMatchObject({ data: { reason: 'still_needed' } });
+      // A video always has its transcript: with its still but none, it is refused before it is checked.
+      const noWords = await done(videoLink.media.id, { stillMediaId: still.id });
+      expect(noWords.status, 'a video with its still and no transcript').toBe(422);
+      expect(noWords.body).toMatchObject({ data: { reason: 'transcript_needed' } });
       const video = await done(videoLink.media.id, {
         transcript: 'Every word spoken in the test video.',
         stillMediaId: still.id,

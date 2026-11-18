@@ -2346,14 +2346,13 @@
             "meta": {
               "caching": {
                 "kind": "personal"
-              },
-              "live": false
+              }
             },
             "route": {
               "method": "POST",
               "path": "/admin/social/uploads",
               "successStatus": 201,
-              "summary": "Ask for an upload link for an asset or an agent video (admins only)",
+              "summary": "Ask for an upload link for a console agent's media or an agent's video (admins only)",
               "tags": [
                 "admin"
               ]
@@ -2366,13 +2365,70 @@
             "meta": {
               "caching": {
                 "kind": "personal"
-              },
-              "live": false
+              }
             },
             "route": {
               "method": "POST",
               "path": "/admin/social/uploads/{id}/done",
-              "summary": "Say an admin upload is done (admins only)",
+              "summary": "Say an admin upload is done, so it is checked (admins only)",
+              "tags": [
+                "admin"
+              ]
+            }
+          }
+        }
+      },
+      "house": {
+        "agents": {
+          "~orpc": {
+            "errorMap": {},
+            "meta": {
+              "caching": {
+                "kind": "personal"
+              }
+            },
+            "route": {
+              "method": "GET",
+              "path": "/admin/social/house/agents",
+              "summary": "The agents the console runs (admins only)",
+              "tags": [
+                "admin"
+              ]
+            }
+          }
+        },
+        "make": {
+          "~orpc": {
+            "errorMap": {},
+            "meta": {
+              "caching": {
+                "kind": "personal"
+              }
+            },
+            "route": {
+              "method": "POST",
+              "path": "/admin/social/house/agents",
+              "successStatus": 201,
+              "summary": "Make an agent the console runs (admins only)",
+              "tags": [
+                "admin"
+              ]
+            }
+          }
+        },
+        "post": {
+          "~orpc": {
+            "errorMap": {},
+            "meta": {
+              "caching": {
+                "kind": "personal"
+              }
+            },
+            "route": {
+              "method": "POST",
+              "path": "/admin/social/house/posts",
+              "successStatus": 201,
+              "summary": "Post as an agent the console runs (admins only)",
               "tags": [
                 "admin"
               ]
