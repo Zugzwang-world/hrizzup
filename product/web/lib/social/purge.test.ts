@@ -4,6 +4,7 @@ import { resetSocialCache } from './cache.ts';
 import {
   forgetBriefs,
   MOST_CALLS,
+  purgePlan,
   purgeTags,
   refreshAgent,
   refreshStories,
@@ -266,5 +267,98 @@ describe('refreshing an agent', () => {
     const log = vi.spyOn(console, 'error').mockImplementation(() => {});
     await refreshAgent(ID, { directory: true, invalidate: vi.fn(async (_tags: string[]) => {}) });
     expect(log).not.toHaveBeenCalled();
+  });
+});
+
+describe('the minute job’s purge plan', () => {
+  const POST = '01a1e7fc-c300-7a1b-9c2d-3e4f5a6b7c8d';
+  const AGENT = '01a1e3a0-ab00-7ef9-810c-37c5772f543f';
+  const stories = (count: number) =>
+    Array.from(
+      { length: count },
+      (_, n) => `01a1e7f8-1a00-7c3d-8e4f-${String(n).padStart(12, '0')}`,
+    );
+
+  it('is a story’s story and desk tags, each post’s tag, each agent’s tag, then the families the marks name, in that order', () => {
+    expect(
+      purgePlan({
+        stories: [ID, OTHER],
+        posts: [POST],
+        agents: [AGENT],
+        board: true,
+        directory: true,
+      }),
+    ).toEqual({
+      tags: [
+        `social:story:${ID}`,
+        `social:desk:${ID}`,
+        `social:story:${OTHER}`,
+        `social:desk:${OTHER}`,
+        `social:post:${POST}`,
+        `social:agent:${AGENT}`,
+        'social:board',
+        'social:agents',
+      ],
+      briefs: [ID, OTHER],
+      overflow: false,
+    });
+  });
+
+  it('names a family only when its mark is set, and nothing when there is nothing', () => {
+    expect(purgePlan({ stories: [ID], board: true }).tags).toEqual([
+      `social:story:${ID}`,
+      `social:desk:${ID}`,
+      'social:board',
+    ]);
+    expect(purgePlan({ agents: [AGENT], directory: true }).tags).toEqual([
+      `social:agent:${AGENT}`,
+      'social:agents',
+    ]);
+    expect(purgePlan({})).toEqual({ tags: [], briefs: [], overflow: false });
+  });
+
+  it('holds no tag twice, however often an ID repeats', () => {
+    const plan = purgePlan({
+      stories: [ID, ID],
+      posts: [POST, POST],
+      agents: [AGENT, AGENT],
+      board: true,
+    });
+    expect(plan.tags).toHaveLength(new Set(plan.tags).size);
+    expect(plan.tags).toHaveLength(5);
+    expect(plan.briefs).toEqual([ID]);
+  });
+
+  it('is exactly at its limit with 800 tags: 400 stories’ tags, all of them purged', () => {
+    const plan = purgePlan({ stories: stories(400) });
+    expect(plan.tags).toHaveLength(MOST_CALLS * TAGS_A_CALL);
+    expect(plan.overflow).toBe(false);
+    expect(plan.briefs).toHaveLength(400);
+  });
+
+  it('overflows at 801 tags, counting the family tags: only the board, and the directory when its mark is set, are purged, and every brief is still deleted', () => {
+    // 400 stories make 800 tags, so the board's tag makes 801.
+    const over = purgePlan({ stories: stories(400), board: true });
+    expect(over).toMatchObject({ tags: ['social:board'], overflow: true });
+    expect(over.briefs).toHaveLength(400);
+    expect(purgePlan({ stories: stories(400), board: true, directory: true }).tags).toEqual([
+      'social:board',
+      'social:agents',
+    ]);
+    // The board is purged on overflow whatever its own mark said.
+    expect(
+      purgePlan({ stories: stories(399), posts: [POST, OTHER, ID], directory: false }).tags,
+    ).toEqual(['social:board']);
+  });
+
+  it('never makes more calls than a purge may: a plan below the limit always fits purgeTags', async () => {
+    const plan = purgePlan({ stories: stories(400) });
+    const result = await purgeTags(plan.tags, { waitMs: 1_000, invalidate: async () => {} });
+    expect(result.calls).toBe(MOST_CALLS);
+  });
+
+  it('refuses an ID that is not a UUID in lower case, since a comma must never reach a header', () => {
+    expect(() => purgePlan({ stories: [ID.toUpperCase()] })).toThrow(TypeError);
+    expect(() => purgePlan({ posts: ['a,b'] })).toThrow(TypeError);
   });
 });
