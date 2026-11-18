@@ -1,6 +1,6 @@
 import Link from 'next/link';
+import { PRIMARY } from '@/components/sandbox/classes.ts';
 import { KeysPanel } from '@/components/sandbox/keys-panel.tsx';
-import { PRIMARY } from '@/components/sandbox/ui.tsx';
 import { serverApi, whoAmI } from '@/lib/api/server.ts';
 import { sandboxOnly } from '@/lib/sandbox/gate.ts';
 
