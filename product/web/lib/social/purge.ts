@@ -1,5 +1,5 @@
 import { socialRedis } from '@hrizzup/social/redis';
-import { agentTag, deskTag, familyTags, storyTag } from '@hrizzup/social/tags';
+import { agentTag, deskTag, familyTags, postTag, storyTag } from '@hrizzup/social/tags';
 import { invalidateByTag, waitUntil } from '@vercel/functions';
 import { forget, redisPrefix } from './cache.ts';
 
@@ -34,6 +34,64 @@ export async function forgetBriefs(ids: readonly string[]): Promise<void> {
   const prefix = redisPrefix();
   if (prefix === null || ids.length === 0) return;
   await forget(ids.map((id) => socialRedis.brief.key(prefix, id)));
+}
+
+/** What the minute job's recount changed: every ID it recounted, and the two marks that name a family of reads. */
+export type PurgeInput = {
+  stories?: readonly string[];
+  posts?: readonly string[];
+  agents?: readonly string[];
+  /** A listed story is among them, or the pipeline just changed one: the board's list is stale. */
+  board?: boolean;
+  /** A listed agent is among them: the directory's list is stale. */
+  directory?: boolean;
+};
+
+/** What a purge of the minute job does: the edge tags, and the stories whose Redis briefs are deleted first. */
+export type PurgePlan = {
+  /** The tags to purge, none twice, at most `MOST_CALLS * TAGS_A_CALL`. */
+  tags: string[];
+  /** Every story's ID (a brief's Redis copy is deleted for each, whatever the tags). */
+  briefs: string[];
+  /** More tags than a purge may make calls for: only the family tags are purged, and the rest refresh within the edge's life. */
+  overflow: boolean;
+};
+
+/**
+ * What the minute job purges for what its recount changed (R5's design, R6 and M2 rule 9):
+ *
+ * - a story's story and desk tags, a post's tag and an agent's tag, then the two family tags the marks
+ *   ask for (`social:board`, `social:agents`), none twice;
+ * - past 800 tags (50 calls of 16), after the repeats are removed and the family tags counted, only
+ *   `social:board` and, when the directory mark is set, `social:agents`, with `overflow` true: whatever
+ *   else is stale at the edge is refreshed within its own minute;
+ * - the brief of every story, always, since a recounted story's brief holds its counts and is deleted
+ *   from Redis even where the tags overflow.
+ *
+ * Every ID must be a UUID in lower case (the tag builders refuse anything else: a caller's mistake).
+ */
+export function purgePlan(input: PurgeInput): PurgePlan {
+  const stories = [...new Set(input.stories ?? [])];
+  const family = [
+    ...(input.board ? [familyTags.board] : []),
+    ...(input.directory ? [familyTags.agents] : []),
+  ];
+  const tags = [
+    ...new Set([
+      ...stories.flatMap(storyTags),
+      ...[...new Set(input.posts ?? [])].map(postTag),
+      ...[...new Set(input.agents ?? [])].map(agentTag),
+      ...family,
+    ]),
+  ];
+  if (tags.length > MOST_CALLS * TAGS_A_CALL) {
+    return {
+      tags: [familyTags.board, ...(input.directory ? [familyTags.agents] : [])],
+      briefs: stories,
+      overflow: true,
+    };
+  }
+  return { tags, briefs: stories, overflow: false };
 }
 
 /** How one purge went: the calls made, those that failed, and those still running when the wait ended. */
