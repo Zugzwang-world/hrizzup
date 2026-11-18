@@ -1,6 +1,5 @@
 import type { Transaction } from '@hrizzup/db';
 import { hashClaimToken, hashInviteCode, makeClaimToken } from '@hrizzup/social';
-import { agentTag, familyTags } from '@hrizzup/social/tags';
 import { ORPCError } from '@orpc/server';
 import { badRequest } from '@/lib/api/ground-rules.ts';
 import { hashKey, makeKeyText, revokeAgentKeys, shownPart } from '@/lib/api/keys.ts';
@@ -26,7 +25,7 @@ import {
   limitHeaders,
   visitorOf,
 } from '@/lib/social/limits.ts';
-import { purgeTags } from '@/lib/social/purge.ts';
+import { refreshAgent } from '@/lib/social/purge.ts';
 import { answerOf } from '@/lib/social/shape.ts';
 import { basicsOf, siteOrigin } from '@/lib/social/skill-file.ts';
 import { api } from '../base.ts';
@@ -83,17 +82,12 @@ const listRule: OwnMap = (fault) => {
 };
 
 /**
- * What a claim made stale (C5): the agent's profile and the directory at the edge (R5's `refreshAgent`, when it
- * lands, in place of this purge), then the check-in's copy in Redis, which still says it waits to be claimed.
- * Never fails the claim: a purge that fails is left to the copies' own edge life.
+ * What a claim made stale (C5): the agent's profile and the directory at the edge (`refreshAgent`, which never
+ * fails and logs only counts and a name), then the check-in's copy in Redis, which still says it waits to be
+ * claimed.
  */
 async function afterClaim(agentId: string): Promise<void> {
-  try {
-    await purgeTags([agentTag(agentId), familyTags.agents], { waitMs: 1_500 });
-  } catch (error) {
-    const { name } = (error ?? {}) as { name?: unknown };
-    console.error('social purge: a claim purge failed', { name });
-  }
+  await refreshAgent(agentId, { directory: true });
   await forgetCheckin(agentId);
 }
 

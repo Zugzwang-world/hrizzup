@@ -17,7 +17,8 @@ const findKey = vi.fn();
 const revokeAgentKeys = vi.fn();
 const allowKeyRead = vi.fn();
 const allowVisitor = vi.fn();
-const purgeTags = vi.fn();
+const refreshAgent = vi.fn();
+const invalidate = vi.fn();
 const events: string[] = [];
 
 vi.mock('@/lib/api/context.ts', () => ({ signedIn: (headers: Headers) => signedIn(headers) }));
@@ -33,10 +34,14 @@ vi.mock('@/lib/api/rate-limit.ts', async (original) => ({
   ...(await original<typeof import('@/lib/api/rate-limit.ts')>()),
   allowKeyRead: (key: string) => allowKeyRead(key),
 }));
+vi.mock('@vercel/functions', async (original) => ({
+  ...(await original<typeof import('@vercel/functions')>()),
+  invalidateByTag: (tags: string[]) => invalidate(tags),
+}));
 vi.mock('@/lib/social/purge.ts', () => ({
-  purgeTags: async (tags: string[], options: unknown) => {
+  refreshAgent: async (agentId: string, options: unknown) => {
     events.push('purge');
-    return purgeTags(tags, options);
+    return refreshAgent(agentId, options);
   },
 }));
 vi.mock('@/lib/social/callers.ts', async (original) => ({
@@ -122,7 +127,8 @@ beforeEach(() => {
   signedIn.mockResolvedValue(OWNER);
   allowVisitor.mockResolvedValue({ allowed: true });
   allowKeyRead.mockResolvedValue({ allowed: true });
-  purgeTags.mockResolvedValue({ calls: 1, failed: 0, late: 0 });
+  refreshAgent.mockResolvedValue(undefined);
+  invalidate.mockResolvedValue(undefined);
   findKey.mockImplementation(async (text: string) =>
     text === POST_KEY ? { id: KEY_ID, kind: 'post', agentId: AGENT_ID } : null,
   );
@@ -915,23 +921,27 @@ describe('owner.agent and owner.claim', () => {
   it('then purges the agent’s edge copies and the directory, then forgets its check-in copy (C5), in that order, after the commit', async () => {
     answer = ({ text }) => (text.startsWith('with x') ? [ownerRow()] : [{ answer: {} }]);
     await api().call.owner.claim(claim);
-    expect(purgeTags).toHaveBeenCalledWith([`social:agent:${AGENT_ID}`, 'social:agents'], {
-      waitMs: 1500,
-    });
+    expect(refreshAgent).toHaveBeenCalledWith(AGENT_ID, { directory: true });
     expect(events).toEqual(['commit', 'purge', `forget ${AGENT_ID}`]);
   });
 
-  it('is not failed by a purge that fails: the claim stands and the check-in copy is still forgotten', async () => {
+  it('is not failed by an edge purge that fails: the claim stands, the check-in copy is still forgotten, and only counts are logged', async () => {
     answer = ({ text }) => (text.startsWith('with x') ? [ownerRow()] : [{ answer: {} }]);
-    purgeTags.mockRejectedValue(
+    // The real `refreshAgent` (R5's), with the edge refusing every tag.
+    const real =
+      await vi.importActual<typeof import('@/lib/social/purge.ts')>('@/lib/social/purge.ts');
+    refreshAgent.mockImplementation((id: string, options: { directory: boolean }) =>
+      real.refreshAgent(id, options),
+    );
+    invalidate.mockRejectedValue(
       Object.assign(new Error('secret-looking detail'), { name: 'Boom' }),
     );
     const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     await expect(api().call.owner.claim(claim)).resolves.toMatchObject({
       agent: { state: 'claimed' },
     });
+    expect(invalidate).toHaveBeenCalledWith([`social:agent:${AGENT_ID}`, 'social:agents']);
     expect(events).toContain(`forget ${AGENT_ID}`);
-    // Only the error's name is logged, never its text.
     expect(JSON.stringify(logged.mock.calls)).not.toContain('secret-looking detail');
     logged.mockRestore();
   });
@@ -950,7 +960,7 @@ describe('owner.agent and owner.claim', () => {
         status,
         data: { reason },
       });
-      expect(purgeTags).not.toHaveBeenCalled();
+      expect(refreshAgent).not.toHaveBeenCalled();
       expect(events.filter((event) => event !== 'commit')).toEqual([]);
     },
   );
