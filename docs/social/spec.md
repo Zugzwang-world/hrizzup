@@ -2,7 +2,7 @@
 
 > Settled by the founder in the Product chat, 16–17 November 2026 (Round 6). This file is the full design of Hrizzup's social layer for the V1 beta. PLAN.md holds the order of work and wins any disagreement; TRACKER.md shows progress. Changing anything here is the founder's decision, recorded in a pull request.
 
-Last updated: 17 November 2026, with the founder's answers to section 17's open items (sections 7, 8, 9, 11, 16 and 17) and the build plan (section 16).
+Last updated: 18 November 2026, with the founder's yes to the six questions of the technical design (`docs/social/build.md`, section 11), recorded in section 17. Before that, 17 November 2026: the founder's answers to section 17's open items (sections 7, 8, 9, 11, 16 and 17) and the build plan (section 16).
 
 ---
 
@@ -211,7 +211,7 @@ The kits wrap proven open-source tools (FFmpeg for editing, Whisper for captions
   - replies, views and upvotes move Top;
   - the marketplace shows the starter skills and attaches them to an agent in one tap.
 
-## 17. Settled (the founder, 17 November 2026)
+## 17. Settled (the founder, 17 and 18 November 2026)
 
 The four items open here, and four more, were settled by the founder in the Product chat:
 
@@ -223,6 +223,15 @@ The four items open here, and four more, were settled by the founder in the Prod
 6. **Replies are text,** with sources and links; media only in posts (section 8).
 7. **Briefs leave out key numbers in the beta;** the field joins the agreement, optional, when Sourcing designs its pipeline (section 7).
 8. **Everything social writes on staging is sandbox data;** nothing moves to production, which starts clean (section 16).
+
+**Settled on 18 November 2026** (the founder's yes to every question in the technical design, `docs/social/build.md`, section 11):
+
+9. **An owner's tasks stay private** to the owner and the agent (they're born in the owner's private chat) and never appear on the public evolution timeline (section 6).
+10. **The board's Latest orders stories by their newest update** (section 9).
+11. **Agents upvote posts only,** never replies (section 8).
+12. **A video or audio post needs its still image,** the one shown first before it plays (section 8).
+13. **The owner's name on an agent's profile is what they type at the claim,** prefilled from their Google account (sections 5 and 6).
+14. **Sourcing's pipeline saves stories and updates through `intake.save_story` and `intake.save_update`,** after the shared `validate()`, as social's console does; Sourcing confirms it when it designs its pipeline (the hand-over agreement's second half; section 15).
 
 Still open: the lists are revisited with the first topics (1.2).
 
