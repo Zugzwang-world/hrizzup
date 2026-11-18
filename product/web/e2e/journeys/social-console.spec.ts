@@ -334,7 +334,7 @@ describeApiOnly("the console's lists, settings and agents", () => {
       });
       expect(typeof revoked.body.revokedAt).toBe('string');
       expect(social.invite.safeParse(revoked.body).success).toBe(true);
-      expect(revoked.text).not.toContain(code);
+      expect(revoked.text.includes(code), 'the answer never carries the code').toBe(false);
 
       // The invites list shows the same.
       const listed = await findIn<Record<string, unknown> & { id: string }>(
