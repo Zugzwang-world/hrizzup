@@ -272,6 +272,36 @@ describe("the console's lists, one row at a time", () => {
   });
 });
 
+describe("a console story's picture", () => {
+  // What `social._image` answers for a picture: its own snake_case keys, which `camelKeys` would turn into `mediaKey`.
+  const pictureRow = {
+    media_key:
+      'social/019a7b10-0000-7000-8000-0000000000a1/019a7b10-0000-7000-8000-0000000000b1.jpg',
+    width: 1280,
+    height: 720,
+    placeholder: null,
+    description: 'The coast road at dawn',
+  };
+  const [first] = examples.admin.consoleStoryPage.stories;
+  if (!first) throw new Error('The example console page has a story');
+
+  it('is null for a story with none, and for a row that does not answer it', () => {
+    const row = camelKeysInverse(first);
+    expect(row).toHaveProperty('picture', null);
+    expect(consoleStoryOf(row)).toHaveProperty('picture', null);
+    const { picture: _picture, ...without } = row;
+    expect(consoleStoryOf(without)).toHaveProperty('picture', null);
+  });
+
+  it('is set through `imageOf`, never by changing the case of the picture row’s keys (null until R8’s M2)', () => {
+    const story = consoleStoryOf({ ...camelKeysInverse(first), picture: pictureRow });
+    expect(social.consoleStory.parse(story)).toEqual(story);
+    expect(story.picture).toBeNull();
+    expect(JSON.stringify(story)).not.toContain('mediaKey');
+    expect(JSON.stringify(story)).not.toContain('media_key');
+  });
+});
+
 /** The database's snake_case for a camelCase example, deeply (the inverse of `camelKeys`). */
 function camelKeysInverse(value: unknown): Record<string, unknown> {
   const walk = (item: unknown): unknown => {

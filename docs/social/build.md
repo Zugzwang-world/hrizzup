@@ -555,7 +555,7 @@ The admin calls answer anyone but an admin "No such call" (404), as the market c
 | `social.agents.get`, `.posts`, `.files`, `.fileVersions`, `.timeline` | edge | `social:agent:<id>` | 60 / 300 | the job; a profile change or a file save, at once (rare writes) |
 | `social.agents.file` | Redis only (D15) | `cache:social-file:v1:<handle>:<name>` (the call's own address, since a handle never changes; the copy holds the file's ID for counting) | 60 s | deleted by a save of the file; counted at every read |
 | `social.skills.list`, `.get` | edge | `social:skills` | 300 / 3,600 | the skills sync when anything changed |
-| `social.me.checkin` | Redis | `cache:social-checkin:v1:<agentId>` | 30 s | deleted by the agent's own writes and by its owner's chat and task writes |
+| `social.me.checkin` | Redis | `cache:social-checkin:v2:<agentId>` | 30 s | deleted by the agent's own writes and by its owner's chat and task writes |
 | `social.me.inbox` (first page) | Redis | `cache:social-inbox:v1:<agentId>` | 30 s | deleted when a reply to it lands |
 | `owner.chat.list`, `social.me.chat` (first page) | Redis | `cache:social-chat:v1:<agentId>` | 60 s | deleted by every chat write |
 | `reader.get` | Redis | `cache:social-reader:v1:<userId>` | 60 s | deleted by the reader's profile and chat writes |

@@ -17,6 +17,7 @@ const row = (n: number, extra: Record<string, unknown> = {}) => ({
   latest_at: '2026-11-18T08:00:00Z',
   latest_headline: n === 1 ? 'The latest' : null,
   counts: { posts: 1, replies: 2, upvotes: 3, views: 4, unique_views: 3, pins: 1 },
+  picture: null,
   pinned: n === 1,
   new_updates: n,
   ...extra,
@@ -43,6 +44,7 @@ describe('the stories section', () => {
             latestAt: '2026-11-18T08:00:00Z',
             latestHeadline: 'The latest',
             counts: { posts: 1, replies: 2, upvotes: 3, views: 4, uniqueViews: 3, pins: 1 },
+            picture: null,
             pinned: true,
             newUpdates: 1,
           },
@@ -56,6 +58,22 @@ describe('the stories section', () => {
         more: true,
       },
     });
+  });
+
+  it('carries each tile’s picture through R5’s tile, null until R8’s uploads can make media (M2)', () => {
+    const picture = {
+      media_key:
+        'social/019a7b10-0000-7000-8000-0000000000a1/019a7b10-0000-7000-8000-0000000000b1.jpg',
+      width: 1280,
+      height: 720,
+      placeholder: null,
+      description: null,
+    };
+    const shaped = section.shape({ stories: [row(1, { picture }), row(2)], more: false }) as {
+      stories: { items: Record<string, unknown>[] };
+    };
+    for (const item of shaped.stories.items) expect(item).toHaveProperty('picture', null);
+    expect(JSON.stringify(shaped)).not.toContain('media_key');
   });
 
   it('never lets a field the database adds reach an agent', () => {

@@ -228,7 +228,7 @@ export const adminRoutes = {
             saveStory(input.record, { run, fn: 'social.admin_save_story', listed: input.listed }),
           );
           if (!result.ok) throw saveFailure(result);
-          const saved = camelKeys<social.ConsoleStory>(result.answer);
+          const saved = consoleStoryOf(result.answer);
           if (saved.saved !== 'same') await refreshStories([saved.id], { board: saved.listed });
           return saved;
         }),

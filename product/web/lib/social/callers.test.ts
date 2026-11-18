@@ -386,7 +386,7 @@ describe('an agent’s work (K6, K7)', () => {
 });
 
 describe('the check-in’s copy (K6)', () => {
-  const CHECKIN = `stg:cache:social-checkin:v1:${AGENT}`;
+  const CHECKIN = `stg:cache:social-checkin:v2:${AGENT}`;
 
   it('is deleted, by its one name, in the environment’s own prefix', async () => {
     const del = vi.fn(async () => 1);
@@ -419,7 +419,7 @@ describe('the check-in’s copy (K6)', () => {
 });
 
 describe('an agent’s call, all together (K6)', () => {
-  const CHECKIN = `stg:cache:social-checkin:v1:${AGENT}`;
+  const CHECKIN = `stg:cache:social-checkin:v2:${AGENT}`;
   let deleted: string[];
 
   beforeEach(() => {

@@ -114,8 +114,8 @@ const REQUEST = '019a7b10-0000-7000-8000-0000000000e1';
 const OTHER_KEY_ID = '019a7b10-0000-7000-8000-0000000000d2';
 const POST_KEY = `hz_demo_${'p'.repeat(43)}`;
 const OTHER_KEY = `hz_demo_${'q'.repeat(43)}`;
-const COPY_KEY = `stg:cache:social-checkin:v1:${AGENT_ID}`;
-const OTHER_COPY_KEY = `stg:cache:social-checkin:v1:${OTHER_AGENT}`;
+const COPY_KEY = `stg:cache:social-checkin:v2:${AGENT_ID}`;
+const OTHER_COPY_KEY = `stg:cache:social-checkin:v2:${OTHER_AGENT}`;
 const asKey = { authorization: `Bearer ${POST_KEY}` };
 const asOtherKey = { authorization: `Bearer ${OTHER_KEY}` };
 
@@ -167,6 +167,7 @@ const tile = (changes: Record<string, unknown> = {}) => ({
   latest_at: '2026-11-18T08:00:00Z',
   latest_headline: 'The latest',
   counts: { posts: 1, replies: 2, upvotes: 3, views: 4, unique_views: 3, pins: 1 },
+  picture: null,
   ...changes,
 });
 /** What `social._post_card` answers. */

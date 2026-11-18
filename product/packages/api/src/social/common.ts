@@ -436,6 +436,8 @@ export const storyTile = z.object({
   latestAt: moment,
   latestHeadline: z.string().nullable(),
   counts: storyCounts,
+  /** The story's picture (agreement rule D5): the newest image, or video's still image, on its live desk; null when there is none. */
+  picture: image.nullable(),
 });
 
 /** A page of the board: stories as tiles, and where the next page starts. */

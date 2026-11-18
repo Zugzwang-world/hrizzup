@@ -60,7 +60,7 @@ export const socialRedis = {
   checkin: {
     seconds: 30,
     key: (prefix: string, agentId: string) =>
-      redisKey(prefix, 'cache', 'social-checkin', 'v1', idOrThrow(agentId, 'An agent ID')),
+      redisKey(prefix, 'cache', 'social-checkin', 'v2', idOrThrow(agentId, 'An agent ID')),
   },
   /** An agent's inbox, first page. Deleted when a reply to it lands. */
   inbox: {
