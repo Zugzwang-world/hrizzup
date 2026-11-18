@@ -3,7 +3,7 @@ import { crc32 } from 'node:zlib';
 import sharp from 'sharp';
 import { thumbHashToRGBA } from 'thumbhash';
 import { describe, expect, it } from 'vitest';
-import { cleanImage } from './image.ts';
+import { cleanImage, ImageTimeout, problemOf } from './image.ts';
 import { FileProblem } from './refusals.ts';
 import { sampleJpeg, samplePng } from './samples.ts';
 
@@ -39,6 +39,7 @@ describe('a JPEG with a position and a sideways orientation', () => {
     const before = await sharp(original).metadata();
     expect(before.orientation).toBe(6);
     expect(before.exif).toBeDefined();
+    expect(original.includes(Buffer.from('WGS-84', 'latin1')), 'with its position').toBe(true);
     expect([before.width, before.height]).toEqual([40, 20]);
 
     const cleaned = await cleanImage(original, 'image/jpeg');
@@ -53,6 +54,7 @@ describe('a JPEG with a position and a sideways orientation', () => {
     expect(after.tifftagPhotoshop).toBeUndefined();
     // And not a byte of an EXIF or XMP segment is left in the file.
     expect(cleaned.bytes.includes(Buffer.from('Exif\0\0', 'latin1'))).toBe(false);
+    expect(cleaned.bytes.includes(Buffer.from('WGS-84', 'latin1'))).toBe(false);
     expect(cleaned.bytes.includes(Buffer.from('http://ns.adobe.com/xap', 'latin1'))).toBe(false);
   });
 
@@ -167,4 +169,18 @@ describe('an image that is refused', () => {
       .toBuffer();
     expect(await refusedWith(noise, 'image/png')).toBe('too_big');
   }, 60_000);
+});
+
+describe('what sharp says when it gives up', () => {
+  it('is a time-out (a passing failure) for its own time limit, as it words it, and not a refusal of the file', () => {
+    // Taken from sharp 0.35.5's real error for a pipeline killed by `.timeout({ seconds })`.
+    const real = new Error('timeout: 13% complete\nVipsImage: killed for image "temp-51"');
+    expect(problemOf(real)).toBeInstanceOf(ImageTimeout);
+    expect(problemOf(new Error('Input image exceeds pixel limit'))).toMatchObject({
+      code: 'too_large_image',
+    });
+    expect(problemOf(new Error('Input buffer contains unsupported image format'))).toMatchObject({
+      code: 'unreadable',
+    });
+  });
 });

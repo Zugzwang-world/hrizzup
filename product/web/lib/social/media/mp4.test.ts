@@ -80,8 +80,13 @@ describe('a video', () => {
     expect(await read(video({ seconds: 3, movieSeconds: 90 }))).toBe('too_long');
   });
 
-  it('is refused when it is fragmented', async () => {
+  it('is refused when it is fragmented, however many fragments it has (a real one passes 64 boxes)', async () => {
     expect(await read(video({ fragmented: true }))).toBe('fragmented');
+    expect(await read(video({ fragmented: true, fragments: 40 }))).toBe('fragmented');
+    expect(await read(video({ fragmented: true, fragments: 200 }))).toBe('fragmented');
+    expect(await read(video({ fragmented: true, fragments: 200, moovAtEnd: true }))).toBe(
+      'fragmented',
+    );
   });
 
   it('needs a video track: sound alone declared video/mp4 is wrong_tracks', async () => {
@@ -287,26 +292,19 @@ describe('a file that is not a regular MP4', () => {
       expect(await read(twice('stbl', ['moov', 'trak', 'mdia', 'minf']))).toBe('unreadable');
     });
 
-    it('refuses a second mvex, and still reads a file whose two tracks each hold their own boxes once', async () => {
-      const fragmented = sampleMp4({
-        seconds: 3,
-        width: 8,
-        height: 8,
-        tracks: ['video'],
-        fragmented: true,
-      });
-      const at = startOf(fragmented, 'mvex');
-      const end = at + fragmented.readUInt32BE(at);
-      const doubled = Buffer.concat([
-        fragmented.subarray(0, end),
-        fragmented.subarray(at, end),
-        fragmented.subarray(end),
-      ]);
-      doubled.writeUInt32BE(
-        doubled.readUInt32BE(startOf(doubled, 'moov')) + (end - at),
-        startOf(doubled, 'moov'),
-      );
-      expect(await read(doubled)).toBe('unreadable');
+    it('refuses a second mvex, and still reads a file with one, or with several tracks that each hold their own boxes once', async () => {
+      const mvex = box('mvex', box('trex', Buffer.alloc(24)));
+      const withMvex = (count: number) => {
+        const at = startOf(one, 'moov');
+        const end = at + one.readUInt32BE(at);
+        const added = Buffer.concat(Array.from({ length: count }, () => mvex));
+        const made = Buffer.concat([one.subarray(0, end), added, one.subarray(end)]);
+        made.writeUInt32BE(end - at + added.length, at);
+        return made;
+      };
+      // An `mvex` beside a movie that has a length is no fragmenting: it is read.
+      expect(await read(withMvex(1))).toMatchObject({ durationMs: 3000 });
+      expect(await read(withMvex(2))).toBe('unreadable');
       expect(await read(video({ tracks: ['video', 'audio', 'audio'] }))).toMatchObject({
         durationMs: 3000,
       });

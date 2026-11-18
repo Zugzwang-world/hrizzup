@@ -57,7 +57,7 @@ const isTimeout = (error: unknown) =>
   error instanceof Error && /time(d)? ?out|took more than/i.test(error.message);
 
 /** What a thrown error from `sharp` about the uploaded bytes means for the upload. */
-function problemOf(error: unknown): Error {
+export function problemOf(error: unknown): Error {
   if (isPixelLimit(error)) return new FileProblem('too_large_image');
   if (isTimeout(error)) return new ImageTimeout();
   return new FileProblem('unreadable', error instanceof Error ? error.message : 'unreadable');

@@ -143,6 +143,47 @@ describe('an MP3', () => {
   });
 });
 
+describe('audio hidden where the file says there is a tag', () => {
+  const hidden = (seconds: number) => sampleMp3({ seconds });
+
+  it('is refused in an ID3 tag that swallows frames: the length would be the tag’s, not the sound’s', async () => {
+    // A tag of 150 KB holding 30 seconds of frames, before 2 seconds of audio.
+    const tag = hidden(30);
+    const header = Buffer.from([0x49, 0x44, 0x33, 3, 0, 0, 0, 0, 0, 0]);
+    header[6] = (tag.length >> 21) & 0x7f;
+    header[7] = (tag.length >> 14) & 0x7f;
+    header[8] = (tag.length >> 7) & 0x7f;
+    header[9] = tag.length & 0x7f;
+    expect(await read(Buffer.concat([header, tag, sampleMp3({ seconds: 2 })]))).toBe('unreadable');
+    // A real tag, with a picture's worth of bytes in it and no frames, is not.
+    expect(await read(sampleMp3({ seconds: 2, id3: 150_000 }))).toBe(ms(76));
+  });
+
+  it('is refused in the tags at the end that swallow frames, an APE tag’s declared size being one', async () => {
+    const audio = sampleMp3({ frames: 20 });
+    const swallowed = hidden(30);
+    const footer = Buffer.alloc(32);
+    footer.write('APETAGEX', 0, 'latin1');
+    footer.writeUInt32LE(swallowed.length + 32, 12);
+    expect(await read(Buffer.concat([audio, swallowed, footer]))).toBe('unreadable');
+    // The same tag holding no frames is skipped.
+    expect(await read(Buffer.concat([audio, Buffer.alloc(swallowed.length, 0x41), footer]))).toBe(
+      ms(20),
+    );
+  });
+
+  it('finds frames that straddle the blocks it looks through', async () => {
+    // 65,000 bytes of tag, then four frames across the first block's end, then more tag.
+    const frames = sampleMp3({ frames: 6 });
+    const tag = Buffer.concat([Buffer.alloc(65_000), frames, Buffer.alloc(1000)]);
+    const header = Buffer.from([0x49, 0x44, 0x33, 3, 0, 0, 0, 0, 0, 0]);
+    header[8] = (tag.length >> 7) & 0x7f;
+    header[7] = (tag.length >> 14) & 0x7f;
+    header[9] = tag.length & 0x7f;
+    expect(await read(Buffer.concat([header, tag, sampleMp3({ frames: 5 })]))).toBe('unreadable');
+  });
+});
+
 describe('a header that lies about the length', () => {
   /** A frame of silence carrying a Xing (or Info) header that says it holds `claimed` frames: where the side information ends. */
   function withXing(tag: 'Xing' | 'Info', claimed: number): Buffer {

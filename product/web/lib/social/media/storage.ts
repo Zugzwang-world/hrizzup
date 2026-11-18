@@ -85,6 +85,15 @@ export type Storage = {
 
 type Env = Readonly<Record<string, string | undefined>>;
 
+/** A body's chunks, a read that fails on the way (a dropped connection) being `StorageUnavailable`, as a failed `read` is. */
+async function* guarded(chunks: AsyncIterable<Uint8Array>): AsyncGenerator<Uint8Array> {
+  try {
+    yield* chunks;
+  } catch (error) {
+    throw new StorageUnavailable(error instanceof Error ? error.name : 'a read failed');
+  }
+}
+
 const IMMUTABLE = 'public, max-age=31536000, immutable';
 
 /** A stored ETag without its quotes (a weak mark too), to compare two. */
@@ -145,7 +154,8 @@ export function mediaStorage(env: Env = process.env): Storage | null {
       });
       if (response.status === 404) return null;
       await unlessOk(response, 200);
-      const size = Number(response.headers.get('content-length'));
+      const length = response.headers.get('content-length');
+      const size = length === null ? Number.NaN : Number(length);
       const etag = response.headers.get('etag');
       if (!Number.isSafeInteger(size) || size < 0 || etag === null) {
         throw new StorageUnavailable('a file with no size or no ETag');
@@ -209,7 +219,7 @@ export function mediaStorage(env: Env = process.env): Storage | null {
       }
       await unlessOk(response, 200);
       if (!response.body) throw new StorageUnavailable('an answer with no body');
-      return response.body as unknown as AsyncIterable<Uint8Array>;
+      return guarded(response.body as unknown as AsyncIterable<Uint8Array>);
     },
 
     async putMedia(key, body, contentType, options) {

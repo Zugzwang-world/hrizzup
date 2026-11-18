@@ -122,6 +122,10 @@ async function keepAsIs(
     }
     return;
   }
+  // Said in the function's log, with no key or address, so a run shows which way the bucket took (design, section 10).
+  console.warn(
+    'Media: the bucket would not copy between buckets, so an upload was read and put instead',
+  );
   const whole = await storage.read(upload.upload_key, {
     ifMatch: etag,
     maxBytes: upload.bytes,

@@ -108,10 +108,12 @@ function boxAt(view: View, at: number, end: number): [number, number] {
   return [size32 === 0 ? end - at : size32, 8];
 }
 
-/** The top-level boxes: where `moov` is, and whether a `moof` marks the file as fragmented. */
-async function topLevel(
-  source: ByteSource,
-): Promise<{ start: number; end: number; fragmented: boolean }> {
+/**
+ * The top-level boxes: where `moov` is. A top-level `moof` makes the file fragmented, which is refused at the
+ * first one (a real fragmented file has one for every fragment, so it would pass 64 boxes first): its samples
+ * live outside `moov`, so its length can't be measured here.
+ */
+async function topLevel(source: ByteSource): Promise<{ start: number; end: number }> {
   const { size } = source;
   if (size < 8) throw unreadable('too small to hold a box');
   const first = await source.read(0, Math.min(FIRST_READ, size));
@@ -119,7 +121,6 @@ async function topLevel(
   let boxes = 0;
   let found: { start: number; end: number } | null = null;
   let moovs = 0;
-  let fragmented = false;
   while (offset < size) {
     boxes += 1;
     if (boxes > MOST_TOP_LEVEL_BOXES) throw unreadable('too many boxes');
@@ -136,12 +137,12 @@ async function topLevel(
       moovs += 1;
       found = { start: offset + headerSize, end: offset + boxSize };
     } else if (type === 'moof') {
-      fragmented = true;
+      throw new FileProblem('fragmented');
     }
     offset += boxSize;
   }
   if (moovs !== 1 || found === null) throw unreadable(`${moovs} moov boxes`);
-  return { ...found, fragmented };
+  return found;
 }
 
 /** What walking `moov` collects. */
@@ -288,7 +289,7 @@ export async function readMp4(
   declared: 'video/mp4' | 'audio/mp4',
 ): Promise<Mp4Facts> {
   try {
-    const { start, end, fragmented } = await topLevel(source);
+    const { start, end } = await topLevel(source);
     if (end - start > MOST_MOOV_BYTES) throw unreadable('a moov too big to read');
     const body = await source.read(start, end);
     if (body.length !== end - start) throw unreadable('a moov cut short');
@@ -303,8 +304,8 @@ export async function readMp4(
     if (declared === 'video/mp4' ? video === undefined : !hasSound || video !== undefined) {
       throw new FileProblem('wrong_tracks');
     }
-    // A fragmented file keeps its samples outside `moov`, so its length can't be measured here.
-    if (fragmented || (movie.duration === 0n && found.mvex)) throw new FileProblem('fragmented');
+    // A fragmented file with its fragments elsewhere has a movie of no length and an `mvex`.
+    if (movie.duration === 0n && found.mvex) throw new FileProblem('fragmented');
     if (movie.duration === 0n) throw unreadable('a movie of no length');
 
     const limit = LIMIT_MS[declared];

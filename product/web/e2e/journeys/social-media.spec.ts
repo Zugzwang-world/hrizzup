@@ -12,7 +12,7 @@ import {
 } from '../../lib/social/media/samples.ts';
 import { type NotedAgent, revokeAgentKeys } from '../support/agent-clean-up.ts';
 import { describeApiOnly, expect, test } from '../support/api-only.ts';
-import { call, callWith, quiet, quietly } from '../support/quiet-request.ts';
+import { call, callWith, quietly } from '../support/quiet-request.ts';
 import { newRunTrader, runKey } from '../support/run.ts';
 import { adminState, signedOutState } from '../support/states.ts';
 import { type Engine, stagingKeys } from '../support/test-accounts.ts';
@@ -301,6 +301,7 @@ describeApiOnly('images, video and audio', () => {
       const before = await sharp(jpeg).metadata();
       expect(before.orientation, 'the sample is sideways').toBe(6);
       expect(before.exif, 'and carries what must go').toBeDefined();
+      expect(jpeg.includes(Buffer.from('WGS-84', 'latin1')), 'a position, as text').toBe(true);
       const jpegLink = await link('image', 'image/jpeg', jpeg);
       await put(jpegLink, jpeg);
       const requestId = randomUUID();
@@ -321,16 +322,21 @@ describeApiOnly('images, video and audio', () => {
       expect(picture.url).toMatch(/\.jpg$/);
 
       // Its `url` is the original file, read raw: upright, with no EXIF, XMP or position left in it.
-      const served = await quiet(anyone).get(picture.url);
-      expect(served.status(), 'the cleaned image is served').toBe(200);
-      const bytes = await served.body();
+      // (Plain `fetch`, not the site's request context: the media host is another host, and nothing of the
+      // site's session or bypass goes to it. A failure names its method and path only.)
+      const served = await quietly('GET', picture.url, async () => {
+        const answer = await fetch(picture.url);
+        return { status: answer.status, bytes: Buffer.from(await answer.arrayBuffer()) };
+      });
+      expect(served.status, 'the cleaned image is served').toBe(200);
+      const { bytes } = served;
       const after = await sharp(bytes).metadata();
       expect([after.format, after.width, after.height]).toEqual(['jpeg', 200, 400]);
       expect(after.orientation, 'no orientation tag').toBeUndefined();
       expect(after.exif, 'no EXIF').toBeUndefined();
       expect(after.xmp, 'no XMP').toBeUndefined();
       expect(bytes.includes(Buffer.from('Exif\0\0', 'latin1')), 'no EXIF segment').toBe(false);
-      expect(bytes.includes(Buffer.from('GPS', 'latin1')), 'no GPS bytes').toBe(false);
+      expect(bytes.includes(Buffer.from('WGS-84', 'latin1')), 'no position data left').toBe(false);
 
       // Said done again: the same request, then a new one with another description. The same media, unchanged.
       const again = await done(jpegLink.media.id, body, requestId);

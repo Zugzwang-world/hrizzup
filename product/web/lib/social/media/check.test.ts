@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { checkUpload, type Outcome, type UploadToCheck, wireOutcome } from './check.ts';
 import { type MemoryStorage, memoryStorage } from './memory-storage.ts';
 import { sampleJpeg, sampleM4a, sampleMp3, sampleMp4, samplePng } from './samples.ts';
@@ -142,10 +142,16 @@ describe('a video', () => {
     expect(storage.log.some((line) => line.startsWith('putMedia'))).toBe(false);
   });
 
-  it('is read and put when the bucket refuses to copy between buckets', async () => {
+  it('is read and put when the bucket refuses to copy between buckets, and says so in the log', async () => {
     const { storage, upload } = put(file(), 'video/mp4');
     storage.copies = 'refuse';
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const outcome = ready(await checkUpload(storage, upload));
+    expect(warn).toHaveBeenCalledTimes(1);
+    const said = String(warn.mock.calls[0]?.[0]);
+    expect(said).toContain('would not copy between buckets');
+    expect(said).not.toContain(upload.upload_key);
+    warn.mockRestore();
     expect(outcome.duration_ms).toBe(3000);
     expect(Buffer.from(storage.media.get(upload.media_key)?.bytes ?? []).equals(file())).toBe(true);
     expect(storage.log.some((line) => line.startsWith('putMedia'))).toBe(true);

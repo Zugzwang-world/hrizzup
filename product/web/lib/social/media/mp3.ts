@@ -11,6 +11,16 @@ import { FileProblem } from './refusals.ts';
 /** The bytes at the end of a file the walker needs to see before streaming (an ID3v1 tag, an APE tag's footer). */
 export const TAIL_BYTES = 160;
 
+/**
+ * A tag's size is a header too, and a header that lies could swallow audio the walker never counts: so what is
+ * skipped (the ID3v2 tag at the start, the tags at the end) is looked through for a run of this many frames
+ * back to back, which is sound and no tag (random bytes make four in a row about once in 10^12 places).
+ */
+const HIDDEN_RUN = 4;
+/** The longest frame there is (MPEG-1 at 320 kbit/s and 32 kHz, padded). */
+const LONGEST_FRAME = 1441;
+const SCAN_BLOCK = 65_536;
+
 const MOST_ID3_BYTES = 10 * 1024 * 1024;
 const MOST_SKIPPED_BYTES = 65_536;
 const MOST_FRAMES = 1_000_000;
@@ -51,6 +61,22 @@ function headerOf(bytes: Uint8Array): { length: number; samples: number; rate: n
     samples: mpeg1 ? 1152 : 576,
     rate,
   };
+}
+
+/** Whether a run of `HIDDEN_RUN` frames back to back starts within the first `limit` bytes. */
+function hasFrameRun(bytes: Uint8Array, limit: number): boolean {
+  for (let at = 0; at < limit; at++) {
+    if (bytes[at] !== 0xff) continue;
+    let [run, position] = [0, at];
+    while (run < HIDDEN_RUN && position + 4 <= bytes.length) {
+      const header = headerOf(bytes.subarray(position, position + 4));
+      if (header === null) break;
+      run += 1;
+      position += header.length;
+    }
+    if (run === HIDDEN_RUN) return true;
+  }
+  return false;
 }
 
 /**
@@ -123,6 +149,21 @@ class Window {
   }
 }
 
+/** Moves past `length` bytes of a tag, looking through them for hidden audio (`HIDDEN_RUN`): `unreadable` when it holds any, or the stream ends early. */
+async function skipTag(window: Window, length: number): Promise<void> {
+  let left = length;
+  while (left > 0) {
+    const step = Math.min(SCAN_BLOCK, left);
+    // Looking ahead by a few frames, but never past the tag itself.
+    const block = (
+      await window.peek(Math.min(left, SCAN_BLOCK + HIDDEN_RUN * LONGEST_FRAME))
+    ).subarray(0, left);
+    if (hasFrameRun(block, step)) throw unreadable('audio inside a tag');
+    if (!(await window.discard(step))) throw unreadable('a file cut short');
+    left -= step;
+  }
+}
+
 /** The sum of every frame's samples over its rate, in whole milliseconds rounded up, exactly. */
 function millis(samplesByRate: Map<number, bigint>): bigint {
   let common = 1n;
@@ -153,7 +194,7 @@ export async function readMp3(
       const footer = ((start[5] ?? 0) & 0x10) !== 0 ? 10 : 0;
       const tag = ((a << 21) | (b << 14) | (c << 7) | d) + 10 + footer;
       if (tag > MOST_ID3_BYTES || tag > end) throw unreadable('an ID3 tag too big');
-      if (!(await window.discard(tag))) throw unreadable('a file cut short');
+      await skipTag(window, tag);
     }
 
     const samplesByRate = new Map<number, bigint>();
@@ -180,6 +221,8 @@ export async function readMp3(
       if (!(await window.discard(1))) throw unreadable('a file cut short');
     }
     if (frames < 2) throw unreadable('fewer than two frames');
+    // What follows the audio (the tags at the end) is looked through too.
+    await skipTag(window, trailer);
     const ms = millis(samplesByRate);
     if (ms > MOST_MS) throw new FileProblem('too_long');
     return { durationMs: Number(ms) };

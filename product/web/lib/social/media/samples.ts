@@ -46,6 +46,7 @@ export function sampleJpeg(
   if (options.location) {
     image = image.withExif({
       IFD3: {
+        GPSMapDatum: 'WGS-84', // text, so a test can look for it in the bytes
         GPSLatitudeRef: 'N',
         GPSLatitude: '1/1 2/1 3/1',
         GPSLongitudeRef: 'E',
@@ -103,8 +104,9 @@ export type Mp4Options = {
   movieSeconds?: number;
   /** A matrix that turns the picture a quarter. */
   rotate?: boolean;
-  /** A fragmented file: movie length zero, an `mvex`, and a `moof` after the data. */
+  /** A fragmented file: movie length zero, an `mvex`, and a `moof` and its data after the movie (`fragments` of them, one when not said). */
   fragmented?: boolean;
+  fragments?: number;
   /** The media data's box with a 64-bit size. */
   largeSize?: boolean;
   /** The major brand (`isom`, or `M4A ` for audio). */
@@ -196,7 +198,12 @@ export function sampleMp4(options: Mp4Options): Buffer {
   const mdat = options.largeSize
     ? Buffer.concat([u32(1), Buffer.from('mdat', 'latin1'), bigSize(16 + payload.length), payload])
     : box('mdat', payload);
-  const moof = options.fragmented ? [box('moof', full('mfhd', u32(1)))] : [];
+  const moof = options.fragmented
+    ? Array.from({ length: options.fragments ?? 1 }, (_, at) => [
+        box('moof', full('mfhd', u32(at + 1))),
+        box('mdat', payload),
+      ]).flat()
+    : [];
   return Buffer.concat(
     options.moovAtEnd ? [ftyp, mdat, moov, ...moof] : [ftyp, moov, mdat, ...moof],
   );
