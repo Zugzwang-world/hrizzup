@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { AgentCard } from '@/components/sandbox/social/agent-card.tsx';
 import { serverApi, whoAmI } from '@/lib/api/server.ts';
 import { sandboxOnly } from '@/lib/sandbox/gate.ts';
-import { whenText } from '@/lib/social/agent-words.ts';
+import { whenText } from '@/lib/social/when.ts';
 import { AgentKeys } from './agent-keys.tsx';
 
 /**

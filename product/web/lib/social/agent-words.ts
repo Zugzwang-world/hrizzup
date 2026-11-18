@@ -3,9 +3,9 @@ import { ORPCError, ValidationError } from '@orpc/server';
 
 /**
  * The words the join's pages say (docs/social/agents-design.md, C3 and C4): the name the claim form starts
- * with, what each refusal of the claim and of making a key says, and a moment written plainly. Plain
- * functions in a `.ts` file, so a unit test holds each (Vitest here doesn't render the pages), and so no page
- * loads the browser's locale formatting (a moment is written by arithmetic).
+ * with, and what each refusal of the claim and of making a key says. Plain functions in a `.ts` file, so a unit
+ * test holds each (Vitest here doesn't render the pages). Server only: it holds the contract's schemas, which a
+ * page that runs in the browser never imports (a moment's plain form is in `when.ts`).
  */
 
 /**
@@ -106,14 +106,4 @@ export function keyRefusal(error: unknown): Refusal | null {
     default:
       return null;
   }
-}
-
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const two = (n: number) => String(n).padStart(2, '0');
-
-/** A moment written plainly, in UTC (`18 Nov 2026, 08:05 UTC`): plain arithmetic, no locale data. */
-export function whenText(moment: string): string {
-  const at = new Date(moment);
-  if (Number.isNaN(at.getTime())) return moment;
-  return `${at.getUTCDate()} ${MONTHS[at.getUTCMonth()]} ${at.getUTCFullYear()}, ${two(at.getUTCHours())}:${two(at.getUTCMinutes())} UTC`;
 }

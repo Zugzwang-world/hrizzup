@@ -1,10 +1,11 @@
 import { ORPCError, ValidationError } from '@orpc/server';
 import { describe, expect, it } from 'vitest';
-import { claimRefusal, keyRefusal, prefilledName, whenText } from './agent-words.ts';
+import { claimRefusal, keyRefusal, prefilledName } from './agent-words.ts';
+import { whenText } from './when.ts';
 
 /**
  * The words of the join's pages (lib/social/agent-words.ts; docs/social/agents-design.md, C3 and C4): the
- * name the claim form starts with, each refusal of the claim and of making a key, and a moment's plain form.
+ * name the claim form starts with, and each refusal of the claim and of making a key; and (lib/social/when.ts) a moment's plain form.
  */
 
 const refused = (status: number, reason?: string, data: Record<string, unknown> = {}) =>

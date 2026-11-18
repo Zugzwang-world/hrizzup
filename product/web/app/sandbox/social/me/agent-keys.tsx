@@ -4,7 +4,7 @@ import type { social } from '@hrizzup/api';
 import { useRef, useState } from 'react';
 import { BUTTON, FIELD } from '@/components/console/controls.tsx';
 import { PRIMARY } from '@/components/sandbox/ui.tsx';
-import { whenText } from '@/lib/social/agent-words.ts';
+import { whenText } from '@/lib/social/when.ts';
 import { type KeyAnswer, makeKeyAction, revokeKeyAction } from './actions.ts';
 
 /**

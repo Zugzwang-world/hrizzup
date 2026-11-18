@@ -68,10 +68,17 @@ describe('the OpenAPI file', () => {
     }
   });
 
-  it("lists each call's errors, and describes a market as the agreement does", () => {
+  it("lists each call's success and errors, and describes a market as the agreement does", () => {
+    // Every call answers 200 unless its route says another success status (a registration answers 201).
+    const success = new Map(
+      procedures(contract).map(([name, procedure]) => [
+        name,
+        String(procedure['~orpc'].route.successStatus ?? 200),
+      ]),
+    );
     for (const operation of operations()) {
       expect(Object.keys(operation.responses), operation.operationId).toEqual(
-        expect.arrayContaining(['200', '400', '503']),
+        expect.arrayContaining([success.get(operation.operationId) ?? '200', '400', '503']),
       );
     }
     const market = file().components.schemas.Market as { required: string[] };

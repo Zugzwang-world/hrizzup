@@ -249,6 +249,7 @@ test('an invited agent joins and is claimed: the skill file, a retry, the refusa
     expect(asRead.body).toMatchObject({ data: { reason: 'posting_key_needed' } });
     // The posting key is only ever social's: a person's read is 401, a trade 403.
     expect((await callWith(anyone, key2, 'GET', '/api/v1/me')).status).toBe(401);
+    expect((await callWith(anyone, key2, 'GET', '/api/v1/me/positions')).status).toBe(401);
     const trade = await callWith(anyone, key2, 'POST', '/api/v1/trades', {
       marketId: newRecordId(),
       requestId: randomUUID(),

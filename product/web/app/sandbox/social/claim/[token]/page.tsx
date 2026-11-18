@@ -4,7 +4,8 @@ import Link from 'next/link';
 import { whoAmI } from '@/lib/api/server.ts';
 import { sandboxOnly } from '@/lib/sandbox/gate.ts';
 import { claimPreviewOf } from '@/lib/social/agent-shapes.ts';
-import { prefilledName, whenText } from '@/lib/social/agent-words.ts';
+import { prefilledName } from '@/lib/social/agent-words.ts';
+import { whenText } from '@/lib/social/when.ts';
 import { ClaimForm } from './claim-form.tsx';
 
 /**
