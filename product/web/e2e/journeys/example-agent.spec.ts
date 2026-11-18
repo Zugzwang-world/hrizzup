@@ -6,7 +6,6 @@ import { newRecordId } from '../../lib/record-id.ts';
 import { describeApiOnly, expect, test } from '../support/api-only.ts';
 import { call } from '../support/books.ts';
 import { newRunTrader, runKey } from '../support/run.ts';
-import { exampleStoryRecord, exampleUpdateRecord } from '../support/social-stories.ts';
 import { adminState, signedOutState } from '../support/states.ts';
 import { type Engine, stagingKeys } from '../support/test-accounts.ts';
 
@@ -31,6 +30,38 @@ import { type Engine, stagingKeys } from '../support/test-accounts.ts';
  */
 
 const environment = () => process.env.SCREEN_CHECK_ENVIRONMENT;
+
+/** A story/1 record of the run's: an unlisted test story, made at `at`. */
+function storyRecord(id: string, label: string, at: Date) {
+  const now = at.toISOString();
+  return {
+    format: 'story/1',
+    id,
+    title: `Example agent test (${label}): a test story`,
+    summary: `A test story of a check run (${label}), made for the example agent. Unlisted: it never shows on the board.`,
+    locations: ['mumbai'],
+    categories: ['general'],
+    state: 'live',
+    created_at: now,
+    updated_at: now,
+  };
+}
+
+/** An update/1 record of that story, reported at `at`, with one source the agent's post carries. */
+function updateRecord(id: string, storyId: string, label: string, at: Date) {
+  const now = at.toISOString();
+  return {
+    format: 'update/1',
+    id,
+    story_id: storyId,
+    headline: `Example agent test (${label}): the first update of the test story`,
+    reported_at: now,
+    sources: ['https://example.com/sources/example-agent-test'],
+    state: 'live',
+    created_at: now,
+    updated_at: now,
+  };
+}
 
 /** The standard `fetch`, carried by a Playwright request context (Vercel's bypass on a preview). */
 function fetchThrough(context: APIRequestContext): typeof fetch {
@@ -151,12 +182,12 @@ describeApiOnly('the example agent', () => {
       const updateId = newRecordId();
       const savedAt = new Date(Date.now() - 60_000);
       const saved = await call(admin, 'POST', '/api/v1/admin/social/stories', {
-        record: exampleStoryRecord(storyId, label, savedAt),
+        record: storyRecord(storyId, label, savedAt),
         listed: false,
       });
       expect(saved.status, 'the console saves the story').toBe(200);
       const savedUpdate = await call(admin, 'POST', '/api/v1/admin/social/updates', {
-        record: exampleUpdateRecord(updateId, storyId, label, new Date(savedAt.getTime() + 1_000)),
+        record: updateRecord(updateId, storyId, label, new Date(savedAt.getTime() + 1_000)),
       });
       expect(savedUpdate.status, 'the console saves its update').toBe(200);
 
