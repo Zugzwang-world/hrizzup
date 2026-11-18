@@ -1,315 +1,214 @@
 {
- "about": "How far the Speed check on three machines may differ from the one-machine Speed check on the same preview and still count as clean (docs/research/faster-checks.md, proposal 3; Round 6, R4, M7.5). Recompute with .github/scripts/speed_allowances.py; never edit a value by hand.",
- "method": {
-  "checks": "one-machine Speed check jobs on pull requests whose pages step ran, read from their logs: each page's median of its 5 runs (busy = total blocking time in ms, load = largest contentful paint in ms as logged to 10 ms, shift), and the code and total download from the check's own table (0.1 KB; 1 KB = 1024 bytes)",
-  "noisePairs": "every pair of checks within a group of the same website inputs: the same git trees for product/web, product/packages, agreement and pnpm-lock.yaml",
-  "allowance": "per page and number: max(floor, margin x the largest |difference of the two checks' medians| over the noise pairs); a page with fewer than 10 noise pairs, or not listed, uses the pooled value over all pages",
-  "margin": 2.0,
-  "floors": {
-   "busyMs": 20,
-   "loadMs": 50,
-   "shift": 0.005,
-   "codeBytes": 512,
-   "totalBytes": 1024
+  "about": "How far the Speed check on three machines may differ from the one-machine Speed check on the same preview and still count as clean (docs/research/faster-checks.md, proposal 3; Round 6, R4, M7.5). Recompute with .github/scripts/speed_allowances.py; never edit a value by hand.",
+  "method": {
+    "checks": "one-machine Speed check jobs on pull requests whose pages step ran, read from their logs: each page's median of its 5 runs (busy = total blocking time in ms, load = largest contentful paint in ms as logged to 10 ms, shift), and the code and total download from the check's own table (0.1 KB; 1 KB = 1024 bytes)",
+    "noisePairs": "every pair of checks within a group of the same website inputs: the same git trees for product/web, product/packages, agreement and pnpm-lock.yaml; a job GitHub lists again under a later attempt (same start, same numbers) counts once",
+    "allowance": "per page and number: max(floor, margin x the largest |difference of the two checks' medians| over the noise pairs); a page with fewer than 10 noise pairs, or not listed, uses the pooled value over all pages",
+    "margin": 2.0,
+    "floors": {
+      "busyMs": 20,
+      "loadMs": 50,
+      "shift": 0.005,
+      "codeBytes": 512,
+      "totalBytes": 1024
+    },
+    "fiveComparisonAverage": "over the pull requests counted for the switch, the average over pages and records of (three-machine median - one-machine median) must stay within these: the 99.9th percentile of the same average over 20,000 random sets of five noise pairs, one pair from each of five different groups, with random signs"
   },
-  "fiveComparisonAverage": "over the pull requests counted for the switch, the average over pages and records of (three-machine median - one-machine median) must stay within these: the 99.9th percentile of the same average over 20,000 random sets of five noise pairs, one pair from each of five different groups, with random signs"
- },
- "computed": "2026-11-18",
- "source": {
-  "from": "2026-11-10T07:07:23Z",
-  "to": "2026-11-18T00:12:50Z",
-  "checks": 122,
-  "noisePairs": 64,
-  "noiseChecks": 76,
-  "groups": 31,
-  "jobs": [
-   129685170767,
-   129691028842,
-   129693230222,
-   129695653958,
-   129698500688,
-   129702410879,
-   129707085213,
-   129729519109,
-   129737090044,
-   129738556341,
-   129747342069,
-   129738567138,
-   129747285548,
-   129745087831,
-   129752476715,
-   129757244842,
-   129761134616,
-   129769096740,
-   129769152253,
-   129772403480,
-   129776599378,
-   129777868343,
-   129778370630,
-   129783768809,
-   129784052526,
-   129784080425,
-   129791758315,
-   129793521973,
-   129795043384,
-   129796731197,
-   129798318087,
-   129802990925,
-   129804295295,
-   129807569363,
-   129810464486,
-   129813658957,
-   129821184416,
-   129828454619,
-   129833834932,
-   129838590966,
-   129845722074,
-   129862853157,
-   129874278059,
-   129884990430,
-   129895000698,
-   129939588463,
-   129953204962,
-   130066542617,
-   130077791023,
-   130078944401,
-   130090147101,
-   130090361288,
-   130103350400,
-   130103498569,
-   130115586321,
-   130116341627,
-   130116755722,
-   130116960034,
-   130117016111,
-   130127719519,
-   130127882696,
-   130140391243,
-   130127900561,
-   130127917506,
-   130139962526,
-   130143481071,
-   130151763246,
-   130153091415,
-   130153110007,
-   130154592480,
-   130163826916,
-   130164126832,
-   130175478417,
-   130177883013,
-   130187365937,
-   130187952474,
-   130198361778,
-   130365626969,
-   130374957783,
-   130385985718,
-   130396894260,
-   130408058969,
-   130501604611,
-   130502256588,
-   130578624575,
-   130602761964,
-   130654053089,
-   130818374072,
-   130832544414,
-   134087180195,
-   134242656478,
-   134258039514,
-   134272365166,
-   134282580661,
-   134293010684,
-   134305171904,
-   134313673855,
-   134329470005,
-   134330224979,
-   134339865818,
-   134349854818,
-   134358553569,
-   134364431595,
-   134366996201,
-   134379788707,
-   134379874367,
-   134384378672,
-   134393328303,
-   134394514361,
-   134394547066,
-   134408313600,
-   134408894219,
-   134418415969,
-   134425943969,
-   134422813353,
-   134436410132,
-   134446307340,
-   134455864976,
-   134457340855,
-   134463949271,
-   134464662488,
-   134471797581
-  ]
- },
- "proof": {
-  "leaveBothChecksOut": "62 of 64 noise pairs clean (96.9%), each judged with allowances from pairs sharing neither check; five in a row 85%; two of the first five not clean by noise alone 0.9%",
-  "leaveTheGroupOut": "62 of 64 (96.9%)",
-  "timeSplitByGroup": "28 of 30 later-group pairs clean with allowances from the earlier groups only",
-  "verdictOrContrastFlips": "0 in 1,681 consecutive page comparisons (121 pairs of checks); the highest busy median seen was 159 ms against 200 ms plus 50 ms tolerance",
-  "injectedShiftOnePage": "flagged per page comparison: busy +100 ms 10%, +150 ms 40%, +200 ms 89%; load +100 ms 74%, +200 ms 88%; code +1 KB 100%; total +2 KB 90%",
-  "injectedShiftEveryPageFiveComparisons": "busy +30 ms 41%, +40 ms 76%, +60 ms 100%; load +20 ms 40%, +30 ms 90%, +40 ms 100%"
- },
- "fiveComparisonAverage": {
-  "busyMs": 33,
-  "loadMs": 22
- },
- "pooled": {
-  "busyMs": 184,
-  "loadMs": 1200,
-  "shift": 0.005,
-  "codeBytes": 819,
-  "totalBytes": 15974
- },
- "pages": {
-  "/": {
-   "busyMs": 178,
-   "loadMs": 80,
-   "shift": 0.005,
-   "codeBytes": 512,
-   "totalBytes": 1024,
-   "noisePairs": 64
+  "computed": "2026-11-18",
+  "source": {
+    "from": "2026-11-10T07:07:23Z",
+    "to": "2026-11-18T00:12:50Z",
+    "checks": 115,
+    "noisePairs": 54,
+    "noiseChecks": 64,
+    "groups": 26,
+    "jobs": [
+      129685170767, 129691028842, 129693230222, 129695653958, 129698500688, 129702410879,
+      129707085213, 129729519109, 129737090044, 129738556341, 129738567138, 129745087831,
+      129752476715, 129757244842, 129761134616, 129769096740, 129769152253, 129772403480,
+      129776599378, 129777868343, 129778370630, 129783768809, 129784052526, 129784080425,
+      129791758315, 129793521973, 129795043384, 129796731197, 129798318087, 129802990925,
+      129804295295, 129807569363, 129810464486, 129813658957, 129821184416, 129828454619,
+      129833834932, 129838590966, 129845722074, 129862853157, 129874278059, 129884990430,
+      129895000698, 129939588463, 129953204962, 130066542617, 130077791023, 130078944401,
+      130090147101, 130090361288, 130103350400, 130103498569, 130115586321, 130116341627,
+      130116755722, 130116960034, 130117016111, 130127719519, 130127882696, 130127900561,
+      130127917506, 130139962526, 130143481071, 130151763246, 130153091415, 130153110007,
+      130154592480, 130163826916, 130164126832, 130175478417, 130177883013, 130187365937,
+      130187952474, 130198361778, 130365626969, 130374957783, 130385985718, 130396894260,
+      130408058969, 130501604611, 130502256588, 130578624575, 130832544414, 134087180195,
+      134242656478, 134258039514, 134272365166, 134282580661, 134293010684, 134305171904,
+      134313673855, 134329470005, 134330224979, 134339865818, 134349854818, 134358553569,
+      134364431595, 134366996201, 134379788707, 134379874367, 134384378672, 134393328303,
+      134394514361, 134394547066, 134408313600, 134408894219, 134418415969, 134422813353,
+      134436410132, 134446307340, 134455864976, 134457340855, 134463949271, 134464662488,
+      134471797581
+    ]
   },
-  "/privacy": {
-   "busyMs": 152,
-   "loadMs": 60,
-   "shift": 0.005,
-   "codeBytes": 512,
-   "totalBytes": 1024,
-   "noisePairs": 64
+  "proof": {
+    "leaveBothChecksOut": "52 of 54 noise pairs clean (96.3%), each judged with allowances from pairs sharing neither check; five in a row 83%; two of the first five not clean by noise alone 1.3%",
+    "leaveTheGroupOut": "52 of 54 (96.3%)",
+    "timeSplitByGroup": "20 of 22 later-group pairs clean with allowances from the earlier groups only",
+    "verdictOrContrastFlips": "0 in 1,576 consecutive page comparisons; the highest busy median seen was 159 ms against 200 ms plus 50 ms tolerance; so no data on how often noise flips a verdict",
+    "injectedShiftOnePage": "flagged per page comparison: busy +100 ms 9%, +150 ms 43%, +200 ms 86%; load +100 ms 74%, +200 ms 89%; code +1 KB 100%; total +2 KB 90%",
+    "injectedShiftEveryPageFiveComparisons": "busy +30 ms 31%, +40 ms 65%, +60 ms 99%; load +20 ms 34%, +30 ms 82%, +40 ms 99%",
+    "duplicates": "7 jobs GitHub listed again under a later attempt (new job ID, same start, same numbers) were dropped"
   },
-  "/terms": {
-   "busyMs": 164,
-   "loadMs": 80,
-   "shift": 0.005,
-   "codeBytes": 512,
-   "totalBytes": 1024,
-   "noisePairs": 64
+  "fiveComparisonAverage": {
+    "busyMs": 36,
+    "loadMs": 24
   },
-  "/sign-in-test": {
-   "busyMs": 162,
-   "loadMs": 80,
-   "shift": 0.005,
-   "codeBytes": 512,
-   "totalBytes": 1024,
-   "noisePairs": 64
+  "pooled": {
+    "busyMs": 184,
+    "loadMs": 1200,
+    "shift": 0.005,
+    "codeBytes": 819,
+    "totalBytes": 15974
   },
-  "/auth/app/bot-check": {
-   "busyMs": 160,
-   "loadMs": 80,
-   "shift": 0.005,
-   "codeBytes": 512,
-   "totalBytes": 15974,
-   "noisePairs": 58
-  },
-  "/this-page-does-not-exist": {
-   "busyMs": 184,
-   "loadMs": 60,
-   "shift": 0.005,
-   "codeBytes": 512,
-   "totalBytes": 1024,
-   "noisePairs": 64
-  },
-  "/console": {
-   "busyMs": 160,
-   "loadMs": 60,
-   "shift": 0.005,
-   "codeBytes": 512,
-   "totalBytes": 1024,
-   "noisePairs": 64
-  },
-  "/console/markets/new": {
-   "busyMs": 174,
-   "loadMs": 60,
-   "shift": 0.005,
-   "codeBytes": 819,
-   "totalBytes": 1024,
-   "noisePairs": 64
-  },
-  "/console/markets/019a6c00-0000-7000-8000-000000000001": {
-   "busyMs": 156,
-   "loadMs": 80,
-   "shift": 0.005,
-   "codeBytes": 614,
-   "totalBytes": 1024,
-   "noisePairs": 64
-  },
-  "/console/perps/01a1c501-ec40-78f6-87b6-3fb041143421": {
-   "busyMs": 146,
-   "loadMs": 60,
-   "shift": 0.005,
-   "codeBytes": 512,
-   "totalBytes": 1024,
-   "noisePairs": 36
-  },
-  "/sandbox": {
-   "busyMs": 154,
-   "loadMs": 160,
-   "shift": 0.005,
-   "codeBytes": 512,
-   "totalBytes": 2253,
-   "noisePairs": 34
-  },
-  "/sandbox/markets/019a6c00-0000-7000-8000-000000000003": {
-   "busyMs": 144,
-   "loadMs": 460,
-   "shift": 0.005,
-   "codeBytes": 512,
-   "totalBytes": 1434,
-   "noisePairs": 34
-  },
-  "/sandbox/perps": {
-   "busyMs": 168,
-   "loadMs": 100,
-   "shift": 0.005,
-   "codeBytes": 512,
-   "totalBytes": 1638,
-   "noisePairs": 34
-  },
-  "/sandbox/perps/01a1c501-ec40-78f6-87b6-3fb041143421": {
-   "busyMs": 180,
-   "loadMs": 360,
-   "shift": 0.005,
-   "codeBytes": 512,
-   "totalBytes": 1229,
-   "noisePairs": 34
-  },
-  "/docs": {
-   "busyMs": 86,
-   "loadMs": 100,
-   "shift": 0.005,
-   "codeBytes": 512,
-   "totalBytes": 1024,
-   "noisePairs": 26
-  },
-  "/docs/rules": {
-   "busyMs": 84,
-   "loadMs": 60,
-   "shift": 0.005,
-   "codeBytes": 614,
-   "totalBytes": 1024,
-   "noisePairs": 25
-  },
-  "/docs/calls/markets.trade": {
-   "busyMs": 126,
-   "loadMs": 60,
-   "shift": 0.005,
-   "codeBytes": 512,
-   "totalBytes": 1024,
-   "noisePairs": 25
-  },
-  "/sandbox/keys": {
-   "busyMs": 90,
-   "loadMs": 1200,
-   "shift": 0.005,
-   "codeBytes": 512,
-   "totalBytes": 1434,
-   "noisePairs": 30
+  "pages": {
+    "/": {
+      "busyMs": 178,
+      "loadMs": 80,
+      "shift": 0.005,
+      "codeBytes": 512,
+      "totalBytes": 1024,
+      "noisePairs": 54
+    },
+    "/privacy": {
+      "busyMs": 152,
+      "loadMs": 60,
+      "shift": 0.005,
+      "codeBytes": 512,
+      "totalBytes": 1024,
+      "noisePairs": 54
+    },
+    "/terms": {
+      "busyMs": 164,
+      "loadMs": 80,
+      "shift": 0.005,
+      "codeBytes": 512,
+      "totalBytes": 1024,
+      "noisePairs": 54
+    },
+    "/sign-in-test": {
+      "busyMs": 162,
+      "loadMs": 80,
+      "shift": 0.005,
+      "codeBytes": 512,
+      "totalBytes": 1024,
+      "noisePairs": 54
+    },
+    "/auth/app/bot-check": {
+      "busyMs": 160,
+      "loadMs": 80,
+      "shift": 0.005,
+      "codeBytes": 512,
+      "totalBytes": 15974,
+      "noisePairs": 48
+    },
+    "/this-page-does-not-exist": {
+      "busyMs": 184,
+      "loadMs": 60,
+      "shift": 0.005,
+      "codeBytes": 512,
+      "totalBytes": 1024,
+      "noisePairs": 54
+    },
+    "/console": {
+      "busyMs": 160,
+      "loadMs": 60,
+      "shift": 0.005,
+      "codeBytes": 512,
+      "totalBytes": 1024,
+      "noisePairs": 54
+    },
+    "/console/markets/new": {
+      "busyMs": 174,
+      "loadMs": 60,
+      "shift": 0.005,
+      "codeBytes": 819,
+      "totalBytes": 1024,
+      "noisePairs": 54
+    },
+    "/console/markets/019a6c00-0000-7000-8000-000000000001": {
+      "busyMs": 156,
+      "loadMs": 80,
+      "shift": 0.005,
+      "codeBytes": 614,
+      "totalBytes": 1024,
+      "noisePairs": 54
+    },
+    "/console/perps/01a1c501-ec40-78f6-87b6-3fb041143421": {
+      "busyMs": 146,
+      "loadMs": 60,
+      "shift": 0.005,
+      "codeBytes": 512,
+      "totalBytes": 1024,
+      "noisePairs": 28
+    },
+    "/sandbox": {
+      "busyMs": 154,
+      "loadMs": 160,
+      "shift": 0.005,
+      "codeBytes": 512,
+      "totalBytes": 2253,
+      "noisePairs": 26
+    },
+    "/sandbox/markets/019a6c00-0000-7000-8000-000000000003": {
+      "busyMs": 144,
+      "loadMs": 460,
+      "shift": 0.005,
+      "codeBytes": 512,
+      "totalBytes": 1434,
+      "noisePairs": 26
+    },
+    "/sandbox/perps": {
+      "busyMs": 168,
+      "loadMs": 100,
+      "shift": 0.005,
+      "codeBytes": 512,
+      "totalBytes": 1638,
+      "noisePairs": 26
+    },
+    "/sandbox/perps/01a1c501-ec40-78f6-87b6-3fb041143421": {
+      "busyMs": 180,
+      "loadMs": 360,
+      "shift": 0.005,
+      "codeBytes": 512,
+      "totalBytes": 1229,
+      "noisePairs": 26
+    },
+    "/docs": {
+      "busyMs": 86,
+      "loadMs": 100,
+      "shift": 0.005,
+      "codeBytes": 512,
+      "totalBytes": 1024,
+      "noisePairs": 19
+    },
+    "/docs/rules": {
+      "busyMs": 84,
+      "loadMs": 60,
+      "shift": 0.005,
+      "codeBytes": 614,
+      "totalBytes": 1024,
+      "noisePairs": 18
+    },
+    "/docs/calls/markets.trade": {
+      "busyMs": 126,
+      "loadMs": 60,
+      "shift": 0.005,
+      "codeBytes": 512,
+      "totalBytes": 1024,
+      "noisePairs": 18
+    },
+    "/sandbox/keys": {
+      "busyMs": 90,
+      "loadMs": 1200,
+      "shift": 0.005,
+      "codeBytes": 512,
+      "totalBytes": 1434,
+      "noisePairs": 22
+    }
   }
- }
 }

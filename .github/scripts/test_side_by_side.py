@@ -328,6 +328,25 @@ class TheRow(unittest.TestCase):
         self.assertEqual(count, 1)
         self.assertNotIn("The row ended", text)
 
+    def test_the_trials_own_pull_requests_runs_are_never_counted_nor_do_they_end_the_row(self):
+        own = sbs.M75_BRANCH
+        self.assertEqual(own, "claude/r6-r4-m7-5-speed-split")
+        items = [item(own, rec(159, clean=False), 30), item(own, rec(159), 29)] + self.clean_prs(2)
+        github = FakeGitHub(items)
+        text, count, _ = self.tally(github)
+        self.assertEqual(count, 2)  # its not-clean record neither ended the row nor was counted
+        self.assertNotIn(own, text)
+        self.assertNotIn("The row ended", text)
+        # Its own run's record is left out too, clean or not, and the other pull requests still count.
+        for record in (rec(159), rec(159, clean=False)):
+            text, count, _ = self.tally(FakeGitHub(self.clean_prs(2)), current=record, branch=own, run_id=777)
+            self.assertEqual(count, 2)
+            self.assertNotIn(own, text)
+        # It is only that branch: another branch with the same kind of record counts as usual.
+        other = self.tally(FakeGitHub([item("claude/r6-r4-m7-6-app", rec(160, clean=False), 30)]))
+        self.assertEqual(other[1], 0)
+        self.assertIn("The row ended at `claude/r6-r4-m7-6-app`", other[0])
+
     def test_this_runs_own_record_counts_before_the_list_shows_it(self):
         github = FakeGitHub(self.clean_prs(2))
         text, count, _ = self.tally(github, current=rec(200), branch="pr-now", run_id=777)

@@ -14,6 +14,7 @@ Python's standard library only.
 import contextlib
 import io
 import json
+import math
 import os
 import tempfile
 import types
@@ -79,7 +80,7 @@ class Corpus(unittest.TestCase):
         return types.SimpleNamespace(returncode=0, stdout="\n".join(trees) + "\n")
 
     def checks(self):
-        return sa.read_checks(self.folder, self.jobs)
+        return sa.read_checks(self.folder, self.jobs)[0]
 
     def groups(self):
         return sa.groups_of(self.checks(), "repo", self.git)
@@ -127,6 +128,40 @@ class TheLogs(unittest.TestCase):
         corpus.add(1, {p: page() for p in PAGES[:7]})  # seven pages: not a check
         corpus.jobs.append({"job": 9999, "sha": "0" * 40, "started": "2026-11-12T10:00:00Z"})  # no log
         self.assertEqual(len(corpus.checks()), 1)
+
+
+class TheRepeats(Corpus):
+    def test_a_job_listed_again_with_the_same_start_and_numbers_counts_once_and_only_its_first_listing_is_kept(self):
+        first = self.add(1, {p: page() for p in PAGES})
+        again = self.add(1, {p: page() for p in PAGES})
+        self.jobs[again]["started"] = self.jobs[first]["started"]  # a new job ID, the same start, the same numbers
+        checks, dropped = sa.read_checks(self.folder, self.jobs)
+        self.assertEqual((len(checks), dropped), (1, 1))
+        self.assertEqual(checks[0]["job"], self.jobs[first]["job"])
+
+    def test_the_same_start_with_other_numbers_or_the_same_numbers_at_another_time_are_not_repeats(self):
+        a = self.add(1, {p: page(busy=40) for p in PAGES})
+        b = self.add(1, {p: page(busy=41) for p in PAGES})
+        self.jobs[b]["started"] = self.jobs[a]["started"]  # same start, other numbers: two checks
+        self.add(1, {p: page(busy=40) for p in PAGES})  # same numbers as the first, another time: a third
+        checks, dropped = sa.read_checks(self.folder, self.jobs)
+        self.assertEqual((len(checks), dropped), (3, 0))
+
+    def test_the_file_says_how_many_were_dropped_and_rounds_the_average_limits_up(self):
+        self.quiet_corpus()
+        again = self.add(1, {p: page(busy=40) for p in PAGES})
+        self.jobs[again]["started"] = self.jobs[0]["started"]
+        checks, dropped = sa.read_checks(self.folder, self.jobs)
+        groups = sa.groups_of(checks, "repo", self.git)
+        content, _ = sa.build(checks, groups, dropped=dropped)
+        self.assertEqual(content["proof"]["duplicates"], f"{dropped} {'job' if dropped == 1 else 'jobs'} GitHub listed "
+                         f"again under a later attempt (new job ID, same start, same numbers) "
+                         f"{'was' if dropped == 1 else 'were'} dropped")
+        limits, _ = sa.five_comparison_average(checks, groups, sa.noise_pairs(groups))
+        self.assertEqual(content["fiveComparisonAverage"], {"busyMs": math.ceil(limits["busy"]),
+                                                            "loadMs": math.ceil(limits["load"])})
+        self.assertGreaterEqual(content["fiveComparisonAverage"]["busyMs"], limits["busy"])
+        self.assertIn("counts once", content["method"]["noisePairs"])
 
 
 class TheGroups(Corpus):
@@ -327,13 +362,44 @@ class TheFile(Corpus):
                     sa.main(argv)
 
 
+COMMITTED = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+                         "product", "web", "e2e", "speed-allowances.json")
+
+
+class TheFormat(unittest.TestCase):
+    """The file is written as Biome formats it, so a recompute is a clean file and Biome's check passes."""
+
+    def test_the_committed_file_is_exactly_what_the_script_writes_from_its_own_content(self):
+        with open(COMMITTED, encoding="utf-8") as f:
+            text = f.read()
+        self.assertEqual(sa.format_json(json.loads(text)) + "\n", text)
+
+    def test_objects_are_expanded_with_two_spaces_and_a_list_of_numbers_is_filled_to_100_columns(self):
+        shown = sa.format_json({"a": {"b": 1.0, "c": "x"}, "empty": {}, "none": [], "numbers": list(range(100000000, 100000040))})
+        lines = shown.splitlines()
+        self.assertEqual(lines[:4], ["{", '  "a": {', '    "b": 1.0,', '    "c": "x"'])
+        self.assertIn('  "empty": {},', lines)
+        self.assertIn('  "none": [],', lines)
+        filled = lines[lines.index('  "numbers": [') + 1:-2]
+        self.assertGreater(len(filled), 2)
+        self.assertTrue(all(len(line) <= 100 for line in filled), filled)
+        self.assertTrue(all(line.startswith("    ") for line in filled), filled)
+        self.assertTrue(all(line.endswith(",") for line in filled[:-1]) and not filled[-1].endswith(","), filled)
+        # Every line is as full as it can be: the next number would not have fitted.
+        for line, following in zip(filled, filled[1:]):
+            self.assertGreater(len(line) + 1 + len(following.split()[0]), 100)
+        self.assertEqual(json.loads(shown)["numbers"], list(range(100000000, 100000040)))
+
+    def test_a_list_of_objects_is_expanded_and_text_is_kept_as_it_is(self):
+        shown = sa.format_json({"x": [{"k": 1}, {"k": 2}], "s": "caf\u00e9 \u2705"})
+        self.assertEqual(shown, '{\n  "x": [\n    {\n      "k": 1\n    },\n    {\n      "k": 2\n    }\n  ],\n  "s": "caf\u00e9 \u2705"\n}')
+
+
 class TheCommittedFile(unittest.TestCase):
     """product/web/e2e/speed-allowances.json is what this script writes: its shape, never its numbers."""
 
     def test_it_has_every_section_and_every_page_lists_every_number(self):
-        here = os.path.dirname(os.path.abspath(__file__))
-        path = os.path.join(os.path.dirname(os.path.dirname(here)), "product", "web", "e2e", "speed-allowances.json")
-        with open(path, encoding="utf-8") as f:
+        with open(COMMITTED, encoding="utf-8") as f:
             written = json.load(f)
         self.assertEqual(sorted(written), ["about", "computed", "fiveComparisonAverage", "method", "pages", "pooled",
                                            "proof", "source"])

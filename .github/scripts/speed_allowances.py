@@ -9,7 +9,7 @@ differ from the one-machine Speed check on the same preview and still count as c
                   and colour codes as they come
   <jobs.json>     a JSON list of {"job": <id>, "sha": <commit>, "started": <time>}, one per job
   <repository>    a clone holding every one of those commits (for `git rev-parse <sha>:<path>`)
-  <output file>   default product/web/e2e/speed-allowances.json in <repository>
+  <output file>   default product/web/e2e/speed-allowances.json in <repository>, written as Biome formats it
 
 The method is written into the output's `method` and is the whole of it:
 
@@ -17,6 +17,9 @@ The method is written into the output's `method` and is the whole of it:
     it has the median of its 5 runs (busy time, load as logged to 10 ms, layout shift) from the
     log's run lines, and the budget verdicts, the contrast verdict, the code and the total download
     (to 0.1 KB) from the check's own table;
+  - a job GitHub lists again under a later attempt (a new job ID, the same start and the same numbers)
+    is one check: the repeats are dropped, because a pair of one check with itself is clean by
+    construction;
   - checks are grouped by their website inputs, the git trees of product/web, product/packages,
     agreement and pnpm-lock.yaml: two checks of one group measured the same code, so any difference
     between them is noise; a pair of checks of one group is a noise pair;
@@ -27,13 +30,15 @@ The method is written into the output's `method` and is the whole of it:
     checks, every number, every verdict and contrast. The file is written only when at least 95% of
     the noise pairs are clean that way, and its limits for the five-comparison average are the 99.9th
     percentile of that average over 20,000 random sets of five noise pairs, one pair from each of
-    five different groups, with random signs (a seeded draw, so the same logs give the same file).
+    five different groups, with random signs (a seeded draw, so the same logs give the same file),
+    rounded up to a whole millisecond.
 
 Recompute only when pages are added or the Speed check's measuring changes, in a pull request that
 says so; a value is never widened by hand. Python's standard library only.
 """
 import datetime
 import json
+import math
 import os
 import random
 import re
@@ -47,6 +52,7 @@ MIN_PAIRS = 10  # noise pairs a page needs before its own largest difference is 
 MIN_PAGES = 8  # pages a check must have measured to count as a check
 NEEDED = 0.95  # the share of noise pairs that must be clean (leaving both checks out) to write the file
 SAMPLES = 20000
+WIDTH = 100  # Biome's line width, for filling a list of numbers
 SEED = 7
 INPUTS = ("product/web", "product/packages", "agreement", "pnpm-lock.yaml")
 NUMS = ("busy", "load", "shift")
@@ -93,17 +99,25 @@ def parse(text):
 
 
 def read_checks(logs, jobs):
-    """The checks, oldest first: every job whose log is there and measured at least MIN_PAGES pages."""
-    checks = []
+    """(checks, dropped): the checks, oldest first (every job whose log is there and measured at least
+    MIN_PAGES pages), and how many repeats were dropped: a job GitHub lists again under a later attempt
+    has a new job ID but the same start and the same numbers, and only its first listing is kept."""
+    checks, seen, dropped = [], set(), 0
     for job in sorted(jobs, key=lambda j: j["started"]):
         path = os.path.join(logs, f"{job['job']}.log")
         if not os.path.isfile(path):
             continue
         with open(path, encoding="utf-8", errors="replace") as f:
             pages = parse(f.read())
-        if len(pages) >= MIN_PAGES:
-            checks.append({**job, "pages": pages})
-    return checks
+        if len(pages) < MIN_PAGES:
+            continue
+        signature = (job["started"], tuple(sorted((page, tuple(found["runs"])) for page, found in pages.items())))
+        if signature in seen:
+            dropped += 1
+            continue
+        seen.add(signature)
+        checks.append({**job, "pages": pages})
+    return checks, dropped
 
 
 # --- the groups and the noise pairs ------------------------------------------------------------
@@ -292,10 +306,10 @@ def percent(share):
     return f"{share:.1%}"
 
 
-def build(checks, groups, needed=NEEDED, today=None):
+def build(checks, groups, needed=NEEDED, today=None, dropped=0):
     """(file content, report lines), or (None, report lines) when the proof is under `needed`."""
     pairs = noise_pairs(groups)
-    lines = [f"{len(checks)} checks; {len(pairs)} noise pairs from {len({i for p in pairs for i in p})} "
+    lines = [f"{len(checks)} checks ({dropped} repeats dropped); {len(pairs)} noise pairs from {len({i for p in pairs for i in p})} "
              f"checks in {len(groups)} groups"]
     if not pairs:
         return None, lines + ["No two checks measured the same website code, so there is no noise to measure."]
@@ -334,7 +348,8 @@ def build(checks, groups, needed=NEEDED, today=None):
                       "contentful paint in ms as logged to 10 ms, shift), and the code and total download from "
                       "the check's own table (0.1 KB; 1 KB = 1024 bytes)",
             "noisePairs": "every pair of checks within a group of the same website inputs: the same git trees "
-                          "for product/web, product/packages, agreement and pnpm-lock.yaml",
+                          "for product/web, product/packages, agreement and pnpm-lock.yaml; a job GitHub lists "
+                          "again under a later attempt (same start, same numbers) counts once",
             "allowance": "per page and number: max(floor, margin x the largest |difference of the two checks' "
                          "medians| over the noise pairs); a page with fewer than 10 noise pairs, or not listed, "
                          "uses the pooled value over all pages",
@@ -357,9 +372,9 @@ def build(checks, groups, needed=NEEDED, today=None):
             "leaveTheGroupOut": f"{lgo} of {len(pairs)} ({percent(lgo / len(pairs))})",
             "timeSplitByGroup": f"{ts} of {late} later-group pairs clean with allowances from the earlier "
                                 f"groups only",
-            "verdictOrContrastFlips": f"{flips} in {compared:,} consecutive page comparisons "
-                                      f"({len(checks) - 1} pairs of checks); the highest busy median seen was "
-                                      f"{highest:.0f} ms against 200 ms plus 50 ms tolerance",
+            "verdictOrContrastFlips": f"{flips} in {compared:,} consecutive page comparisons; the highest busy "
+                                      f"median seen was {highest:.0f} ms against 200 ms plus 50 ms tolerance; so "
+                                      f"{'no data on how often noise flips a verdict' if flips == 0 else 'noise does flip one'}",
             "injectedShiftOnePage": (
                 f"flagged per page comparison: busy +100 ms {at(one_page['busy'], 100)}, +150 ms "
                 f"{at(one_page['busy'], 150)}, +200 ms {at(one_page['busy'], 200)}; load +100 ms "
@@ -368,8 +383,10 @@ def build(checks, groups, needed=NEEDED, today=None):
             "injectedShiftEveryPageFiveComparisons": (
                 "busy " + ", ".join(f"+{d} ms {detected(means['busy'], limits['busy'], d)}" for d in (30, 40, 60))
                 + "; load " + ", ".join(f"+{d} ms {detected(means['load'], limits['load'], d)}" for d in (20, 30, 40))),
+            "duplicates": f"{dropped} {'job' if dropped == 1 else 'jobs'} GitHub listed again under a later attempt "
+                          f"(new job ID, same start, same numbers) {'was' if dropped == 1 else 'were'} dropped",
         },
-        "fiveComparisonAverage": {"busyMs": round(limits["busy"]), "loadMs": round(limits["load"])},
+        "fiveComparisonAverage": {"busyMs": math.ceil(limits["busy"]), "loadMs": math.ceil(limits["load"])},
         "pooled": {key: value for key, value in row(allow, "*", {}).items() if key != "noisePairs"},
         "pages": {page: row(allow, page, pairs_per_page) for page in newest},
     }
@@ -377,6 +394,35 @@ def build(checks, groups, needed=NEEDED, today=None):
               f"Verdict flips: {flips} of {compared}",
               f"Five-comparison average limits: busy {limits['busy']:.1f} ms, load {limits['load']:.1f} ms"]
     return content, lines
+
+
+def format_json(value, level=0):
+    """The file as Biome formats it (the repository's formatter checks every JSON file under product/):
+    two-space indentation, every object and list of objects expanded, a list of numbers filled to a
+    line width of 100. Written here so a recompute is a clean file with no reformatting."""
+    pad, inner = "  " * level, "  " * (level + 1)
+    if isinstance(value, dict):
+        if not value:
+            return "{}"
+        items = [f"{inner}{json.dumps(key, ensure_ascii=False)}: {format_json(item, level + 1)}"
+                 for key, item in value.items()]
+        return "{\n" + ",\n".join(items) + "\n" + pad + "}"
+    if isinstance(value, list):
+        if not value:
+            return "[]"
+        if all(isinstance(item, (int, float)) and not isinstance(item, bool) for item in value):
+            lines, line = [], inner
+            for number, item in enumerate(value):
+                text = json.dumps(item) + ("," if number < len(value) - 1 else "")
+                if line != inner and len(line) + 1 + len(text) > WIDTH:
+                    lines.append(line)
+                    line = inner + text
+                else:
+                    line += text if line == inner else " " + text
+            lines.append(line)
+            return "[\n" + "\n".join(lines) + "\n" + pad + "]"
+        return "[\n" + ",\n".join(inner + format_json(item, level + 1) for item in value) + "\n" + pad + "]"
+    return json.dumps(value, ensure_ascii=False)
 
 
 def main(argv=None, run=subprocess.run):
@@ -387,17 +433,17 @@ def main(argv=None, run=subprocess.run):
     out = argv[3] if len(argv) == 4 else os.path.join(repository, "product", "web", "e2e", "speed-allowances.json")
     with open(jobs_file, encoding="utf-8") as f:
         jobs = json.load(f)
-    checks = read_checks(logs, jobs)
+    checks, dropped = read_checks(logs, jobs)
     if not checks:
         say("No job's log was found in the logs folder.")
         return 1
-    content, lines = build(checks, groups_of(checks, repository, run))
+    content, lines = build(checks, groups_of(checks, repository, run), dropped=dropped)
     for line in lines:
         say(line)
     if content is None:
         return 1
     with open(out, "w", encoding="utf-8") as f:
-        json.dump(content, f, indent=1)  # as the committed file has always been written
+        f.write(format_json(content) + "\n")
     say(f"Written to {out}")
     return 0
 

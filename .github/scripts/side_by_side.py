@@ -60,6 +60,8 @@ RECORD = "comparison.json"
 RECORD_LIMIT = 1024 * 1024  # a record is a few kilobytes; nothing bigger is read
 NAMES = {"speed": ("speed-comparison-clean", "speed-comparison-not-clean")}
 API = "https://api.github.com"
+M75_BRANCH = "claude/r6-r4-m7-5-speed-split"  # its runs prove the plumbing, not the comparison: never counted
+NOT_COUNTED = frozenset({"main", M75_BRANCH})
 
 
 def say(text=""):
@@ -258,7 +260,7 @@ def record_in(zipped):
 
 def listing(github, names, budget):
     """(entries, capped): every unexpired artifact of those two names that came from this repository's
-    own branches (not main), each as {id, created_at, branch, run, clean}, newest first. Each name's
+    own branches (not main, and not the branch of the trial's own pull request), each as {id, created_at, branch, run, clean}, newest first. Each name's
     list is read to its end, a page shorter than a full one, because GitHub doesn't say what order it
     lists in. `capped` is True when the budget ran out before the lists were read."""
     entries, capped = [], False
@@ -273,7 +275,7 @@ def listing(github, names, budget):
                     branch, created = run.get("head_branch"), artifact.get("created_at")
                     if (artifact.get("name") == name and not artifact.get("expired")
                             and from_this_repository(artifact) and isinstance(branch, str) and branch
-                            and branch != "main" and isinstance(artifact.get("id"), int)):
+                            and branch not in NOT_COUNTED and isinstance(artifact.get("id"), int)):
                         entries.append({"id": artifact["id"], "created_at": created if isinstance(created, str) else "",
                                         "branch": branch, "run": run.get("id"), "clean": clean})
                 if len(found) < github.per_page:
@@ -343,7 +345,7 @@ def tally(github, kind, limits, current=None, branch=None, run_id=None, budget=N
     budget = budget or Requests()
     heading = ["### The tally: the Speed check on three machines, beside the Speed check", ""]
     entries, capped = listing(github, names, budget)
-    if current is not None and branch:
+    if current is not None and branch and branch not in NOT_COUNTED:
         # This run's own record is counted from the file. The list may already show it (same run, same
         # verdict) and must not count it twice; an earlier attempt of the same run that was NOT clean is
         # another record and stays, so a re-run can't make a pull request look clean.
