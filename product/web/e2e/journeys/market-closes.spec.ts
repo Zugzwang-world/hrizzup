@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
-import { type APIRequestContext, expect, test } from '@playwright/test';
+import type { APIRequestContext } from '@playwright/test';
 import { newRecordId } from '../../lib/record-id.ts';
+import { describeApiOnly, expect, test } from '../support/api-only.ts';
 import { call, micros, settleAndCheckBooks } from '../support/books.ts';
 import { newRunTrader, runKey } from '../support/run.ts';
 import { adminState, signedOutState } from '../support/states.ts';
@@ -22,6 +23,9 @@ import { type Engine, stagingKeys } from '../support/test-accounts.ts';
  * add up (the settlement cancels the resting order, which moved no money). The public list's own
  * states are checked in the markets package, where a market can be listed freely: the checks'
  * markets stay off it (CLAUDE.md, "How checks behave"). Each run on its own.
+ *
+ * It only calls the API and never opens a page, so it is tagged `@api-only` and runs once, in
+ * Chromium; the journeys that open a page run in both browsers (support/api-only.ts).
  */
 
 const environment = () => process.env.SCREEN_CHECK_ENVIRONMENT;
@@ -50,7 +54,7 @@ function refusedFor(reason: string) {
   return { status: 422, body: { code: 'REFUSED', defined: true, data: { reason } } };
 }
 
-test.describe('a market whose closing time passes', () => {
+describeApiOnly('a market whose closing time passes', () => {
   test.skip(() => environment() === 'production', 'No test accounts on production until launch');
   // Staging's firewall challenges a write to the typed API from anything but a browser (Vercel's
   // Security Checkpoint); previews, where the checks run, have no such rule.

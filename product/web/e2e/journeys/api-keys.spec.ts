@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
-import { type APIRequestContext, expect, test } from '@playwright/test';
+import type { APIRequestContext } from '@playwright/test';
 import { newRecordId } from '../../lib/record-id.ts';
+import { describeApiOnly, expect, test } from '../support/api-only.ts';
 import { call, micros, settleAndCheckBooks } from '../support/books.ts';
 import { newRunTrader, runKey } from '../support/run.ts';
 import { adminState, signedOutState } from '../support/states.ts';
@@ -14,6 +15,9 @@ import { type Engine, stagingKeys } from '../support/test-accounts.ts';
  * its positions and is refused a trade; with the trading key it trades in the run's own unlisted
  * test market; no key can make a key; a revoked key is refused within seconds; and the market's
  * books add up, to the millionth. Each run on its own (CLAUDE.md, "How checks behave").
+ *
+ * It only calls the API and never opens a page, so it is tagged `@api-only` and runs once, in
+ * Chromium; the journeys that open a page run in both browsers (support/api-only.ts).
  */
 
 const environment = () => process.env.SCREEN_CHECK_ENVIRONMENT;
@@ -33,7 +37,7 @@ async function bot(
   });
 }
 
-test.describe("bots' API keys", () => {
+describeApiOnly("bots' API keys", () => {
   test.skip(() => environment() === 'production', 'Keys work only on staging until launch');
 
   test('a read-only key reads and is refused a trade, a trading key trades, no key makes a key, a revoked key is refused within seconds; the books add up', async ({

@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { priceFor } from '@hrizzup/perps';
-import { type APIRequestContext, expect, test } from '@playwright/test';
+import type { APIRequestContext } from '@playwright/test';
 import { newRecordId } from '../../lib/record-id.ts';
+import { describeApiOnly, expect, test } from '../support/api-only.ts';
 import { call, decimal, micros } from '../support/books.ts';
 import { newRunTrader, runKey } from '../support/run.ts';
 import { adminState } from '../support/states.ts';
@@ -20,6 +21,9 @@ import { type Engine, stagingKeys } from '../support/test-accounts.ts';
  * - Funding: a long crowds the perp, its first funding period two hours past, so within a minute
  *   the schedule moves funding from the long's pool to the short's, once.
  * - A long and a short close as the seeded price rises: the long at a profit, the short at a loss.
+ *
+ * It only calls the API and never opens a page, so it is tagged `@api-only` and runs once, in
+ * Chromium; the journeys that open a page run in both browsers (support/api-only.ts).
  */
 
 const environment = () => process.env.SCREEN_CHECK_ENVIRONMENT;
@@ -198,7 +202,7 @@ async function retire(admin: APIRequestContext, perpId: string) {
   });
 }
 
-test.describe('the perp with no one touching it', () => {
+describeApiOnly('the perp with no one touching it', () => {
   test.skip(() => environment() === 'production', 'No test accounts on production until launch');
   test.skip(
     () => environment() === 'staging',

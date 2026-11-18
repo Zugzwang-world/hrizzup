@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import { expect, test } from '@playwright/test';
 import { newRecordId } from '../../lib/record-id.ts';
 import { BITCOIN_PERP } from '../pages.ts';
+import { describeApiOnly, expect, test } from '../support/api-only.ts';
 import { call, decimal, micros } from '../support/books.ts';
 import { runPerp, SUBSIDY } from '../support/perps.ts';
 import { newRunTrader, runKey } from '../support/run.ts';
@@ -21,6 +21,9 @@ import { type Engine, stagingKeys } from '../support/test-accounts.ts';
  *   new price; every bad input and every refusal is answered, nothing moved: past 10 times leverage,
  *   more than the balance, nothing to close, a part-close on a position that has since changed, the
  *   perp closing only, the perp switched off, someone signed out, a write from another site.
+ *
+ * It only calls the API and never opens a page, so it is tagged `@api-only` and runs once, in
+ * Chromium; the journeys that open a page run in both browsers (support/api-only.ts).
  */
 
 const environment = () => process.env.SCREEN_CHECK_ENVIRONMENT;
@@ -43,7 +46,7 @@ type Trade = {
   position: { direction: string; size: string } | null;
 };
 
-test.describe('the perp for everyone', () => {
+describeApiOnly('the perp for everyone', () => {
   test.skip(() => environment() === 'production', 'No test accounts on production until launch');
   // Staging's firewall challenges a write to the typed API from anything but a browser (Vercel's
   // Security Checkpoint); previews, where the checks run, have no such rule.

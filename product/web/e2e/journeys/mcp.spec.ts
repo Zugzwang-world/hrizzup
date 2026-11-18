@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
-import { type APIRequestContext, expect, test } from '@playwright/test';
+import type { APIRequestContext } from '@playwright/test';
 import { newRecordId } from '../../lib/record-id.ts';
+import { describeApiOnly, expect, test } from '../support/api-only.ts';
 import { call, micros, settleAndCheckBooks } from '../support/books.ts';
 import { newRunTrader, runKey } from '../support/run.ts';
 import { adminState, signedOutState } from '../support/states.ts';
@@ -14,6 +15,9 @@ import { type Engine, stagingKeys } from '../support/test-accounts.ts';
  * client lists only reading tools and reads its balance; with the trading key, it lists the trading
  * tools, gets a quote in the run's own unlisted market and places the trade, which fills exactly as
  * quoted; the trade is marked as the key's; and the market's books add up. Each run on its own.
+ *
+ * It only calls the API and never opens a page, so it is tagged `@api-only` and runs once, in
+ * Chromium; the journeys that open a page run in both browsers (support/api-only.ts).
  */
 
 const environment = () => process.env.SCREEN_CHECK_ENVIRONMENT;
@@ -34,7 +38,7 @@ function fetchThrough(context: APIRequestContext): typeof fetch {
   };
 }
 
-test.describe('the MCP server', () => {
+describeApiOnly('the MCP server', () => {
   test.skip(() => environment() === 'production', "Production's API opens at launch");
   test.skip(
     () => environment() === 'staging',
