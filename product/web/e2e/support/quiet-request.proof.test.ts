@@ -172,11 +172,12 @@ describe("a request's failure in Playwright, raw and quiet", () => {
   for (const [name, method] of methods) {
     it(`quiet: ${name} on a closed port gives a TypeError naming only ${method} and the path`, async () => {
       const error = await failure(() => quiet(closed)[name]('/api/v1/x?made=up'));
+      // First, so a leak fails on booleans and prints neither value.
+      expect(tells(error)).toEqual(TELLS_NOTHING);
       expect(error).toBeInstanceOf(TypeError);
       expect(error.message).toBe(`${method} /api/v1/x got no answer`);
       expect(error.cause).toBeUndefined();
       expect('log' in error).toBe(false);
-      expect(tells(error)).toEqual(TELLS_NOTHING);
     });
   }
 
@@ -187,9 +188,10 @@ describe("a request's failure in Playwright, raw and quiet", () => {
         headers: { authorization: `Bearer ${KEY}` },
       }),
     );
-    expect(error.message).toBe('POST /auth/v1/verify got no answer');
     expect(tells(error)).toEqual(TELLS_NOTHING);
+    expect(error.message).toBe('POST /auth/v1/verify got no answer');
     const empty = await failure(() => quiet(closed).get(''));
+    expect(tells(empty)).toEqual(TELLS_NOTHING);
     expect(empty.message).toBe('GET / got no answer');
   });
 
@@ -208,11 +210,11 @@ describe("a request's failure in Playwright, raw and quiet", () => {
       [keyed, 'POST /api/v1/x got no answer'],
       [standard, 'PATCH /api/v1/x got no answer'],
     ] as const) {
+      expect(tells(error)).toEqual(TELLS_NOTHING);
       expect(error).toBeInstanceOf(TypeError);
       expect(error.message).toBe(message);
       expect(error.cause).toBeUndefined();
       expect('log' in error).toBe(false);
-      expect(tells(error)).toEqual(TELLS_NOTHING);
     }
   });
 
@@ -220,9 +222,9 @@ describe("a request's failure in Playwright, raw and quiet", () => {
     const raw = await failure(() => waiting.get('/never?made=up', { timeout: 300 }));
     expect(tells(raw)).toEqual(TELLS_BOTH);
     const quiet300 = await failure(() => quiet(waiting).get('/never?made=up', { timeout: 300 }));
+    expect(tells(quiet300)).toEqual(TELLS_NOTHING);
     expect(quiet300).toBeInstanceOf(TypeError);
     expect(quiet300.message).toBe('GET /never got no answer');
-    expect(tells(quiet300)).toEqual(TELLS_NOTHING);
   });
 
   it('reading an answer once its context is gone says which call it was, and tells nothing', async () => {
@@ -232,9 +234,9 @@ describe("a request's failure in Playwright, raw and quiet", () => {
     await own.dispose();
     for (const read of [() => answer.text(), () => answer.body(), () => answer.json()]) {
       const error = await failure(read);
+      expect(tells(error)).toEqual(TELLS_NOTHING);
       expect(error).toBeInstanceOf(TypeError);
       expect(error.message).toBe('GET /json got no answer');
-      expect(tells(error)).toEqual(TELLS_NOTHING);
     }
   });
 
@@ -242,8 +244,8 @@ describe("a request's failure in Playwright, raw and quiet", () => {
     const answer = await quiet(answering).get('/html');
     expect(answer.status()).toBe(502);
     const error = await failure(() => answer.json());
-    expect(error.message).toBe('GET /html answered 502 with something that is not JSON');
     expect(tells(error)).toEqual(TELLS_NOTHING);
+    expect(error.message).toBe('GET /html answered 502 with something that is not JSON');
     expect((await answer.text()).includes(KEY)).toBe(true);
   });
 
@@ -337,21 +339,22 @@ describe("a route's fetch, with a stand-in route (a real one needs a browser)", 
     const { route, fetch } = failing('GET');
     const options = { maxRedirects: 0 };
     const error = await failure(() => quietRoute(route).fetch(options));
+    expect(tells(error)).toEqual(TELLS_NOTHING);
     expect(error).toBeInstanceOf(TypeError);
     expect(error.message).toBe('GET /auth/google got no answer');
-    expect(tells(error)).toEqual(TELLS_NOTHING);
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(fetch.mock.calls[0]?.[0]).toBe(options);
   });
 
   it("takes the method from the options when they name one, and the request's own otherwise", async () => {
     const posted = await failure(() => quietRoute(failing('GET').route).fetch({ method: 'post' }));
-    expect(posted.message).toBe('POST /auth/google got no answer');
     const own = await failure(() => quietRoute(failing('PUT').route).fetch());
-    expect(own.message).toBe('PUT /auth/google got no answer');
     const elsewhere = await failure(() =>
       quietRoute(failing('GET').route).fetch({ url: 'https://y.test/auth/other?made=up' }),
     );
+    for (const error of [posted, own, elsewhere]) expect(tells(error)).toEqual(TELLS_NOTHING);
+    expect(posted.message).toBe('POST /auth/google got no answer');
+    expect(own.message).toBe('PUT /auth/google got no answer');
     expect(elsewhere.message).toBe('GET /auth/other got no answer');
   });
 });
