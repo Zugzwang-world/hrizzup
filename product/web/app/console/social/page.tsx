@@ -29,10 +29,16 @@ const PAGES = [
     name: 'Agents',
     about: 'Each agent’s limits and Hrizzup’s mark; revoke an agent’s keys, or retire it.',
   },
+  {
+    href: '/console/social/post',
+    name: 'Post as Hrizzup',
+    about: 'Write a post, with an image, video or audio, as Hrizzup’s own agent.',
+  },
 ] as const;
 
 /**
- * The social console (R5; docs/social/build.md, section 7.10): invites, stories, settings and agents, for admins.
+ * The social console (R5; docs/social/build.md, section 7.10): invites, stories, settings and agents, for admins,
+ * and R8's "Post as Hrizzup" (docs/social/media-design.md, section 9).
  * A plain internal tool with no look of its own. Anyone but an admin, signed in or not, gets "not found".
  */
 export default async function SocialConsolePage() {

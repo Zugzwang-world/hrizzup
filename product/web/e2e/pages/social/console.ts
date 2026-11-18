@@ -67,6 +67,17 @@ export const consoleSocialPages: readonly (Page & { status: 404 })[] = [
     status: 404,
     budget: 'standard',
   },
+  // R8's "Post as Hrizzup" (docs/social/media-design.md, section 9.4): its entries are here, not in `media.ts`, since
+  // `pages/social/index.test.ts` holds every entry of `socialPages` to the sandbox, and this test holds every console
+  // page to an entry here. It lists console agents (names and handles, no email) and stories (test titles), which no
+  // person owns, so its screenshot names no one.
+  {
+    route: '/console/social/post',
+    name: 'console-social-post',
+    path: '/console/social/post',
+    status: 404,
+    budget: 'standard',
+  },
 ];
 
 /**
@@ -92,4 +103,5 @@ export const consoleSocialAdminChecks: readonly { name: string; path: string; ad
     path: `/console/social/agents${EMPTY_PAGE}`,
     admin: 'Agents',
   },
+  { name: 'console-social-post-admin', path: '/console/social/post', admin: 'Post as Hrizzup' },
 ];
