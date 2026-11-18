@@ -31,6 +31,7 @@ const REDIS = {
 const where = (target: string) => ({ ...REDIS, VERCEL: '1', VERCEL_TARGET_ENV: target });
 
 afterEach(() => {
+  vi.useRealTimers();
   resetLimits();
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
@@ -254,6 +255,30 @@ describe('counting a call', () => {
       retryAfterSeconds: 30,
     });
     expect(asked.limit).toEqual([]);
+  });
+
+  it('fails open when Redis never answers: after a second, for a count and for an ask alike', async () => {
+    vi.useFakeTimers();
+    const hanging = {
+      limit: () => new Promise(() => {}),
+      getRemaining: () => new Promise(() => {}),
+    } as never;
+    for (const ask of [
+      () => allowAgentWrite(KEY_ID, hanging, NOW),
+      () => allowVisitor('registration', 'v', 'count', hanging, NOW),
+      () => allowVisitor('registration', 'v', 'peek', hanging, NOW),
+      () => allowVisitor('refused-code', 'v', 'peek', hanging, NOW),
+    ]) {
+      let answer: unknown;
+      const pending = ask().then((allowance) => {
+        answer = allowance;
+      });
+      await vi.advanceTimersByTimeAsync(999);
+      expect(answer).toBeUndefined();
+      await vi.advanceTimersByTimeAsync(1);
+      await pending;
+      expect(answer).toEqual({ allowed: true });
+    }
   });
 
   it('fails open when Redis fails, and is no limit at all with no limiter', async () => {

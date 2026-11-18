@@ -125,6 +125,23 @@ export function visitorOf(headers: Headers, env: Env = process.env): string | nu
 
 const secondsUntil = (reset: number, now: number) => Math.max(1, Math.ceil((reset - now) / 1000));
 
+/**
+ * What `work` answers, or null once Redis has taken over a second. The library's own `timeout` guards
+ * only `limit()`: `getRemaining` isn't raced, so a slow Redis would hold a registration, and every
+ * limit here is held to the same second.
+ */
+async function withinASecond<T>(work: Promise<T>): Promise<T | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<null>((resolve) => {
+    timer = setTimeout(() => resolve(null), REDIS_TIMEOUT_MS);
+  });
+  try {
+    return await Promise.race([work, late]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** Counts one call for `id` against `limit`, or lets it through where it can't be counted. */
 async function count(
   id: string,
@@ -133,7 +150,8 @@ async function count(
 ): Promise<Allowance> {
   if (!limit) return { allowed: true };
   try {
-    const answer = await limit.limit(id);
+    const answer = await withinASecond(limit.limit(id));
+    if (answer === null) return { allowed: true };
     waitUntil(answer.pending);
     const resetSeconds = secondsUntil(answer.reset, now());
     if (answer.success) {
@@ -154,7 +172,8 @@ async function peek(
 ): Promise<Allowance> {
   if (!limit) return { allowed: true };
   try {
-    const answer = await limit.getRemaining(id);
+    const answer = await withinASecond(limit.getRemaining(id));
+    if (answer === null) return { allowed: true };
     const resetSeconds = secondsUntil(answer.reset, now());
     if (answer.remaining > 0)
       return { allowed: true, left: { remaining: answer.remaining, resetSeconds } };
