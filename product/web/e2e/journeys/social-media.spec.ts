@@ -70,6 +70,10 @@ function stagingUploads() {
   return { aws, address: (key: string) => `${endpoint}/${bucket}/${key}` };
 }
 
+/** What an answer says about a refusal, for a failure's message: the reason and the words (the API's, never a secret). */
+const why = (answer: { body: Record<string, unknown> }) =>
+  JSON.stringify({ data: answer.body.data, message: answer.body.message });
+
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** A story/1 record of the run's: an unlisted test story, made at `at`. */
@@ -292,7 +296,7 @@ describeApiOnly('images, video and audio', () => {
         const to = await link(kind, contentType, file);
         await put(to, file);
         const answered = await done(to.media.id, fields);
-        expect(answered.status, `a ${kind} is ready`).toBe(200);
+        expect(answered.status, `a ${kind} is ready: ${why(answered)}`).toBe(200);
         return answered.body as unknown as MediaAnswer;
       }
 
@@ -307,7 +311,7 @@ describeApiOnly('images, video and audio', () => {
       const requestId = randomUUID();
       const body = { description: 'A test picture, turned upright' };
       const first = await done(jpegLink.media.id, body, requestId);
-      expect(first.status, 'the image is checked and ready').toBe(200);
+      expect(first.status, `the image is checked and ready: ${why(first)}`).toBe(200);
       const picture = first.body as unknown as MediaAnswer;
       expect(picture).toMatchObject({
         id: jpegLink.media.id,
@@ -379,7 +383,7 @@ describeApiOnly('images, video and audio', () => {
         transcript: 'Every word spoken in the test video.',
         stillMediaId: still.id,
       });
-      expect(video.status, 'the video is checked and ready').toBe(200);
+      expect(video.status, `the video is checked and ready: ${why(video)}`).toBe(200);
       expect(video.body).toMatchObject({
         id: videoLink.media.id,
         kind: 'video',

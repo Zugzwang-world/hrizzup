@@ -23,8 +23,15 @@ let reply: (request: Sent) => Response | Promise<Response> = () =>
   new Response(null, { status: 200 });
 
 beforeEach(() => {
-  vi.stubGlobal('fetch', async (input: Request) => {
-    const request = { method: input.method, url: input.url, headers: input.headers };
+  // Called as `fetch(url, init)`, never with a `Request` (Next's patched fetch breaks a PUT's body that way).
+  vi.stubGlobal('fetch', async (input: unknown, init?: RequestInit) => {
+    if (typeof input !== 'string')
+      throw new Error('fetch was called with a Request, not an address');
+    const request = {
+      method: init?.method ?? 'GET',
+      url: input,
+      headers: new Headers(init?.headers),
+    };
     sent.push(request);
     return reply(request);
   });
@@ -208,6 +215,16 @@ describe('the storage', () => {
       reply = () => new Response(null, { status });
       expect(await storage().copyToMedia(KEY, MEDIA_KEY, options), `${status}`).toEqual(expected);
     }
+    // R2 writes the quotes of the ETag as `&quot;`: read as the quotes they are.
+    reply = () =>
+      new Response(
+        '<?xml version="1.0"?><CopyObjectResult><ETag>&quot;abc&quot;</ETag></CopyObjectResult>',
+        { status: 200 },
+      );
+    expect(await storage().copyToMedia(KEY, MEDIA_KEY, options)).toEqual({
+      status: 'copied',
+      etag: '"abc"',
+    });
     // A copy that answers 200 with no ETag is a copy with none to compare; a 200 that holds an error isn't one.
     reply = () => new Response('<CopyObjectResult></CopyObjectResult>', { status: 200 });
     expect(await storage().copyToMedia(KEY, MEDIA_KEY, options)).toEqual({

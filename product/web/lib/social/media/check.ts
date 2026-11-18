@@ -73,6 +73,9 @@ function outcomeOf(error: unknown): Outcome {
     error instanceof ImageTimeout ||
     (error instanceof Error && (error.name === 'AbortError' || error.name === 'TimeoutError'))
   ) {
+    // Said in the function's log so a release can be traced: its class and its message, which hold a status at
+    // most (never a key or an address).
+    console.warn(`Media check released: ${error.name}: ${error.message}`);
     return { outcome: 'release', why: 'unavailable' };
   }
   throw error;

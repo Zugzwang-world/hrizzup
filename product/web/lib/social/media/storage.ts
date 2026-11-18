@@ -96,6 +96,9 @@ async function* guarded(chunks: AsyncIterable<Uint8Array>): AsyncGenerator<Uint8
 
 const IMMUTABLE = 'public, max-age=31536000, immutable';
 
+/** The waits before the two retries of a 5xx or 429, in milliseconds. */
+const RETRY_WAITS = [50, 150];
+
 /** A stored ETag without its quotes (a weak mark too), to compare two. */
 export const plainEtag = (etag: string) => etag.replace(/^W\//, '').replaceAll('"', '');
 
@@ -105,22 +108,48 @@ export function mediaStorage(env: Env = process.env): Storage | null {
   const [uploads, media] = [env.R2_BUCKET_UPLOADS, env.R2_BUCKET_MEDIA];
   const [accessKeyId, secretAccessKey] = [env.R2_ACCESS_KEY_ID, env.R2_SECRET_ACCESS_KEY];
   if (!endpoint || !uploads || !media || !accessKeyId || !secretAccessKey) return null;
-  // Two retries of a 5xx or 429 (the library's default is ten, with waits that outlast a check's deadline).
-  const aws = new AwsClient({
-    accessKeyId,
-    secretAccessKey,
-    service: 's3',
-    region: 'auto',
-    retries: 2,
-  });
+  const aws = new AwsClient({ accessKeyId, secretAccessKey, service: 's3', region: 'auto' });
   const address = (bucket: string, key: string) => `${endpoint}/${bucket}/${key}`;
 
-  /** One signed request; a network failure (or an abort) is `StorageUnavailable`. */
-  const send = async (url: string, init: RequestInit): Promise<Response> => {
-    try {
-      return await aws.fetch(url, init);
-    } catch (error) {
-      throw new StorageUnavailable(error instanceof Error ? error.name : 'a network failure');
+  /**
+   * One signed request, sent with `fetch(url, init)` and never as a `Request` object: Next's patched `fetch`
+   * clones a `Request`'s body into a stream, which R2 answers 411 (length required) for a PUT. A 5xx or 429 is
+   * tried twice more after short waits (the library's own retries are ten, with waits that outlast a check's
+   * deadline); a network failure (or an abort) is `StorageUnavailable`.
+   */
+  const send = async (
+    url: string,
+    init: {
+      method: string;
+      headers?: Record<string, string>;
+      body?: Uint8Array;
+      signal?: AbortSignal;
+    },
+  ): Promise<Response> => {
+    for (let attempt = 0; ; attempt++) {
+      let response: Response;
+      try {
+        const signed = await aws.sign(url, {
+          method: init.method,
+          ...(init.headers ? { headers: init.headers } : {}),
+          ...(init.body ? { body: init.body as unknown as BodyInit } : {}),
+        });
+        response = await fetch(signed.url, {
+          method: init.method,
+          headers: signed.headers,
+          ...(init.body ? { body: init.body as unknown as BodyInit } : {}),
+          ...(init.signal ? { signal: init.signal } : {}),
+          cache: 'no-store',
+        });
+      } catch (error) {
+        throw new StorageUnavailable(error instanceof Error ? error.name : 'a network failure');
+      }
+      if ((response.status >= 500 || response.status === 429) && attempt < RETRY_WAITS.length) {
+        await response.body?.cancel().catch(() => undefined);
+        await new Promise((resolve) => setTimeout(resolve, RETRY_WAITS[attempt]));
+        continue;
+      }
+      return response;
     }
   };
   /** Throws for any answer that isn't one of the `allowed` statuses: a passing failure. */
@@ -226,7 +255,7 @@ export function mediaStorage(env: Env = process.env): Storage | null {
       const response = await send(address(media, key), {
         method: 'PUT',
         headers: { 'Content-Type': contentType, 'Cache-Control': IMMUTABLE },
-        body: body as unknown as BodyInit,
+        body,
         ...(options?.signal ? { signal: options.signal } : {}),
       });
       await unlessOk(response, 200);
@@ -251,7 +280,12 @@ export function mediaStorage(env: Env = process.env): Storage | null {
       await unlessOk(response, 200);
       const text = await response.text().catch(() => '');
       if (text.includes('<Error>')) throw new StorageUnavailable('a copy that answered an error');
-      return { status: 'copied', etag: /<ETag>([^<]+)<\/ETag>/.exec(text)?.[1] ?? null };
+      // R2 writes the ETag's quotes as XML entities (`&quot;`), which `plainEtag` would not see through.
+      const etag = /<ETag>([^<]+)<\/ETag>/
+        .exec(text)?.[1]
+        ?.replaceAll('&quot;', '"')
+        .replaceAll('&#34;', '"');
+      return { status: 'copied', etag: etag ?? null };
     },
 
     async removeUpload(key) {
