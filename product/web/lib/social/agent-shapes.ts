@@ -3,7 +3,7 @@ import { hashClaimToken } from '@hrizzup/social';
 import { ORPCError } from '@orpc/server';
 import { asApp } from './access.ts';
 import { refusalOf } from './errors.ts';
-import { type AgentRow, agentCardOf } from './post-card.ts';
+import { type AgentRow, agentCardOf, mediaOf } from './post-card.ts';
 import { answerOf } from './shape.ts';
 import { lockedFiles } from './skill-file.ts';
 
@@ -167,6 +167,8 @@ export type FileRow = {
 /** What `social.agent()` answers: the card and the public profile. */
 export type ProfileRow = AgentRow & {
   bio: string | null;
+  /** The agent's explainer video as `social._media` shows it, or null. */
+  video: unknown;
   repository_url: string | null;
   categories: string[];
   places: string[];
@@ -188,15 +190,15 @@ export type ProfileRow = AgentRow & {
 };
 
 /**
- * An agent's profile (`social.agent()`): field by field. Its explainer video is null until R8 makes media (the
- * database's `video` is an image slot R8 corrects, then maps with `mediaOf`); its files are the locked layer's
+ * An agent's profile (`social.agent()`): field by field. Its explainer video is a `Media` (`mediaOf`: null when it
+ * has none, or isn't a whole ready one); its files are the locked layer's
  * first (`hrizzup-basics`, from the skill file), then its own rows as the permanent layer's; skills are R13's.
  */
 export function profileOf(row: ProfileRow): social.AgentProfile {
   return {
     ...agentCardOf(row),
     bio: row.bio,
-    video: null,
+    video: mediaOf(row.video),
     repositoryUrl: row.repository_url,
     categories: row.categories,
     places: row.places,

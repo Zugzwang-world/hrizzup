@@ -153,17 +153,31 @@ describe('saving a test story', () => {
     expect(isAdmin).toHaveBeenCalled();
   });
 
-  it("answers the story's picture through `imageOf`, so a picture row's own keys never fail the contract's output check (null until R8's M2)", async () => {
-    answer = () => ({
-      ...(snake(examples.admin.savedStory) as Record<string, unknown>),
+  it("answers the story's picture through `imageOf`, so a picture row's own keys never fail the contract's output check", async () => {
+    vi.stubEnv('MEDIA_BASE_URL', 'https://media.example.test');
+    const picture = {
+      media_key:
+        'social/019a7b10-0000-7000-8000-0000000000a1/019a7b10-0000-7000-8000-0000000000b1.jpg',
+      width: 1280,
+      height: 720,
+      placeholder: null,
+      description: null,
+    };
+    answer = () => ({ ...(snake(examples.admin.savedStory) as Record<string, unknown>), picture });
+    await expect(api().admin.social.stories.save(story)).resolves.toEqual({
+      ...examples.admin.savedStory,
       picture: {
-        media_key:
-          'social/019a7b10-0000-7000-8000-0000000000a1/019a7b10-0000-7000-8000-0000000000b1.jpg',
+        url: `https://media.example.test/${picture.media_key}`,
         width: 1280,
         height: 720,
         placeholder: null,
         description: null,
       },
+    });
+    // A row that is not a whole image is no picture, and the call still answers.
+    answer = () => ({
+      ...(snake(examples.admin.savedStory) as Record<string, unknown>),
+      picture: { media_key: picture.media_key },
     });
     await expect(api().admin.social.stories.save(story)).resolves.toEqual(
       examples.admin.savedStory,

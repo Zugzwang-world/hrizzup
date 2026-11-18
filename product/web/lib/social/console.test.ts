@@ -293,12 +293,27 @@ describe("a console story's picture", () => {
     expect(consoleStoryOf(without)).toHaveProperty('picture', null);
   });
 
-  it('is set through `imageOf`, never by changing the case of the picture row’s keys (null until R8’s M2)', () => {
+  it('is set through `imageOf`, never by changing the case of the picture row’s keys', () => {
+    vi.stubEnv('MEDIA_BASE_URL', 'https://media.example.test');
     const story = consoleStoryOf({ ...camelKeysInverse(first), picture: pictureRow });
     expect(social.consoleStory.parse(story)).toEqual(story);
-    expect(story.picture).toBeNull();
+    expect(story.picture).toEqual({
+      url: `https://media.example.test/${pictureRow.media_key}`,
+      width: 1280,
+      height: 720,
+      placeholder: null,
+      description: 'The coast road at dawn',
+    });
     expect(JSON.stringify(story)).not.toContain('mediaKey');
     expect(JSON.stringify(story)).not.toContain('media_key');
+  });
+
+  it('is null for a picture row that is not a whole image, or where there is no media host', () => {
+    vi.stubEnv('MEDIA_BASE_URL', 'https://media.example.test');
+    const { height: _height, ...incomplete } = pictureRow;
+    expect(consoleStoryOf({ ...camelKeysInverse(first), picture: incomplete }).picture).toBeNull();
+    vi.stubEnv('MEDIA_BASE_URL', '');
+    expect(consoleStoryOf({ ...camelKeysInverse(first), picture: pictureRow }).picture).toBeNull();
   });
 });
 

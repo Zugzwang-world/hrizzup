@@ -143,6 +143,43 @@ describe('an MP3', () => {
   });
 });
 
+describe('a header that lies about the length', () => {
+  /** A frame of silence carrying a Xing (or Info) header that says it holds `claimed` frames: where the side information ends. */
+  function withXing(tag: 'Xing' | 'Info', claimed: number): Buffer {
+    const frame = Buffer.from(sampleMp3({ frames: 1 }));
+    frame.write(tag, 36, 'latin1');
+    frame.writeUInt32BE(1, 40); // flags: the frame count is given
+    frame.writeUInt32BE(claimed, 44);
+    return frame;
+  }
+
+  it('is never trusted: the sound’s own frames are counted, a Xing header being a frame like any other', async () => {
+    const rest = sampleMp3({ frames: 11_484 });
+    // A header claiming 10 frames over 11,485 frames of sound is over 5 minutes, whatever it claims.
+    expect(await read(Buffer.concat([withXing('Xing', 10), rest]))).toBe('too_long');
+    expect(await read(Buffer.concat([withXing('Info', 0), rest]))).toBe('too_long');
+    // And one claiming a huge count over a short file is that short file's length.
+    expect(
+      await read(Buffer.concat([withXing('Xing', 4_000_000_000), sampleMp3({ frames: 9 })])),
+    ).toBe(ms(10));
+  });
+
+  it('may be there twice, or in the middle of the file: each is a frame, none changes the count', async () => {
+    const twice = Buffer.concat([
+      withXing('Xing', 1),
+      withXing('Info', 1),
+      sampleMp3({ frames: 8 }),
+    ]);
+    expect(await read(twice)).toBe(ms(10));
+    const middle = Buffer.concat([
+      sampleMp3({ frames: 5 }),
+      withXing('Xing', 1),
+      sampleMp3({ frames: 5 }),
+    ]);
+    expect(await read(middle)).toBe(ms(11));
+  });
+});
+
 describe('the trailer', () => {
   it('is 128 bytes for an ID3v1 tag, the APE tag’s size (and its header) before it, and nothing else', () => {
     const v1 = Buffer.concat([Buffer.from('TAG'), Buffer.alloc(125)]);

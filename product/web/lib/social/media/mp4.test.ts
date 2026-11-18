@@ -220,6 +220,99 @@ describe('a file that is not a regular MP4', () => {
     await expect(readMp4(source, 'video/mp4')).rejects.toMatchObject({ code: 'unreadable' });
   });
 
+  describe('with a box twice that a parent may hold once', () => {
+    // A second `mdhd` that says 1 second beside the real one that says 3: a reader that keeps the last box reads
+    // 1 second and a player that reads the first reads 3. Neither is trusted: the file is refused.
+    const one = sampleMp4({ seconds: 3, width: 1080, height: 1920, tracks: ['video'] });
+
+    /** Where a box of this type begins: the first one in the file. */
+    const startOf = (file: Buffer, type: string) => file.indexOf(type, 0, 'latin1') - 4;
+
+    /**
+     * The file with a copy of its first `type` box put straight after it (changed by `patch`), and each parent's size
+     * grown to hold it.
+     */
+    function twice(
+      type: string,
+      parents: string[],
+      patch: (copy: Buffer) => void = () => undefined,
+    ): Buffer {
+      const at = startOf(one, type);
+      const end = at + one.readUInt32BE(at);
+      const copy = Buffer.from(one.subarray(at, end));
+      patch(copy);
+      const made = Buffer.concat([one.subarray(0, end), copy, one.subarray(end)]);
+      for (const parent of parents) {
+        const where = startOf(made, parent);
+        made.writeUInt32BE(made.readUInt32BE(where) + copy.length, where);
+      }
+      return made;
+    }
+
+    it('is the sample as it is, and reads', async () => {
+      expect(await read(one)).toMatchObject({ durationMs: 3000, width: 1080, height: 1920 });
+    });
+
+    it('refuses a second mdhd that claims a shorter length', async () => {
+      // Version 0: the duration is the fourth 32-bit word of its payload, after its 8-byte box header.
+      const file = twice('mdhd', ['moov', 'trak', 'mdia'], (copy) =>
+        copy.writeUInt32BE(1000, 8 + 16),
+      );
+      expect(await read(file)).toBe('unreadable');
+    });
+
+    it('refuses a second mvhd', async () => {
+      const file = twice('mvhd', ['moov'], (copy) => copy.writeUInt32BE(1000, 8 + 16));
+      expect(await read(file)).toBe('unreadable');
+    });
+
+    it('refuses a second stts', async () => {
+      const file = twice('stts', ['moov', 'trak', 'mdia', 'minf', 'stbl'], (copy) =>
+        copy.writeUInt32BE(1, 8 + 12),
+      );
+      expect(await read(file)).toBe('unreadable');
+    });
+
+    it('refuses a second tkhd that gives another size', async () => {
+      const file = twice('tkhd', ['moov', 'trak'], (copy) =>
+        copy.writeUInt32BE(100 * 0x10000, 8 + 76),
+      );
+      expect(await read(file)).toBe('unreadable');
+    });
+
+    it('refuses a second hdlr, and a second mdia, minf or stbl', async () => {
+      expect(await read(twice('hdlr', ['moov', 'trak', 'mdia']))).toBe('unreadable');
+      expect(await read(twice('mdia', ['moov', 'trak']))).toBe('unreadable');
+      expect(await read(twice('minf', ['moov', 'trak', 'mdia']))).toBe('unreadable');
+      expect(await read(twice('stbl', ['moov', 'trak', 'mdia', 'minf']))).toBe('unreadable');
+    });
+
+    it('refuses a second mvex, and still reads a file whose two tracks each hold their own boxes once', async () => {
+      const fragmented = sampleMp4({
+        seconds: 3,
+        width: 8,
+        height: 8,
+        tracks: ['video'],
+        fragmented: true,
+      });
+      const at = startOf(fragmented, 'mvex');
+      const end = at + fragmented.readUInt32BE(at);
+      const doubled = Buffer.concat([
+        fragmented.subarray(0, end),
+        fragmented.subarray(at, end),
+        fragmented.subarray(end),
+      ]);
+      doubled.writeUInt32BE(
+        doubled.readUInt32BE(startOf(doubled, 'moov')) + (end - at),
+        startOf(doubled, 'moov'),
+      );
+      expect(await read(doubled)).toBe('unreadable');
+      expect(await read(video({ tracks: ['video', 'audio', 'audio'] }))).toMatchObject({
+        durationMs: 3000,
+      });
+    });
+  });
+
   it('tolerates the four zero bytes that end a QuickTime udta, and no other bytes left over', async () => {
     const plain = sampleMp4({ seconds: 3, width: 8, height: 8, tracks: ['video'] });
     const at = plain.indexOf('moov') - 4;

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { section } from './stories.ts';
 
 /**
@@ -6,6 +6,10 @@ import { section } from './stories.ts';
  * field the database adds never reaches an agent by accident), with whether the agent pinned it and how many of
  * its updates are new; empty when its column is missing.
  */
+
+const MEDIA_HOST = 'https://media.example.test';
+beforeEach(() => vi.stubEnv('MEDIA_BASE_URL', MEDIA_HOST));
+afterEach(() => vi.unstubAllEnvs());
 
 const row = (n: number, extra: Record<string, unknown> = {}) => ({
   id: `019a7b10-0000-7000-8000-0000000000c${n}`,
@@ -60,7 +64,7 @@ describe('the stories section', () => {
     });
   });
 
-  it('carries each tile’s picture through R5’s tile, null until R8’s uploads can make media (M2)', () => {
+  it('carries each tile’s picture through R5’s tile: a real Image for a tile that has one, null for one that has none', () => {
     const picture = {
       media_key:
         'social/019a7b10-0000-7000-8000-0000000000a1/019a7b10-0000-7000-8000-0000000000b1.jpg',
@@ -72,7 +76,14 @@ describe('the stories section', () => {
     const shaped = section.shape({ stories: [row(1, { picture }), row(2)], more: false }) as {
       stories: { items: Record<string, unknown>[] };
     };
-    for (const item of shaped.stories.items) expect(item).toHaveProperty('picture', null);
+    expect(shaped.stories.items[0]).toHaveProperty('picture', {
+      url: `${MEDIA_HOST}/${picture.media_key}`,
+      width: 1280,
+      height: 720,
+      placeholder: null,
+      description: null,
+    });
+    expect(shaped.stories.items[1]).toHaveProperty('picture', null);
     expect(JSON.stringify(shaped)).not.toContain('media_key');
   });
 

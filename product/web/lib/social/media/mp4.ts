@@ -43,6 +43,13 @@ const CONTAINERS = new Set([
   'ilst',
 ]);
 
+/**
+ * Boxes a parent may hold once. Two of them make two answers, and a player reads the first while a reader that
+ * keeps the last would read the other: a file could carry a short `mdhd` for us and a long one for the player. So a
+ * second one is not first-wins or last-wins, it is refused.
+ */
+const ONCE = new Set(['mvhd', 'mvex', 'tkhd', 'mdia', 'mdhd', 'hdlr', 'minf', 'stbl', 'stts']);
+
 const unreadable = (detail?: string) => new FileProblem('unreadable', detail);
 
 type Track = {
@@ -205,6 +212,7 @@ function walk(
   found: Found,
 ): void {
   let at = start;
+  const seen = new Set<string>();
   while (at < end) {
     if (end - at < 8) {
       // A QuickTime `udta` ends with four zero bytes; nothing else may be left over.
@@ -216,6 +224,10 @@ function walk(
     budget.boxes += 1;
     if (budget.boxes > MOST_MOOV_BOXES) throw unreadable('too many boxes');
     const type = view.text(at + 4, 4);
+    if (ONCE.has(type)) {
+      if (seen.has(type)) throw unreadable(`two ${type} boxes in one`);
+      seen.add(type);
+    }
     const inner = at + headerSize;
     const outer = at + boxSize;
     const here = path.join('/');
