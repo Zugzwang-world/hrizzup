@@ -364,3 +364,255 @@ export function markdownWarnings(reports: PageReport[]): string {
     ...lines,
   ].join('\n');
 }
+
+/** The warm-up's own numbers: a reader's very first visit, cold, shown but never judged. */
+export type FirstVisit = { path: string; busyMs: number; loadMs: number };
+
+/**
+ * What `speed-check.ts` writes as `website.json`. The extra two fields appear only in a part's
+ * output (`SPEED_PART`), so a one-machine run's file is what it always was.
+ */
+export type WebsiteResult = {
+  base: string;
+  environment: string;
+  runs: number;
+  reports: PageReport[];
+  /** A part's own: "2/3", which share of the pages it measured. */
+  part?: string;
+  /** A part's own: the cold first visit its browser made before measuring. */
+  firstVisit?: FirstVisit;
+};
+
+/**
+ * The whole report, as markdown: the table, the note under it, the faint text, the runs over a
+ * budget and the cold first visit. Written by the one-machine check and by the joined parts alike.
+ */
+export function websiteMarkdown(
+  reports: PageReport[],
+  runs: number,
+  firstVisit: FirstVisit | undefined,
+): string {
+  const faint = reports.flatMap((r) => r.contrast.problems.map((p) => `- \`${r.path}\`: ${p}`));
+  const warnings = markdownWarnings(reports);
+  return [
+    markdownTable(reports),
+    '',
+    `Each number is the median of ${runs} run${runs === 1 ? '' : 's'} with Lighthouse's mobile preset (a mid-range ` +
+      'Android phone on slow 4G), next to its budget. Sizes are hard limits; timings allow a ' +
+      "small tolerance for GitHub's shared machines (`product/web/e2e/speed.ts`). Code and " +
+      "total download include other sites' scripts and embeds.",
+    ...(faint.length ? ['', '**Text too faint to read:**', ...faint] : []),
+    ...(warnings ? ['', warnings] : []),
+    ...(firstVisit
+      ? [
+          '',
+          `**A first visit, cold** (shown, never judged): \`${firstVisit.path}\` in a browser just ` +
+            `opened, its React and Next.js code compiled for the first time: busy ` +
+            `${firstVisit.busyMs} ms, load ${(firstVisit.loadMs / 1000).toFixed(2)} s. Every run ` +
+            'judged above is a visit with that code already compiled, as a reader moving around ' +
+            "the site makes; a reader's very first visit pays this once.",
+        ]
+      : []),
+  ].join('\n');
+}
+
+/**
+ * The speed check on several machines (the trial that runs beside the one-machine check): machine
+ * `index` of `of` measures every `of`-th page of the list, starting with the `index`-th.
+ */
+export type Part = { index: number; of: number };
+
+/** Reads `SPEED_PART` ("2/3"): nothing when it isn't set; an error for anything that isn't a share. */
+export function parsePart(text: string | undefined): Part | undefined {
+  if (text === undefined || text === '') return undefined;
+  const found = /^(\d+)\/(\d+)$/.exec(text);
+  const index = Number(found?.[1]);
+  const of = Number(found?.[2]);
+  if (!found || index < 1 || of < 1 || index > of) {
+    throw new Error(`SPEED_PART is "${text}", which isn't a share such as 2/3 (1 up to the total)`);
+  }
+  return { index, of };
+}
+
+/**
+ * The pages one part measures: pages i-1, i-1+n, i-1+2n and so on of the full list, in the list's
+ * order. Every page lands in exactly one part. The warm-up isn't part of this: every part warms up
+ * on the full list's first page, as the one-machine check does.
+ */
+export function partOf<T>(pages: readonly T[], part: Part): T[] {
+  return pages.filter((_, position) => position % part.of === part.index - 1);
+}
+
+const partNumber = (result: WebsiteResult) => parsePart(result.part)?.index ?? 0;
+
+/**
+ * Puts the parts' results back together as one machine's would be: the reports in the order of
+ * `order` (the pages' paths as `pages.ts` lists them), the same base address, environment and
+ * number of runs, the cold first visit of the part that measures the first page. Throws on what no
+ * honest set of parts can produce: another environment or number of runs, a page measured twice,
+ * or a page nobody lists. A page no part measured isn't an error here: the comparison says so.
+ */
+export function joinResults(results: WebsiteResult[], order: readonly string[]): WebsiteResult {
+  const first = results[0];
+  if (!first) throw new Error('There are no parts to join');
+  for (const result of results) {
+    if (result.environment !== first.environment || result.runs !== first.runs) {
+      throw new Error(
+        `The parts measured different things: ${first.environment} with ${first.runs} runs, ` +
+          `${result.environment} with ${result.runs} runs`,
+      );
+    }
+  }
+  const byPath = new Map<string, PageReport>();
+  for (const report of results.flatMap((result) => result.reports)) {
+    if (!order.includes(report.path)) {
+      throw new Error(`A part measured ${report.path}, which the page list doesn't have`);
+    }
+    if (byPath.has(report.path)) throw new Error(`${report.path} was measured by two parts`);
+    byPath.set(report.path, report);
+  }
+  const ordered = [...results].sort((a, b) => partNumber(a) - partNumber(b));
+  const reports = order.flatMap((path) => byPath.get(path) ?? []);
+  return {
+    base: first.base,
+    environment: first.environment,
+    runs: first.runs,
+    reports,
+    ...(ordered[0]?.firstVisit ? { firstVisit: ordered[0].firstVisit } : {}),
+  };
+}
+
+/** How the one-machine run and the joined parts compared on one page. */
+export type PageComparison = {
+  path: string;
+  clean: boolean;
+  /** What differed, each line naming the number and both sides' values; empty when clean. */
+  problems: string[];
+};
+
+export type Comparison = { clean: boolean; pages: PageComparison[] };
+
+const RANGED = [
+  { key: 'loadMs', label: 'Load', show: (v: number) => `${(v / 1000).toFixed(2)} s` },
+  { key: 'blockingMs', label: 'Busy time', show: (v: number) => `${Math.round(v)} ms` },
+  { key: 'layoutShift', label: 'Layout shift', show: (v: number) => v.toFixed(3) },
+  { key: 'codeBytes', label: 'Code', show: (v: number) => `${(v / KB).toFixed(1)} KB` },
+  { key: 'totalBytes', label: 'Total download', show: (v: number) => `${(v / KB).toFixed(1)} KB` },
+] as const;
+
+const passFail = (passes: boolean) => (passes ? 'passes' : 'fails');
+
+function comparePage(one: PageReport, three: PageReport): string[] {
+  const problems: string[] = [];
+  for (const verdict of one.verdicts) {
+    const other = three.verdicts.find((v) => v.label === verdict.label);
+    if (!other) {
+      problems.push(`${verdict.label}: the three machines gave no verdict`);
+    } else if (other.passes !== verdict.passes) {
+      problems.push(
+        `${verdict.label}: ${passFail(verdict.passes)} on one machine (${verdict.value}), ` +
+          `${passFail(other.passes)} on three (${other.value})`,
+      );
+    }
+  }
+  for (const { key, label, show } of RANGED) {
+    const ones = one.runs.map((r) => r[key]);
+    const threes = three.runs.map((r) => r[key]);
+    if (ones.length === 0 || threes.length === 0) {
+      problems.push(`${label}: a side has no runs to compare`);
+      continue;
+    }
+    const middle = median(threes);
+    const low = Math.min(...ones);
+    const high = Math.max(...ones);
+    if (middle < low || middle > high) {
+      problems.push(
+        `${label}: the three machines' median ${show(middle)} is outside the one machine's ` +
+          `runs (${show(low)} to ${show(high)})`,
+      );
+    }
+  }
+  for (const scheme of ['light', 'dark'] as const) {
+    if (one.contrast[scheme] !== three.contrast[scheme]) {
+      problems.push(
+        `Text contrast in the ${scheme} scheme: ${passFail(one.contrast[scheme])} on one machine, ` +
+          `${passFail(three.contrast[scheme])} on three`,
+      );
+    }
+  }
+  return problems;
+}
+
+/**
+ * The trial's question, page by page. A page is clean when every budget line passes or fails the
+ * same on both, each of the three machines' medians (load, busy time, layout shift, code, total
+ * download) lies between the lowest and the highest of the one machine's runs, and the contrast
+ * verdicts are equal in both schemes. A page only one side measured is not clean, and no page at
+ * all is not clean either.
+ */
+export function comparePages(one: PageReport[], three: PageReport[]): Comparison {
+  const paths = [...new Set([...one, ...three].map((report) => report.path))];
+  const pages = paths.map((path) => {
+    const a = one.find((report) => report.path === path);
+    const b = three.find((report) => report.path === path);
+    const problems = !a
+      ? ["the one-machine check didn't measure this page"]
+      : !b
+        ? ["the three machines didn't measure this page"]
+        : comparePage(a, b);
+    return { path, clean: problems.length === 0, problems };
+  });
+  return { clean: pages.length > 0 && pages.every((page) => page.clean), pages };
+}
+
+/**
+ * The record each side-by-side comparison keeps for 30 days, which the tally
+ * (`.github/scripts/side_by_side.py`) counts: `clean` only means something when `measured`.
+ */
+export type ComparisonRecord = {
+  kind: 'speed';
+  commit: string;
+  pr: number | null;
+  measured: boolean;
+  baseline: boolean;
+  clean: boolean;
+  details: string[];
+};
+
+export function comparisonRecord(
+  comparison: Comparison,
+  commit: string,
+  pr: number | null,
+): ComparisonRecord {
+  return {
+    kind: 'speed',
+    commit,
+    pr,
+    measured: true,
+    baseline: true,
+    clean: comparison.clean,
+    details: comparison.pages.flatMap((page) =>
+      page.problems.map((problem) => `${page.path}: ${problem}`),
+    ),
+  };
+}
+
+/** The comparison as the job's summary shows it: a verdict, then one row a page. */
+export function comparisonMarkdown(comparison: Comparison): string {
+  const unclean = comparison.pages.filter((page) => !page.clean);
+  return [
+    comparison.clean
+      ? `**Clean:** all ${comparison.pages.length} pages measured the same way on one machine and on three.`
+      : comparison.pages.length === 0
+        ? '**Not clean:** no page was compared.'
+        : `**Not clean:** ${unclean.length} of ${comparison.pages.length} pages differ.`,
+    '',
+    '| Page | Verdict | What differs |',
+    '|---|---|---|',
+    ...comparison.pages.map(
+      (page) =>
+        `| \`${page.path}\` | ${page.clean ? '✅ clean' : '❌ not clean'} | ` +
+        `${page.problems.join('<br>') || '-'} |`,
+    ),
+  ].join('\n');
+}

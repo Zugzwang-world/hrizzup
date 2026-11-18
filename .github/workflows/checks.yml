@@ -31,6 +31,19 @@
 #   Speed check     the performance budgets (blueprint section 14): every page of the
 #                   preview with Lighthouse (mobile preset, median of 5 runs) and the app's
 #                   code size against main's; the numbers go on the pull request
+#   Speed check on three machines
+#                   a trial, never required, that runs after the Speed check finishes (so it adds
+#                   no load while the Speed check measures): the same 18 pages measured on three
+#                   machines, six each ("Speed check on three machines, part 1 of 3" to "part 3 of
+#                   3": the same Lighthouse runs, budgets and warm-up, SPEED_PART in
+#                   product/web/e2e/speed-check.ts), and a comparison job, "Speed check on three
+#                   machines", that puts the parts together, judges them as the Speed check does
+#                   and compares them with its numbers page by page. The comparison is recorded in
+#                   an artifact ("speed-comparison") and the job's summary counts how many pull
+#                   requests in a row compared clean (.github/scripts/side_by_side.py); when five
+#                   have, a later change makes the three machines the Speed check itself. Nothing
+#                   here is a required check, and the comparison fails only when its own machinery
+#                   breaks, never because the two differ
 #
 # The job names are required checks in the "main" ruleset. Keep them in step. A check that runs
 # in parts has a joining job with the required name, and the parts' own names differ; the joining
@@ -531,3 +544,211 @@ jobs:
           path: speed-results/reports/
           if-no-files-found: ignore
           retention-days: 30
+      # The numbers the three-machine trial below compares with. It's the trial's input, not part of
+      # this check: if the upload fails, the check still passes, and the trial reports its own error.
+      - name: The one-machine results, for the trial's comparison
+        if: ${{ !cancelled() && steps.website.outcome == 'success' }}
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: speed-one-machine
+          path: speed-results/website.json
+          retention-days: 7
+
+  # The trial: the Speed check's website pages on three machines, six each, after the Speed check
+  # above has finished, so the trial never loads the preview while the required check measures it.
+  # Each part measures as the Speed check does (its own Chrome, the uncounted warm-up on the home
+  # page, each page's five runs, then the dark-scheme contrast runs) and writes its results; the
+  # job below puts them together. A part never fails on a budget: the comparison judges.
+  speed-part:
+    name: Speed check on three machines, part ${{ matrix.part }} of 3
+    needs: speed
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [1, 2, 3]
+    permissions:
+      contents: read
+      deployments: read # to find Vercel's preview of this pull request
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+      # pnpm's packages come from main's store in GitHub's cache (the Tool cache workflow fills
+      # it), read only: with no exact hit, the newest store of main under the same prefix, so a
+      # pull request that changes the lockfile downloads only the difference.
+      - name: Where pnpm keeps its packages, and main's key for them
+        id: store
+        run: python3 .github/scripts/tools.py key pnpm-store >> "$GITHUB_OUTPUT"
+      - name: The packages, from GitHub's cache (read only)
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.store.outputs.pnpm_store_file }}
+          key: ${{ steps.store.outputs.pnpm_store_key }}
+          restore-keys: ${{ steps.store.outputs.pnpm_store_prefix }}
+      - run: pnpm install --frozen-lockfile
+
+      - name: Does this change touch the website?
+        id: affected
+        env:
+          TURBO_SCM_BASE: ${{ github.event.pull_request.base.sha || 'origin/main' }}
+          TURBO_SCM_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: python3 .github/scripts/affected.py
+
+      - name: "Website: wait for Vercel's preview"
+        if: steps.affected.outputs.website == 'true'
+        id: preview
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: python3 .github/scripts/wait_for_preview.py "$COMMIT"
+      - name: "Website: let Chrome use its sandbox"
+        if: ${{ !cancelled() && steps.preview.outcome == 'success' }}
+        # Ubuntu 24.04 keeps programs from making the private namespaces Chrome's sandbox needs.
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || echo "No such setting here; Chrome starts as it is."
+      - name: "Website: this part's pages against their budgets (reported, never failed)"
+        id: website
+        if: ${{ !cancelled() && steps.preview.outcome == 'success' }}
+        working-directory: product/web
+        env:
+          BASE_URL: ${{ steps.preview.outputs.url }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+          SPEED_PART: ${{ matrix.part }}/3 # this machine's share of the pages
+          SPEED_OUT: ${{ runner.temp }}/speed-part
+        run: node e2e/speed-check.ts
+
+      - name: This part has nothing to measure (the change doesn't touch the website)
+        if: steps.affected.outputs.website != 'true'
+        env:
+          SPEED_PART: ${{ matrix.part }}/3
+          SPEED_OUT: ${{ runner.temp }}/speed-part
+        run: python3 .github/scripts/side_by_side.py untouched "$SPEED_OUT" "$SPEED_PART"
+
+      # The results the comparison job reads (and the record that this part had nothing to measure);
+      # the Lighthouse reports stay with the Speed check's own upload.
+      - name: This part's results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: speed-part-${{ matrix.part }}
+          path: |
+            ${{ runner.temp }}/speed-part/*.json
+            ${{ runner.temp }}/speed-part/*.md
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # The comparison: the parts put together in the page list's order and judged as the Speed check
+  # judges, then compared with the Speed check's own numbers page by page. Not a required check, so
+  # it never fails on "not clean" (the record says so and the tally counts it); it fails only when
+  # its own machinery breaks. Its summary has the verdict for each page and the count of pull
+  # requests in a row that compared clean.
+  speed-three:
+    name: Speed check on three machines
+    needs: [speed, speed-part]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read # to count the earlier comparisons kept as artifacts
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+      # pnpm's packages come from main's store in GitHub's cache (the Tool cache workflow fills
+      # it), read only: with no exact hit, the newest store of main under the same prefix, so a
+      # pull request that changes the lockfile downloads only the difference.
+      - name: Where pnpm keeps its packages, and main's key for them
+        id: store
+        run: python3 .github/scripts/tools.py key pnpm-store >> "$GITHUB_OUTPUT"
+      - name: The packages, from GitHub's cache (read only)
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.store.outputs.pnpm_store_file }}
+          key: ${{ steps.store.outputs.pnpm_store_key }}
+          restore-keys: ${{ steps.store.outputs.pnpm_store_prefix }}
+      - run: pnpm install --frozen-lockfile --filter @hrizzup/web
+
+      # By pattern, never by name: a name that isn't there fails the download, and an artifact is
+      # missing whenever the website wasn't touched or the Speed check failed.
+      - name: The three machines' results
+        if: ${{ !cancelled() }}
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: speed-part-*
+          path: ${{ runner.temp }}/parts
+      - name: The Speed check's own results
+        if: ${{ !cancelled() }}
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: speed-one-machine
+          merge-multiple: true
+          path: ${{ runner.temp }}/one
+
+      # What to do, from how the jobs before it ended and what they left: compare, say there was
+      # nothing to compare (not an error, and not counted), or fail because results that should be
+      # there are missing. It reads the jobs' results through env:, never in the script.
+      - name: Is there anything to compare?
+        id: plan
+        if: ${{ !cancelled() }}
+        env:
+          ONE_RESULT: ${{ needs.speed.result }}
+          PARTS_RESULT: ${{ needs.speed-part.result }}
+          COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: python3 .github/scripts/side_by_side.py speed-plan "$RUNNER_TEMP/one" "$RUNNER_TEMP/parts" 3 "$RUNNER_TEMP/speed-comparison" >> "$GITHUB_OUTPUT"
+      - name: The three machines' parts, put together and judged as the Speed check judges (reported only)
+        if: ${{ !cancelled() && steps.plan.outputs.measure == 'true' }}
+        working-directory: product/web
+        run: >-
+          node e2e/speed-check.ts --join "$RUNNER_TEMP/speed-comparison"
+          "$RUNNER_TEMP/parts/speed-part-1" "$RUNNER_TEMP/parts/speed-part-2" "$RUNNER_TEMP/parts/speed-part-3"
+          --report-only
+      - name: The three machines against the one, page by page
+        if: ${{ !cancelled() && steps.plan.outputs.measure == 'true' }}
+        working-directory: product/web
+        env:
+          COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: node e2e/speed-check.ts --compare "$RUNNER_TEMP/one/website.json" "$RUNNER_TEMP/speed-comparison/website.json" "$RUNNER_TEMP/speed-comparison"
+      - name: The verdicts and the three machines' numbers
+        if: ${{ !cancelled() }}
+        run: |
+          {
+            echo "## Speed check on three machines, beside the Speed check"
+            echo
+            cat "$RUNNER_TEMP/speed-comparison/comparison.md" || echo "No comparison was made."
+            if [ -f "$RUNNER_TEMP/speed-comparison/website.md" ]; then
+              echo
+              echo "### The three machines' numbers (the Speed check's table, from the parts)"
+              echo
+              cat "$RUNNER_TEMP/speed-comparison/website.md"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: This comparison's record
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: speed-comparison
+          path: ${{ runner.temp }}/speed-comparison/comparison.json
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: How many pull requests in a row compared clean
+        if: ${{ !cancelled() }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          OUT: ${{ runner.temp }}/speed-comparison
+        run: python3 .github/scripts/side_by_side.py tally speed-comparison --current "$OUT/comparison.json" >> "$GITHUB_STEP_SUMMARY"

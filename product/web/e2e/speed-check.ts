@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
@@ -6,22 +6,29 @@ import lighthouse, { type Flags } from 'lighthouse';
 import puppeteer, { type Browser, type Page as Tab } from 'puppeteer-core';
 import { budgets, type Page, pagesIn } from './pages.ts';
 import {
+  comparePages,
+  comparisonMarkdown,
+  comparisonRecord,
   contrastOf,
   describeWarning,
+  type FirstVisit,
+  joinResults,
   judge,
   type LighthouseResult,
   longTasks,
-  markdownTable,
-  markdownWarnings,
   metricsFromLighthouse,
   overBudgetRuns,
   type PageReport,
   pagePasses,
+  parsePart,
+  partOf,
   RUNS,
   type RunMetrics,
   runDetail,
   runNumbers,
   summarize,
+  type WebsiteResult,
+  websiteMarkdown,
 } from './speed.ts';
 import { BYPASS_COOKIE, bypassCookieValue } from './support/bypass.ts';
 
@@ -37,6 +44,17 @@ import { BYPASS_COOKIE, bypassCookieValue } from './support/bypass.ts';
  * Settings, all optional: BASE_URL (a preview, in CI), VERCEL_AUTOMATION_BYPASS_SECRET (for a
  * protected deployment), CHROME_PATH, SPEED_RUNS (default 5) and SPEED_OUT (where the results
  * and each page's Lighthouse report go; default `speed-results`).
+ *
+ * The trial that runs beside the one-machine check (the Speed check on three machines,
+ * .github/workflows/checks.yml) uses more of the same file. With SPEED_PART=2/3 a
+ * machine measures only its share of the pages (every third page, from the second), after the
+ * same uncounted warm-up on the first page; it writes its results and reports what is over a
+ * budget, but never fails on it: the joining step judges. `--join <out> <folder>...
+ * [--report-only]` puts the parts' website.json files back together in the page list's order
+ * and judges them as the one-machine check does (`--report-only`: without failing). `--compare
+ * <one-machine website.json> <joined website.json> <out>` writes comparison.json and
+ * comparison.md, the page-by-page answer to "did three machines measure what one did?"
+ * (COMMIT and PR_NUMBER go in the record). `--join` and `--compare` run no browser.
  *
  * Protected deployments: the bypass secret goes to our own address once, for Vercel's bypass
  * cookie, and Lighthouse runs with only that cookie (support/bypass.ts), so the secret never
@@ -100,9 +118,6 @@ function listen(server: Server, host: string): Promise<number> {
 
 /** The 404 page answers 404 on purpose; Lighthouse refuses that unless told. */
 const ignoresStatus = (page: Page) => (page.status ?? 200) >= 400;
-
-/** The warm-up's own numbers: a reader's very first visit, cold, shown but never judged. */
-type FirstVisit = { path: string; busyMs: number; loadMs: number };
 
 /**
  * One run of the site's first page comes first, not counted, so every measured run is the same
@@ -226,6 +241,7 @@ async function measurePage(tab: Tab, base: string, page: Page, runs: number): Pr
 async function main() {
   const base = process.env.BASE_URL ?? 'http://localhost:3000';
   const runs = Number(process.env.SPEED_RUNS ?? RUNS);
+  const part = parsePart(process.env.SPEED_PART);
   const secret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
   const headers: Record<string, string> = secret ? { 'x-vercel-protection-bypass': secret } : {};
   const environment = await environmentOf(base, headers);
@@ -246,12 +262,18 @@ async function main() {
       });
     }
     const pages = pagesIn(environment);
+    // Every machine of the trial warms up on the whole list's first page, as the one-machine check
+    // does; only then does it keep to its own share of the pages.
     if (pages[0]) firstVisit = await warmUp(tab, base, pages[0]);
+    const mine = part ? partOf(pages, part) : pages;
+    if (part) {
+      console.log(`  part ${part.index} of ${part.of}: ${mine.length} of ${pages.length} pages`);
+    }
     // Every page's measured runs first, then every page's dark-scheme contrast: a contrast run
     // isn't traced, and the run straight after one, a page's first, was the one over its budget
     // (the console's pages at 231 to 275 ms, against their usual 75).
     const measured: PageRuns[] = [];
-    for (const page of pages) measured.push(await measureRuns(tab, base, page, runs));
+    for (const page of mine) measured.push(await measureRuns(tab, base, page, runs));
     for (const pageRuns of measured) {
       reports.push(await pageReport(pageRuns, await darkContrast(tab, pageRuns)));
     }
@@ -260,48 +282,120 @@ async function main() {
   }
 
   const failing = reports.filter((report) => !pagePasses(report));
-  const faint = reports.flatMap((r) => r.contrast.problems.map((p) => `- \`${r.path}\`: ${p}`));
-  const warnings = markdownWarnings(reports);
-  const markdown = [
-    markdownTable(reports),
-    '',
-    `Each number is the median of ${runs} run${runs === 1 ? '' : 's'} with Lighthouse's mobile preset (a mid-range ` +
-      'Android phone on slow 4G), next to its budget. Sizes are hard limits; timings allow a ' +
-      "small tolerance for GitHub's shared machines (`product/web/e2e/speed.ts`). Code and " +
-      "total download include other sites' scripts and embeds.",
-    ...(faint.length ? ['', '**Text too faint to read:**', ...faint] : []),
-    ...(warnings ? ['', warnings] : []),
-    ...(firstVisit
-      ? [
-          '',
-          `**A first visit, cold** (shown, never judged): \`${firstVisit.path}\` in a browser just ` +
-            `opened, its React and Next.js code compiled for the first time: busy ` +
-            `${firstVisit.busyMs} ms, load ${(firstVisit.loadMs / 1000).toFixed(2)} s. Every run ` +
-            'judged above is a visit with that code already compiled, as a reader moving around ' +
-            "the site makes; a reader's very first visit pays this once.",
-        ]
-      : []),
-  ].join('\n');
+  const markdown = websiteMarkdown(reports, runs, firstVisit);
   await mkdir(out, { recursive: true });
   await writeFile(join(out, 'website.md'), `${markdown}\n`);
-  await writeFile(
-    join(out, 'website.json'),
-    `${JSON.stringify({ base, environment, runs, reports }, null, 2)}\n`,
-  );
+  // A part's file also says which share it is and how its browser's cold first visit went, for the
+  // joining step; a one-machine run's file is what it always was.
+  const result: WebsiteResult = {
+    base,
+    environment,
+    runs,
+    reports,
+    ...(part ? { part: `${part.index}/${part.of}`, firstVisit } : {}),
+  };
+  await writeFile(join(out, 'website.json'), `${JSON.stringify(result, null, 2)}\n`);
   console.log(`\n${markdown}\n`);
   // Each single run over a budget as a GitHub warning on the check: it shows on the pull request
-  // and in the run's summary, and never fails the check (only the medians above can).
-  for (const report of reports) {
-    for (const warning of report.warnings) {
-      console.log(
-        `::warning title=Speed check: one run over a budget::${describeWarning(report.path, warning)}`,
-      );
+  // and in the run's summary, and never fails the check (only the medians above can). A part of
+  // the trial leaves that to the one-machine check, so a warning is never counted twice.
+  if (!part) {
+    for (const report of reports) {
+      for (const warning of report.warnings) {
+        console.log(
+          `::warning title=Speed check: one run over a budget::${describeWarning(report.path, warning)}`,
+        );
+      }
     }
   }
   if (failing.length > 0) {
-    console.error(`Over budget: ${failing.map((r) => r.path).join(', ')}`);
-    process.exit(1);
+    const over = failing.map((r) => r.path).join(', ');
+    if (part) {
+      // The joining step judges all the parts together, and the comparison needs a verdict that
+      // flips to be seen, so a part reports what is over a budget and carries on.
+      console.log(`Over budget on this part's pages, reported only: ${over}`);
+    } else {
+      console.error(`Over budget: ${over}`);
+      process.exit(1);
+    }
   }
+}
+
+/** The arguments after `flag` that aren't flags themselves. */
+function after(args: string[], flag: string): string[] {
+  const at = args.indexOf(flag);
+  return args.slice(at + 1).filter((argument) => !argument.startsWith('--'));
+}
+
+async function readResult(file: string): Promise<WebsiteResult> {
+  const result = JSON.parse(await readFile(file, 'utf8')) as WebsiteResult;
+  if (!Array.isArray(result?.reports)) throw new Error(`${file} isn't a speed check's results`);
+  return result;
+}
+
+/**
+ * `--join <out> <folder>... [--report-only]`: the trial's parts' results as one machine's, judged
+ * as the one-machine check judges them. No browser, so no machine to wait for.
+ */
+async function joinMode(args: string[]) {
+  const [outDir, ...folders] = after(args, '--join');
+  if (!outDir || folders.length === 0) {
+    throw new Error('Usage: speed-check.ts --join <out> <part folder>... [--report-only]');
+  }
+  const parts = await Promise.all(
+    folders.map((folder) => readResult(join(folder, 'website.json'))),
+  );
+  const environment = parts[0]?.environment;
+  const joined = joinResults(
+    parts,
+    pagesIn(environment).map((page) => page.path),
+  );
+  const markdown = websiteMarkdown(joined.reports, joined.runs, joined.firstVisit);
+  await mkdir(outDir, { recursive: true });
+  await writeFile(join(outDir, 'website.md'), `${markdown}\n`);
+  // The same shape a one-machine run writes, so the comparison reads both alike.
+  const whole: WebsiteResult = {
+    base: joined.base,
+    environment: joined.environment,
+    runs: joined.runs,
+    reports: joined.reports,
+  };
+  await writeFile(join(outDir, 'website.json'), `${JSON.stringify(whole, null, 2)}\n`);
+  console.log(`${markdown}\n`);
+  const failing = joined.reports.filter((report) => !pagePasses(report));
+  if (failing.length > 0) {
+    const over = failing.map((r) => r.path).join(', ');
+    if (args.includes('--report-only')) {
+      console.log(`Over budget, reported only: ${over}`);
+    } else {
+      console.error(`Over budget: ${over}`);
+      process.exit(1);
+    }
+  }
+}
+
+/**
+ * `--compare <one-machine website.json> <joined website.json> <out>`: whether three machines
+ * measured what one did. Never fails on a difference: the answer is recorded and counted.
+ */
+async function compareMode(args: string[]) {
+  const [oneFile, threeFile, outDir] = after(args, '--compare');
+  if (!oneFile || !threeFile || !outDir) {
+    throw new Error('Usage: speed-check.ts --compare <one-machine json> <joined json> <out>');
+  }
+  const [one, three] = await Promise.all([readResult(oneFile), readResult(threeFile)]);
+  const comparison = comparePages(one.reports, three.reports);
+  const pr = Number(process.env.PR_NUMBER);
+  const record = comparisonRecord(
+    comparison,
+    process.env.COMMIT ?? '',
+    Number.isInteger(pr) && pr > 0 ? pr : null,
+  );
+  const markdown = comparisonMarkdown(comparison);
+  await mkdir(outDir, { recursive: true });
+  await writeFile(join(outDir, 'comparison.json'), `${JSON.stringify(record, null, 2)}\n`);
+  await writeFile(join(outDir, 'comparison.md'), `${markdown}\n`);
+  console.log(`${markdown}\n`);
 }
 
 /**
@@ -375,4 +469,8 @@ async function selfTest() {
   }
 }
 
-await (process.argv.includes('--self-test') ? selfTest() : main());
+const args = process.argv.slice(2);
+if (args.includes('--self-test')) await selfTest();
+else if (args.includes('--join')) await joinMode(args);
+else if (args.includes('--compare')) await compareMode(args);
+else await main();
