@@ -16,7 +16,7 @@ import { ClaimForm } from './claim-form.tsx';
  * from the design chat.
  */
 
-/** The sandbox's primary button, for a link (`PRIMARY` lives in a client module, which a server page can't read as text). */
+/** The sandbox's primary button for a link, kept here as this page's own copy, without the disabled style (`PRIMARY` is server-safe now, in components/sandbox/classes.ts). */
 const SIGN_IN =
   'min-h-11 min-w-0 rounded-md border border-ink bg-ink px-5 font-medium break-words text-paper';
 

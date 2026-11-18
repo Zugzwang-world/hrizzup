@@ -17,8 +17,9 @@ import { describe, expect, it } from 'vitest';
 // PascalCase non-component is not caught; keep such values out of client modules. Shared values
 // (class strings, limits, helpers) live in a module with no directive. Checked over app/,
 // components/ and lib/; test files (*.test.ts, *.spec.ts) never run in the server layer, so they
-// are left out. Not covered: dynamic `import()`, `require`, and `export *` (Next's loader
-// rejects `export *` from a client module by itself).
+// are left out. `export * from` a client module counts as a use of `*` and fails (Next's loader
+// rejects `export *` only inside a client module, so a server file can write it; it hands every
+// export on, constants too). Not covered: dynamic `import()` and `require`.
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const DIRS = ['app', 'components', 'lib'];
@@ -149,16 +150,23 @@ function clientUses(files: string[], read: Reader): Use[] {
       } else if (
         ts.isExportDeclaration(statement) &&
         statement.moduleSpecifier &&
-        !statement.isTypeOnly &&
-        statement.exportClause &&
-        ts.isNamedExports(statement.exportClause)
+        !statement.isTypeOnly
       ) {
         const module = take(statement.moduleSpecifier);
         if (module === undefined) continue;
-        for (const element of statement.exportClause.elements) {
-          if (element.isTypeOnly) continue;
-          const name = (element.propertyName ?? element.name).text;
-          uses.push({ file, module, name, component: isComponentName(name) });
+        const clause = statement.exportClause;
+        if (clause && ts.isNamedExports(clause)) {
+          for (const element of clause.elements) {
+            if (element.isTypeOnly) continue;
+            // Judged like an import: on the exported name; for `default` there is the new name only.
+            const exported = (element.propertyName ?? element.name).text;
+            const name = exported === 'default' ? element.name.text : exported;
+            uses.push({ file, module, name, component: isComponentName(name) });
+          }
+        } else {
+          // `export * from` and `export * as ns from` pass every export on, constants included,
+          // so they can't be told from a component by name: a barrel over a client module is flagged.
+          uses.push({ file, module, name: '*', component: false });
         }
       }
     }
@@ -306,11 +314,36 @@ describe('the scan, on small made-up trees', () => {
     ).toEqual(['app/page.tsx: * as ui from components/ui.tsx']);
   });
 
-  it('flags a re-export of a constant, and ignores export *', () => {
+  it('flags a re-export of a constant, and export * and export * as', () => {
     expect(server("export { PRIMARY } from '@/components/ui.tsx';")).toEqual([
       'app/page.tsx: PRIMARY from components/ui.tsx',
     ]);
-    expect(server("export * from '@/components/ui.tsx';")).toEqual([]);
+    expect(server("export * from '@/components/ui.tsx';")).toEqual([
+      'app/page.tsx: * from components/ui.tsx',
+    ]);
+    expect(server("export * as ui from '@/components/ui.tsx';")).toEqual([
+      'app/page.tsx: * from components/ui.tsx',
+    ]);
+  });
+
+  it('judges a re-exported default by its new name, as an import is', () => {
+    expect(server("export { default as Panel } from '@/components/ui.tsx';")).toEqual([]);
+    expect(server("export { default as PRIMARY } from '@/components/ui.tsx';")).toEqual([
+      'app/page.tsx: PRIMARY from components/ui.tsx',
+    ]);
+    expect(
+      server("export { KeysPanel as PRIMARY, PRIMARY as Panel } from '@/components/ui.tsx';"),
+    ).toEqual(['app/page.tsx: PRIMARY from components/ui.tsx']);
+  });
+
+  it('leaves export * from a plain module alone, and a type-only export *', () => {
+    expect(
+      tree({
+        'lib/plain.ts': 'export const LIMIT = 5;\n',
+        'app/page.tsx': "export * from '@/lib/plain.ts';\n",
+      }),
+    ).toEqual([]);
+    expect(server("export type * from '@/components/ui.tsx';")).toEqual([]);
   });
 
   it('reads the directive, not a mention of it', () => {
