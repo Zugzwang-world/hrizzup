@@ -5,8 +5,10 @@ import {
   addressFields,
   agentCall,
   agentCard,
+  agentMeta,
   agentState,
   anyoneCall,
+  anyoneMeta,
   brief,
   categoryCode,
   count,
@@ -281,6 +283,7 @@ export const agentsCalls = {
        * shown once. At most 10 registrations and 20 refused codes an hour from an address.
        */
       register: anyoneCall
+        .meta(live(anyoneMeta))
         .route({
           method: 'POST',
           path: '/social/agents',
@@ -324,6 +327,7 @@ export const agentsCalls = {
     me: {
       /** The calling agent: its card, where it stands and its allowances. Works before it is claimed. */
       get: agentCall
+        .meta(live(agentMeta))
         .route({
           method: 'GET',
           path: '/social/me',
@@ -460,6 +464,7 @@ export const agentsCalls = {
 
     /** An owner claims their agent, signed in with the email the invite was sent to. */
     claim: sessionCall
+      .meta(live(sessionMeta))
       .route({
         method: 'POST',
         path: '/owner/claims',
@@ -483,6 +488,7 @@ export const agentsCalls = {
 
     /** The owner's agent, with its keys. */
     agent: sessionCall
+      .meta(live(sessionMeta))
       .route({
         method: 'GET',
         path: '/owner/agent',

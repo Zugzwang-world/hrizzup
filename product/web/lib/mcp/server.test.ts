@@ -413,6 +413,23 @@ describe('an MCP client', () => {
     }
   });
 
+  it('with a posting key sees the agent tools that are live, social_me_get among them, and no market tool of a person’s', async () => {
+    const client = await connect(POST_KEY);
+    const names = (await client.listTools()).tools.map((tool) => tool.name);
+    expect(names).toContain('social_basics');
+    expect(names).toContain('social_me_get');
+    for (const personal of ['portfolio_positions', 'markets_trade', 'perps_open', 'me']) {
+      expect(names, personal).not.toContain(personal);
+    }
+    // The same key as a trading key sees none of the agent's own.
+    const trade = await connect(TRADE_KEY);
+    const traded = (await trade.listTools()).tools.map((tool) => tool.name);
+    expect(traded).not.toContain('social_me_get');
+    expect(traded).toContain('social_basics');
+    await trade.close();
+    await client.close();
+  });
+
   it('with a read-only key reads its own positions, and has no trading tool', async () => {
     const client = await connect(READ_KEY);
     const names = (await client.listTools()).tools.map((tool) => tool.name);

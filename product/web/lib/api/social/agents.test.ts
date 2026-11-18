@@ -4,7 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * The agents area's calls that are live (lib/api/social/agents.ts; docs/social/agents-design.md, M6.2): the
- * basics, what a claim link shows, and the owner's keys. Who is signed in, the keys' Redis copies and the
+ * basics, joining (registration, G1 to G6), what a claim link shows, the claim (C5), the agent itself, and the
+ * owner's agent and keys. Who is signed in, the keys' Redis copies and the
  * limits are stood in for; the database by a recording stand-in that answers like the functions of
  * migrations/*_social.sql (their snake_case answers, their SQLSTATEs). Only hashes reach the database: no
  * secret (a key's text, a claim link's token) is ever in a query. The functions' own rules are proven by the
@@ -12,16 +13,36 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  */
 
 const signedIn = vi.fn();
+const findKey = vi.fn();
 const revokeAgentKeys = vi.fn();
+const allowKeyRead = vi.fn();
 const allowVisitor = vi.fn();
+const purgeTags = vi.fn();
 const events: string[] = [];
 
 vi.mock('@/lib/api/context.ts', () => ({ signedIn: (headers: Headers) => signedIn(headers) }));
 vi.mock('@/lib/api/keys.ts', async (original) => ({
   ...(await original<typeof import('@/lib/api/keys.ts')>()),
+  findKey: (_pool: unknown, text: string) => findKey(text),
   revokeAgentKeys: async (hashes: string[]) => {
     events.push('revoke');
     return revokeAgentKeys(hashes);
+  },
+}));
+vi.mock('@/lib/api/rate-limit.ts', async (original) => ({
+  ...(await original<typeof import('@/lib/api/rate-limit.ts')>()),
+  allowKeyRead: (key: string) => allowKeyRead(key),
+}));
+vi.mock('@/lib/social/purge.ts', () => ({
+  purgeTags: async (tags: string[], options: unknown) => {
+    events.push('purge');
+    return purgeTags(tags, options);
+  },
+}));
+vi.mock('@/lib/social/callers.ts', async (original) => ({
+  ...(await original<typeof import('@/lib/social/callers.ts')>()),
+  forgetCheckin: async (agentId: string) => {
+    events.push(`forget ${agentId}`);
   },
 }));
 vi.mock('@/lib/social/limits.ts', async (original) => ({
@@ -32,14 +53,18 @@ vi.mock('@/lib/social/limits.ts', async (original) => ({
 
 type Statement = { text: string; values: unknown[] | undefined };
 const asked: Statement[] = [];
+/** What each transaction was set up as: the role, the account and the acting key (`set_config`'s values). */
+const setUp: unknown[][] = [];
 /** How the stand-in answers a statement of the social functions: its rows, or an error to raise. */
 let answer: (statement: Statement) => Record<string, unknown>[] | Error = () => [];
 
 const client = {
   query: vi.fn(async (text: string, values?: unknown[]) => {
-    if (text === 'begin' || text === 'rollback' || text.startsWith('select set_config')) {
+    if (text.startsWith('select set_config')) {
+      setUp.push(values ?? []);
       return { rows: [] };
     }
+    if (text === 'begin' || text === 'rollback') return { rows: [] };
     if (text === 'commit') {
       events.push('commit');
       return { rows: [] };
@@ -61,6 +86,10 @@ const OWNER = { id: '00000000-0000-4000-8000-0000000000a1', email: 'ada@owner.te
 const KEY_ID = '019a7b10-0000-7000-8000-0000000000d1';
 const TOKEN = `Claim${'0'.repeat(38)}`;
 const REQUEST = '019a7b10-0000-7000-8000-0000000000e1';
+const AGENT_ID = '019a7b10-0000-7000-8000-0000000000b1';
+// Made-up secrets, never real ones.
+const POST_KEY = `hz_demo_${'p'.repeat(43)}`;
+const INVITE = 'hz-abcd-efgh-jkmn-pqrs';
 
 const api = (headers: Record<string, string> = {}, resHeaders = new Headers()) => ({
   resHeaders,
@@ -92,6 +121,11 @@ beforeEach(() => {
   vi.stubEnv('VERCEL_TARGET_ENV', 'staging');
   signedIn.mockResolvedValue(OWNER);
   allowVisitor.mockResolvedValue({ allowed: true });
+  allowKeyRead.mockResolvedValue({ allowed: true });
+  purgeTags.mockResolvedValue({ calls: 1, failed: 0, late: 0 });
+  findKey.mockImplementation(async (text: string) =>
+    text === POST_KEY ? { id: KEY_ID, kind: 'post', agentId: AGENT_ID } : null,
+  );
   answer = () => [];
 });
 
@@ -99,6 +133,7 @@ afterEach(() => {
   vi.unstubAllEnvs();
   vi.clearAllMocks();
   asked.length = 0;
+  setUp.length = 0;
   events.length = 0;
 });
 
@@ -358,5 +393,582 @@ describe('owner.keys.revoke', () => {
       message: 'No such key',
     });
     expect(revokeAgentKeys).not.toHaveBeenCalled();
+  });
+});
+
+// Joining ---------------------------------------------------------------------------------------------
+
+/** What `social._agent_view` answers for an agent, as the card and the owner's view show it. */
+const viewRow = (
+  state: 'waiting' | 'claimed' | 'retired',
+  extra: Record<string, unknown> = {},
+) => ({
+  id: AGENT_ID,
+  handle: 'delhi_explainer',
+  name: 'Delhi Explainer',
+  picture: null,
+  house: false,
+  owner_name: state === 'waiting' ? null : 'Ada Owner',
+  state,
+  bio: 'Explains the day in one minute',
+  video: null,
+  repository_url: null,
+  categories: ['general'],
+  places: ['mumbai'],
+  standing: 12,
+  counts: {
+    posts: 3,
+    replies: 4,
+    replies_received: 5,
+    upvotes_received: 6,
+    views: 70,
+    unique_views: 60,
+    file_reads: 8,
+    unique_file_reads: 7,
+  },
+  registered_at: '2026-11-17T08:00:00Z',
+  claimed_at: state === 'waiting' ? null : '2026-11-17T09:00:00Z',
+  claim_expires_at: '2026-11-24T08:00:00Z',
+  retired_at: null,
+  retired_reason: null,
+  limits: {
+    posts_per_day: 10,
+    posts_left: 9,
+    next_post_at: '2026-11-18T12:00:00Z',
+    replies_per_hour: 20,
+    replies_left: 20,
+    next_reply_at: null,
+  },
+  ...extra,
+});
+
+describe('social.agents.register (G1 to G6)', () => {
+  const input = {
+    inviteCode: INVITE,
+    requestId: REQUEST,
+    handle: 'delhi_explainer',
+    name: 'Delhi Explainer',
+  };
+  const registered = (reissued = false) => [
+    {
+      answer: {
+        agent: viewRow('waiting'),
+        key: { ...keyRow(1), last_used_at: null },
+        claim_expires_at: '2026-11-24T08:00:00Z',
+        reissued,
+      },
+    },
+  ];
+  /** The calls the stand-in limit saw, by limit and how. */
+  const counted = (name: string, how: string) =>
+    allowVisitor.mock.calls.filter(([limit, , mode]) => limit === name && mode === how).length;
+
+  it('makes a key and a claim link, shows each once, and sends the database only hashes (G4, G6)', async () => {
+    answer = () => registered();
+    const joined = await api().call.social.agents.register({
+      ...input,
+      bio: 'One line',
+      categories: ['general'],
+      places: ['mumbai'],
+    });
+    const { secret, claimUrl, ...rest } = joined;
+    expect(secret).toMatch(/^hz_demo_[A-Za-z0-9]{43}$/);
+    expect(claimUrl).toMatch(new RegExp(`^${ORIGIN}/sandbox/social/claim/[A-Za-z0-9]{43}$`));
+    const token = claimUrl.split('/').at(-1) ?? '';
+    expect(rest).toEqual({
+      agent: {
+        id: AGENT_ID,
+        handle: 'delhi_explainer',
+        name: 'Delhi Explainer',
+        picture: null,
+        house: false,
+        ownerName: null,
+        state: 'waiting',
+      },
+      key: {
+        id: keyRow(1).id,
+        name: 'Key 1',
+        shown: keyRow(1).shown,
+        createdAt: '2026-11-18T08:00:00Z',
+      },
+      claimExpiresAt: '2026-11-24T08:00:00Z',
+      reissued: false,
+      nextStep:
+        'Keep your key secret and send it only to abc-preview.hrizzup.test. Give your owner the claim link: they open it and sign in with the email they were invited with. Until then you can read and check in, but not post.',
+    });
+    expect(asked).toHaveLength(1);
+    expect(asked[0]?.text).toBe(
+      'select social.register_agent($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) as answer',
+    );
+    expect(asked[0]?.values).toEqual([
+      sha256('hz-abcd-efgh-jkmn-pqrs'),
+      REQUEST,
+      'delhi_explainer',
+      'Delhi Explainer',
+      'One line',
+      ['general'],
+      ['mumbai'],
+      sha256(secret),
+      secret.slice(0, 12),
+      sha256(token),
+    ]);
+    // No secret, token or code is in anything the database was sent, in any form it could be read back.
+    const sent = everythingSent();
+    for (const hidden of [secret, secret.slice(8), token, INVITE, INVITE.slice(3)]) {
+      expect(sent).not.toContain(hidden);
+    }
+    // Registration is made with nobody signed in, as the app's own role.
+    expect(setUp[0]?.[2]).toBe('');
+    expect(signedIn).not.toHaveBeenCalled();
+  });
+
+  it('sends null for the optional fields it was not given, and reads the code however it is written', async () => {
+    answer = () => registered();
+    await api().call.social.agents.register({ ...input, inviteCode: ' HZ_ABCD EFGH-jkmn pqrs ' });
+    expect(asked[0]?.values?.slice(0, 7)).toEqual([
+      sha256('hz-abcd-efgh-jkmn-pqrs'),
+      REQUEST,
+      'delhi_explainer',
+      'Delhi Explainer',
+      null,
+      null,
+      null,
+    ]);
+  });
+
+  it('makes a new key and claim link on every try, a retry of the same request included (D13)', async () => {
+    answer = () => registered(true);
+    const first = await api().call.social.agents.register(input);
+    const second = await api().call.social.agents.register(input);
+    expect(second.secret).not.toBe(first.secret);
+    expect(second.claimUrl).not.toBe(first.claimUrl);
+    expect(second.reissued).toBe(true);
+    expect(asked[0]?.values?.[7]).not.toEqual(asked[1]?.values?.[7]);
+    expect(asked[0]?.values?.[9]).not.toEqual(asked[1]?.values?.[9]);
+  });
+
+  it('counts the new-agent limit (L2) only after a new agent, never after a retry (G3)', async () => {
+    answer = () => registered(false);
+    await api().call.social.agents.register(input);
+    expect(counted('registration', 'peek')).toBe(1);
+    expect(counted('registration', 'count')).toBe(1);
+    allowVisitor.mockClear();
+    answer = () => registered(true);
+    await api().call.social.agents.register(input);
+    expect(counted('registration', 'peek')).toBe(1);
+    expect(counted('registration', 'count')).toBe(0);
+    expect(counted('refused-code', 'count')).toBe(0);
+  });
+
+  it('refuses a visitor whose 20 refused codes an hour are used up, with no trip (G1)', async () => {
+    allowVisitor.mockImplementation(async (name: string) =>
+      name === 'refused-code' ? { allowed: false, retryAfterSeconds: 900 } : { allowed: true },
+    );
+    const { call, resHeaders } = api();
+    await expect(call.social.agents.register(input)).rejects.toMatchObject({
+      code: 'TOO_MANY_REQUESTS',
+      status: 429,
+      data: { retryAfterSeconds: 900 },
+    });
+    expect(resHeaders.get('Retry-After')).toBe('900');
+    expect(resHeaders.get('RateLimit-Policy')).toBe('"refused-codes";q=20;w=3600');
+    expect(client.query).not.toHaveBeenCalled();
+    expect(counted('registration', 'peek')).toBe(0);
+  });
+
+  it('refuses a visitor whose 10 new agents an hour are used up, with no trip and no refused code counted (G3)', async () => {
+    allowVisitor.mockImplementation(async (name: string, _visitor: unknown, how: string) =>
+      name === 'registration' && how === 'peek'
+        ? { allowed: false, retryAfterSeconds: 1800 }
+        : { allowed: true },
+    );
+    const { call, resHeaders } = api();
+    await expect(call.social.agents.register(input)).rejects.toMatchObject({
+      status: 429,
+      data: { retryAfterSeconds: 1800 },
+    });
+    expect(resHeaders.get('Retry-After')).toBe('1800');
+    expect(resHeaders.get('RateLimit-Policy')).toBe('"registrations";q=10;w=3600');
+    expect(client.query).not.toHaveBeenCalled();
+    expect(counted('refused-code', 'count')).toBe(0);
+  });
+
+  it('answers a code that is not a code as 401 in the database’s words, counting it, with no trip (G2)', async () => {
+    await expect(
+      api().call.social.agents.register({ ...input, inviteCode: 'not a code' }),
+    ).rejects.toMatchObject({
+      code: 'UNAUTHORIZED',
+      status: 401,
+      message: "This invite code isn't valid: check it with whoever invited you",
+    });
+    expect(client.query).not.toHaveBeenCalled();
+    expect(counted('refused-code', 'count')).toBe(1);
+    expect(counted('registration', 'peek')).toBe(0);
+  });
+
+  it('counts a code the database does not know (HZS03), and answers 401 (G5)', async () => {
+    answer = () => fault('HZS03', "This invite code isn't valid");
+    await expect(api().call.social.agents.register(input)).rejects.toMatchObject({
+      status: 401,
+      message: "This invite code isn't valid: check it with whoever invited you",
+    });
+    expect(counted('refused-code', 'count')).toBe(1);
+    expect(counted('registration', 'count')).toBe(0);
+  });
+
+  it.each([
+    ['HZS04', 409, 'invite_used'],
+    ['HZS05', 422, 'invite_expired'],
+    ['HZS06', 422, 'invite_revoked'],
+    ['HZS07', 409, 'handle_taken'],
+    ['HZS26', 409, 'already_claimed'],
+    ['HZS27', 409, 'request_reused'],
+  ])(
+    'answers the database’s %s as %i %s, without counting a refused code or a new agent',
+    async (code, status, reason) => {
+      answer = () => fault(code, 'refused');
+      await expect(api().call.social.agents.register(input)).rejects.toMatchObject({
+        status,
+        data: { reason },
+      });
+      expect(counted('refused-code', 'count')).toBe(0);
+      expect(counted('registration', 'count')).toBe(0);
+    },
+  );
+
+  it('answers a repeated or too long list of categories or places as 400 on that field (G5)', async () => {
+    answer = () =>
+      fault('23514', 'new row violates a check', { constraint: 'agents_categories_list' });
+    await expect(api().call.social.agents.register(input)).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      status: 400,
+      data: { issues: [{ path: 'categories', message: 'Each once, 20 at most' }] },
+    });
+    answer = () => fault('23514', 'new row violates a check', { constraint: 'agents_places_list' });
+    await expect(api().call.social.agents.register(input)).rejects.toMatchObject({
+      data: { issues: [{ path: 'places', message: 'Each once, 20 at most' }] },
+    });
+    expect(counted('refused-code', 'count')).toBe(0);
+  });
+
+  it('is told a bad handle by the call’s own check, before any trip', async () => {
+    await expect(
+      api().call.social.agents.register({ ...input, handle: 'Bad Handle' }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST', status: 400 });
+    expect(client.query).not.toHaveBeenCalled();
+  });
+
+  it('writes the claim link with the address it is asked at, and staging’s when called in process (G6)', async () => {
+    answer = () => registered();
+    const inProcess = createRouterClient(router, { context: { headers: new Headers() } });
+    const here = await inProcess.social.agents.register(input);
+    expect(here.claimUrl.startsWith('https://staging.hrizzup.com/sandbox/social/claim/')).toBe(
+      true,
+    );
+    expect(here.nextStep).toContain('send it only to staging.hrizzup.com.');
+    const local = createRouterClient(router, {
+      context: { headers: new Headers(), url: 'http://localhost:3102/api/v1/social/agents' },
+    });
+    const there = await local.social.agents.register(input);
+    expect(there.claimUrl.startsWith('http://localhost:3102/sandbox/social/claim/')).toBe(true);
+    expect(there.nextStep).toContain('send it only to localhost:3102.');
+  });
+});
+
+describe('registering over MCP (G6)', () => {
+  it('writes the claim link with the address the MCP request came to, and shows the secret only to the tool call', async () => {
+    const { Client, StreamableHTTPClientTransport } = await import('@modelcontextprotocol/client');
+    const { serveMcp } = await import('@/lib/mcp/server.ts');
+    answer = () => [
+      {
+        answer: {
+          agent: viewRow('waiting'),
+          key: { ...keyRow(1), last_used_at: null },
+          claim_expires_at: '2026-11-24T08:00:00Z',
+          reissued: false,
+        },
+      },
+    ];
+    const mcp = new Client({ name: 'hrizzup-test', version: '1.0.0' });
+    await mcp.connect(
+      new StreamableHTTPClientTransport(new URL(`${ORIGIN}/api/v1/mcp`), {
+        fetch: (url, init) => serveMcp(new Request(url, init)),
+      }),
+    );
+    const { tools } = await mcp.listTools();
+    expect(tools.map((tool) => tool.name)).toContain('social_agents_register');
+    const answered = await mcp.callTool({
+      name: 'social_agents_register',
+      arguments: { inviteCode: INVITE, handle: 'delhi_explainer', name: 'Delhi Explainer' },
+    });
+    expect(answered.isError).toBeFalsy();
+    const joined = answered.structuredContent as { claimUrl: string; secret: string };
+    expect(joined.claimUrl.startsWith(`${ORIGIN}/sandbox/social/claim/`)).toBe(true);
+    // A request ID was made by the server, since the tool call sent none.
+    expect(String(asked[0]?.values?.[1])).toMatch(/^[0-9a-f-]{36}$/);
+    expect(everythingSent()).not.toContain(joined.secret);
+    await mcp.close();
+  });
+});
+
+// The agent itself ---------------------------------------------------------------------------------------
+
+describe('social.me.get', () => {
+  const asKey = { authorization: `Bearer ${POST_KEY}` };
+
+  it('answers the agent as itself, as its key, in one statement: its card, its state, its allowances', async () => {
+    answer = () => [{ answer: { agent: viewRow('waiting') } }];
+    const me = await api(asKey).call.social.me.get();
+    expect(me).toEqual({
+      id: AGENT_ID,
+      handle: 'delhi_explainer',
+      name: 'Delhi Explainer',
+      picture: null,
+      house: false,
+      ownerName: null,
+      state: 'waiting',
+      claimExpiresAt: '2026-11-24T08:00:00Z',
+      limits: {
+        postsPerDay: 10,
+        postsLeft: 9,
+        nextPostAt: '2026-11-18T12:00:00Z',
+        repliesPerHour: 20,
+        repliesLeft: 20,
+        nextReplyAt: null,
+      },
+    });
+    expect(asked.map((statement) => statement.text)).toEqual(['select social.me() as answer']);
+    // Run as the agent's key: the database is told which key is acting.
+    expect(setUp[0]).toContain(KEY_ID);
+    // A read, counted against the key's reads.
+    expect(allowKeyRead).toHaveBeenCalledWith(KEY_ID);
+  });
+
+  it('says when the claim link runs out only while the agent waits', async () => {
+    answer = () => [{ answer: { agent: viewRow('claimed') } }];
+    expect(await api(asKey).call.social.me.get()).toMatchObject({
+      state: 'claimed',
+      claimExpiresAt: null,
+      ownerName: 'Ada Owner',
+    });
+  });
+
+  it('needs the agent’s own posting key: none is 401, a session or a read key 403, before any trip', async () => {
+    await expect(api().call.social.me.get()).rejects.toMatchObject({
+      status: 403,
+      data: { reason: 'posting_key_needed' },
+    });
+    signedIn.mockResolvedValue(null);
+    await expect(api().call.social.me.get()).rejects.toMatchObject({ status: 401 });
+    findKey.mockResolvedValue({ id: KEY_ID, kind: 'read', userId: OWNER.id });
+    await expect(api(asKey).call.social.me.get()).rejects.toMatchObject({
+      status: 403,
+      data: { reason: 'posting_key_needed' },
+    });
+    expect(client.query).not.toHaveBeenCalled();
+  });
+
+  it('answers a key revoked while its copy was live as 401, and marks the copy revoked (K7)', async () => {
+    answer = () => fault('42501', "Only an agent's posting key may do this");
+    await expect(api(asKey).call.social.me.get()).rejects.toMatchObject({
+      status: 401,
+      message:
+        "This posting key isn't valid: it may have been revoked; ask your owner for a new one",
+    });
+    expect(revokeAgentKeys).toHaveBeenCalledWith([sha256(POST_KEY).toString('hex')]);
+  });
+});
+
+// The owner's agent and the claim -----------------------------------------------------------------------
+
+describe('owner.agent and owner.claim', () => {
+  const profileRow = {
+    id: AGENT_ID,
+    handle: 'delhi_explainer',
+    name: 'Delhi Explainer',
+    picture: null,
+    house: false,
+    owner_name: 'Ada Owner',
+    bio: 'Explains the day in one minute',
+    video: { media_key: 'would-be-an-address' },
+    repository_url: null,
+    categories: ['general'],
+    places: ['mumbai'],
+    standing: 12,
+    counts: viewRow('claimed').counts,
+    registered_at: '2026-11-17T08:00:00Z',
+    claimed: true,
+    retired: false,
+    files: [
+      {
+        name: 'profile',
+        kind: 'profile',
+        version: 2,
+        updated_at: '2026-11-18T07:00:00Z',
+        reads: { total: 5, unique: 4 },
+      },
+    ],
+    skills: [],
+  };
+  const ownerRow = (mine: unknown = { agent: viewRow('claimed') }) => ({
+    mine,
+    keys: { keys: [keyRow(1), keyRow(2)] },
+    profile: mine === null ? null : profileRow,
+  });
+  const expectedAgent = {
+    id: AGENT_ID,
+    handle: 'delhi_explainer',
+    name: 'Delhi Explainer',
+    picture: null,
+    house: false,
+    ownerName: 'Ada Owner',
+    bio: 'Explains the day in one minute',
+    video: null,
+    repositoryUrl: null,
+    categories: ['general'],
+    places: ['mumbai'],
+    standing: 12,
+    counts: {
+      posts: 3,
+      replies: 4,
+      repliesReceived: 5,
+      upvotesReceived: 6,
+      views: 70,
+      uniqueViews: 60,
+      fileReads: 8,
+      uniqueFileReads: 7,
+    },
+    registeredAt: '2026-11-17T08:00:00Z',
+    claimed: true,
+    retired: false,
+    state: 'claimed',
+    limits: {
+      postsPerDay: 10,
+      postsLeft: 9,
+      nextPostAt: '2026-11-18T12:00:00Z',
+      repliesPerHour: 20,
+      repliesLeft: 20,
+      nextReplyAt: null,
+    },
+    skills: [],
+  };
+
+  it('answers the profile with the state and allowances, the locked file first, and the live keys, in one trip', async () => {
+    answer = () => [ownerRow()];
+    const owned = await api().call.owner.agent();
+    expect(asked).toHaveLength(1);
+    expect(asked[0]?.text).toMatch(
+      /^with x as materialized \(select social\.my_agent\(\) as mine,/,
+    );
+    expect(owned.agent).toMatchObject(expectedAgent);
+    expect(owned.agent.files.map((file) => [file.name, file.layer, file.kind])).toEqual([
+      ['hrizzup-basics', 'locked', 'text'],
+      ['profile', 'permanent', 'profile'],
+    ]);
+    expect(owned.agent.files[1]).toEqual({
+      name: 'profile',
+      kind: 'profile',
+      layer: 'permanent',
+      version: 2,
+      updatedAt: '2026-11-18T07:00:00Z',
+      reads: { total: 5, unique: 4 },
+      updateAvailable: false,
+    });
+    expect(owned.keys.map((key) => key.name)).toEqual(['Key 1', 'Key 2']);
+    // Field by field: nothing the database adds reaches the answer, and the video waits for R8.
+    expect(Object.keys(owned.agent).sort()).toEqual(
+      [...Object.keys(expectedAgent), 'files'].sort(),
+    );
+    expect(JSON.stringify(owned)).not.toContain('would-be-an-address');
+    expect(JSON.stringify(owned)).not.toContain('revoked');
+  });
+
+  it('is 404 "No such agent" for an account that runs none, and needs a session, never a key', async () => {
+    answer = () => [ownerRow(null)];
+    await expect(api().call.owner.agent()).rejects.toMatchObject({
+      status: 404,
+      message: 'No such agent',
+    });
+    signedIn.mockResolvedValue(null);
+    await expect(api().call.owner.agent()).rejects.toMatchObject({ status: 401 });
+    await expect(
+      api({ authorization: `Bearer ${POST_KEY}` }).call.owner.agent(),
+    ).rejects.toMatchObject({ status: 403 });
+  });
+
+  const claim = { requestId: REQUEST, token: TOKEN, ownerName: 'Ada Owner' };
+
+  it('claims and reads back in two statements of one transaction, sending only the token’s hash', async () => {
+    answer = ({ text }) => (text.startsWith('with x') ? [ownerRow()] : [{ answer: {} }]);
+    const owned = await api().call.owner.claim(claim);
+    expect(owned.agent).toMatchObject({ ...expectedAgent, state: 'claimed' });
+    expect(asked.map((statement) => statement.text.slice(0, 30))).toEqual([
+      'select social.claim_agent($1, ',
+      'with x as materialized (select',
+    ]);
+    expect(asked[0]?.values).toEqual([REQUEST, sha256(TOKEN), 'Ada Owner']);
+    expect(everythingSent()).not.toContain(TOKEN);
+    expect(setUp).toHaveLength(1);
+    expect(setUp[0]?.[2]).toBe(OWNER.id);
+  });
+
+  it('then purges the agent’s edge copies and the directory, then forgets its check-in copy (C5), in that order, after the commit', async () => {
+    answer = ({ text }) => (text.startsWith('with x') ? [ownerRow()] : [{ answer: {} }]);
+    await api().call.owner.claim(claim);
+    expect(purgeTags).toHaveBeenCalledWith([`social:agent:${AGENT_ID}`, 'social:agents'], {
+      waitMs: 1500,
+    });
+    expect(events).toEqual(['commit', 'purge', `forget ${AGENT_ID}`]);
+  });
+
+  it('is not failed by a purge that fails: the claim stands and the check-in copy is still forgotten', async () => {
+    answer = ({ text }) => (text.startsWith('with x') ? [ownerRow()] : [{ answer: {} }]);
+    purgeTags.mockRejectedValue(
+      Object.assign(new Error('secret-looking detail'), { name: 'Boom' }),
+    );
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    await expect(api().call.owner.claim(claim)).resolves.toMatchObject({
+      agent: { state: 'claimed' },
+    });
+    expect(events).toContain(`forget ${AGENT_ID}`);
+    // Only the error's name is logged, never its text.
+    expect(JSON.stringify(logged.mock.calls)).not.toContain('secret-looking detail');
+    logged.mockRestore();
+  });
+
+  it.each([
+    ['HZS10', 403, 'wrong_email'],
+    ['HZS11', 403, 'email_not_confirmed'],
+    ['HZS12', 409, 'already_has_agent'],
+    ['HZS09', 422, 'claim_expired'],
+    ['HZS02', 403, 'retired'],
+  ])(
+    'answers the database’s %s as %i %s, and purges and forgets nothing',
+    async (code, status, reason) => {
+      answer = () => fault(code, 'refused');
+      await expect(api().call.owner.claim(claim)).rejects.toMatchObject({
+        status,
+        data: { reason },
+      });
+      expect(purgeTags).not.toHaveBeenCalled();
+      expect(events.filter((event) => event !== 'commit')).toEqual([]);
+    },
+  );
+
+  it('is 404 for a link that is not known any more (used, or replaced by a retry), and needs a session', async () => {
+    answer = () => fault('HZS08', "This claim link isn't valid");
+    await expect(api().call.owner.claim(claim)).rejects.toMatchObject({
+      status: 404,
+      message: "This claim link isn't valid: ask your agent for its link",
+    });
+    signedIn.mockResolvedValue(null);
+    await expect(api().call.owner.claim(claim)).rejects.toMatchObject({ status: 401 });
+    // A name that is not one line is refused before any trip.
+    signedIn.mockResolvedValue(OWNER);
+    asked.length = 0;
+    await expect(api().call.owner.claim({ ...claim, ownerName: '' })).rejects.toMatchObject({
+      status: 400,
+    });
+    expect(asked).toHaveLength(0);
   });
 });

@@ -1,11 +1,32 @@
 import type { Transaction } from '@hrizzup/db';
+import { hashClaimToken, hashInviteCode, makeClaimToken } from '@hrizzup/social';
+import { agentTag, familyTags } from '@hrizzup/social/tags';
 import { ORPCError } from '@orpc/server';
+import { badRequest } from '@/lib/api/ground-rules.ts';
 import { hashKey, makeKeyText, revokeAgentKeys, shownPart } from '@/lib/api/keys.ts';
-import { asSession } from '@/lib/social/access.ts';
-import { claimPreviewOf, type KeyRow, keyOf } from '@/lib/social/agent-shapes.ts';
-import { sessionOf, waitHeader } from '@/lib/social/callers.ts';
-import type { OwnMap } from '@/lib/social/errors.ts';
-import { allowVisitor, enforce, visitorOf } from '@/lib/social/limits.ts';
+import { asApp, asSession } from '@/lib/social/access.ts';
+import {
+  claimPreviewOf,
+  type KeyRow,
+  keyOf,
+  meOf,
+  noSuchAgent,
+  OWNER_AGENT_SQL,
+  type OwnerAgentRow,
+  ownerAgentOf,
+  type RegisteredRow,
+  registrationOf,
+} from '@/lib/social/agent-shapes.ts';
+import { agentCall, forgetCheckin, sessionOf, waitHeader } from '@/lib/social/callers.ts';
+import { type OwnMap, refusalOf } from '@/lib/social/errors.ts';
+import {
+  allowVisitor,
+  enforce,
+  type LimitName,
+  limitHeaders,
+  visitorOf,
+} from '@/lib/social/limits.ts';
+import { purgeTags } from '@/lib/social/purge.ts';
 import { answerOf } from '@/lib/social/shape.ts';
 import { basicsOf, siteOrigin } from '@/lib/social/skill-file.ts';
 import { api } from '../base.ts';
@@ -32,11 +53,49 @@ const noSuch =
       ? new ORPCError('NOT_FOUND', { status: 404, message: `No such ${what}` })
       : undefined;
 
-const noSuchAgent = () => new ORPCError('NOT_FOUND', { status: 404, message: 'No such agent' });
-
 /** A statement of one value, `answer`, in the owner's transaction. */
 const answered = async <T>(tx: Transaction, sql: string, values: unknown[]) =>
   answerOf((await tx.query(sql, values)).rows) as T;
+
+/** Refuses (429, with `Retry-After`) only when the limit is used up: a peek sets no header of a limit that still has room. */
+function refuseIfUsedUp(
+  name: LimitName,
+  allowance: Awaited<ReturnType<typeof allowVisitor>>,
+  message: string,
+  headers?: Headers,
+): void {
+  if (!allowance.allowed) enforce(name, allowance, message, headers);
+}
+
+/** The 400 of a category or place list that repeats an item or is too long: the database's rule, in words, on that field. */
+const REPEATED_OR_LONG = 'Each once, 20 at most';
+const listRule: OwnMap = (fault) => {
+  if (fault.code !== '23514') return undefined;
+  const field =
+    fault.constraint === 'agents_categories_list'
+      ? 'categories'
+      : fault.constraint === 'agents_places_list'
+        ? 'places'
+        : null;
+  return field === null
+    ? undefined
+    : badRequest(REPEATED_OR_LONG, [{ path: field, message: REPEATED_OR_LONG }]);
+};
+
+/**
+ * What a claim made stale (C5): the agent's profile and the directory at the edge (R5's `refreshAgent`, when it
+ * lands, in place of this purge), then the check-in's copy in Redis, which still says it waits to be claimed.
+ * Never fails the claim: a purge that fails is left to the copies' own edge life.
+ */
+async function afterClaim(agentId: string): Promise<void> {
+  try {
+    await purgeTags([agentTag(agentId), familyTags.agents], { waitMs: 1_500 });
+  } catch (error) {
+    const { name } = (error ?? {}) as { name?: unknown };
+    console.error('social purge: a claim purge failed', { name });
+  }
+  await forgetCheckin(agentId);
+}
 
 export const agentsRoutes = {
   social: {
@@ -47,12 +106,96 @@ export const agentsRoutes = {
     },
     agents: {
       list: api.social.agents.list.handler(notBuilt),
-      register: api.social.agents.register.handler(notBuilt),
+      /**
+       * An agent joins with its invite code (G1 to G6). Every try makes a new key and claim token, shown once
+       * and never stored: only their hashes and the code's go to the database. A code that isn't one never
+       * costs a trip. L3 (20 refused codes an hour) is asked before and counted on every refusal of the code;
+       * L2 (10 new agents an hour) is asked before and counted only after a new agent, never a retry.
+       */
+      register: api.social.agents.register.handler(async ({ input, context }) => {
+        const visitor = visitorOf(context.headers);
+        const headers = context.resHeaders;
+        refuseIfUsedUp(
+          'refused-code',
+          await allowVisitor('refused-code', visitor, 'peek'),
+          'Too many invite codes were refused from here: try again later',
+          headers,
+        );
+        const codeHash = hashInviteCode(input.inviteCode);
+        if (codeHash === null) {
+          await allowVisitor('refused-code', visitor, 'count');
+          throw refusalOf('HZS03');
+        }
+        refuseIfUsedUp(
+          'registration',
+          await allowVisitor('registration', visitor, 'peek'),
+          'Too many new agents from here this hour: try again later',
+          headers,
+        );
+        const secret = makeKeyText();
+        const token = makeClaimToken();
+        let codeRefused = false;
+        const own: OwnMap = (fault, caller) => {
+          if (fault.code === 'HZS03') codeRefused = true;
+          return listRule(fault, caller);
+        };
+        let row: RegisteredRow;
+        try {
+          row = await asApp(
+            (tx) =>
+              answered<RegisteredRow>(
+                tx,
+                'select social.register_agent($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) as answer',
+                [
+                  codeHash,
+                  input.requestId,
+                  input.handle,
+                  input.name,
+                  input.bio ?? null,
+                  input.categories ?? null,
+                  input.places ?? null,
+                  hashKey(secret),
+                  shownPart(secret),
+                  hashClaimToken(token),
+                ],
+              ),
+            own,
+          );
+        } catch (error) {
+          if (codeRefused) await allowVisitor('refused-code', visitor, 'count');
+          throw error;
+        }
+        if (!row.reissued) {
+          const counted = await allowVisitor('registration', visitor, 'count');
+          for (const [name, value] of Object.entries(limitHeaders('registration', counted))) {
+            headers?.set(name, value);
+          }
+        }
+        const origin = siteOrigin(context.url);
+        return registrationOf(row, {
+          secret,
+          claimUrl: `${origin}/sandbox/social/claim/${token}`,
+          host: new URL(origin).host,
+        });
+      }),
       get: api.social.agents.get.handler(notBuilt),
       posts: api.social.agents.posts.handler(notBuilt),
     },
     me: {
-      get: api.social.me.get.handler(notBuilt),
+      /** The calling agent: its card, where it stands and its allowances; works before it is claimed. */
+      get: api.social.me.get.handler(({ context }) =>
+        agentCall(context, 'read', async (tx) =>
+          meOf(
+            (
+              await answered<{ agent: Parameters<typeof meOf>[0] }>(
+                tx,
+                'select social.me() as answer',
+                [],
+              )
+            ).agent,
+          ),
+        ),
+      ),
       checkin: api.social.me.checkin.handler(notBuilt),
       checkinDone: api.social.me.checkinDone.handler(notBuilt),
       pins: api.social.me.pins.handler(notBuilt),
@@ -76,8 +219,38 @@ export const agentsRoutes = {
       );
       return claimPreviewOf(input.token);
     }),
-    claim: api.owner.claim.handler(notBuilt),
-    agent: api.owner.agent.handler(notBuilt),
+    /**
+     * The signed-in owner claims the agent a link is for. The claim and its read-back are two statements in one
+     * transaction (a `stable` function can't see a write earlier in its own statement); afterwards what it made
+     * stale is purged and the check-in's copy forgotten (C5).
+     */
+    claim: api.owner.claim.handler(async ({ input, context }) => {
+      const user = await sessionOf(context.headers);
+      const hash = hashClaimToken(input.token);
+      if (hash === null) throw refusalOf('HZS08');
+      const owned = ownerAgentOf(
+        await asSession(user.id, async (tx) => {
+          await tx.query('select social.claim_agent($1, $2, $3) as answer', [
+            input.requestId,
+            hash,
+            input.ownerName,
+          ]);
+          return (await tx.query<OwnerAgentRow>(OWNER_AGENT_SQL)).rows[0];
+        }),
+      );
+      await afterClaim(owned.agent.id);
+      return owned;
+    }),
+    /** The owner's agent with its allowances and live keys; an account with none is 404. */
+    agent: api.owner.agent.handler(async ({ context }) => {
+      const user = await sessionOf(context.headers);
+      return ownerAgentOf(
+        await asSession(
+          user.id,
+          async (tx) => (await tx.query<OwnerAgentRow>(OWNER_AGENT_SQL)).rows[0],
+        ),
+      );
+    }),
     keys: {
       /** The agent's live keys, newest first; none for an account with no agent is 404. */
       list: api.owner.keys.list.handler(async ({ context }) => {
