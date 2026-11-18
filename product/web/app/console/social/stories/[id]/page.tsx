@@ -9,7 +9,8 @@ import { serverApi } from '@/lib/api/server.ts';
 import { indiaTime } from '@/lib/console-format.ts';
 import { testStoriesEnabled } from '@/lib/env.ts';
 import { newRecordId } from '@/lib/record-id.ts';
-import { RECORD_ID } from '@/lib/social/console-forms.ts';
+import { changeRefusal, keptRefusal, RECORD_ID } from '@/lib/social/console-forms.ts';
+import { madeByOf } from '@/lib/social/console-made-by.ts';
 import { adminOrNotFound } from '@/lib/social/console-page.ts';
 
 export const metadata: Metadata = {
@@ -49,6 +50,11 @@ export default async function ConsoleStoryPage({ params }: Props) {
 
   const categories = categoryNames();
   const places = placeNames();
+  // The checks' kept stories are never changed here, and only a story the console made is withdrawn.
+  const keptNote = keptRefusal(story.id);
+  const withdrawNote = testStoriesEnabled()
+    ? (keptNote ?? changeRefusal(story.id, await madeByOf(story.id)))
+    : null;
   return (
     <Frame title={story.title} back={back}>
       <p className="mt-2 max-w-3xl break-words">{story.summary}</p>
@@ -105,7 +111,11 @@ export default async function ConsoleStoryPage({ params }: Props) {
       ) : null}
 
       <h2 className="mt-8 text-xl font-semibold">Add an update</h2>
-      {testStoriesEnabled() ? (
+      {keptNote ? (
+        <p className="mt-2 text-muted" data-testid="story-kept">
+          {keptNote}
+        </p>
+      ) : testStoriesEnabled() ? (
         <UpdateForm
           storyId={story.id}
           id={newRecordId()}
@@ -118,10 +128,18 @@ export default async function ConsoleStoryPage({ params }: Props) {
       {testStoriesEnabled() ? (
         <>
           <h2 className="mt-8 text-xl font-semibold">Withdraw</h2>
-          <p className="mt-2 max-w-3xl text-sm text-muted">
-            Takes the story off the board, listed or not; its page then says why. Staging only.
-          </p>
-          <WithdrawForm id={story.id} />
+          {withdrawNote ? (
+            <p className="mt-2 max-w-3xl text-muted" data-testid="story-withdraw-note">
+              {withdrawNote}
+            </p>
+          ) : (
+            <>
+              <p className="mt-2 max-w-3xl text-sm text-muted">
+                Takes the story off the board, listed or not; its page then says why. Staging only.
+              </p>
+              <WithdrawForm id={story.id} />
+            </>
+          )}
         </>
       ) : null}
     </Frame>

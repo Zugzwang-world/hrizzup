@@ -1,6 +1,11 @@
 import { ORPCError } from '@orpc/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { RECORD_ID, START } from '@/lib/social/console-forms.ts';
+import { KEPT_LINE, RECORD_ID, START } from '@/lib/social/console-forms.ts';
+import {
+  BOARD_FIXTURE_STORY,
+  BOARD_MERGED_STORY,
+  BOARD_WITHDRAWN_STORY,
+} from '@/lib/social/fixture-ids.ts';
 
 /**
  * The social console's forms (actions.ts): to anyone but an admin, each answers "not found" before it reads
@@ -14,7 +19,7 @@ import { RECORD_ID, START } from '@/lib/social/console-forms.ts';
 const consoleAdmin = vi.fn();
 const social = {
   invites: { create: vi.fn(), revoke: vi.fn(), list: vi.fn() },
-  stories: { save: vi.fn() },
+  stories: { save: vi.fn(), list: vi.fn() },
   updates: { save: vi.fn() },
   settings: { set: vi.fn() },
   agents: { set: vi.fn(), revokeKeys: vi.fn() },
@@ -509,6 +514,10 @@ describe('withdrawing a story', () => {
     places: ['mumbai'],
     createdAt: '2026-11-18T10:00:00.123456Z',
   };
+  /** The console's list of stories, with this one made by whom. */
+  const madeBy = (who: 'console' | 'pipeline', next: string | null = null, id = STORY) =>
+    social.stories.list.mockResolvedValue({ stories: [{ id, madeBy: who }], next });
+  beforeEach(() => madeBy('console'));
 
   it('saves the same story again as withdrawn with the reason, carrying its own listing, then shows its page', async () => {
     storyGet.mockResolvedValue(live);
@@ -569,5 +578,65 @@ describe('withdrawing a story', () => {
     expect((await withdrawStoryAction(START, form({ id: STORY, reason: 'x' }))).error).toMatch(
       /newer version/,
     );
+  });
+
+  it('is never offered for a story the pipeline made, and calls nothing to save', async () => {
+    storyGet.mockResolvedValue(live);
+    madeBy('pipeline');
+    const answer = await withdrawStoryAction(START, form({ id: STORY, reason: 'x' }));
+    expect(answer.error).toBe('Made by the pipeline: the console does not withdraw it.');
+    expect(social.stories.save).not.toHaveBeenCalled();
+  });
+
+  it('is not offered for a story that is not among the console’s newest, however many pages are read, and finds one on a later page', async () => {
+    storyGet.mockResolvedValue(live);
+    social.stories.list.mockResolvedValue({
+      stories: [{ id: INVITE, madeBy: 'console' }],
+      next: 'more',
+    });
+    const answer = await withdrawStoryAction(START, form({ id: STORY, reason: 'x' }));
+    expect(answer.error).toMatch(/not known here/);
+    expect(social.stories.list).toHaveBeenCalledTimes(5);
+    expect(social.stories.save).not.toHaveBeenCalled();
+    social.stories.list.mockReset();
+    social.stories.list
+      .mockResolvedValueOnce({ stories: [{ id: INVITE, madeBy: 'console' }], next: 'more' })
+      .mockResolvedValueOnce({ stories: [{ id: STORY, madeBy: 'console' }], next: null });
+    social.stories.save.mockResolvedValue({ id: STORY });
+    await expect(withdrawStoryAction(START, form({ id: STORY, reason: 'x' }))).rejects.toThrow(
+      'REDIRECT',
+    );
+    expect(social.stories.list).toHaveBeenLastCalledWith({ limit: 100, cursor: 'more' });
+  });
+
+  it('is never offered for a story the checks keep, whoever made it: refused before anything is read', async () => {
+    madeBy('console');
+    for (const kept of [BOARD_FIXTURE_STORY, BOARD_WITHDRAWN_STORY, BOARD_MERGED_STORY]) {
+      const answer = await withdrawStoryAction(START, form({ id: kept, reason: 'x' }));
+      expect(answer.error, kept).toBe(KEPT_LINE);
+      expect(answer.values.id).toBe(kept);
+    }
+    expect(KEPT_LINE).toBe('Kept for the checks: not to be changed.');
+    expect(storyGet).not.toHaveBeenCalled();
+    expect(social.stories.list).not.toHaveBeenCalled();
+    expect(social.stories.save).not.toHaveBeenCalled();
+  });
+});
+
+describe('adding an update to a story the checks keep', () => {
+  it('is refused with the same line, and calls nothing to save', async () => {
+    for (const kept of [BOARD_FIXTURE_STORY, BOARD_WITHDRAWN_STORY, BOARD_MERGED_STORY]) {
+      const answer = await saveUpdateAction(
+        START,
+        form({
+          id: UPDATE,
+          storyId: kept,
+          headline: 'A development',
+          sources: 'https://example.com/a',
+        }),
+      );
+      expect(answer.error, kept).toBe(KEPT_LINE);
+    }
+    expect(social.updates.save).not.toHaveBeenCalled();
   });
 });

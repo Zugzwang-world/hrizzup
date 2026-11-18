@@ -8,9 +8,11 @@ import { consoleAdmin } from '@/lib/console.ts';
 import { newRecordId } from '@/lib/record-id.ts';
 import {
   agentChanges,
+  changeRefusal,
   FIELDS,
   field,
   fieldsWith,
+  keptRefusal,
   LISTED_MISSING,
   listedChoice,
   openInviteFor,
@@ -23,6 +25,7 @@ import {
   updateFrom,
   withdrawalFrom,
 } from '@/lib/social/console-forms.ts';
+import { madeByOf } from '@/lib/social/console-made-by.ts';
 import { SETTING_ROWS } from '@/lib/social/console-settings.ts';
 
 /**
@@ -168,6 +171,11 @@ export async function withdrawStoryAction(
   await adminsOnly();
   const values = typed(form);
   const id = field(form, 'id');
+  // Never a story the checks keep (refused before anything is read), and only one the console made.
+  const kept = keptRefusal(id);
+  if (kept) return { error: kept, problems: {}, values };
+  const refusal = changeRefusal(id, await madeByOf(id));
+  if (refusal) return { error: refusal, problems: {}, values };
   let story: social.StoryDetail;
   try {
     story = await serverApi.social.stories.get({ id });
@@ -195,6 +203,9 @@ export async function saveUpdateAction(
   form: FormData,
 ): Promise<SocialFormState> {
   await adminsOnly();
+  // A story the checks keep is never lengthened: their pages and journeys count its updates.
+  const kept = keptRefusal(field(form, 'storyId'));
+  if (kept) return { error: kept, problems: {}, values: typed(form) };
   const built = updateFrom(form, Date.now());
   if (!built.ok) return built.state;
   try {

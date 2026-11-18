@@ -2,6 +2,7 @@ import { type Story, type Update, validate } from '@hrizzup/agreement';
 import type { social } from '@hrizzup/api';
 import { ORPCError, ValidationError } from '@orpc/server';
 import type { SocialFormState } from './console-state.ts';
+import { KEPT_STORY_IDS } from './fixture-ids.ts';
 
 /**
  * What the social console's forms (`app/console/social/actions.ts`) are made of, as plain functions with no
@@ -234,6 +235,30 @@ export function storyFrom(form: FormData, now: number): Built<{ record: Story; l
     return { ok: false, state: refused(values, found) };
   }
   return { ok: true, record: { record, listed: listed === true } };
+}
+
+/** The line shown, and the refusal given, for a story the checks keep. */
+export const KEPT_LINE = 'Kept for the checks: not to be changed.';
+
+/** The line for a story the checks keep, or null for any other: nothing else is asked about it first. */
+export function keptRefusal(id: string): string | null {
+  return KEPT_STORY_IDS.has(id) ? KEPT_LINE : null;
+}
+
+/**
+ * Whether the console may change a story (withdraw it, or add an update): never one the checks keep on staging (the
+ * fixtures' fixed IDs), and a story is withdrawn only if the console made it, never one the pipeline did. The line
+ * saying why not, in plain words, or null when it may be. `madeBy` is null when it could not be found among the
+ * console's newest stories, and then nothing is changed either: who made it isn't known.
+ */
+export function changeRefusal(id: string, madeBy: 'console' | 'pipeline' | null): string | null {
+  const kept = keptRefusal(id);
+  if (kept) return kept;
+  if (madeBy === 'pipeline') return 'Made by the pipeline: the console does not withdraw it.';
+  if (madeBy === null) {
+    return 'Who made this story is not known here (it is not among the console’s newest): it is not offered.';
+  }
+  return null;
 }
 
 /** What the withdraw form needs of a live story to save it again: its fields as the console reads them. */

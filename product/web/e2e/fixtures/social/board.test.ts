@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { KEPT_STORY_IDS } from '../../../lib/social/fixture-ids.ts';
 import {
   BOARD_FIXTURE_STORY,
   BOARD_FIXTURE_UPDATES,
@@ -273,5 +274,20 @@ describe('the board’s merged fixture story', () => {
       );
       expect(sent).toHaveLength(1);
     }
+  });
+});
+
+describe('the stories the console keeps its hands off', () => {
+  it('are exactly the stories the fixtures make: every story record the three save has an ID in the console’s list of kept stories, and every one of them is made', async () => {
+    const made = new Set<string>();
+    for (const one of boardFixtures) {
+      const sent = site({ read: [404, {}] });
+      await one.ensure(context);
+      for (const request of sent) {
+        const id = request.body?.record?.id;
+        if (request.path.endsWith('/stories') && typeof id === 'string') made.add(id);
+      }
+    }
+    expect(made).toEqual(KEPT_STORY_IDS);
   });
 });

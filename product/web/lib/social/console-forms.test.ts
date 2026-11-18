@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   agentChanges,
   canRevoke,
+  changeRefusal,
   chosen,
   EMPTY_PAGE_CURSOR,
   FIELDS,
@@ -11,6 +12,8 @@ import {
   fieldOfPath,
   fieldsWith,
   inviteState,
+  KEPT_LINE,
+  keptRefusal,
   LISTED_MISSING,
   linesOf,
   listedChoice,
@@ -26,6 +29,12 @@ import {
   updateFrom,
 } from './console-forms.ts';
 import { rangeOf, SETTING_ROWS } from './console-settings.ts';
+import {
+  BOARD_FIXTURE_STORY,
+  BOARD_MERGED_STORY,
+  BOARD_WITHDRAWN_STORY,
+  KEPT_STORY_IDS,
+} from './fixture-ids.ts';
 
 /**
  * The social console's form rules (`console-forms.ts`): reading a form, building the agreement's records from it with
@@ -496,5 +505,28 @@ describe('the settings as the form shows them', () => {
         safeParse: () => ({ success: true }),
       }),
     ).toBe('a whole number');
+  });
+});
+
+describe('which stories the console may change', () => {
+  const kept = [BOARD_FIXTURE_STORY, BOARD_WITHDRAWN_STORY, BOARD_MERGED_STORY];
+
+  it('never the ones the checks keep, whoever made them', () => {
+    expect(KEPT_STORY_IDS.size).toBe(3);
+    for (const id of kept) {
+      expect(keptRefusal(id)).toBe(KEPT_LINE);
+      for (const who of ['console', 'pipeline', null] as const) {
+        expect(changeRefusal(id, who), `${id} by ${who}`).toBe(KEPT_LINE);
+      }
+    }
+    expect(keptRefusal(STORY_ID)).toBeNull();
+  });
+
+  it('only a story the console made, and not one made by the pipeline or by someone not known', () => {
+    expect(changeRefusal(STORY_ID, 'console')).toBeNull();
+    expect(changeRefusal(STORY_ID, 'pipeline')).toBe(
+      'Made by the pipeline: the console does not withdraw it.',
+    );
+    expect(changeRefusal(STORY_ID, null)).toMatch(/not known here/);
   });
 });

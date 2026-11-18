@@ -1,3 +1,8 @@
+import {
+  BOARD_FIXTURE_STORY,
+  BOARD_MERGED_STORY,
+  BOARD_WITHDRAWN_STORY,
+} from '../../../lib/social/fixture-ids.ts';
 import type { SocialFixture, SocialFixtureContext } from './fixture.ts';
 
 /**
@@ -16,8 +21,8 @@ import type { SocialFixture, SocialFixtureContext } from './fixture.ts';
  * A desk with posts can't be fixed here until agents can post (R6's posting).
  */
 
-/** The story's ID: a version 7 UUID of a fixed time (15 November 2026), not the market fixtures' prefix. */
-export const BOARD_FIXTURE_STORY = '01a1dd93-9880-7b3e-8c41-5d2a9f6e1b07';
+/** The story's ID: a version 7 UUID of a fixed time (15 November 2026), not the market fixtures' prefix; the console must never change it (`lib/social/fixture-ids.ts` names all three). */
+export { BOARD_FIXTURE_STORY, BOARD_MERGED_STORY, BOARD_WITHDRAWN_STORY };
 export const BOARD_FIXTURE_TITLE = 'Screen check: a test story kept on staging for the story page';
 const BOARD_FIXTURE_SUMMARY =
   "A test story for the sandbox's story page checks, on staging only. It is unlisted, so it never shows on the board, and made once by the screen check's admin test account.";
@@ -55,14 +60,12 @@ const MADE_AT = '2026-11-15T05:00:00.000Z';
 /** When the withdrawn and merged stories were changed to what they are: fixed, after they were made. */
 const CHANGED_AT = '2026-11-15T05:30:00.000Z';
 
-/** The withdrawn story: its ID (a version 7 UUID of a fixed time), its title and the reason its page gives. */
-export const BOARD_WITHDRAWN_STORY = '01a1df6a-7700-7b84-9d96-a275e4b16c5c';
+/** The withdrawn story's reason, which its page gives (its ID and the merged story's are in `lib/social/fixture-ids.ts`). */
 export const BOARD_WITHDRAWN_REASON = 'Withdrawn as a test: the kept story for the withdrawn page';
 const BOARD_WITHDRAWN_TITLE =
   'Screen check: a withdrawn test story kept on staging for the story page';
 
-/** The merged story: its ID and title. It was merged into the live story, so its address shows that one. */
-export const BOARD_MERGED_STORY = '01a1df85-ef40-7c95-ae07-b386f5c27d6d';
+/** The merged story's title. It was merged into the live story, so its address shows that one. */
 const BOARD_MERGED_TITLE = 'Screen check: a merged test story kept on staging for the story page';
 
 type Change = Record<string, unknown>;
