@@ -47,7 +47,10 @@ export const REDIS_WAIT_MS = 500;
 /** The door answers by this time, run finished or not. */
 export const DEADLINE_MS = 18_000;
 
-/** What pg_net waits for the door's answer: `timeout_milliseconds` in `social._call_job`. */
+/**
+ * What pg_net waits for the door's answer: `timeout_milliseconds` in `social._call_job` (a migration that is
+ * on `main` never changes, so this number is written here, not read from it).
+ */
 export const PG_NET_TIMEOUT_MS = 25_000;
 
 /**

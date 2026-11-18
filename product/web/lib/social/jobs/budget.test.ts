@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import type { Run } from '../access.ts';
 import {
@@ -51,16 +50,9 @@ describe('the minute run’s time', () => {
     }
   });
 
-  it('keeps the deadline under what pg_net waits, which is the number the database’s own call carries', () => {
+  it('keeps the deadline under what pg_net waits (25 s, as `social._call_job`’s migration writes `timeout_milliseconds`)', () => {
+    expect(PG_NET_TIMEOUT_MS).toBe(25_000);
     expect(DEADLINE_MS).toBeLessThan(PG_NET_TIMEOUT_MS);
-    const migration = readFileSync(
-      new URL(
-        '../../../../../infra/supabase/migrations/20261117194100_social.sql',
-        import.meta.url,
-      ),
-      'utf8',
-    );
-    expect(migration).toContain(`timeout_milliseconds := ${PG_NET_TIMEOUT_MS}`);
   });
 });
 
