@@ -67,6 +67,7 @@ const seeded = {
   merged: '',
   withdrawn: '',
   mergedIntoWithdrawn: '',
+  fresh: '',
   updateIds: [] as string[],
   postIds: [] as string[],
   handle: '',
@@ -107,11 +108,11 @@ function storyRecord(
   };
 }
 
-async function saveStory(record: Record<string, unknown>, listed: boolean | null) {
+/** Saves a story through `intake`, as the pipeline and the console do; `listed` undefined leaves it with no row of social's own. */
+async function saveStory(record: Record<string, unknown>, listed: boolean | undefined) {
   await owner.query('select intake.save_story($1::jsonb)', [JSON.stringify(record)]);
-  if (listed !== null) {
-    await owner.query("select social._list_story($1, $2, 'console', null)", [record.id, listed]);
-  }
+  if (listed === undefined) return;
+  await owner.query("select social._list_story($1, $2, 'console', null)", [record.id, listed]);
   await owner.query('select social._refresh_story($1)', [record.id]);
 }
 
@@ -221,6 +222,20 @@ beforeAll(async () => {
       },
     ),
     true,
+  );
+
+  // A story the pipeline saved less than a minute ago: saved by `intake` alone, with no row of social's own
+  // yet (the minute job lists it and recounts it on its next run).
+  seeded.fresh = newRecordId();
+  await saveStory(
+    storyRecord(
+      seeded.fresh,
+      `Board test ${run}: a story saved a moment ago`,
+      ['finance'],
+      ['global'],
+      2,
+    ),
+    undefined,
   );
 
   // Three updates of the first story, reported at different times.
@@ -401,6 +416,37 @@ describe.skipIf(!url)('the six reads over the real functions', () => {
     });
     expect(story).not.toHaveProperty('withdrawnReason');
     expect(resHeaders.get('Vercel-Cache-Tag')).toBe(`social:stories,social:story:${seeded.listed}`);
+  });
+
+  it('answers a story saved a moment ago, before the minute job has listed it: live, listed, no counts, and its other reads too', async () => {
+    const { api: called } = api();
+    const story = await called.social.stories.get({ id: seeded.fresh });
+    expect(social.storyDetail.parse(story)).toEqual(story);
+    expect(story).toMatchObject({
+      state: 'live',
+      id: seeded.fresh,
+      requestedId: null,
+      listed: true,
+      latestHeadline: null,
+      updates: [],
+      moreUpdates: false,
+      counts: { posts: 0, replies: 0, upvotes: 0, views: 0, uniqueViews: 0, pins: 0 },
+    });
+    await expect(called.social.stories.updates({ id: seeded.fresh })).resolves.toEqual({
+      updates: [],
+      next: null,
+    });
+    await expect(called.social.stories.posts({ id: seeded.fresh })).resolves.toEqual({
+      posts: [],
+      next: null,
+    });
+    const brief = await called.social.stories.brief({ id: seeded.fresh });
+    expect(brief.storyId).toBe(seeded.fresh);
+    expect(brief.markdown).toContain('a story saved a moment ago');
+    // It is on no board until the minute job lists it.
+    for (const sort of ['top', 'latest'] as const) {
+      expect((await wholeBoard({ sort })).map((tile) => tile.id)).not.toContain(seeded.fresh);
+    }
   });
 
   it('reads an unlisted story by its ID, as not listed', async () => {

@@ -1,9 +1,10 @@
 import { social } from '@hrizzup/api';
+import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import type { APIRequestContext } from '@playwright/test';
 import { newRecordId } from '../../lib/record-id.ts';
 import { describeApiOnly, expect, test } from '../support/api-only.ts';
 import { runKey } from '../support/run.ts';
-import { adminState } from '../support/states.ts';
+import { adminState, signedOutState } from '../support/states.ts';
 
 /**
  * Journey: the board's and the stories' six public reads (docs/social/build.md, sections 5 and 6; R5's
@@ -16,8 +17,10 @@ import { adminState } from '../support/states.ts';
  * - Then the purge, end to end: the story is read until the edge keeps it, a third update is saved
  *   through the console, and the story read is polled until it shows the update, well under the edge's
  *   own minute, so only the console save's purge can have made it fresh (and the same for the brief,
- *   whose Redis copy the save deletes). Where the address is not Vercel's (this Mac), nothing is kept
- *   at the edge, and the freshness is still asserted.
+ *   whose Redis copy the save deletes). The poll proves the purge, not the edge's own expiry: the old
+ *   copy's age, when the update shows, is under the minute it is kept for. Where the address is not
+ *   Vercel's (this Mac), nothing is kept at the edge, and the freshness is still asserted.
+ * - The same six reads are MCP tools (beta, public, no key), and the story tool answers the story.
  * Every record carries the run's own ID and key (support/run.ts), the story is unlisted so it stays off
  * the board, and nothing here lists a story or writes a setting: the settings and the board are shared.
  *
@@ -30,12 +33,16 @@ const onVercel = () => ['preview', 'staging', 'production'].includes(environment
 
 /** How long a console save may take to show on a read the edge had kept: far under the edge's own minute. */
 const PURGE_DEADLINE_MS = 40_000;
+/** How long the edge keeps a story read fresh (the contract's `edgeSeconds`). */
+const EDGE_SECONDS = 60;
 
 type Answer = {
   status: number;
   body: Record<string, unknown>;
   caching: string | undefined;
   edge: string | undefined;
+  /** Seconds the edge's copy had been kept (Vercel's `Age`), when it answered from one. */
+  age: number;
 };
 
 async function get(request: APIRequestContext, path: string): Promise<Answer> {
@@ -52,6 +59,7 @@ async function get(request: APIRequestContext, path: string): Promise<Answer> {
     body,
     caching: response.headers()['cache-control'],
     edge: response.headers()['x-vercel-cache'],
+    age: Number(response.headers().age ?? '0'),
   };
 }
 
@@ -69,10 +77,27 @@ async function save(request: APIRequestContext, path: string, data: unknown): Pr
     body,
     caching: response.headers()['cache-control'],
     edge: undefined,
+    age: 0,
   };
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** The standard `fetch`, carried by a Playwright request context (Vercel's bypass on a preview). */
+function fetchThrough(context: APIRequestContext): typeof fetch {
+  return async (input, init) => {
+    const headers = Object.fromEntries(new Headers(init?.headers).entries());
+    const response = await context.fetch(String(input), {
+      method: init?.method ?? 'GET',
+      headers,
+      ...(init?.body === undefined || init.body === null ? {} : { data: String(init.body) }),
+    });
+    return new Response(response.status() === 202 ? null : await response.text(), {
+      status: response.status(),
+      headers: response.headers(),
+    });
+  };
+}
 
 /** A story/1 record of the run's: an unlisted test story, made a minute ago. */
 function storyRecord(id: string, label: string, at: Date) {
@@ -126,6 +151,12 @@ describeApiOnly("the board's and the stories' reads", () => {
       ...(baseURL ? { baseURL } : {}),
       storageState: adminState(browserName),
     });
+    // Signed out, for the MCP client (Vercel's bypass cookie on a preview, and nothing else).
+    const anyone = await playwright.request.newContext({
+      ...(baseURL ? { baseURL } : {}),
+      storageState: signedOutState(browserName),
+    });
+    const clients: Client[] = [];
     try {
       const label = `run ${runKey()}, ${browserName}`;
       const storyId = newRecordId();
@@ -264,19 +295,27 @@ describeApiOnly("the board's and the stories' reads", () => {
       }
       expect((await get(request, '/api/v1/social/stories/not-an-id')).status).toBe(400);
 
-      // The purge, end to end. First the story is read until the edge keeps it (where there is an edge).
-      let kept = !onVercel();
-      for (let attempt = 0; onVercel() && attempt < 20 && !kept; attempt++) {
-        if (attempt > 0) await sleep(500);
-        const again = await get(request, `/api/v1/social/stories/${storyId}`);
-        expect(again.status).toBe(200);
-        kept = /^(HIT|STALE)$/.test(again.edge ?? '');
+      // The purge, end to end. First the story is read until the edge serves a copy (where there is an
+      // edge), and how old that copy is, and when, is noted: only a purge can show the save before that
+      // copy's own minute is up.
+      let primedAge = 0;
+      let primedAt = Date.now();
+      if (onVercel()) {
+        let kept = false;
+        for (let attempt = 0; attempt < 20 && !kept; attempt++) {
+          if (attempt > 0) await sleep(500);
+          const again = await get(request, `/api/v1/social/stories/${storyId}`);
+          expect(again.status).toBe(200);
+          kept = again.edge === 'HIT';
+          primedAge = again.age;
+          primedAt = Date.now();
+        }
+        expect(kept, 'the edge keeps the story read within seconds').toBe(true);
       }
-      expect(kept, 'the edge keeps the story read within seconds').toBe(true);
       test.info().annotations.push({
         type: 'edge',
         description: onVercel()
-          ? "The story read was kept at Vercel's edge before the save."
+          ? `The story read was served from Vercel's edge before the save, a copy ${primedAge} s old.`
           : 'No edge here: nothing was kept before the save.',
       });
 
@@ -303,11 +342,19 @@ describeApiOnly("the board's and the stories' reads", () => {
         if (shown[0] === thirdUpdate.id) break;
         await sleep(1000);
       }
-      const storySeenAfter = Date.now() - savedAt;
+      const shownAt = Date.now();
+      const storySeenAfter = shownAt - savedAt;
       expect(
         shown,
         `the third update shows within ${PURGE_DEADLINE_MS / 1000} seconds of the save`,
       ).toEqual([thirdUpdate.id, secondUpdate.id, firstUpdate.id]);
+      if (onVercel()) {
+        // Not the edge's own expiry: the copy the edge kept would still have been fresh when it showed.
+        expect(
+          primedAge + (shownAt - primedAt) / 1000,
+          "the save showed before the old copy's own minute was up, so the purge did it",
+        ).toBeLessThan(EDGE_SECONDS);
+      }
 
       // The updates read is tagged with the story too, and the brief: its Redis copy is deleted by the
       // save before the tags are purged, so the refresh the edge makes can't read the old file.
@@ -340,8 +387,48 @@ describeApiOnly("the board's and the stories' reads", () => {
         type: 'purge',
         description: `The story read showed the saved update ${(storySeenAfter / 1000).toFixed(1)} s after the save.`,
       });
+
+      // The same six reads are MCP tools, in beta and public: an AI tool with no key lists them, and
+      // the story tool answers the story as the API does (the answer is a choice of two shapes).
+      const client = new Client({ name: `hrizzup-journey-${browserName}`, version: '1.0.0' });
+      clients.push(client);
+      await client.connect(
+        new StreamableHTTPClientTransport(new URL(`${baseURL ?? ''}/api/v1/mcp`), {
+          fetch: fetchThrough(anyone),
+        }),
+      );
+      const listed = (await client.listTools()).tools;
+      for (const name of [
+        'social_lists',
+        'social_board',
+        'social_stories_get',
+        'social_stories_updates',
+        'social_stories_posts',
+        'social_stories_brief',
+      ]) {
+        const tool = listed.find((one) => one.name === name);
+        expect(tool, `${name} is a tool with no key`).toBeTruthy();
+        expect(tool?.description ?? '', name).toMatch(/^\(beta\) /);
+        expect(tool?.annotations, name).toMatchObject({ readOnlyHint: true });
+      }
+      const viaTool = await client.callTool({
+        name: 'social_stories_get',
+        arguments: { id: storyId },
+      });
+      expect(viaTool.isError, JSON.stringify(viaTool.content)).toBeFalsy();
+      const viaApi = social.storyDetail.parse(
+        (await get(request, `/api/v1/social/stories/${storyId}`)).body,
+      );
+      expect(social.storyDetail.parse(viaTool.structuredContent)).toEqual(viaApi);
+      const noStory = await client.callTool({
+        name: 'social_stories_get',
+        arguments: { id: newRecordId() },
+      });
+      expect(noStory.isError).toBe(true);
+      expect(JSON.stringify(noStory.content)).toContain('No such story');
     } finally {
-      await admin.dispose();
+      await Promise.all(clients.map((one) => one.close().catch(() => undefined)));
+      await Promise.all([admin.dispose(), anyone.dispose()]);
     }
   });
 });
