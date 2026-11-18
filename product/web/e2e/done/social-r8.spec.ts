@@ -67,11 +67,12 @@ import { sessionFor, stagingKeys } from '../support/test-accounts.ts';
  *    e2e/speed.ts, on both of those board addresses). If any of that fails, the story is withdrawn at once through the
  *    console's own save (as the admin test account, read back, with the console's page as the fallback), before
  *    the failure is thrown, so staging's board, which every pull request's checks read, is never left broken;
- * 7. at the end, whatever happened, the agent's keys are revoked (answering 200) and the folder is deleted. The story
- *    and its four posts stay, listed, for the founder to look at: he withdraws the story in the console. One line
- *    prints the story's sandbox address, the board's and Hrizzup's profile.
- * A run that fails before step 6 leaves the story listed and half filled (its posts so far): the founder withdraws it
- * in the console. Nothing is printed or logged that is a secret: a key, a claim link, an invite code or an upload
+ * 7. at the end, whatever happened, the agent's keys are revoked (answering 200) and the folder is deleted. A run that
+ *    passes leaves the story and its four posts listed, for the founder to look at: he withdraws the story in the
+ *    console. One line prints the story's sandbox address, the board's and Hrizzup's profile.
+ * A run that fails at any step after the story is made withdraws the story the same way (the console's save, read
+ * back, the console's page as the fallback) before the failure is thrown, so only a run that passes ever leaves a
+ * listed story on staging's board. Nothing is printed or logged that is a secret: a key, a claim link, an invite code or an upload
  * link is only ever checked as a shape or a presence, never compared, logged or put in a message; every request goes
  * through support/quiet-request.ts, which throws a new error naming only the method and the path, because a thrown
  * request's call log holds every header it sent (the PUT to an upload link, whose address holds a signature, is
@@ -999,6 +1000,19 @@ test("R8's done-test: an agent posts an image, a video and audio, Hrizzup posts 
     await readerPass('chromium', browser);
     await readerPass('webkit', must(engineWebkit, 'WebKit'));
     expect(spoke, "the board's speed was measured").toBe(true);
+  } catch (error) {
+    // Only a run that passes leaves its story listed: a failure at any step after the story was made withdraws it
+    // first (the same path as the board's safety, which may have done so already), then the failure is thrown.
+    if (storyId !== null && safety.withdrawn !== true) {
+      console.log(
+        'R8 done-test: the run failed, so the story is withdrawn before the failure is thrown',
+      );
+      safety.withdrawn = await withdrawStory();
+      console.log(
+        `R8 done-test: the story ${safety.withdrawn ? 'is withdrawn' : 'could NOT be withdrawn: withdraw it in the console'}`,
+      );
+    }
+    throw error;
   } finally {
     // The agent's keys are revoked, whatever step the run stopped at, so nothing of the run stays live.
     const revoked = await revokeAgentKeys(
@@ -1006,13 +1020,17 @@ test("R8's done-test: an agent posts an image, a video and audio, Hrizzup posts 
       noted,
       `Round 6's R8 done-test is over (${label})`,
     );
+    // A run whose keys could not be revoked has not passed: its story is withdrawn too.
+    if (revoked !== null && revoked !== 200 && storyId !== null && safety.withdrawn !== true) {
+      safety.withdrawn = await withdrawStory();
+    }
     await Promise.all([
       ...contexts.map((context) => context.close().catch(() => undefined)),
       engineWebkit?.close().catch(() => undefined),
       rm(folder, { recursive: true, force: true }).catch(() => undefined),
     ]);
     await Promise.all([anyone, admin, ...owners].map((context) => context.dispose()));
-    // The story and its posts stay in place, listed (unless the board's safety withdrew it): where to look.
+    // A run that passed leaves the story and its posts in place, listed (a run that failed withdrew it): where to look.
     if (storyId !== null) {
       console.log(
         `R8 done-test: the story ${BASE}/sandbox/social/stories/${storyId}, the board ${BASE}/sandbox/social${hrizzupHandle === null ? '' : ` and Hrizzup's profile ${BASE}/sandbox/social/agents/${hrizzupHandle}`}${safety.withdrawn === true ? ' (the story was withdrawn)' : ''}`,
