@@ -35,7 +35,16 @@ export function printedTime(time: string): string {
 type Node =
   | { kind: 'time' }
   | { kind: 'fields'; fields: readonly (readonly [string, Node])[] }
-  | { kind: 'each'; element: Node };
+  | { kind: 'each'; element: Node }
+  /**
+   * A discriminated union: the option is picked by the value's own `key` (a string or a number), and
+   * only the options that hold a time are listed. A value that picks none comes back as it is.
+   */
+  | {
+      kind: 'pick';
+      key: string;
+      options: readonly { values: readonly (string | number)[]; node: Node }[];
+    };
 
 /** What a schema holds: its tree (null when it holds no time), and what couldn't be read. */
 type Found = { node: Node | null; paths: string[]; unknown: string[] };
@@ -54,6 +63,10 @@ type Def = {
   element?: Schema;
   innerType?: Schema;
   options?: Schema[];
+  /** A discriminated union's field (zod's `z.discriminatedUnion`). */
+  discriminator?: string;
+  /** A literal's values. */
+  values?: readonly unknown[];
   valueType?: Schema;
   items?: Schema[];
   rest?: Schema | null;
@@ -125,6 +138,35 @@ function datetime(def: Def): { time: boolean; needsConverting: boolean } {
   };
 }
 
+/**
+ * The values each option of a discriminated union fixes its discriminator to, when the union is one this
+ * reads: every option an object whose discriminator field is a literal of strings or numbers, and no value
+ * fixed by two options. Null for any other union, which keeps the rule for a union without a discriminator.
+ */
+function discriminated(
+  key: string,
+  options: readonly Schema[],
+): { values: readonly (string | number)[]; option: Schema }[] | null {
+  const found: { values: readonly (string | number)[]; option: Schema }[] = [];
+  const seen = new Set<string | number>();
+  for (const option of options) {
+    const def = option._zod.def;
+    if (def.type !== 'object' || !def.shape) return null;
+    const tag = def.shape[key]?._zod.def;
+    if (tag?.type !== 'literal' || !Array.isArray(tag.values) || tag.values.length === 0) {
+      return null;
+    }
+    const values: (string | number)[] = [];
+    for (const value of tag.values) {
+      if ((typeof value !== 'string' && typeof value !== 'number') || seen.has(value)) return null;
+      seen.add(value);
+      values.push(value);
+    }
+    found.push({ values, option });
+  }
+  return found.length > 0 ? found : null;
+}
+
 function read(schema: Schema, prefix: string): Found {
   const def = schema._zod.def;
   const type = def.type ?? '';
@@ -180,6 +222,27 @@ function read(schema: Schema, prefix: string): Found {
     return { node: null, paths: [], unknown: [prefix] };
   }
 
+  // A discriminated union: each option is read on its own, and the value picks its option.
+  if (type === 'union' && typeof def.discriminator === 'string' && def.options) {
+    const tagged = discriminated(def.discriminator, def.options);
+    if (tagged) {
+      const options: { values: readonly (string | number)[]; node: Node }[] = [];
+      const paths: string[] = [];
+      const unknown: string[] = [];
+      for (const { values, option } of tagged) {
+        const inner = read(option, prefix);
+        if (inner.node) options.push({ values, node: inner.node });
+        for (const path of inner.paths) if (!paths.includes(path)) paths.push(path);
+        for (const part of inner.unknown) if (!unknown.includes(part)) unknown.push(part);
+      }
+      return {
+        node: options.length > 0 ? { kind: 'pick', key: def.discriminator, options } : null,
+        paths,
+        unknown,
+      };
+    }
+  }
+
   // These hold no time when nothing inside them does; if something does, it isn't read.
   const inside: Schema[] = [];
   if (type === 'union') inside.push(...(def.options ?? []));
@@ -227,6 +290,18 @@ export function timePlan(schema: unknown): TimePlan {
   return { paths: [...paths], unknown: [...unknown] };
 }
 
+/**
+ * The option a value picks by its own discriminator, or null: the value isn't an object, its discriminator
+ * is missing or isn't a string or a number, or no option (that holds a time) fixes it to that value.
+ */
+function picked(node: Extract<Node, { kind: 'pick' }>, value: unknown): Node | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  if (!Object.hasOwn(value, node.key)) return null;
+  const tag = (value as Record<string, unknown>)[node.key];
+  if (typeof tag !== 'string' && typeof tag !== 'number') return null;
+  return node.options.find((option) => option.values.includes(tag))?.node ?? null;
+}
+
 function mapNode(node: Node, value: unknown, fn: (time: string) => string): unknown {
   switch (node.kind) {
     case 'time':
@@ -240,6 +315,10 @@ function mapNode(node: Node, value: unknown, fn: (time: string) => string): unkn
         if (Object.hasOwn(copy, key)) copy[key] = mapNode(inner, copy[key], fn);
       }
       return copy;
+    }
+    case 'pick': {
+      const option = picked(node, value);
+      return option ? mapNode(option, value, fn) : value;
     }
   }
 }
@@ -281,6 +360,11 @@ function collect(
         if (Object.hasOwn(value, key))
           collect(inner, (value as Record<string, unknown>)[key], join(path, key), into);
       }
+      return;
+    }
+    case 'pick': {
+      const option = picked(node, value);
+      if (option) collect(option, value, path, into);
     }
   }
 }

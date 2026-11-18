@@ -311,6 +311,25 @@ describe('one story', () => {
     expect(resHeaders.get('Vercel-CDN-Cache-Control')).toBeNull();
   });
 
+  it('leaves its times exactly as the database wrote them: the printer of the market API’s times is not social’s', async () => {
+    const written = {
+      created_at: '2026-11-03T10:15:00.123456Z',
+      latest_at: '2026-11-04T05:20:00Z',
+    };
+    const row = storyRow(written) as { updates: { reported_at: string }[] };
+    row.updates = row.updates.map((update, n) => ({
+      ...update,
+      reported_at: n === 0 ? '2026-11-03T03:50:00.5Z' : update.reported_at,
+    }));
+    answer = () => row;
+    const { api: called } = api();
+    const story = await called.social.stories.get({ id: SURVIVOR });
+    if (story.state !== 'live') throw new Error('The story is live');
+    expect(story.createdAt).toBe('2026-11-03T10:15:00.123456Z');
+    expect(story.latestAt).toBe('2026-11-04T05:20:00Z');
+    expect(story.updates[0]?.reportedAt).toBe('2026-11-03T03:50:00.5Z');
+  });
+
   it('stays a 500 for a state the database never answers (a story is never answered as merged)', async () => {
     answer = () => storyRow({ state: 'merged' });
     const { api: called } = api();
