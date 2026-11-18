@@ -54,6 +54,7 @@ export function callText(c: Call): string {
       fields(variant.when ? `Body, when ${variant.when}:` : 'Body (JSON):', variant.fields),
     ),
     fields('Answers:', c.answers),
+    ...(c.answerForms ?? []).map((form) => fields(`Answers, ${form.label}:`, form.fields)),
     c.errors.length
       ? `Errors:\n\n${c.errors.map((e) => `- ${e.status} \`${e.code}\`: ${e.message}`).join('\n')}`
       : '',

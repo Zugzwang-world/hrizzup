@@ -41,6 +41,9 @@ export function CallEntry({ call }: { call: Call }) {
         />
       ))}
       <Fields heading="Answers" fields={call.answers} />
+      {(call.answerForms ?? []).map((form) => (
+        <Fields key={form.label} heading={`Answers, ${form.label}`} fields={form.fields} />
+      ))}
       {call.errors.length > 0 && (
         <div className="min-w-0">
           <h2 className="text-xl font-semibold">Errors</h2>

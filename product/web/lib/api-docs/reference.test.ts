@@ -144,3 +144,104 @@ describe('a call in beta', () => {
     expect(callText(other as NonNullable<typeof other>)).not.toMatch(/beta/i);
   });
 });
+
+describe('a call whose answer is a choice of shapes', () => {
+  const some = (schema: object) => ({
+    '200': { content: { 'application/json': { schema } } },
+  });
+  const object = (properties: object, required: string[] = []) => ({
+    type: 'object',
+    properties,
+    required,
+  });
+  const small = (answer: object): Document => ({
+    info: { title: 'Small', version: '1.0.0', description: '' },
+    servers: [{ url: 'https://example.test/api/v1' }],
+    paths: { '/thing': { get: { operationId: 'thing.get', responses: some(answer) } } },
+    components: { schemas: {} },
+  });
+
+  it('lists one set of fields for each shape of the real story read, labelled by its fixed `state`', () => {
+    const story = call('social.stories.get');
+    // The choice sits at the top, so there is no single list of fields.
+    expect(story.answers).toEqual([]);
+    expect(story.answerForms?.map((form) => form.label)).toEqual([
+      'when state is "live"',
+      'when state is "withdrawn"',
+    ]);
+    const [live, withdrawn] = story.answerForms ?? [];
+    expect(live?.fields.map((field) => field.name)).toEqual(
+      expect.arrayContaining([
+        'title',
+        'counts.posts',
+        'state',
+        'requestedId',
+        'listed',
+        'updates[].headline',
+        'moreUpdates',
+      ]),
+    );
+    expect(withdrawn?.fields.map((field) => field.name)).toEqual([
+      'id',
+      'state',
+      'withdrawnReason',
+      'requestedId',
+    ]);
+    expect(withdrawn?.fields.find((field) => field.name === 'state')?.kind).toBe('"withdrawn"');
+  });
+
+  it('says each shape in the text for AI tools, under its own heading', () => {
+    const text = callText(call('social.stories.get'));
+    expect(text).toContain('Answers, when state is "live":\n\n- `id`: a UUID');
+    expect(text).toContain(
+      'Answers, when state is "withdrawn":\n\n- `id`: a UUID\n- `state`: "withdrawn"',
+    );
+    expect(text).not.toMatch(/^Answers:/m);
+    expect(fullText()).toContain(text);
+  });
+
+  it('numbers the shapes when no field is fixed to tell them apart, and leaves out a null one', () => {
+    const [thing] = callsOf(
+      small({
+        anyOf: [
+          object({ a: { type: 'string' } }, ['a']),
+          object({ b: { type: 'integer' } }),
+          { type: 'null' },
+        ],
+      }),
+    );
+    expect(thing?.answers).toEqual([]);
+    expect(thing?.answerForms).toEqual([
+      { label: 'option 1', fields: [{ name: 'a', kind: 'text', required: true }] },
+      { label: 'option 2', fields: [{ name: 'b', kind: 'a whole number', required: false }] },
+    ]);
+    expect(callText(thing as NonNullable<typeof thing>)).toContain(
+      'Answers, option 2:\n\n- `b` (optional): a whole number',
+    );
+  });
+
+  it('reads a `oneOf` the same, and an answer of one shape not at all differently', () => {
+    const [chosen] = callsOf(
+      small({
+        oneOf: [
+          object({ kind: { const: 'a' }, x: { type: 'string' } }),
+          object({ kind: { const: 'b' }, y: { type: 'string' } }),
+        ],
+      }),
+    );
+    expect(chosen?.answerForms?.map((form) => form.label)).toEqual([
+      'when kind is "a"',
+      'when kind is "b"',
+    ]);
+    const [plain] = callsOf(small(object({ ok: { type: 'boolean' } }, ['ok'])));
+    expect(plain?.answers).toEqual([{ name: 'ok', kind: 'true or false', required: true }]);
+    expect('answerForms' in (plain ?? {})).toBe(false);
+  });
+
+  it('is only the story read: every other call keeps its one list, with no shapes added', () => {
+    expect(calls.filter((c) => c.answerForms).map((c) => c.id)).toEqual(['social.stories.get']);
+    for (const c of calls) {
+      if (c.id !== 'social.stories.get') expect('answerForms' in c, c.id).toBe(false);
+    }
+  });
+});
