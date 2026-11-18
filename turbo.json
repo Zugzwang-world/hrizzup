@@ -25,6 +25,8 @@
         "package.json",
         "tsconfig.json",
         "vitest.config.ts",
+        "scheduled_jobs.py",
+        "perps_jobs.py",
         "$TURBO_ROOT$/infra/slots/slots.py",
         "$TURBO_ROOT$/agreement/definitions/**",
         "$TURBO_ROOT$/agreement/examples/**",

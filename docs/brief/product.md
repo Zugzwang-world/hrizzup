@@ -2,7 +2,7 @@
 
 **This brief replaces Claude Code's report:** read it after **Sync now** instead of asking the founder for one, and attach the files under "Read for detail" from GitHub for more.
 
-> Rewritten 18 November 2026 by Round 6's relay R16, Scheduled jobs and records, in its M3 ([#166](https://github.com/Zugzwang-world/hrizzup/pull/166)), keeping R3's and R4's updates. PLAN.md wins any disagreement.
+> Rewritten 18 November 2026 by Round 6's relay R16, Scheduled jobs and records, at its end ([#175](https://github.com/Zugzwang-world/hrizzup/pull/175)), keeping R3's to R6's updates. PLAN.md wins any disagreement.
 
 **Hrizzup** is a news app built around creators, plus a website with play-money prediction markets: our AI finds news as it breaks on X and turns it into developing stories. **Product builds** the website and the app (the website a stage ahead), the markets, the public API for bots and AI tools, and now social, where AI agents post their takes on every story; it shows Sourcing's stories through the content store's tables, in the hand-over agreement's shapes (`agreement/README.md`, first half Agreed).
 
@@ -20,7 +20,7 @@
 - **R4 Leftovers and faster checks:** done. `GET /me/orders` shows closed markets ([#145](https://github.com/Zugzwang-world/hrizzup/pull/145), [#147](https://github.com/Zugzwang-world/hrizzup/pull/147)); the market page's first-run Speed warning fixed ([#149](https://github.com/Zugzwang-world/hrizzup/pull/149)); the stand-in seed retired ([#146](https://github.com/Zugzwang-world/hrizzup/pull/146), [#148](https://github.com/Zugzwang-world/hrizzup/pull/148)); the faster-checks research ([#150](https://github.com/Zugzwang-world/hrizzup/pull/150)); Next 16.4.6 ([#152](https://github.com/Zugzwang-world/hrizzup/pull/152)); the two flaky database tests ([#154](https://github.com/Zugzwang-world/hrizzup/pull/154)); your six cuts ([#156](https://github.com/Zugzwang-world/hrizzup/pull/156), [#158](https://github.com/Zugzwang-world/hrizzup/pull/158), [#159](https://github.com/Zugzwang-world/hrizzup/pull/159), [#162](https://github.com/Zugzwang-world/hrizzup/pull/162), [#164](https://github.com/Zugzwang-world/hrizzup/pull/164), [#165](https://github.com/Zugzwang-world/hrizzup/pull/165)). For the founder: nothing to decide.
 - **R5 Board, stories and the console:** in progress. M0: social's published calls and MCP tools follow each call's live mark, [#167](https://github.com/Zugzwang-world/hrizzup/pull/167). M1: the board, a story with its updates, its desk and its brief readable by anyone, kept at the edge and refreshed at once by the console's saves, [#170](https://github.com/Zugzwang-world/hrizzup/pull/170). M2: the minute job lists, recounts and refreshes what changed, [#172](https://github.com/Zugzwang-world/hrizzup/pull/172). Next: the console's calls and pages, the sandbox's board and story pages. For the founder: nothing yet.
 - **R6 Join and first post:** in progress, side by side with R5, no migration. M6.1: posting keys work in the API and MCP (a posting key never trades; agent tools show only to it), with R6's design note, [#168](https://github.com/Zugzwang-world/hrizzup/pull/168). Next: the join (`/skill.md`, registration, the claim, the owner's keys; M6.2), then the check-in, pins, posts and profiles (M6.3), then the example agent and the proof (M6.4). Then Review 1, the founder's. For the founder: nothing yet.
-- **R16 Scheduled jobs and records** (a side relay in Phase 1, beside R5, R6 and R10): in progress. M3, your three decisions recorded ([#166](https://github.com/Zugzwang-world/hrizzup/pull/166)); M2, every time the API prints has three decimals ([#169](https://github.com/Zugzwang-world/hrizzup/pull/169)); next M1 (scheduled jobs re-saved and checked after every database change; the cause found). For the founder: one step (below).
+- **R16 Scheduled jobs and records** (a side relay in Phase 1, beside R5, R6 and R10): done. M3, your three decisions recorded ([#166](https://github.com/Zugzwang-world/hrizzup/pull/166)); M2, every time the API prints has three decimals ([#169](https://github.com/Zugzwang-world/hrizzup/pull/169)); M1, the scheduled jobs reloaded and checked after every database change ([#175](https://github.com/Zugzwang-world/hrizzup/pull/175)). For the founder: one step (below).
 - **R7 to R15:** not started (Phases 2 to 4, the reviews, the closing record).
 - **Carried, unnumbered:** the market page (3.1), then the perp's page (3.4c), and the board (2.1), each when the design chat approves its design; live updates for bots (3.5e), later.
 
@@ -35,7 +35,7 @@
 
 ## What changed in the latest session
 
-**R16 recorded your three decisions of 18 November** ([#166](https://github.com/Zugzwang-world/hrizzup/pull/166)): the database-only skip, the advisor's moments, and your yes to social's six questions; the role files changed (For the founder). **Then every time the API prints got exactly three decimals** ([#169](https://github.com/Zugzwang-world/hrizzup/pull/169)): one printer in the API's output layer, finding times only by each call's declared shape, so free text never changes; HTTP and MCP alike; the database, the contract and every call's shape unchanged. Social's beta calls print as before until they're locked into v1 (open question).
+**R16 finished:** your three decisions recorded ([#166](https://github.com/Zugzwang-world/hrizzup/pull/166)); every time the API prints has three decimals, set in its one output layer, shapes unchanged ([#169](https://github.com/Zugzwang-world/hrizzup/pull/169)); and **scheduled jobs now start reliably** ([#175](https://github.com/Zugzwang-world/hrizzup/pull/175)). The cause, found and reproduced: the version of Supabase Cron that Supabase runs (pg_cron 1.6.4) misses new jobs when one database change is very large, as social's was; it's fixed in pg_cron 1.6.8, which only Supabase can ship. So after every push the Staging workflow re-saves every job and fails, naming the job, if one that runs every minute or faster hasn't run within three minutes; the release pipeline does the same at launch. A test on a real database proves both the heal and the failure.
 
 ## Open questions
 
@@ -44,12 +44,12 @@ One line each; the detail, and the rest, are in the status file.
 - **The agreement's market/2** (before 3.3). Recommendation: an optional `result_probability`, drafted together with briefs' key-numbers field if Sourcing's pipeline design is ready by then, so the first half changes once.
 - **Social's times, three decimals too** (R16, M2): social's beta calls still print the database's form, since two relays are building them now. Recommendation: R14 adds them to the printer when it locks social into v1 (and says so in the MCP instructions); no database change.
 - **A package's tests don't re-run when a package it uses changes** (R16's review): Turbo replays them from cache. Recommendation: `dependsOn: ["transit"]` on `test`, as `bundle-size` does.
-- **Supabase Cron can miss a migration's new schedules** (R3): social's new jobs didn't run on staging until re-saved; cause unknown; R3's setup script heals and detects it for social. Recommendation: as R16's M1 is doing, re-save every job after migrations and check the every-minute ones run.
 - **Also in the status file:** editing a request's existing forms within v1; pg_net's grants; node-forge in the Expo tool only; Vercel Pro's function billing; Vercel's toolbar; sign-ups waiting for the house; the Hermes rewrite; shared code.
 
 ## For the founder
 
 - **Update `~/hrizzup` before Phase 2's sessions start** (R16 changed the role files, which new sessions read from it): in Terminal, `cd ~/hrizzup && git pull`, once R16's M3 has merged. Nothing else.
+- **For information, at your next release:** the release now re-saves production's scheduled jobs and waits up to three minutes for the frequent ones to run (step 4d, R16). If it stops there, production's site is unchanged; start the release once more, and tell this chat if it stops again.
 - **For information:** a red "Screen check" on a commit a newer push replaced is expected; only the newest commit merges.
 - **Create the public repository `hrizzup-skills` on GitHub before Phase 2** (R10 fills it). Recommendation: under your account, public, empty (no README), MIT licence, so R10's first pull request sets it up.
 - **The Workers AI token before Phase 3** (R12). Recommendation: a Cloudflare API token limited to Workers AI, into Doppler `stg` once Claude Code has listed its name; it gives you the clicks when R12 nears. The free 10,000 neurons a day are per Cloudflare account, so at launch production's reader agent should use an account of its own.
@@ -60,7 +60,7 @@ One line each; the detail, and the rest, are in the status file.
 
 ## What's next
 
-R5 and R6 side by side, with R16 beside them (M1 and M2), then Review 1 (R4 is done; the Speed check and App journeys move to more machines when their tallies reach five clean comparisons, TRACKER's queue rows). Then Phases 2 to 4, each from your review; R15 closes the round. Carried: the screens (3.1, 3.4c, 2.1) once designed; the topics (1.2); market/2 before 3.3; the stream (3.5e) later.
+R5 and R6 side by side (R16 is done), then Review 1 (R4 is done; the Speed check and App journeys move to more machines when their tallies reach five clean comparisons, TRACKER's queue rows). Then Phases 2 to 4, each from your review; R15 closes the round. Carried: the screens (3.1, 3.4c, 2.1) once designed; the topics (1.2); market/2 before 3.3; the stream (3.5e) later.
 
 ## Read for detail
 

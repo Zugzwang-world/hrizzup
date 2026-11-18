@@ -8,6 +8,10 @@
 #      fills in the password, as production's release pipeline does).
 #   2. Check that every table of ours is still locked (row-level security), and that the
 #      markets' books have no problem (infra/supabase/checks/books_balance.sql).
+#   2c. Make Supabase Cron reload every scheduled job, and check that the jobs that run every
+#      minute or faster really run (infra/supabase/scheduled_jobs.py reload): a push whose
+#      commit sends over 4,096 cache messages can make the scheduler skip a job change
+#      (docs/research/cron-missed-jobs.md). It fails, naming the job, if one hasn't run.
 #   3. Move the `staging` branch to this commit (only this workflow can: ruleset
 #      "staging"). Vercel's custom environment "staging" follows that branch.
 #   4. Ask Vercel to build it, through the deploy hook "Staging workflow" (it builds the
@@ -106,6 +110,12 @@ jobs:
           PGSSLMODE: verify-full
           PGSSLROOTCERT: infra/supabase/supabase-root-2021-ca.crt
         run: python3 infra/supabase/database_url.py run session -- sh -c 'psql "$DATABASE_ADDRESS" -q -v ON_ERROR_STOP=1 -f infra/supabase/checks/books_balance.sql'
+
+      - name: 2c. Reload the scheduled jobs and check that they run
+        env:
+          PGSSLMODE: verify-full
+          PGSSLROOTCERT: infra/supabase/supabase-root-2021-ca.crt
+        run: python3 infra/supabase/database_url.py run session -- python3 infra/supabase/scheduled_jobs.py reload staging
 
       - name: 3. Move the staging branch to this commit
         env:

@@ -32,6 +32,11 @@
 #      only, legacy keys off; region, compute, Data API off) (infra/supabase/project).
 #   4. The commit's database changes (migrations), then every table checked locked and the
 #      markets' books checked (infra/supabase/checks/books_balance.sql).
+#   4d. Then every scheduled job reloaded and the jobs that run every minute or faster checked
+#      to have run (infra/supabase/scheduled_jobs.py reload): a push whose commit sends over
+#      4,096 cache messages can make Supabase Cron skip a job change
+#      (docs/research/cron-missed-jobs.md). Like the key checks, this script comes from this
+#      workflow's own commit, so a released commit from before it still gets it. Releases only.
 #   5. Sign-in settings (infra/supabase/auth) and storage settings (infra/cloudflare/r2),
 #      applied and read back; Redis checked (infra/upstash); the Vercel project checked
 #      against the repo, with autoAssignCustomDomains still off (infra/vercel, --check).
@@ -154,6 +159,20 @@ jobs:
           mkdir -p "$RUNNER_TEMP/key-checks"
           git archive "$WORKFLOW_COMMIT" infra/doppler | tar -x -C "$RUNNER_TEMP/key-checks"
 
+      # The scheduled jobs' reload (step 4d) is this workflow's own commit's too: the commit being
+      # released may predate it. Taken the way the key checks are (the checkout above fetched every
+      # commit, so this workflow's own is there), into a folder of its own, never over the
+      # released commit's files. Its PGSSLROOTCERT, set in 4d, is what perps_jobs.py would
+      # otherwise look for beside itself, so these two files are enough.
+      - name: The scheduled jobs' reload, from this workflow's own commit
+        if: inputs.action == 'release'
+        env:
+          WORKFLOW_COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/job-checks"
+          git archive "$WORKFLOW_COMMIT" infra/supabase/scheduled_jobs.py infra/supabase/perps_jobs.py | tar -x -C "$RUNNER_TEMP/job-checks"
+
       - name: 1. The commit is on main and passed staging
         env:
           GH_TOKEN: ${{ github.token }}
@@ -251,6 +270,13 @@ jobs:
           PGSSLMODE: verify-full
           PGSSLROOTCERT: infra/supabase/supabase-root-2021-ca.crt
         run: python3 infra/supabase/database_url.py run session -- sh -c 'psql "$DATABASE_ADDRESS" -q -v ON_ERROR_STOP=1 -f infra/supabase/checks/books_balance.sql'
+
+      - name: 4d. Reload the scheduled jobs and check that they run
+        if: inputs.action == 'release'
+        env:
+          PGSSLMODE: verify-full
+          PGSSLROOTCERT: infra/supabase/supabase-root-2021-ca.crt
+        run: python3 infra/supabase/database_url.py run session -- python3 "$RUNNER_TEMP/job-checks/infra/supabase/scheduled_jobs.py" reload production
 
       - name: 5. Sign-in and storage settings; Redis and the Vercel project checked
         if: inputs.action == 'release'
