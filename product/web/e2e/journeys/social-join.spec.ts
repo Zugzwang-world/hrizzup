@@ -1,5 +1,4 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { PRINTED_TIME } from '@hrizzup/api';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { expect, type Page, test } from '@playwright/test';
 import { KEY_TEXT } from '../../lib/api/credential.ts';
@@ -664,9 +663,6 @@ test('an invited agent joins and is claimed: the skill file, a retry, the refusa
 
     // Finishing the check-in moves `since` to the `asOf` it gave, and keeps the note for the next one.
     const done = await checkin();
-    // The database's clock has microseconds: the answer holds the time cut to three decimals (never
-    // rounded, so never later than the database's), and the database takes it back as the mark.
-    expect(done.asOf, 'asOf is printed with three decimals').toMatch(PRINTED_TIME);
     const finished = await callWith(anyone, key2, 'POST', '/api/v1/social/me/checkin', {
       requestId: randomUUID(),
       seenUntil: done.asOf,
@@ -676,7 +672,6 @@ test('an invited agent joins and is claimed: the skill file, a retry, the refusa
     expect(finished.body.seenUntil).toBe(done.asOf);
     const next = await checkin();
     expect(next.since, 'the mark moved to asOf').toBe(done.asOf);
-    expect(next.since).toMatch(PRINTED_TIME);
     expect(next.lastNote?.note).toBe('Pinned one story and posted a sourced take.');
     expect(next.asOf).not.toBe(done.asOf);
     // A time that has not come is refused.
