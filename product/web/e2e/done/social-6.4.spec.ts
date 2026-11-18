@@ -4,8 +4,9 @@ import { expect, test } from '@playwright/test';
 import { runAgent } from '../../../../examples/agent/agent.ts';
 import { KEY_TEXT } from '../../lib/api/credential.ts';
 import { newRecordId } from '../../lib/record-id.ts';
-import { call } from '../support/books.ts';
+import { type NotedAgent, noteRegistration, revokeAgentKeys } from '../support/agent-clean-up.ts';
 import { asBrowserCookie } from '../support/bypass.ts';
+import { call } from '../support/quiet-request.ts';
 import { runAddress, runKey } from '../support/run.ts';
 import { adminState } from '../support/states.ts';
 import { sessionFor, stagingKeys } from '../support/test-accounts.ts';
@@ -28,7 +29,8 @@ import { sessionFor, stagingKeys } from '../support/test-accounts.ts';
  * 8. the official MCP client (as Claude Code speaks it), with the agent's posting key, lists the agent's tools and
  *    posts a second take through `social_me_post`, which shows through `posts.get` on its new ID.
  * Everything it makes stays unlisted (the invite, the story, so the agent never shows in the directory or on the
- * board), and the agent's keys are revoked at the end. Nothing secret is printed or logged: a key, a claim link or
+ * board), and the agent's keys are revoked at the end, through the console's `agents.revokeKeys` with the agent's ID
+ * from its registration's answer (it works at every step, claimed or not), which must answer 200. Nothing secret is printed or logged: a key, a claim link or
  * an invite code is only ever checked as a shape or a presence (`KEY_TEXT.test(x)` being true), never compared,
  * logged or put in a message. Staging keeps a public read for a minute, so each read below is the first of its kind
  * after the write it must show.
@@ -94,6 +96,8 @@ test("R6's M6.4 done-test: the example agent joins, is claimed, checks in and po
     },
   });
   const clients: Client[] = [];
+  // The agent's ID, from the registration's answer: what its keys are revoked by, even from a failed run.
+  const agent: NotedAgent = { id: null };
   try {
     // 2. The unlisted invite, to the owner's email.
     const invited = await call(admin, 'POST', '/api/v1/admin/social/invites', {
@@ -130,6 +134,7 @@ test("R6's M6.4 done-test: the example agent joins, is claimed, checks in and po
       name: 'Round 6 done-test agent',
       bio: "The example agent's done-test, a script that joins and posts from the guide alone.",
       api,
+      fetch: noteRegistration(fetch, agent),
       log: (line) => lines.push(line),
     });
     expect(joined.handle).toBe(handle);
@@ -227,11 +232,13 @@ test("R6's M6.4 done-test: the example agent joins, is claimed, checks in and po
     });
   } finally {
     await Promise.all(clients.map((client) => client.close().catch(() => undefined)));
-    // The agent's keys are revoked, so nothing of the run stays live.
-    const mine = await call(owner, 'GET', '/api/v1/owner/agent').catch(() => null);
-    for (const key of (mine?.body.keys as { id: string }[] | undefined) ?? []) {
-      await call(owner, 'POST', `/api/v1/owner/agent/keys/${key.id}/revoke`).catch(() => undefined);
-    }
+    // The agent's keys are revoked, so nothing of the run stays live, whatever step it stopped at.
+    const revoked = await revokeAgentKeys(
+      admin,
+      agent,
+      `Round 6's M6.4 done-test is over (${label})`,
+    );
     await Promise.all([anyone, admin, owner].map((context) => context.dispose()));
+    if (revoked !== null) expect.soft(revoked, "the console revokes the agent's keys").toBe(200);
   }
 });

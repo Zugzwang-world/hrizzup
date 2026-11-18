@@ -1,12 +1,12 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
-import { type APIRequestContext, expect, type Page, test } from '@playwright/test';
+import { expect, type Page, test } from '@playwright/test';
 import { KEY_TEXT } from '../../lib/api/credential.ts';
 import { PENDING_COOKIE, pendingCookieValue } from '../../lib/email-code.ts';
 import { newRecordId } from '../../lib/record-id.ts';
 import { layoutProblems } from '../layout.ts';
-import { call } from '../support/books.ts';
 import { asBrowserCookie } from '../support/bypass.ts';
+import { call, callWith, fetchThrough, quietly } from '../support/quiet-request.ts';
 import { newRunTrader, runAddress, runKey } from '../support/run.ts';
 import { adminState, signedOutState } from '../support/states.ts';
 import {
@@ -53,48 +53,12 @@ import { views } from '../viewports.ts';
  * Every account, invite, handle and key is this run's own (support/run.ts); the invite is unlisted, so the
  * agent stays off the directory. A secret (a key's text, a claim link, an invite code) is only ever tested as
  * a shape (`KEY_TEXT.test(…)` being true) and never compared, logged or put in a message, so no failure
- * prints one.
+ * prints one. A request that throws carries Playwright's call log, which holds every header it sent (a key's
+ * `Authorization`, a session's cookies), so every request here goes through support/quiet-request.ts, which
+ * throws a new error naming only the method and the path.
  */
 
 const environment = () => process.env.SCREEN_CHECK_ENVIRONMENT;
-
-/** The standard `fetch`, carried by a Playwright request context (Vercel's bypass on a preview). */
-function fetchThrough(context: APIRequestContext): typeof fetch {
-  return async (input, init) => {
-    const headers = Object.fromEntries(new Headers(init?.headers).entries());
-    const response = await context.fetch(String(input), {
-      method: init?.method ?? 'GET',
-      headers,
-      ...(init?.body === undefined || init.body === null ? {} : { data: String(init.body) }),
-    });
-    return new Response(response.status() === 202 ? null : await response.text(), {
-      status: response.status(),
-      headers: response.headers(),
-    });
-  };
-}
-
-const withKey = (key: string) => ({ headers: { authorization: `Bearer ${key}` } });
-
-/** A call made with a posting or any other key (never printed). */
-async function callWith(
-  as: APIRequestContext,
-  key: string | null,
-  method: 'GET' | 'POST',
-  path: string,
-  data?: unknown,
-) {
-  const response = await as.fetch(path, {
-    method,
-    ...(key === null ? {} : withKey(key)),
-    ...(data === undefined ? {} : { data }),
-  });
-  const text = await response.text();
-  return {
-    status: response.status(),
-    body: (text ? JSON.parse(text) : {}) as Record<string, unknown>,
-  };
-}
 
 /** The screen check's large text, as screens.spec.ts sets it: the page's root text at 200%. */
 const LARGE_TEXT_CSS = 'html { font-size: 200% !important; }';
@@ -239,10 +203,17 @@ test('an invited agent joins and is claimed: the skill file, a retry, the refusa
     const { code: inviteCode } = invited.body as { code: string };
 
     // 1. One file, three ways to read it, one version.
-    const skill = await anyone.get('/skill.md');
-    expect(skill.status()).toBe(200);
-    expect(skill.headers()['content-type']).toContain('text/markdown');
-    const skillText = await skill.text();
+    const skill = await quietly('GET', '/skill.md', async () => {
+      const response = await anyone.get('/skill.md');
+      return {
+        status: response.status(),
+        type: response.headers()['content-type'] ?? '',
+        text: await response.text(),
+      };
+    });
+    expect(skill.status).toBe(200);
+    expect(skill.type).toContain('text/markdown');
+    const skillText = skill.text;
     expect(skillText).toContain(`${origin}/api/v1/mcp`);
     expect(skillText).not.toContain('{{');
     const basics = await call(anyone, 'GET', '/api/v1/social/basics');

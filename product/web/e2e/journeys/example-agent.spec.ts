@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import type { APIRequestContext } from '@playwright/test';
 import { runAgent } from '../../../../examples/agent/agent.ts';
 import { KEY_TEXT } from '../../lib/api/credential.ts';
 import { newRecordId } from '../../lib/record-id.ts';
+import { type NotedAgent, noteRegistration, revokeAgentKeys } from '../support/agent-clean-up.ts';
 import { describeApiOnly, expect, test } from '../support/api-only.ts';
-import { call } from '../support/books.ts';
+import { call, callWith, fetchThrough } from '../support/quiet-request.ts';
 import { newRunTrader, runKey } from '../support/run.ts';
 import { adminState, signedOutState } from '../support/states.ts';
 import { type Engine, stagingKeys } from '../support/test-accounts.ts';
@@ -21,12 +21,16 @@ import { type Engine, stagingKeys } from '../support/test-accounts.ts';
  * 4. `runAgent` checks in with that story set: it pins it, posts a sourced take on it and finishes the check-in.
  * 5. The post shows (`posts.get`, `agents.posts`, with the story's own update and source), the pin is listed, and
  *    the finished check-in moved `since` to where it left off.
+ * 6. However it ends, the agent's keys are revoked through the console's live call (`agents.revokeKeys`), which
+ *    answers 200: no key of the run stays live.
  *
  * It only calls the API and never opens a page, so it is tagged `@api-only` and runs once, in Chromium (support/api-only.ts).
  * The run's log is kept, never printed, and a secret (a key's text, a claim link, an invite code) is only ever tested
- * as a shape or a presence (a boolean), never compared, logged or put in a message, so no failure prints one. Every
- * account, invite, handle, story and key is this run's own (support/run.ts); the invite is unlisted, so the agent stays
- * off the directory.
+ * as a shape or a presence (a boolean), never compared, logged or put in a message, so no failure prints one. A
+ * request that throws carries Playwright's call log, which holds every header it sent (the key's `Authorization`
+ * included), so every request here goes through support/quiet-request.ts, which throws a new error naming only the
+ * method and the path. Every account, invite, handle, story and key is this run's own (support/run.ts); the invite
+ * is unlisted, so the agent stays off the directory.
  */
 
 const environment = () => process.env.SCREEN_CHECK_ENVIRONMENT;
@@ -60,42 +64,6 @@ function updateRecord(id: string, storyId: string, label: string, at: Date) {
     state: 'live',
     created_at: now,
     updated_at: now,
-  };
-}
-
-/** The standard `fetch`, carried by a Playwright request context (Vercel's bypass on a preview). */
-function fetchThrough(context: APIRequestContext): typeof fetch {
-  return async (input, init) => {
-    const headers = Object.fromEntries(new Headers(init?.headers).entries());
-    const response = await context.fetch(String(input), {
-      method: init?.method ?? 'GET',
-      headers,
-      ...(init?.body === undefined || init.body === null ? {} : { data: String(init.body) }),
-    });
-    return new Response(response.status() === 202 ? null : await response.text(), {
-      status: response.status(),
-      headers: response.headers(),
-    });
-  };
-}
-
-/** A call made with a key (never printed). */
-async function callWith(
-  as: APIRequestContext,
-  key: string,
-  method: 'GET' | 'POST',
-  path: string,
-  data?: unknown,
-) {
-  const response = await as.fetch(path, {
-    method,
-    headers: { authorization: `Bearer ${key}` },
-    ...(data === undefined ? {} : { data }),
-  });
-  const text = await response.text();
-  return {
-    status: response.status(),
-    body: (text ? JSON.parse(text) : {}) as Record<string, unknown>,
   };
 }
 
@@ -134,6 +102,9 @@ describeApiOnly('the example agent', () => {
     });
     // The owner: a fresh account of this run's, whose email the invite goes to.
     const owner = await newRunTrader(keys, playwright, baseURL, engine, 'agent');
+    // The agent's ID, from the registration's answer: what its keys are revoked by, even from a failed run.
+    const agent: NotedAgent = { id: null };
+    const through = noteRegistration(fetchThrough(anyone), agent);
     try {
       // 1. The invite, unlisted, to the owner's email.
       const invited = await call(admin, 'POST', '/api/v1/admin/social/invites', {
@@ -156,7 +127,7 @@ describeApiOnly('the example agent', () => {
         name: 'Example agent journey',
         bio: 'A script that joins and posts from the guide alone.',
         api,
-        fetch: fetchThrough(anyone),
+        fetch: through,
         log: (line) => lines.push(line),
       });
       expect(joined.handle).toBe(handle);
@@ -241,7 +212,15 @@ describeApiOnly('the example agent', () => {
       expect(lines.some((line) => line.includes(joined.key))).toBe(false);
       expect(lines.some((line) => line.includes(joined.claimUrl))).toBe(false);
     } finally {
+      // The agent's keys are revoked, whatever happened (it works before a claim too), so no key of the run
+      // stays live. A refusal fails the test after the clean-up, without hiding what failed first.
+      const revoked = await revokeAgentKeys(
+        admin,
+        agent,
+        `The example agent journey is over (${label})`,
+      );
       await Promise.all([admin.dispose(), anyone.dispose(), owner.as.dispose()]);
+      if (revoked !== null) expect.soft(revoked, "the console revokes the agent's keys").toBe(200);
     }
   });
 });
