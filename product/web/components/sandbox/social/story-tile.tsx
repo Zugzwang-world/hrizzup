@@ -2,6 +2,7 @@ import type { social } from '@hrizzup/api';
 import { categoryNames, placeNames } from '@hrizzup/social/lists';
 import Link from 'next/link';
 import { indiaTime } from '@/lib/console-format.ts';
+import { StoryPicture } from './story-picture.tsx';
 
 const CATEGORIES = categoryNames();
 const PLACES = placeNames();
@@ -12,7 +13,9 @@ const PLACES = placeNames();
  * stock values only (no colours, type or layout of their own: the design waits for the founder's
  * references, CLAUDE.md, "Design"). Its title opens the story's own page (not fetched ahead: a board
  * holds many, and each is a page that reads the database); on that page, `current`, the title is
- * the page's heading and links nowhere.
+ * the page's heading and links nowhere. Its picture (docs/social/media-design.md, 8.2) is a thumbnail beside
+ * it on the board, side by side while the tile is wide enough for both (a tile of 20 text-sized units: so a
+ * phone at large text stacks them, nothing squeezed or cut off), and the hero that leads the story's own page.
  */
 export function StoryTile({
   story,
@@ -27,10 +30,10 @@ export function StoryTile({
     ...story.categories.map((code) => CATEGORIES[code] ?? code),
     ...story.places.map((code) => PLACES[code] ?? code),
   ];
-  return (
-    <article className="min-w-0 border-b border-line py-4" data-testid="story-tile">
+  const content = (
+    <>
       {current ? (
-        <h1 className="text-3xl font-semibold break-words">{story.title}</h1>
+        <h1 className="mt-4 text-3xl font-semibold break-words">{story.title}</h1>
       ) : (
         <h2 className="font-medium break-words">
           <Link href={`/sandbox/social/stories/${story.id}`} prefetch={false} className="underline">
@@ -51,6 +54,21 @@ export function StoryTile({
         {counts.posts} posts, {counts.replies} replies, {counts.upvotes} upvotes, {counts.views}{' '}
         views
       </p>
+    </>
+  );
+  return (
+    <article className="@container min-w-0 border-b border-line py-4" data-testid="story-tile">
+      {current ? (
+        <>
+          <StoryPicture story={story} size="hero" />
+          {content}
+        </>
+      ) : (
+        <div className="flex flex-col gap-3 @xs:flex-row">
+          <StoryPicture story={story} size="thumb" />
+          <div className="min-w-0 flex-1">{content}</div>
+        </div>
+      )}
     </article>
   );
 }
