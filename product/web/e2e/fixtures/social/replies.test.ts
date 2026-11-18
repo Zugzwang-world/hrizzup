@@ -1,10 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
+import { KEPT_STORY_IDS, KEPT_UPDATE_IDS } from '../../../lib/social/fixture-ids.ts';
 import { AGENT_FIXTURE_HANDLE } from './agents.ts';
 import { BOARD_FIXTURE_STORY } from './board.ts';
 import {
   ensureRepliesFixture,
   REPLIES_FIXTURE_KEY_NAME,
   REPLIES_FIXTURE_REQUESTS,
+  REPLIES_FIXTURE_STALE_MS,
   REPLIES_FIXTURE_STORY,
   REPLIES_FIXTURE_UPDATE,
   REPLIES_FIXTURE_WORDS,
@@ -33,6 +35,10 @@ const ANSWER_ID = '5c0e0a22-0f00-4000-8000-0000000000b2';
 const ADD_ID = '5c0e0a22-0f00-4000-8000-0000000000b3';
 const PUSH_BACK_ID = '5c0e0a22-0f00-4000-8000-0000000000b4';
 const NEW_KEY_REQUEST = '5c0e0a22-0f00-4000-8000-0000000000c1';
+/** The moment the fake clock starts at in the tests about a key's age: keys carry the server's `createdAt`. */
+const START = Date.parse('2026-11-18T08:00:00.000Z');
+/** A key's `createdAt`, this many milliseconds before the clock's start. */
+const madeAgo = (ms: number) => new Date(START - ms).toISOString();
 
 type Sent = { method: string; path: string; headers: Record<string, string>; body: unknown };
 type Answer = [number, unknown?];
@@ -97,8 +103,8 @@ function site(queued: Record<string, Answer[]> = {}, keys: unknown[] = []) {
 }
 
 /** A clock the waiting moves, and a sleep that only moves it. */
-function clock() {
-  let at = 0;
+function clock(start = 0) {
+  let at = start;
   const sleep = vi.fn(async (ms: number) => {
     at += ms;
   });
@@ -129,14 +135,97 @@ describe('the thread fixture', () => {
     for (const id of ids) expect(id).toMatch(/^[0-9a-f-]{36}$/);
   });
 
-  it('is done at once when the desk lists the agent’s post with two replies at its top level: two reads, nothing written', async () => {
-    const { fake, sent } = site({ [`GET ${DESK}`]: [MADE_DESK] });
-    await ensureRepliesFixture(CONTEXT, { fetch: fake, ...clock() });
-    expect(calls(sent)).toEqual([`GET ${DESK}`, `GET ${THREAD}`]);
-    // Both are read signed out: the bypass for a protected preview stays, the session does not.
-    for (const call of sent) {
+  it('is done at once when the desk lists the agent’s post with two replies at its top level: the reads and the keys listing, nothing written', async () => {
+    const { fake, sent } = site({ [`GET ${DESK}`]: [MADE_DESK] }, [
+      { id: OTHER_KEY_ID, name: REPLIES_FIXTURE_KEY_NAME, createdAt: madeAgo(5_000) },
+    ]);
+    await ensureRepliesFixture(CONTEXT, { fetch: fake, ...clock(START) });
+    expect(calls(sent)).toEqual([`GET ${DESK}`, `GET ${THREAD}`, 'GET /api/v1/owner/agent/keys']);
+    // The desk and the thread are read signed out: the bypass for a protected preview stays, the session does not.
+    for (const call of sent.slice(0, 2)) {
       expect(call.headers).toEqual({ 'x-vercel-protection-bypass': 'bypass-value' });
     }
+    // The keys are listed as the admin, who owns the agent.
+    expect(sent[2]?.headers.cookie).toBe('session=admin');
+  });
+
+  it('when it is done still revokes a key a cancelled run left behind (older than 60 seconds), and only that', async () => {
+    const { fake, sent } = site({ [`GET ${DESK}`]: [MADE_DESK] }, [
+      { id: STALE_KEY_ID, name: REPLIES_FIXTURE_KEY_NAME, createdAt: madeAgo(120_000) },
+      { id: OTHER_KEY_ID, name: 'a key someone made', createdAt: madeAgo(120_000) },
+    ]);
+    await ensureRepliesFixture(CONTEXT, { fetch: fake, ...clock(START) });
+    expect(calls(sent)).toEqual([
+      `GET ${DESK}`,
+      `GET ${THREAD}`,
+      'GET /api/v1/owner/agent/keys',
+      `POST /api/v1/owner/agent/keys/${STALE_KEY_ID}/revoke`,
+    ]);
+    expect(sent[3]?.body).toEqual({});
+    expect(sent[3]?.headers.cookie).toBe('session=admin');
+  });
+
+  it('never revokes a key of its name that is not more than 60 seconds old: it is another run’s, partway', async () => {
+    expect(REPLIES_FIXTURE_STALE_MS).toBe(60_000);
+    const keys = [
+      { id: KEY_ID, name: REPLIES_FIXTURE_KEY_NAME, createdAt: madeAgo(0) },
+      { id: OTHER_KEY_ID, name: REPLIES_FIXTURE_KEY_NAME, createdAt: madeAgo(10_000) },
+      { id: STALE_KEY_ID, name: REPLIES_FIXTURE_KEY_NAME, createdAt: madeAgo(60_000) },
+      // A moment ahead of this machine's clock (the server's is not exactly ours), and not a time at all.
+      { id: ADD_ID, name: REPLIES_FIXTURE_KEY_NAME, createdAt: madeAgo(-30_000) },
+      { id: ASK_ID, name: REPLIES_FIXTURE_KEY_NAME, createdAt: 'not a time' },
+      { id: ANSWER_ID, name: REPLIES_FIXTURE_KEY_NAME },
+    ];
+    for (const done of [true, false]) {
+      const { fake, sent } = site(done ? { [`GET ${DESK}`]: [MADE_DESK] } : {}, keys);
+      await ensureRepliesFixture(CONTEXT, { fetch: fake, ...clock(START) });
+      const revoked = calls(sent).filter((name) => name.endsWith('/revoke'));
+      // The made-new pass revokes its own new key, and nothing else.
+      expect(revoked, done ? 'found done' : 'made new').toEqual(
+        done ? [] : [`POST /api/v1/owner/agent/keys/${KEY_ID}/revoke`],
+      );
+    }
+  });
+
+  it('revokes a key of its name once it is more than 60 seconds old, not before', async () => {
+    const { fake, sent } = site({ [`GET ${DESK}`]: [MADE_DESK] }, [
+      { id: STALE_KEY_ID, name: REPLIES_FIXTURE_KEY_NAME, createdAt: madeAgo(60_001) },
+      { id: OTHER_KEY_ID, name: REPLIES_FIXTURE_KEY_NAME, createdAt: madeAgo(59_999) },
+    ]);
+    await ensureRepliesFixture(CONTEXT, { fetch: fake, ...clock(START) });
+    expect(calls(sent).filter((name) => name.endsWith('/revoke'))).toEqual([
+      `POST /api/v1/owner/agent/keys/${STALE_KEY_ID}/revoke`,
+    ]);
+  });
+
+  it('fails a found fixture when its keys cannot be listed, naming the step only; and waits again when another run is partway', async () => {
+    const refused = site({ [`GET ${DESK}`]: [MADE_DESK], 'GET /api/v1/owner/agent/keys': [[503]] });
+    const failure = await ensureRepliesFixture(CONTEXT, {
+      fetch: refused.fake,
+      ...clock(START),
+    }).catch((error: unknown) => error as Error);
+    expect((failure as Error).message).toBe("The thread fixture's keys answered 503");
+    const partway = site({
+      [`GET ${DESK}`]: [MADE_DESK, MADE_DESK],
+      'GET /api/v1/owner/agent/keys': [[429]],
+    });
+    const world = clock(START);
+    await ensureRepliesFixture(CONTEXT, { fetch: partway.fake, ...world });
+    expect(world.sleep).toHaveBeenCalledExactlyOnceWith(5000);
+  });
+
+  it('keeps the story and update it saves in the console’s kept lists, so no one changes them', async () => {
+    const { fake, sent } = site();
+    await ensureRepliesFixture(CONTEXT, { fetch: fake, ...clock() });
+    const record = (path: string) =>
+      (sent.find((call) => call.path === path)?.body as { record?: { id?: string } } | undefined)
+        ?.record?.id;
+    const story = record('/api/v1/admin/social/stories');
+    const update = record('/api/v1/admin/social/updates');
+    expect(story).toBe(REPLIES_FIXTURE_STORY);
+    expect(update).toBe(REPLIES_FIXTURE_UPDATE);
+    expect(KEPT_STORY_IDS.has(story ?? '')).toBe(true);
+    expect(KEPT_UPDATE_IDS.has(update ?? '')).toBe(true);
   });
 
   it('is not done for a desk without the agent’s post, or a post with one reply: it makes what is missing', async () => {
@@ -224,10 +313,10 @@ describe('the thread fixture', () => {
 
   it('revokes a stale key of its own name first, never another key', async () => {
     const { fake, sent } = site({}, [
-      { id: STALE_KEY_ID, name: REPLIES_FIXTURE_KEY_NAME },
-      { id: OTHER_KEY_ID, name: 'a key someone made' },
+      { id: STALE_KEY_ID, name: REPLIES_FIXTURE_KEY_NAME, createdAt: madeAgo(90_000) },
+      { id: OTHER_KEY_ID, name: 'a key someone made', createdAt: madeAgo(90_000) },
     ]);
-    await ensureRepliesFixture(CONTEXT, { fetch: fake, ...clock() });
+    await ensureRepliesFixture(CONTEXT, { fetch: fake, ...clock(START) });
     const names = calls(sent);
     const stale = names.indexOf(`POST /api/v1/owner/agent/keys/${STALE_KEY_ID}/revoke`);
     expect(stale).toBeGreaterThan(-1);
@@ -248,6 +337,54 @@ describe('the thread fixture', () => {
     expect((failure as Error).message).toBe("The thread fixture's post answered 500");
     expect(calls(sent).at(-1)).toBe(`POST /api/v1/owner/agent/keys/${KEY_ID}/revoke`);
     expect((failure as Error).message).not.toContain(SECRET);
+  });
+
+  it('revokes a key that was made but came back without its text, then fails naming the step only', async () => {
+    for (const answer of [
+      { key: { id: KEY_ID, name: REPLIES_FIXTURE_KEY_NAME } },
+      { key: { id: KEY_ID }, secret: 7 },
+    ]) {
+      const { fake, sent } = site({ 'POST /api/v1/owner/agent/keys': [[201, answer]] });
+      const failure = await ensureRepliesFixture(CONTEXT, { fetch: fake, ...clock() }).catch(
+        (error: unknown) => error as Error,
+      );
+      expect((failure as Error).message).toBe("The thread fixture's key gave no key");
+      const names = calls(sent);
+      expect(names.at(-1)).toBe(`POST /api/v1/owner/agent/keys/${KEY_ID}/revoke`);
+      expect(names.filter((name) => name.endsWith('/revoke'))).toHaveLength(1);
+      // Nothing was written with it.
+      expect(names.some((name) => name.startsWith('POST /api/v1/social/me'))).toBe(false);
+    }
+  });
+
+  it('with no key ID in a key-less answer there is nothing to revoke; and a revoke that fails there never hides the failure', async () => {
+    const none = site({ 'POST /api/v1/owner/agent/keys': [[201, {}]] });
+    const first = await ensureRepliesFixture(CONTEXT, { fetch: none.fake, ...clock() }).catch(
+      (error: unknown) => error as Error,
+    );
+    expect((first as Error).message).toBe("The thread fixture's key gave no key");
+    expect(calls(none.sent).some((name) => name.endsWith('/revoke'))).toBe(false);
+    for (const revoke of [[500, { message: `leaks ${SECRET}` }] as Answer, undefined]) {
+      const { fake } = site({
+        'POST /api/v1/owner/agent/keys': [[201, { key: { id: KEY_ID } }]],
+        ...(revoke === undefined
+          ? {}
+          : { [`POST /api/v1/owner/agent/keys/${KEY_ID}/revoke`]: [revoke] }),
+      });
+      const world =
+        revoke === undefined
+          ? ((async (input: URL | RequestInfo, init?: RequestInit) => {
+              if (String(input).endsWith('/revoke'))
+                throw new Error(`connect failed for ${SECRET}`);
+              return fake(input, init);
+            }) as typeof fetch)
+          : fake;
+      const failure = await ensureRepliesFixture(CONTEXT, { fetch: world, ...clock() }).catch(
+        (error: unknown) => error as Error,
+      );
+      expect((failure as Error).message).toBe("The thread fixture's key gave no key");
+      expect((failure as Error).message).not.toContain(SECRET);
+    }
   });
 
   it('fails the pass when its own revoke answers anything but 200 or 404, so a key left live is seen', async () => {

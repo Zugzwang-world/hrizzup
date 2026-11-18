@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { REPLIES_FIXTURE_STORY, REPLIES_FIXTURE_UPDATE } from '../../../lib/social/fixture-ids.ts';
 import { AGENT_FIXTURE_HANDLE } from './agents.ts';
 import type { SocialFixture, SocialFixtureContext } from './fixture.ts';
 
@@ -8,18 +9,24 @@ import type { SocialFixture, SocialFixtureContext } from './fixture.ts';
  * so the screen and speed checks have a real desk with a post, its replies and their counts to open
  * (`e2e/pages/social/replies.ts`, M3).
  *
- * - **What it holds:** R7's own unlisted test story (`REPLIES_FIXTURE_STORY`) with one update, and on it one
+ * - **What it holds:** R7's own unlisted test story (`REPLIES_FIXTURE_STORY`, named with its update in
+ *   `lib/social/fixture-ids.ts`, so the console never changes them) with one update, and on it one
  *   sourced text post by the fixture agent `screen_check_v1` and four replies: an `ask` under the post, an
  *   `answer` under the ask, an `add` under the answer (the third level, so the desk shows "Replies to this")
  *   and a `push-back` under the post. R5's board fixture keeps its empty desk: this is another story.
  * - **How it is made:** the story and its update are saved as the console's admin test account, unlisted. The
  *   admin owns the fixture agent (the agents fixture claimed it), so it lists the agent's keys, revokes every
- *   live one named `screen-check-thread` (left by a run that stopped), and makes one. With that key the agent
- *   posts and replies, each with a fixed request ID, so a retry, or another run at the same moment, replays a
- *   step and never repeats it. The key is revoked in a `finally`, whatever happened; a revoke that answers
- *   anything but 200 or 404 fails the pass (never masking an earlier failure), so a key left live is seen.
+ *   live one named `screen-check-thread` that is more than 60 seconds old (left by a run that stopped; a younger
+ *   one is another run's, partway: a pass takes about 10 seconds), and makes one. The agent keeps its
+ *   registration key, so only one `screen-check-thread` key is live at a time; a run that comes during
+ *   another's pass is refused a key (422) and waits and starts again. With that key the agent posts and
+ *   replies, each with a fixed request ID, so a retry, or another run at the same moment, replays a step and
+ *   never repeats it. The key is revoked in a `finally`, whatever happened; a revoke that answers anything but
+ *   200 or 404 fails the pass (never masking an earlier failure), so a key left live is seen. A key made
+ *   without its text being readable is revoked before the pass fails.
  * - **When it is done:** a signed-out read of the story's desk lists a post by the agent whose top level holds
- *   two replies. Nothing is written then.
+ *   two replies. No story, post or reply is written then; only a key left behind (more than 60 seconds old, by
+ *   a run that was cancelled) is revoked, so it never stays live.
  * - **A step another run is in the middle of** (401 a key revoked under it, 404 nothing there yet, 409 a save
  *   at the same moment, 429 a limit; and, making the key only, 422 the agent's two keys in use) waits 5 seconds
  *   and starts again from the top, for up to 90 seconds; then it throws, saying what each step last answered.
@@ -27,12 +34,15 @@ import type { SocialFixture, SocialFixtureContext } from './fixture.ts';
  *   names the step and the status, never an answer.
  */
 
-/** R7's unlisted test story: a version 7 UUID of the fixtures' own prefix, which nothing else uses. */
-export const REPLIES_FIXTURE_STORY = '019a6c00-0000-7000-8000-0000000000c1';
-/** Its one update. */
-export const REPLIES_FIXTURE_UPDATE = '019a6c00-0000-7000-8000-0000000000c2';
+/** R7's unlisted test story and its one update: named in `lib/social/fixture-ids.ts`, which the console's kept lists read. */
+export { REPLIES_FIXTURE_STORY, REPLIES_FIXTURE_UPDATE };
 /** The name of the key the fixture makes: a stale one is found by it. */
 export const REPLIES_FIXTURE_KEY_NAME = 'screen-check-thread';
+/**
+ * How old a key of that name must be (more than this, in milliseconds) before a run revokes it as left behind. A
+ * pass takes about 10 seconds, so a younger key is another run's, partway, and is never touched.
+ */
+export const REPLIES_FIXTURE_STALE_MS = 60_000;
 
 /** Each write's request ID: fixed, so a second run replays a step and never repeats it. */
 export const REPLIES_FIXTURE_REQUESTS = {
@@ -200,10 +210,44 @@ export async function ensureRepliesFixture(
     return { done: replies.length >= 2 };
   }
 
+  /**
+   * Revokes the agent's keys of the fixture's name that were left behind: those made more than a minute ago. A
+   * younger one is another run's, partway through its pass, and stays. False when another run is partway; it
+   * throws on any other refusal.
+   */
+  async function revokeLeftBehind(): Promise<boolean> {
+    const listed = await call('keys', '/api/v1/owner/agent/keys', headers);
+    if (partway('keys', listed)) return false;
+    if (listed.status !== 200) throw refused('keys', listed);
+    const at = now();
+    const stale = (
+      ((await jsonOf(listed))?.keys ?? []) as {
+        id?: unknown;
+        name?: unknown;
+        createdAt?: unknown;
+      }[]
+    )
+      .filter(
+        (key) =>
+          key.name === REPLIES_FIXTURE_KEY_NAME &&
+          typeof key.id === 'string' &&
+          typeof key.createdAt === 'string' &&
+          at - Date.parse(key.createdAt) > REPLIES_FIXTURE_STALE_MS,
+      )
+      .map((key) => String(key.id));
+    for (const id of stale) {
+      const gone = await call('revoke', `/api/v1/owner/agent/keys/${id}/revoke`, headers, {});
+      if (partway('revoke', gone)) return false;
+      if (gone.status !== 200) throw refused('revoke', gone);
+    }
+    return true;
+  }
+
   /** One pass from step 1: whether the fixture is there at the end. A step another run is in the middle of answers "not yet". */
   async function pass(): Promise<boolean> {
     const found = await lookup();
-    if (found !== 'no-story' && found.done) return true;
+    // Made already: nothing is written, but a key a cancelled run left behind is still cleared.
+    if (found !== 'no-story' && found.done) return revokeLeftBehind();
 
     const story = await call('story', '/api/v1/admin/social/stories', headers, {
       record: storyRecord(),
@@ -221,18 +265,9 @@ export async function ensureRepliesFixture(
       throw refused('update', update);
     }
 
-    // The admin owns the agent: a key left by a run that stopped is revoked first, then one of this pass's own.
-    const listed = await call('keys', '/api/v1/owner/agent/keys', headers);
-    if (partway('keys', listed)) return false;
-    if (listed.status !== 200) throw refused('keys', listed);
-    const stale = (((await jsonOf(listed))?.keys ?? []) as { id?: unknown; name?: unknown }[])
-      .filter((key) => key.name === REPLIES_FIXTURE_KEY_NAME && typeof key.id === 'string')
-      .map((key) => String(key.id));
-    for (const id of stale) {
-      const gone = await call('revoke', `/api/v1/owner/agent/keys/${id}/revoke`, headers, {});
-      if (partway('revoke', gone)) return false;
-      if (gone.status !== 200) throw refused('revoke', gone);
-    }
+    // The admin owns the agent: a key left by a run that stopped is revoked first (never a young one: it is
+    // another run's, and the 422 below makes this one wait), then one of this pass's own.
+    if (!(await revokeLeftBehind())) return false;
     const made = await call('key', '/api/v1/owner/agent/keys', headers, {
       requestId: newId(),
       name: REPLIES_FIXTURE_KEY_NAME,
@@ -243,6 +278,13 @@ export async function ensureRepliesFixture(
     const keyId = (body?.key as { id?: unknown } | undefined)?.id;
     const secret = body?.secret;
     if (typeof keyId !== 'string' || typeof secret !== 'string') {
+      // A key that was made but can't be used is revoked before the pass fails, so it never stays live; the
+      // failure is the key's, whatever the revoke answers.
+      if (typeof keyId === 'string') {
+        await call('revoke', `/api/v1/owner/agent/keys/${keyId}/revoke`, headers, {}).catch(
+          () => undefined,
+        );
+      }
       throw new Error("The thread fixture's key gave no key");
     }
 

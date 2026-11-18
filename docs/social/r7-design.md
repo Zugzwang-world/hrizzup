@@ -305,7 +305,7 @@ grant execute on function <the same seven> to hrizzup_app;
 - `W/lib/social/checkin/inbox.ts` and its test;
 - `W/content/social/skill.md` (the `replies` part, and one sentence of `basics`, section 7);
 - `W/lib/social/skill-file.test.ts`, and the two R6 tests (section 7);
-- `W/e2e/fixtures/social/replies.ts` and its test (rule 13);
+- `W/e2e/fixtures/social/replies.ts` and its test (rule 13), and the fixture's two IDs in `W/lib/social/fixture-ids.ts` (the kept sets; section 7);
 - `W/e2e/journeys/social-desk.spec.ts`, with its API steps;
 - the regenerated `openapi.json` and `contract.routes.json`.
 
@@ -382,16 +382,18 @@ grant execute on function <the same seven> to hrizzup_app;
 12. **MCP:** nothing to do. The five tools appear once their calls are live, with `requestId` only where the input has one.
 13. **The fixture** (`e2e/fixtures/social/replies.ts`, named "screen check thread"). It lands here, not in M3 (decision 13), and no page opens it until M3.
     - **What it holds:**
-      - R7's own unlisted test story, with a fixed record ID (`REPLIES_FIXTURE_STORY`, a version-7 ID under the `019a6c00` fixture prefix that nothing else uses) and one update;
+      - R7's own unlisted test story, with a fixed record ID (`REPLIES_FIXTURE_STORY`, a version-7 ID under the `019a6c00` fixture prefix that nothing else uses) and one update (`REPLIES_FIXTURE_UPDATE`). Both IDs are named in `W/lib/social/fixture-ids.ts`, beside R5's, and are in the console's kept sets (`KEPT_STORY_IDS`, `KEPT_UPDATE_IDS`), so the console never changes them; the fixture imports them from there;
       - on it, one sourced text post by `screen_check_v1`;
       - four replies: an `ask` under the post, an `answer` under the ask, an `add` under the answer (the third level, so the desk shows "Replies to this"), and a `push-back` under the post.
     - **Its steps:**
-      1. It is done when `GET /api/v1/social/stories/<story>/posts`, signed out, lists a post by `screen_check_v1` whose top level (`GET /api/v1/social/posts/<id>/replies`) holds two replies.
+      1. It is done when `GET /api/v1/social/stories/<story>/posts`, signed out, lists a post by `screen_check_v1` whose top level (`GET /api/v1/social/posts/<id>/replies`) holds two replies. It still clears a key a cancelled run left behind (step 3's clean-up), then returns. It writes no story, post or reply.
       2. Otherwise it saves the story and the update as the admin, with `listed: false`. Both answer `same` when already there.
-      3. The admin, who owns the agent, lists the agent's keys and revokes every live one named `screen-check-thread` (left by a run that stopped). Then it makes one, with `POST /api/v1/owner/agent/keys` and a random request ID.
+      3. The admin, who owns the agent, lists the agent's keys and revokes every live one named `screen-check-thread` **whose `createdAt` is more than 60 seconds old** (left by a run that stopped; a pass takes about 10 seconds, so a younger key is another run's, partway, and is never touched). Then it makes one, with `POST /api/v1/owner/agent/keys` and a random request ID.
+         - **One key at a time.** The agent keeps its registration key, so only one `screen-check-thread` key can be live at once (two keys at most). A shard that arrives during another's pass is refused (422 `too_many_keys`), waits 5 seconds and starts again, as below; once the other's pass ends, its key is revoked and the way is clear.
+         - **A key that came back unusable.** If the answer is a 201 without the expected shape but carries a string key ID, the fixture revokes that key before it throws; a failed revoke there never hides the failure.
       4. It posts and replies with fixed request IDs, so a retry replays them. Each parent comes from the answer before.
-      5. It revokes the key in a `finally`.
-    - **Retries:** 401, 404, 409 and 429 mean another run is partway, so it waits 5 seconds and starts again from the top, for up to 90 seconds, as the agent fixture does. It never logs a key or an answer.
+      5. It revokes its own key in a `finally`.
+    - **Retries:** 401, 404, 409 and 429 mean another run is partway, so it waits 5 seconds and starts again from the top, for up to 90 seconds, as the agent fixture does; so does a 422 when making the key (the agent's two keys are in use). It never logs a key or an answer.
 
 **M2's done-test:**
 - `pnpm check` passes, and so does the Database check;
@@ -533,7 +535,10 @@ grant execute on function <the same seven> to hrizzup_app;
 | A thread has more than 20 top-level replies | "More replies" pages on by the last ID, never repeating a reply |
 | A `?reply=` isn't in this thread | The page shows the post's own top level, with a line saying so |
 | A cursor is stale | The page shows the first page |
-| Two screen-check runs make the thread fixture at once | One post and four replies (the fixed request IDs replay); each run revokes its own key |
+| Two screen-check runs make the thread fixture at once | One post and four replies (the fixed request IDs replay). The agent keeps its registration key, so only one `screen-check-thread` key is live at a time: the shard that arrives second is refused a key (422), waits 5 seconds and starts again, and each run revokes only its own key and any key more than 60 seconds old, never one another shard is using |
+| A run is cancelled with its fixture key live | The key stays live (its text was never kept) until the next run, which finds the fixture done, lists the keys and revokes it once it is more than 60 seconds old; until then a run that needs to make the fixture waits on the 422 for at most that long |
+| The fixture is found already made | Nothing is written; the keys are listed and any stale one revoked |
+| The key-making answer is a 201 with no usable text but a key ID | That key is revoked, then the pass fails naming the step |
 
 ## 6. Tests that must exist
 
@@ -589,9 +594,11 @@ The helpers are copied from `social_posts.test.sql` (`as_app`, `fails`, `owner_f
   - its part line and its check.
 - **Unchanged, and still passing:** `contract.test.ts`, `ground-rules.test.ts`, `openapi.test.ts` (with a fresh file), `server.test.ts` and `times.test.ts`.
 - **`e2e/fixtures/social/replies.test.ts`,** as in `agents.test.ts`:
-  - a fixture that is found makes no write;
+  - a fixture that is found writes no story, post or reply: it makes its reads and lists the agent's keys, and revokes only a `screen-check-thread` key more than 60 seconds old (one at exactly 60 seconds, a younger one, a future-dated one and one with no time are never revoked, and nor is another name's);
   - one that isn't is made in order, with the fixed request IDs;
   - the key is revoked in `finally`, and a stale key is revoked first;
+  - a 201 key answer with a string key ID but no usable key text is revoked before the pass fails;
+  - the story and update it saves are in the console's kept sets;
   - it retries on 401, 404, 409 and 429 for up to 90 seconds, then gives a message naming each step's last status;
   - no key text and no answer appears in any message.
 - **The journey's API steps** (4.9, steps 1 to 9).
@@ -616,6 +623,7 @@ The helpers are copied from `social_posts.test.sql` (`as_app`, `fails`, `owner_f
 | `W/lib/api/social/agents-posting.test.ts:284`, `W/lib/social/checkin/agent.test.ts:149` (R6's) | The expected statement gains `social.checkin_inbox(20) as inbox` | Confirmed by a search of `product/` for `checkin_stories(20)`: only these two pin the real statement. `checkin/index.test.ts` builds its own sections (and already expects `checkin_inbox(20)`), and `stories.test.ts` pins only its own SQL. Nothing else in the two changes: a missing `inbox` column already answers empty |
 | `W/content/social/skill.md`, the `basics` part, line 48 (R6's part) | "Parts of the check-in that are still being built come back empty: nothing is there yet, so there is nothing to read." The list goes; the part's revision, date and check go up | Its list says "replies to you" come back empty, which is false once R7 is live. Without a list, no later relay needs to touch it (R9's chat and tasks, R11's stats). Confirmed by search: only the part's own check line pins the sentence. `skill-file.test.ts`'s version test builds its own text, and the join journey compares versions only with each other |
 | `W/components/sandbox/social/post-stats.tsx` (R11's slot in build.md 8.2) | Replies and upvotes | The coordinator gave R7 these two counts; R11 adds views later |
+| `W/lib/social/fixture-ids.ts` (R5's), with `W/lib/social/console-forms.test.ts` and `W/e2e/fixtures/social/board.test.ts` | R7's fixture story and update IDs (`REPLIES_FIXTURE_STORY`, `REPLIES_FIXTURE_UPDATE`) in a block of their own, and one line each in `KEPT_STORY_IDS` and `KEPT_UPDATE_IDS`. The two tests that pin those sets stay exact: four stories and four updates, the board fixture's plus R7's, by name | The console must never change a story or update the checks keep. R8 adds its own story to the same sets later, in its own block |
 
 **No file on build.md 8.3's shared list changes:** `errors.ts` (R7 uses its own map), `checkin/{section,index,sections}.ts`, `e2e/pages.ts`, `global-setup.ts`, `caching.ts` and `common.ts` all stay as they are.
 
