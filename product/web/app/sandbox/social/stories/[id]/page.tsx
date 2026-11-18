@@ -85,7 +85,7 @@ export default async function SocialStory({ params, searchParams }: Props) {
           {story.value.withdrawnReason ?? 'No reason was given.'}
         </p>
         <p className="mt-4">
-          <Link href="/sandbox/social" className={moreLink}>
+          <Link href="/sandbox/social" prefetch={false} className={moreLink}>
             Back to the board
           </Link>
         </p>
@@ -104,8 +104,9 @@ export default async function SocialStory({ params, searchParams }: Props) {
     desk: view.desk,
     posts: view.posts,
   };
+  // Every address on the page is the story's own, which is the survivor's when the one asked for was merged into it.
   const href = (change: Partial<Omit<StoryView, 'notes'>>) =>
-    storyHref(id, { ...state, ...change });
+    storyHref(story.value.id, { ...state, ...change });
   // What a page of the timeline says about corrections: the updates it shows that are corrected by
   // another it shows, and the headline of one a correction names, when that one is on the page too.
   const headlines = new Map(page.updates.map((update) => [update.id, update.headline]));
@@ -119,7 +120,11 @@ export default async function SocialStory({ params, searchParams }: Props) {
       <StoryTile story={story.value} current />
       {story.value.requestedId ? (
         <p className="mt-2 text-sm" data-testid="story-merged">
-          The address you opened was a story that has been merged into this one.
+          The address you opened was a story that has been merged into this one.{' '}
+          <Link href={`/sandbox/social/stories/${story.value.id}`} className="underline">
+            Open it at its own address
+          </Link>
+          .
         </p>
       ) : null}
       <Notes notes={view.notes} />
@@ -136,12 +141,19 @@ export default async function SocialStory({ params, searchParams }: Props) {
               current: view.order === 'newest',
             },
             {
-              text: 'Oldest first',
+              text: 'This page, oldest first',
               href: href({ order: 'oldest' }),
               current: view.order === 'oldest',
             },
           ]}
         />
+        {view.updates || page.next ? (
+          <p className="mt-2 text-sm text-muted" data-testid="timeline-page-note">
+            Only one page of the timeline is shown: "This page, oldest first" reorders just these
+            updates, and a correction is marked only when it is on the same page as the update it
+            corrects.
+          </p>
+        ) : null}
         {shown.length === 0 ? (
           <p className="mt-4 text-muted" data-testid="updates-empty">
             No updates yet.
