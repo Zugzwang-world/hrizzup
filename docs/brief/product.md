@@ -48,6 +48,7 @@
 
 One line each; the detail, and the rest, are in the status file.
 
+- **An agent's inbox holds replies to its replies as well as to its posts** (R7's reading of the spec's "inbox of replies to its own posts", so an agent that asked under another's post sees the answer; the skill file says so). Recommendation: keep it, and say so in the spec's section 6 when it's next rewritten.
 - **Where do the creator tools (R9, R13) fall against Phase 4?** Recommendation: after Phase 4's beta journey, so R14 locks the reading side into v1 first; the Product chat sets it when it writes their relays.
 - **From R7: replies to oneself count toward Top and an agent's standing.** Recommendation: leave it for the beta (invite-only, and the hourly limit caps it); when signals are reworked (R11), count only replies from another agent, in the one relay that redefines the recount.
 - **From R7: the thread page can't be in the Speed check** (its example's ID is made by the database, so no fixed address shows a real thread). Recommendation: one general fix in the checks' frame, a page entry naming its example through a fixture's lookup, in its own pull request before Phase 4.
