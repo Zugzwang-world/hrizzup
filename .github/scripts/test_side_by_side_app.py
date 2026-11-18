@@ -56,16 +56,17 @@ def junit(flows):
 
 
 def side(folder, phone=None, tablet=None, startup=None):
-    """One machine's results: each size's report when given, and the cold start (median, passes)."""
+    """One machine's results: each size's report when given, and the cold start (median, passes) or (median,
+    passes, the median of the main baseline it compared with: None when it had none)."""
     os.makedirs(folder, exist_ok=True)
     for size, flows in (("phone", phone), ("tablet", tablet)):
         if flows is not None:
             with open(os.path.join(folder, f"{size}.xml"), "w", encoding="utf-8") as f:
                 f.write(junit(flows))
     if startup is not None:
-        median, passes = startup
+        median, passes, main = (*startup, 1000)[:3] if len(startup) == 2 else startup
         with open(os.path.join(folder, "startup.json"), "w", encoding="utf-8") as f:
-            json.dump({"runs": [median] * 7, "medianMs": median, "budgetMs": 2000, "mainMedianMs": None,
+            json.dump({"runs": [median] * 7, "medianMs": median, "budgetMs": 2000, "mainMedianMs": main,
                        "passes": passes}, f)
 
 
@@ -115,8 +116,9 @@ class TheComparison(unittest.TestCase):
     def test_a_flow_that_failed_on_two_machines_only_is_not_clean_and_is_named_without_a_flip(self):
         record, text = compared(phone={"phone": {**FLOWS, "The app answers": False}})
         self.assertFalse(record["clean"])
+        self.assertTrue(record["ran"])
         self.assertFalse(record["flip"])
-        self.assertEqual(record["reasons"], ["at the phone size, `The app answers` failed on two machines"])
+        self.assertEqual(record["reasons"], ["at the phone size, `The app answers` failed on two machines and passed on one"])
         self.assertIn("**Not clean:**", text)
         self.assertEqual(sbs.verdict_of(record), "not-clean")
 
@@ -124,16 +126,74 @@ class TheComparison(unittest.TestCase):
         record, text = compared(one={**BOTH, "tablet": {**FLOWS, "The sign-in test": False}, "startup": (1200, True)})
         self.assertFalse(record["clean"])
         self.assertTrue(record["flip"])
-        self.assertEqual(record["reasons"], ["at the tablet size, `The sign-in test` failed on one machine"])
+        self.assertEqual(record["reasons"], ["at the tablet size, `The sign-in test` failed on one machine and passed on two"])
         self.assertIn("something passes on two machines that fails on one", text)
 
-    def test_a_flow_that_failed_on_both_sides_is_not_clean_and_not_a_flip(self):
-        broken = {**FLOWS, "The app opens": False}
-        record, _ = compared(one={"phone": broken, "tablet": FLOWS, "startup": (1200, True)},
-                             phone={"phone": broken})
+    def test_the_one_machine_run_that_stopped_at_a_failed_flow_is_compared_and_its_later_size_and_cold_start_are_not_missing(self):
+        # run.sh stops at the failed phone flow: a phone report, no tablet report and no startup.json on one machine.
+        # Two machines pass everything: a disagreement, and the one that makes the switch unsafe.
+        record, text = compared(one={"phone": {**FLOWS, "The app opens": False}})
+        self.assertFalse(record["clean"])
+        self.assertTrue(record["ran"])
+        self.assertTrue(record["flip"])
+        self.assertEqual(record["reasons"], ["at the phone size, `The app opens` failed on one machine and passed on two"])
+        self.assertEqual(sbs.verdict_of(record), "not-clean")
+        self.assertEqual(record["flows"]["tablet"]["oneMachine"], None)
+        self.assertIn("something passes on two machines that fails on one", text)
+        # The same at the tablet size: the phone passed, the tablet failed, and there is no cold start.
+        record, _ = compared(one={"phone": FLOWS, "tablet": {**FLOWS, "The sign-in test": False}})
+        self.assertEqual(record["reasons"], ["at the tablet size, `The sign-in test` failed on one machine and passed on two"])
+        self.assertTrue(record["flip"])
+
+    def test_the_reverse_a_flow_that_failed_on_two_machines_and_passed_on_one_is_not_clean_and_no_flip(self):
+        record, _ = compared(tablet={"tablet": {**FLOWS, "The sign-in test": False}})
         self.assertFalse(record["clean"])
         self.assertFalse(record["flip"])
+        self.assertEqual(sbs.verdict_of(record), "not-clean")
+        self.assertEqual(record["reasons"], ["at the tablet size, `The sign-in test` failed on two machines and passed on one"])
+
+    def test_the_same_failure_on_both_ways_is_a_broken_pull_request_not_evidence_so_it_is_not_run(self):
+        broken = {**FLOWS, "The app opens": False}
+        # The one-machine run stopped at it (no tablet report, no cold start); the tablet's machine ran on.
+        record, text = compared(one={"phone": broken}, phone={"phone": broken})
+        self.assertEqual(sbs.verdict_of(record), "not-run")
+        self.assertFalse(record["ran"])
+        self.assertFalse(record["clean"])
+        self.assertFalse(record["flip"])
+        self.assertEqual(record["reasons"], ["at the phone size, `The app opens` failed on both ways (a broken pull "
+                                             "request, not evidence about splitting)"])
+        self.assertTrue(text.startswith("**Not run, so passed over and not counted:**"))
+        # The same at the tablet size, with the one-machine run having got that far.
+        record, _ = compared(one={"phone": FLOWS, "tablet": broken}, tablet={"tablet": broken})
+        self.assertEqual(sbs.verdict_of(record), "not-run")
+        # Both fail the same flow at both sizes (the one-machine run never reached the tablet's: one reason).
+        record, _ = compared(one={"phone": broken}, phone={"phone": broken}, tablet={"tablet": broken})
+        self.assertEqual(sbs.verdict_of(record), "not-run")
+        self.assertEqual(len(record["reasons"]), 1)
+        record, _ = compared(one={"phone": broken, "tablet": broken}, phone={"phone": broken}, tablet={"tablet": broken})
         self.assertEqual(len(record["reasons"]), 2)
+
+    def test_the_same_failure_on_both_ways_with_any_disagreement_elsewhere_is_still_not_clean(self):
+        broken = {**FLOWS, "The app opens": False}
+        record, _ = compared(one={"phone": broken, "tablet": FLOWS, "startup": (1200, True)}, phone={"phone": broken},
+                             tablet={"tablet": {**FLOWS, "The app answers": False}, "startup": (1300, True)})
+        self.assertEqual(sbs.verdict_of(record), "not-clean")
+        self.assertEqual(record["reasons"], ["at the tablet size, `The app answers` failed on two machines and passed on one"])
+        # Different flows failing on each side is a disagreement on both of them.
+        record, _ = compared(one={"phone": {**FLOWS, "The app opens": False}},
+                             phone={"phone": {**FLOWS, "The app answers": False}})
+        self.assertEqual(sbs.verdict_of(record), "not-clean")
+        self.assertTrue(record["flip"])
+        self.assertEqual(len(record["reasons"]), 2)
+        # The two-machine side leaving nothing is a disagreement too.
+        record, _ = compared(one={"phone": broken}, phone={})
+        self.assertEqual(sbs.verdict_of(record), "not-clean")
+
+    def test_a_size_the_one_machine_run_never_reached_has_nothing_to_compare_but_a_size_it_skipped_for_no_reason_does(self):
+        record, _ = compared(one={"phone": FLOWS, "startup": (1200, True)})  # phone passed, tablet report missing
+        self.assertEqual(record["reasons"], ["the one-machine run left no tablet.xml"])
+        record, _ = compared(one={"tablet": FLOWS, "startup": (1200, True)})  # phone missing, tablet there
+        self.assertEqual(record["reasons"], ["the one-machine run left no phone.xml"])
 
     def test_each_flows_pass_is_read_from_its_failure_its_error_and_its_status(self):
         for state, passes in ((True, True), ("SUCCESS", True), ("WARNING", True), (False, False), ("ERROR", False),
@@ -227,17 +287,17 @@ class TheComparison(unittest.TestCase):
 
     def test_a_cold_start_missing_because_a_flow_failed_adds_no_second_reason(self):
         record, _ = compared(tablet={"tablet": {**FLOWS, "The app opens": False}})
-        self.assertEqual(record["reasons"], ["at the tablet size, `The app opens` failed on two machines"])
+        self.assertEqual(record["reasons"], ["at the tablet size, `The app opens` failed on two machines and passed on one"])
 
     def test_only_the_tablets_machine_explains_a_missing_cold_start_on_two_machines(self):
         # The phone's machine failed a flow, which says nothing about the cold start: the tablet's machine runs it.
         record, _ = compared(phone={"phone": {**FLOWS, "The app opens": False}}, tablet={"tablet": FLOWS})
-        self.assertEqual(record["reasons"], ["at the phone size, `The app opens` failed on two machines",
+        self.assertEqual(record["reasons"], ["at the phone size, `The app opens` failed on two machines and passed on one",
                                              "the two-machine side measured no cold start (its tablet machine left "
                                              "no startup.json)"])
         # On one machine a failed flow at either size (or a size with no report) stops the run before its cold start.
         record, _ = compared(one={"phone": {**FLOWS, "The app opens": False}, "tablet": FLOWS})
-        self.assertEqual(record["reasons"], ["at the phone size, `The app opens` failed on one machine"])
+        self.assertEqual(record["reasons"], ["at the phone size, `The app opens` failed on one machine and passed on two"])
 
     def test_a_one_machine_run_that_left_no_cold_start_is_not_clean(self):
         record, _ = compared(one=BOTH)
@@ -255,7 +315,45 @@ class TheComparison(unittest.TestCase):
                     self.assertIsNone(sbs.read_startup(path))
             with open(path, "w") as f:
                 f.write('{"medianMs": 1500, "passes": false}')
-            self.assertEqual(sbs.read_startup(path), {"medianMs": 1500, "passes": False})
+            self.assertEqual(sbs.read_startup(path), {"medianMs": 1500, "passes": False, "mainMedianMs": None})
+            with open(path, "w") as f:
+                f.write('{"medianMs": 1500, "passes": true, "mainMedianMs": 1100}')
+            self.assertEqual(sbs.read_startup(path), {"medianMs": 1500, "passes": True, "mainMedianMs": 1100})
+            with open(path, "w") as f:  # a baseline that isn't a number is none
+                f.write('{"medianMs": 1500, "passes": true, "mainMedianMs": "soon"}')
+            self.assertIsNone(sbs.read_startup(path)["mainMedianMs"])
+
+    def test_a_tablet_cold_start_with_no_baseline_from_main_is_not_run_whatever_its_verdict(self):
+        for passes in (True, False):
+            with self.subTest(passes=passes):
+                record, text = compared(tablet={"tablet": FLOWS, "startup": (1300, passes, None)})
+                self.assertEqual(sbs.verdict_of(record), "not-run")
+                self.assertFalse(record["ran"])
+                self.assertEqual(record["reasons"], ["the tablet machine's cold start had no baseline from main (its "
+                                                     "mainMedianMs is empty), so its verdict can't be compared"])
+                self.assertEqual(record["differenceMs"], 100)
+                self.assertTrue(text.startswith("**Not run, so passed over and not counted:**"))
+
+    def test_a_missing_baseline_is_not_run_only_when_nothing_else_disagrees(self):
+        # A flow that disagrees, or medians too far apart, is evidence whatever the baseline: not clean.
+        record, _ = compared(tablet={"tablet": {**FLOWS, "The app opens": False}, "startup": (1300, True, None)})
+        self.assertEqual(sbs.verdict_of(record), "not-clean")
+        record, _ = compared(one={**BOTH, "startup": (1000, True)}, tablet={"tablet": FLOWS, "startup": (2000, True, None)})
+        self.assertEqual(sbs.verdict_of(record), "not-clean")
+        self.assertEqual(len(record["reasons"]), 1)
+        # Its verdict isn't compared without a baseline: one machine failing against its own baseline, two with none.
+        record, _ = compared(one={**BOTH, "startup": (1200, False)}, tablet={"tablet": FLOWS, "startup": (1300, True, None)})
+        self.assertEqual(sbs.verdict_of(record), "not-run")
+        self.assertFalse(record["flip"])
+        # No startup.json on the tablet at all is the other reason, not this one.
+        record, _ = compared(tablet={"tablet": FLOWS})
+        self.assertEqual(sbs.verdict_of(record), "not-clean")
+
+    def test_a_baseline_on_both_sides_changes_nothing_and_one_on_the_one_machine_run_is_not_asked_for(self):
+        record, _ = compared(one={**BOTH, "startup": (1200, True, None)})
+        self.assertEqual(sbs.verdict_of(record), "clean")
+        record, _ = compared(one={**BOTH, "startup": (1200, True, 900)}, tablet={"tablet": FLOWS, "startup": (1300, True, 950)})
+        self.assertEqual(sbs.verdict_of(record), "clean")
 
     def test_the_two_machine_cold_start_is_read_from_the_tablets_machine_and_the_phone_machine_has_none(self):
         with tempfile.TemporaryDirectory() as root:
@@ -272,11 +370,11 @@ class TheComparison(unittest.TestCase):
 
 
 class ThePlan(unittest.TestCase):
-    def plan(self, startup, baseline):
+    def plan(self, phone, baseline, startup=None):
         with tempfile.TemporaryDirectory() as root:
             one, out = os.path.join(root, "one"), os.path.join(root, "out")
-            if startup is not None:
-                side(one, startup=startup)
+            if phone is not None or startup is not None:
+                side(one, phone=phone, startup=startup)
             printed = io.StringIO()
             with contextlib.redirect_stdout(printed), contextlib.redirect_stderr(io.StringIO()):
                 self.assertEqual(sbs.app_plan(one, out, {"BASELINE": baseline}), 0)
@@ -288,26 +386,32 @@ class ThePlan(unittest.TestCase):
                     text = f.read().strip()
             return printed.getvalue().strip(), os.path.exists(record), text
 
-    def test_the_one_machine_cold_start_and_a_baseline_on_main_make_a_comparison(self):
-        self.assertEqual(self.plan((1200, True), "true"), ("measured=true", False, None))
+    def test_the_one_machine_journeys_having_run_and_a_baseline_on_main_make_a_comparison(self):
+        self.assertEqual(self.plan(FLOWS, "true", startup=(1200, True)), ("measured=true", False, None))
+
+    def test_a_one_machine_run_that_stopped_at_a_failed_flow_is_compared_too(self):
+        # run.sh stops at the failed flow: its report is there, its cold start is not.
+        self.assertEqual(self.plan({**FLOWS, "The app opens": False}, "true"), ("measured=true", False, None))
 
     def test_no_baseline_on_main_means_no_record_and_the_summary_says_why(self):
-        found, record, note = self.plan((1200, True), "false")
+        found, record, note = self.plan(FLOWS, "false", startup=(1200, True))
         self.assertEqual((found, record), ("measured=false", False))
         self.assertEqual(note, "Not counted: no two-machine baseline on main yet (main's next App journeys run "
                                "saves it).")
 
-    def test_no_one_machine_cold_start_means_no_record_and_the_summary_says_the_app_wasnt_touched(self):
+    def test_no_phone_report_from_the_one_machine_run_means_no_record_and_the_summary_says_why(self):
         for baseline in ("true", "false", ""):
-            with self.subTest(baseline=baseline):
-                found, record, note = self.plan(None, baseline)
-                self.assertEqual((found, record), ("measured=false", False))
-                self.assertIn("Not counted: the app wasn't touched", note)
+            for startup in (None, (1200, True)):  # a cold start without the journeys' report isn't a run either
+                with self.subTest(baseline=baseline, startup=startup):
+                    found, record, note = self.plan(None, baseline, startup=startup)
+                    self.assertEqual((found, record), ("measured=false", False))
+                    self.assertEqual(note, "Not counted: the app wasn't touched, or the one-machine App journeys left "
+                                           "no results (no phone.xml), so there is nothing to compare.")
 
     def test_the_baseline_is_true_only_when_the_workflow_says_exactly_true(self):
         for baseline in ("", "True", "1", "yes", "false"):
             with self.subTest(baseline=baseline):
-                self.assertEqual(self.plan((1200, True), baseline)[0], "measured=false")
+                self.assertEqual(self.plan(FLOWS, baseline, startup=(1200, True))[0], "measured=false")
 
 
 class TheCommands(unittest.TestCase):
@@ -475,8 +579,8 @@ class TheTally(unittest.TestCase):
         items.append(item("pr-errored", app_not_run(400), 30))
         text, count, _ = tally(self.github(items))
         self.assertEqual(count, 5)
-        self.assertIn("Passed over, because the comparison didn't run (the comparison failed; not counted either "
-                      "way): `pr-errored`.", text)
+        self.assertIn("Passed over, because the comparison didn't run (the comparison failed, or both ways failed the "
+                      "same flows, or the tablet's cold start had no baseline; not counted either way): `pr-errored`.", text)
         self.assertNotIn("The row ended", text)
 
     def test_a_record_of_the_other_kind_or_without_a_difference_cant_make_an_average(self):
@@ -596,7 +700,21 @@ class TheWorkflow(unittest.TestCase):
     def test_the_two_machines_take_the_required_jobs_steps_as_they_are_up_to_the_cold_start_baseline(self):
         index = next(i for i, s in enumerate(self.app_steps) if "Main's cold start, to compare with" in s)
         self.assertGreater(index, 20)
-        self.assertEqual([self.bare(s) for s in self.size_steps[:index]], [self.bare(s) for s in self.app_steps[:index]])
+        # One step differs, and only in one line: Gradle's cache is read only here (the required job saves it from
+        # main; a copy of its own would be a second cache entry on main).
+        read_only = "          cache-read-only: ${{ github.ref != 'refs/heads/main' }}\n"
+        gradle = next(i for i, s in enumerate(self.app_steps[:index]) if "gradle/actions/setup-gradle@" in s)
+        for number in range(index):
+            mine, required = self.bare(self.size_steps[number]), self.bare(self.app_steps[number])
+            if number == gradle:
+                self.assertIn(read_only, required)
+                self.assertEqual(mine.replace("cache-read-only: true\n", "cache-read-only: ${{ github.ref != 'refs/heads/main' }}\n")
+                                 .replace("Gradle, with the required job's cache (read only)", "Gradle, with its cache (saved from main only)"),
+                                 required)
+                self.assertNotIn("github.ref", mine)
+                self.assertEqual(mine.count("cache-read-only: true"), 1)
+            else:
+                self.assertEqual(mine, required, f"step {number}")
         # ...and the names check and the step that is given the token follow it, as before.
         names_check = next(i for i, s in enumerate(self.size_steps) if "app_keys.py check stg_preview" in s)
         journeys = next(i for i, s in enumerate(self.size_steps) if "emulator.sh run bash" in s)

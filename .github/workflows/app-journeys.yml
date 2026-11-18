@@ -431,11 +431,14 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - name: Gradle, with its cache (saved from main only)
+      # Read only, always: the required job above saves Gradle's cache from main, and this job reads
+      # it; a copy of its own would be a second entry (Gradle's cache key carries the job) in a
+      # repository whose cache is near GitHub's limit.
+      - name: Gradle, with the required job's cache (read only)
         if: steps.run.outputs.app == 'true' && steps.built.outputs.cache-hit != 'true'
         uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
         with:
-          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+          cache-read-only: true
       - name: Build the app (release build, its code inside, for the emulator)
         if: steps.run.outputs.app == 'true' && steps.built.outputs.cache-hit != 'true'
         working-directory: product/app
@@ -577,12 +580,15 @@ jobs:
   # sizes with the same names; the cold start's verdicts equal; the two cold starts' medians within
   # product/app/journeys/cold-start-allowances.json's allowance, worked out from real runs). It
   # runs on pull requests only, and whatever the required job's result was (`!cancelled()`), not
-  # after a cancelled run. Not a required check, so it never fails on "not clean": the record says
-  # so, its artifact's name carries the verdict ("app-comparison-clean", "-not-clean" or "-not-run"
-  # for a comparison that errored, which the tally passes over), and the tally counts it. There is
-  # no record until main holds a two-machine baseline (main's next run of this workflow saves it),
-  # nor when the app wasn't touched or the required job stopped before its cold start. Records are
-  # kept 90 days: pull requests that touch the app are fewer, and five may span weeks.
+  # after a cancelled run: a flow that passes on two machines and fails on one is seen. Not a
+  # required check, so it never fails on "not clean": the record says so, its artifact's name
+  # carries the verdict ("app-comparison-clean", "-not-clean", or "-not-run" for a comparison that
+  # errored, that both ways failed the same flows (a broken pull request, not evidence about
+  # splitting) or whose tablet cold start had no baseline: the tally passes those over), and the
+  # tally counts it. There is no record until main holds a two-machine baseline (main's next run of
+  # this workflow saves it), nor when the app wasn't touched or the required job left no journeys
+  # report (its phone.xml; a run that stopped at a failed flow has one). Records are kept 90 days:
+  # pull requests that touch the app are fewer, and five may span weeks.
   app-compare:
     name: App journeys on two machines
     needs: [app, app-size]

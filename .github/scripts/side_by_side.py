@@ -61,17 +61,24 @@ two machines" beside the required "App journeys"), with the artifacts `app-compa
 weeks), the same tally and the same rules, and these of its own:
 
   - `app-plan` says whether there is a comparison at all: `measured=true` only when the one-machine
-    App journeys left its cold start (startup.json: its journeys all passed and the cold start ran)
-    AND main holds a two-machine baseline (BASELINE=true, from a cache lookup). Otherwise there is
-    no record, and comparison.md says why ("not counted: ...").
+    App journeys ran its journeys (it left phone.xml) AND main holds a two-machine baseline
+    (BASELINE=true, from a cache lookup). Otherwise there is no record, and comparison.md says why
+    ("not counted: ..."). A one-machine run that stopped at a failed flow has phone.xml and no
+    startup.json (run.sh stops there): it is compared too.
   - `app-compare` judges the two ways of running the same journeys. Clean only when ALL hold: every
     flow passed on both sides at both sizes with the same names (the Maestro JUnit files phone.xml
     and tablet.xml); both sides' cold start verdicts (startup.json's `passes`, each against its own
     main baseline) are equal; and the two-machine cold start's median is within `allowanceMs` of the
-    one-machine median (product/app/journeys/cold-start-allowances.json). A side that left nothing
-    while the one-machine run measured is not clean ("measured nothing"). `flip` is true when two
-    machines pass a flow, or the cold start's verdict, that one machine fails. The record holds the
-    signed `differenceMs` (two machines - one machine).
+    one-machine median (product/app/journeys/cold-start-allowances.json). Any DISAGREEMENT is not
+    clean: a flow that passed on one side and failed on the other, different flow names, a side that
+    left nothing while the other measured ("measured nothing"), differing cold-start verdicts, medians
+    too far apart. `flip` is true when two machines pass a flow, or the cold start's verdict, that one
+    machine fails. A size the one-machine run never got to (it stops at its first failed flow) has
+    nothing to compare. When nothing disagrees but a flow failed on BOTH ways (a broken pull request,
+    not evidence about splitting), or the tablet machine's cold start had no baseline from main
+    (`mainMedianMs` empty in its startup.json), the record is NOT RUN (`ran: false`): passed over by the
+    tally, neither clean nor not clean. The record holds the signed `differenceMs` (two machines - one
+    machine).
   - The five-comparison average is the average of the five pull requests' `differenceMs`, each pull
     request weighted equally, within `fiveComparisonAverageMs`.
 
@@ -246,21 +253,23 @@ def finalize(out, environ=os.environ, kind="speed"):
 
 SIZES = ("phone", "tablet")
 BASELINE_NONE = "Not counted: no two-machine baseline on main yet (main's next App journeys run saves it)."
-UNTOUCHED = ("Not counted: the app wasn't touched, or the one-machine App journeys stopped before its cold start "
-             "(it left no startup.json), so there is nothing to compare.")
+UNTOUCHED = ("Not counted: the app wasn't touched, or the one-machine App journeys left no results (no phone.xml), so "
+             "there is nothing to compare.")
 
 
 def app_plan(one_folder, out, environ=os.environ):
-    """Whether there is a comparison at all: the one-machine App journeys left its cold start and main
-    holds a two-machine baseline. Otherwise no record: comparison.md says why."""
-    left_numbers = os.path.isfile(os.path.join(one_folder, "startup.json"))
+    """Whether there is a comparison at all: the one-machine App journeys ran its journeys (it left the phone's
+    report) and main holds a two-machine baseline. Otherwise no record: comparison.md says why. A run whose
+    journeys failed has a report and no cold start (run.sh stops at the failed flow): it is compared too, so a
+    flow that passes on two machines and fails on one is seen."""
+    ran = os.path.isfile(os.path.join(one_folder, "phone.xml"))
     baseline = environ.get("BASELINE", "") == "true"
-    measured = left_numbers and baseline
+    measured = ran and baseline
     print(f"measured={'true' if measured else 'false'}")
     if measured:
-        say("The one-machine App journeys left its cold start and main holds a two-machine baseline: compared.")
+        say("The one-machine App journeys ran and main holds a two-machine baseline: compared.")
         return 0
-    reason = UNTOUCHED if not left_numbers else BASELINE_NONE
+    reason = UNTOUCHED if not ran else BASELINE_NONE
     os.makedirs(out, exist_ok=True)
     with open(os.path.join(out, "comparison.md"), "w", encoding="utf-8") as f:
         f.write(reason + "\n")
@@ -291,10 +300,12 @@ def read_flows(path):
 
 
 def read_startup(path):
-    """startup.json's {medianMs, passes}, or None when there is none or it isn't one."""
+    """startup.json's {medianMs, passes, mainMedianMs} (the median of main's baseline the run compared with, or
+    None when it had none), or None when there is no startup.json or it isn't one."""
     found = read_json(path)
     if isinstance(found, dict) and number(found.get("medianMs")) and isinstance(found.get("passes"), bool):
-        return {"medianMs": found["medianMs"], "passes": found["passes"]}
+        main = found.get("mainMedianMs")
+        return {"medianMs": found["medianMs"], "passes": found["passes"], "mainMedianMs": main if number(main) else None}
     return None
 
 
@@ -312,58 +323,73 @@ def names_of(flows):
             + (" and more" if len(flows) > 6 else ""))
 
 
-def compare_flows(size, one, two):
-    """(reasons, flip, counts) for one size's journeys: the same flow names, each passed, on both sides.
-    `one` and `two` are {name: passed} or None (no report)."""
-    reasons, flip = [], False
+def compare_flows(size, one, two, stopped):
+    """(reasons, flip, counts, shared) for one size's journeys. `one` and `two` are {name: passed} or None (no
+    report). A reason is a disagreement: a side with no report (but the one-machine run stops at its first failed
+    flow, so `stopped` sizes after it have none and nothing to compare), different flow names, or a flow that
+    passed on one side and failed on the other. `flip` is a flow that passes on two machines and fails on one.
+    `shared` are the flows that failed on both sides: no disagreement, so no reason of their own."""
+    reasons, flip, shared = [], False, []
     counts = {side: ([sum(flows.values()), len(flows)] if flows is not None else None)
               for side, flows in (("one", one), ("two", two))}
     if two is None:
         reasons.append(f"the two-machine side measured nothing at the {size} size (no {size}.xml)")
-    if one is None:
+    if one is None and not stopped:
         reasons.append(f"the one-machine run left no {size}.xml")
-    for side, flows, label in (("one", one, "one machine"), ("two", two, "two machines")):
+    for flows, label in ((one, "one machine"), (two, "two machines")):
         if flows is not None and not flows:
             reasons.append(f"no flow ran at the {size} size on {label}")
-        failed = sorted(name for name, passed in (flows or {}).items() if not passed)
-        if failed:
-            reasons.append(f"at the {size} size, {names_of(failed)} failed on {label}")
     if one is not None and two is not None:
         if set(one) != set(two):
             only_one, only_two = sorted(set(one) - set(two)), sorted(set(two) - set(one))
             reasons.append(f"the flows at the {size} size differ: only on one machine: "
                            f"{names_of(only_one) or 'none'}; only on two machines: {names_of(only_two) or 'none'}")
-        flip = any(one[name] is False and two.get(name) is True for name in one)
-    return reasons, flip, counts
+        both = set(one) & set(two)
+        failed_on_one = sorted(name for name in both if not one[name] and two[name])
+        failed_on_two = sorted(name for name in both if one[name] and not two[name])
+        shared = sorted(name for name in both if not one[name] and not two[name])
+        if failed_on_one:
+            reasons.append(f"at the {size} size, {names_of(failed_on_one)} failed on one machine and passed on two")
+        if failed_on_two:
+            reasons.append(f"at the {size} size, {names_of(failed_on_two)} failed on two machines and passed on one")
+        flip = bool(failed_on_one)
+    return reasons, flip, counts, shared
 
 
 def compare_app(one_folder, phone_folder, tablet_folder, allowance, commit="", pr=None):
-    """(record, text) for the two ways of running App journeys: see the module's description."""
-    reasons, flip, flows = [], False, {}
+    """(record, text) for the two ways of running App journeys: see the module's description. A record is not
+    clean on any disagreement; with none, it is clean unless a flow failed on both ways (a broken pull request,
+    not evidence about splitting) or the tablet's cold start had no baseline from main: then it did not run
+    (`ran: false`), and the tally passes it over."""
+    reasons, flip, flows, shared, notes = [], False, {}, [], []
     sides = {"phone": phone_folder, "tablet": tablet_folder}
-    # What explains a missing cold start: the one-machine run stops at a flow that failed or a size that left no
-    # report; on two machines only the tablet's machine runs the cold start, so only its report explains it.
-    explained = {"one": False, "two": False}
+    stopped = False  # the one-machine run stops at its first failed flow or missing report, and so has no later size
+    tablet = None
     for size in SIZES:
         one = read_flows(os.path.join(one_folder, f"{size}.xml"))
         two = read_flows(os.path.join(sides[size], f"{size}.xml"))
-        found, flipped, counts = compare_flows(size, one, two)
+        found, flipped, counts, both_failed = compare_flows(size, one, two, stopped)
         reasons += found
         flip = flip or flipped
+        if both_failed:
+            shared.append(f"at the {size} size, {names_of(both_failed)} failed on both ways")
         flows[size] = {"oneMachine": counts["one"], "twoMachines": counts["two"]}
-        for side, flows_of in (("one", one), ("two", two)):
-            if side == "one" or size == "tablet":
-                explained[side] = explained[side] or flows_of is None or not all(flows_of.values())
+        stopped = stopped or one is None or not all(one.values())
+        if size == "tablet":
+            tablet = two
+    # On two machines only the tablet's machine runs the cold start, so only its report explains a missing one.
+    two_stopped = tablet is None or not all(tablet.values())
     one_start = read_startup(os.path.join(one_folder, "startup.json"))
     two_start = read_startup(os.path.join(tablet_folder, "startup.json"))
-    if two_start is None and not explained["two"]:
+    if two_start is None and not two_stopped:
         reasons.append("the two-machine side measured no cold start (its tablet machine left no startup.json)")
-    if one_start is None and not explained["one"]:
+    if one_start is None and not stopped:
         reasons.append("the one-machine run left no cold start")
+    no_baseline = two_start is not None and two_start["mainMedianMs"] is None
     difference = None
     if one_start and two_start:
         difference = two_start["medianMs"] - one_start["medianMs"]
-        if one_start["passes"] != two_start["passes"]:
+        if not no_baseline and one_start["passes"] != two_start["passes"]:
             reasons.append("the cold start's verdict differs: "
                            f"{'passes' if two_start['passes'] else 'fails'} on two machines, "
                            f"{'passes' if one_start['passes'] else 'fails'} on one")
@@ -371,8 +397,14 @@ def compare_app(one_folder, phone_folder, tablet_folder, allowance, commit="", p
         if abs(difference) > allowance:
             reasons.append(f"the two-machine cold start's median differs by {difference:+g} ms from the one-machine "
                            f"run's, more than the allowance of {allowance:g} ms")
-    record = {"kind": "app", "commit": commit, "pr": pr, "measured": True, "ran": True, "clean": not reasons,
-              "reasons": reasons, "flip": flip, "flows": flows,
+    if no_baseline:
+        notes.append("the tablet machine's cold start had no baseline from main (its mainMedianMs is empty), so its "
+                     "verdict can't be compared")
+    ran = bool(reasons) or not (shared or notes)
+    if not ran:
+        notes = [f"{text} (a broken pull request, not evidence about splitting)" for text in shared] + notes
+    record = {"kind": "app", "commit": commit, "pr": pr, "measured": True, "ran": ran, "clean": not reasons and ran,
+              "reasons": reasons if reasons or ran else notes, "flip": flip and bool(reasons), "flows": flows,
               "oneMedianMs": one_start["medianMs"] if one_start else None,
               "twoMedianMs": two_start["medianMs"] if two_start else None,
               "differenceMs": difference, "allowanceMs": allowance,
@@ -391,10 +423,12 @@ def app_text(record):
     if record["clean"]:
         lines = ["**Clean:** every flow passed on both sides at both sizes, the cold starts agree, and their "
                  "medians are within the allowance."]
-    else:
+    elif record["ran"]:
         lines = ["**Not clean:**"] + [f"- {clean_name_text(r)}" for r in record["reasons"]]
         if record["flip"]:
             lines.append("- **something passes on two machines that fails on one**")
+    else:
+        lines = ["**Not run, so passed over and not counted:**"] + [f"- {clean_name_text(r)}" for r in record["reasons"]]
     verdicts = record["verdicts"]
     lines += ["", "| | One machine | Two machines |", "|---|---|---|"]
     for size in SIZES:
@@ -416,7 +450,8 @@ def app_compare(argv, environ=os.environ):
     write_json(os.path.join(out, RECORD), record)
     with open(os.path.join(out, "comparison.md"), "w", encoding="utf-8") as f:
         f.write(text)
-    say("Compared: " + ("clean." if record["clean"] else "not clean: " + "; ".join(record["reasons"]) + "."))
+    say("Compared: " + ("clean." if record["clean"] else
+                        ("not clean: " if record["ran"] else "not run, passed over: ") + "; ".join(record["reasons"]) + "."))
     return 0
 
 
@@ -600,7 +635,8 @@ WORDS = {"speed": {"title": "the Speed check on three machines, beside the Speed
                    "passed_over": "(a part left no results, or the comparison failed; not counted either way)"},
          "app": {"title": "App journeys on two machines, beside App journeys",
                  "flip": "a flow or the cold start's verdict passes on two machines that fails on one",
-                 "passed_over": "(the comparison failed; not counted either way)"}}
+                 "passed_over": "(the comparison failed, or both ways failed the same flows, or the tablet's cold "
+                                "start had no baseline; not counted either way)"}}
 
 
 def average_line(kind, averages, limits):
