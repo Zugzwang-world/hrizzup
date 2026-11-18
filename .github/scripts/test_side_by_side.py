@@ -64,13 +64,15 @@ class FakeGitHub:
     """What GitHub lists and serves, from a list of items: {branch, record, created_at, run, ...}. An item
     is in the list of its record's verdict, unless it says `named` (a name that disagrees)."""
 
-    def __init__(self, items, per_page=100):
+    def __init__(self, items, per_page=100, names=None):
         self.items, self.per_page = items, per_page
+        self.names = names or NAME_OF  # the artifact names by verdict: the Speed check's, or App journeys'
         self.pages, self.downloads = [], []
 
     def artifact(self, number, item):
         record = item["record"]
-        named = item.get("named") or (NAME_OF[sbs.verdict_of(record)] if isinstance(record, dict) else CLEAN)
+        named = item.get("named") or (self.names[sbs.verdict_of(record)] if isinstance(record, dict)
+                                      else self.names["clean"])
         return {"id": number, "name": named, "created_at": item["created_at"], "expired": item.get("expired", False),
                 "workflow_run": {"id": item.get("run", number), "head_branch": item["branch"],
                                  "repository_id": 1, "head_repository_id": item.get("head", 1)}}

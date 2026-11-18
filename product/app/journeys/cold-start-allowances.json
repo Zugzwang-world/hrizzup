@@ -1,0 +1,57 @@
+{
+  "about": "How far the cold start on two machines may differ from the one-machine App journeys on the same pull request and still count as clean (docs/research/faster-checks.md, proposal 4; Round 6, R4, M7.6). Recompute with .github/scripts/cold_start_allowances.py; never edit a value by hand.",
+  "method": {
+    "runs": "App journeys jobs (pull requests and main) whose journeys step ran and logged seven cold starts; each run's median is the 4th of its 7, as startup.sh takes it",
+    "noisePairs": "every pair of runs of the same app: the same inputs as app-journeys.yml's built-app key (the tracked files of product/app, product/packages, pnpm-lock.yaml and .node-version, without product/app/journeys/, product/app/scripts/, product/app/bundle-limit.json and product/app/vitest.config.ts); a pull request's job builds the merge of its head into its base (its log's \"Merge <head> into <base>\" line), so a pull request run's key is the inputs at its head and at its base, and a main run's the inputs at its own commit twice; a pull request run with no such line is left out",
+    "allowance": "max(floor, margin x the largest |difference of the two runs' medians| over the noise pairs)",
+    "margin": 1.0,
+    "floorMs": 100,
+    "fiveComparisonAverage": "over the five pull requests counted for the switch, the average of (two-machine median - one-machine median) must stay within this: the 99.9th percentile of the same average over 20,000 random sets of five noise pairs, one pair from each of five different groups, with random signs"
+  },
+  "computed": "2026-11-18",
+  "source": {
+    "from": "2026-11-09T21:34:06Z",
+    "to": "2026-11-18T00:30:27Z",
+    "runs": 107,
+    "pullRequestRuns": 69,
+    "mainRuns": 38,
+    "ungroupedRuns": 0,
+    "noisePairs": 85,
+    "noiseRuns": 62,
+    "groups": 20,
+    "jobs": [
+      129454839918, 129455116623, 129455945593, 129466793829, 129476769948, 129482628287,
+      129487620429, 129684789985, 129686750086, 129692032083, 129697005744, 129697234047,
+      129698534330, 129702954319, 129704561117, 129704567158, 129705662134, 129711072136,
+      129711392108, 129711405525, 129715286060, 129716019043, 129718965071, 129723720800,
+      129723948974, 129724449398, 129724585671, 129731781957, 129738551095, 129738565948,
+      129748843146, 129751612063, 129760318837, 129761147756, 129768429812, 129769095756,
+      129777214291, 129777836382, 129783327064, 129813089039, 129818416664, 129828428212,
+      129837523063, 129862876075, 129873244043, 129939564474, 129953206829, 129964882509,
+      130090320202, 130103346320, 130114394214, 130115585614, 130116324251, 130116758215,
+      130117008576, 130127061768, 130127719214, 130127899350, 130127916467, 130139961894,
+      130143480347, 130151015321, 130151763237, 130153079373, 130162986190, 130163681118,
+      130174884249, 130175477948, 130186355815, 130374947399, 130383153841, 130385981242,
+      130396087757, 130396807732, 130405623933, 130573791524, 134087187638, 134258033336,
+      134271481230, 134274070017, 134284132007, 134307568757, 134363293312, 134366993794,
+      134378533541, 134379874620, 134393359215, 134394514197, 134394562041, 134407649807,
+      134408313246, 134408686341, 134418414830, 134422206887, 134422801445, 134435710803,
+      134436422459, 134445337062, 134446137689, 134454139086, 134455861544, 134463451614,
+      134464089993, 134470750326, 134471940090, 134479448386, 134480063723
+    ]
+  },
+  "proof": {
+    "leaveBothRunsOut": "84 of 85 noise pairs clean (98.8%), each judged with the allowance from pairs sharing neither run; five in a row 94%; two of the first five not clean by noise alone 0.1%",
+    "leaveTheGroupOut": "84 of 85 (98.8%)",
+    "marginsCompared": "1.1, 1.25, 1.5 and 2.0 were all clean on 85 of 85 but blunter (a +1,000 ms shift flagged 74%, 60%, 33% and 1% of the time); 1.0 is the tightest that passes nearly always",
+    "oldRule": "the median inside the other run's lowest-to-highest of seven: 58 of 85 (68%); five in a row 15%",
+    "failures": "of all 148 jobs whose journeys ran, 4 failed: 2 a change in progress (the sign-in test screen being built), 1 the cold-start step itself (9 November: couldn't read the start or the first content from Android's log), 1 with no log; in the 108 runs that reached the cold start it failed once, and no flow failed by itself",
+    "coldStartVerdicts": "all 107 passed against main; no data on how often noise flips one",
+    "noiseSpread": "|difference of two same-app medians|: median 180 ms, 90th percentile 421 ms, largest 761 ms; medians across all runs from 773 to 1842 ms",
+    "injectedShiftOneComparison": "+500 ms flagged 19%, +800 ms 60%, +1000 ms 86%",
+    "injectedShiftFiveComparisons": "+400 ms 29%, +500 ms 51%, +600 ms 72%, +800 ms 96%",
+    "duplicates": "none: no two runs share a start time or the same seven cold starts"
+  },
+  "allowanceMs": 761,
+  "fiveComparisonAverageMs": 499
+}
