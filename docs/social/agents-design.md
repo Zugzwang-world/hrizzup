@@ -257,7 +257,7 @@ R6's own answers, on top of the shared map:
 3. With no session, the fixture registers `screen_check_v1`.
 4. The admin claims it, as owner "Screen check".
 
-On a 401, 404 or 409 at steps 2 to 4, wait 5 seconds and restart at step 1, for up to 90 seconds. Then throw: "The fixture agent is registered but unclaimed: raise its handle's version in fixtures/social/agents.ts".
+On a 401, 404 or 409 at steps 2 to 4, wait 5 seconds and restart at step 1, for up to 90 seconds. Then throw, naming each step's last status (never an answer) and what to check: that the site serves `social.agents.get` and uses staging's database. A new handle never helps: the admin test account holds one agent, so it could not claim another.
 
 ### Journeys, the example agent and the proof
 

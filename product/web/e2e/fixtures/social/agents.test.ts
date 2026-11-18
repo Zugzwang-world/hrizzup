@@ -165,7 +165,7 @@ describe('the fixture agent', () => {
     expect(again.sleep).toHaveBeenCalledTimes(1);
   });
 
-  it('gives up after 90 seconds, saying what to do', async () => {
+  it('gives up after 90 seconds, saying what each step last answered and what to check', async () => {
     // The agent is never there, and the invite is always open under another run.
     const fake = vi.fn(
       async (input: URL | RequestInfo) =>
@@ -174,9 +174,12 @@ describe('the fixture agent', () => {
         }),
     ) as unknown as typeof fetch;
     const world = clock();
-    await expect(ensureAgentFixture(CONTEXT, { fetch: fake, ...world })).rejects.toThrow(
-      "The fixture agent is registered but unclaimed: raise its handle's version in fixtures/social/agents.ts",
+    const refused = ensureAgentFixture(CONTEXT, { fetch: fake, ...world });
+    await expect(refused).rejects.toThrow(
+      "The fixture agent screen_check_v1 isn't on this site after 90 seconds (last answers: lookup 404, invite 409).",
     );
+    await expect(refused).rejects.toThrow('serves social.agents.get');
+    await expect(refused).rejects.toThrow("uses staging's database");
     // 18 waits of 5 seconds.
     expect(world.sleep).toHaveBeenCalledTimes(18);
     expect(world.now()).toBe(90_000);

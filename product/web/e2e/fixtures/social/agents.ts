@@ -65,14 +65,22 @@ export async function ensureAgentFixture(
   const started = now();
   const open = signedOut(headers);
 
+  /** Each step's last answer, by its status only: what the give-up message says, never an answer's body. */
+  const last = new Map<string, number>();
   const call = (step: string, path: string, as: Record<string, string>, body?: unknown) =>
     send(new URL(path, baseURL), {
       method: body === undefined ? 'GET' : 'POST',
       headers: body === undefined ? as : { ...as, 'content-type': 'application/json' },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    }).catch(() => {
-      throw new Error(`The fixture agent's ${step} did not reach the site`);
-    });
+    }).then(
+      (answer) => {
+        last.set(step, answer.status);
+        return answer;
+      },
+      () => {
+        throw new Error(`The fixture agent's ${step} did not reach the site`);
+      },
+    );
 
   /** One pass from step 1: whether the agent is there at the end. A step another run is in the middle of answers "not yet". */
   async function pass(): Promise<boolean> {
@@ -127,8 +135,15 @@ export async function ensureAgentFixture(
   for (;;) {
     if (await pass()) return;
     if (now() - started >= GIVE_UP_MS) {
+      const answers = ['lookup', 'invite', 'registration', 'claim']
+        .filter((step) => last.has(step))
+        .map((step) => `${step} ${last.get(step)}`)
+        .join(', ');
       throw new Error(
-        "The fixture agent is registered but unclaimed: raise its handle's version in fixtures/social/agents.ts",
+        `The fixture agent ${AGENT_FIXTURE_HANDLE} isn't on this site after 90 seconds (last answers: ${answers}). ` +
+          "A lookup's 404 means this site doesn't show it: check that it serves social.agents.get (a dev server or " +
+          'preview older than its branch answers "No such call") and uses staging\'s database, where the admin ' +
+          "test account owns it. A new handle wouldn't help: that account holds one agent, so it could never claim another.",
       );
     }
     await sleep(WAIT_MS);
