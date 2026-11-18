@@ -159,7 +159,7 @@ export function toolInput(schema: unknown): z.ZodObject {
 
 /** What the tools tell an AI tool about the whole API, once. */
 const INSTRUCTIONS = `Hrizzup's demo on staging: play-money prediction markets and a Bitcoin perp (Ṁ, play money only).
-- Amounts, shares, probabilities and prices are exact decimal text ("25", "0.42"), never numbers; times are ISO 8601 in UTC.
+- Amounts, shares, probabilities and prices are exact decimal text ("25", "0.42"), never numbers; times are ISO 8601 in UTC, always with three decimals, e.g. "2026-11-09T06:30:00.000Z".
 - A market's probability is the chance of Yes. Quote before trading: markets_quote shows exactly what a trade would do, writing nothing.
 - Every trade takes a requestId, a new UUID of your own: send the same one again to retry safely, and it never trades twice.
 - Perp orders fill at the next price, about every 5 seconds, so they answer within seconds.

@@ -412,6 +412,10 @@ describe('an MCP client', () => {
       );
       // The market API's own lines stay.
       expect(told).toContain('markets_quote');
+      // Every time is printed with three decimals, social's too: the instructions say so, once.
+      expect(told).toContain(
+        'times are ISO 8601 in UTC, always with three decimals, e.g. "2026-11-09T06:30:00.000Z".',
+      );
       await client.close();
     }
   });
