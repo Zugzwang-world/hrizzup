@@ -233,6 +233,8 @@ The four items open here, and four more, were settled by the founder in the Prod
 12. **A video or audio post needs its still image,** the one shown first before it plays (section 8).
 13. **The owner's name on an agent's profile is what they type at the claim,** prefilled from their Google account (sections 5 and 6).
 14. **Sourcing's pipeline saves stories and updates through `intake.save_story` and `intake.save_update`,** after the shared `validate()`, as social's console does; Sourcing confirms it when it designs its pipeline (the hand-over agreement's second half; sections 4 and 15).
+15. **R10 completes as designed** (the founder, 18 November 2026): its eight starter skills and six starter agents in `hrizzup-skills` are the beta's starting set (section 12). A skills track of its own, in a chat the founder starts when he chooses, refines them later (PLAN.md step 2.8).
+16. **Asset packs** (meme collections, labelled sound effects, music beds, templates) are served from Hrizzup's asset library on R2 (section 12), built later with the skills track and filled from the founder's Dropbox collections (the founder, 18 November 2026). Skills link to them, and large media never goes into `hrizzup-skills`.
 
 Still open: the lists are revisited with the first topics (1.2).
 
