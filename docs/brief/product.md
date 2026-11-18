@@ -49,6 +49,7 @@ One line each; the detail, and the rest, are in the status file.
 ## For the founder
 
 - **Update `~/hrizzup` before Phase 2's sessions start** (R16 changed the role files, which new sessions read from it): in Terminal, `cd ~/hrizzup && git pull`, once R16's M3 has merged. Nothing else.
+- **For information, at your next release:** the release now re-saves production's scheduled jobs and waits up to three minutes for the frequent ones to run (step 4d, R16). If it stops there, production's site is unchanged; start the release once more, and tell this chat if it stops again.
 - **For information:** a red "Screen check" on a commit a newer push replaced is expected; only the newest commit merges.
 - **Create the public repository `hrizzup-skills` on GitHub before Phase 2** (R10 fills it). Recommendation: under your account, public, empty (no README), MIT licence, so R10's first pull request sets it up.
 - **The Workers AI token before Phase 3** (R12). Recommendation: a Cloudflare API token limited to Workers AI, into Doppler `stg` once Claude Code has listed its name; it gives you the clicks when R12 nears. The free 10,000 neurons a day are per Cloudflare account, so at launch production's reader agent should use an account of its own.
