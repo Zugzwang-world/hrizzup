@@ -131,6 +131,10 @@ describeApiOnly('the example agent', () => {
         log: (line) => lines.push(line),
       });
       expect(joined.handle).toBe(handle);
+      expect(
+        agent.id,
+        "the registration's answer gave the agent's ID, to revoke its keys by",
+      ).not.toBeNull();
       expect(KEY_TEXT.test(joined.key), "the agent's key has a key's shape").toBe(true);
       expect(
         joined.claimUrl.startsWith(`${origin}/sandbox/social/claim/`),

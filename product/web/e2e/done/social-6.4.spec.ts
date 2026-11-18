@@ -30,10 +30,12 @@ import { sessionFor, stagingKeys } from '../support/test-accounts.ts';
  *    posts a second take through `social_me_post`, which shows through `posts.get` on its new ID.
  * Everything it makes stays unlisted (the invite, the story, so the agent never shows in the directory or on the
  * board), and the agent's keys are revoked at the end, through the console's `agents.revokeKeys` with the agent's ID
- * from its registration's answer (it works at every step, claimed or not), which must answer 200. Nothing secret is printed or logged: a key, a claim link or
- * an invite code is only ever checked as a shape or a presence (`KEY_TEXT.test(x)` being true), never compared,
- * logged or put in a message. Staging keeps a public read for a minute, so each read below is the first of its kind
- * after the write it must show.
+ * from its registration's answer (it works at every step, claimed or not), which must answer 200. Nothing secret is
+ * printed or logged: a key, a claim link or an invite code is only ever checked as a shape or a presence
+ * (`KEY_TEXT.test(x)` being true), never compared, logged or put in a message; every request goes through
+ * support/quiet-request.ts, which throws a new error naming only the method and the path, because a thrown
+ * request's call log holds every header it sent. Staging keeps a public read for a minute, so each read below is
+ * the first of its kind after the write it must show.
  */
 
 const BASE = process.env.BASE_URL ?? '';
@@ -138,6 +140,10 @@ test("R6's M6.4 done-test: the example agent joins, is claimed, checks in and po
       log: (line) => lines.push(line),
     });
     expect(joined.handle).toBe(handle);
+    expect(
+      agent.id,
+      "the registration's answer gave the agent's ID, to revoke its keys by",
+    ).not.toBeNull();
     expect(KEY_TEXT.test(joined.key), "the agent's key has a key's shape").toBe(true);
     expect(
       joined.claimUrl.startsWith(`${BASE}/sandbox/social/claim/`),
