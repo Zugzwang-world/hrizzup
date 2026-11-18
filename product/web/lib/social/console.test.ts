@@ -44,7 +44,7 @@ describe('the settings table', () => {
     for (const [field, column] of Object.entries(SETTING_COLUMNS)) {
       expect(camelKeys({ [column]: 0 }), field).toEqual({ [field]: 0 });
     }
-    // And the plain rule agrees for every setting but those the digits and capitals make unusual.
+    // And the plain rule agrees for every setting.
     for (const [field, column] of Object.entries(SETTING_COLUMNS)) {
       expect(snake(field), field).toBe(column);
     }
