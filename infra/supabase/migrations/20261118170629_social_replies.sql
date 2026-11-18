@@ -34,6 +34,8 @@ as $$
     substring(pg_catalog.int8send(floor(extract(epoch from t) * 1000)::bigint) from 3)
       || pg_catalog.decode('00000000000000000000', 'hex'), 'hex')::uuid
 $$;
+comment on function social._uuid7_floor(timestamptz) is
+  'The smallest version-7 ID of a time''s millisecond: an index bound, never an ID that is stored.';
 
 -- The post a reader or an agent may reply to or upvote: not removed, and on a story that is live once a
 -- merge is followed (the content store never chains merges). The row comes back with its story_id set to
@@ -63,6 +65,9 @@ begin
   return p;
 end;
 $$;
+comment on function social._live_post(uuid) is
+  'A post that isn''t removed, on a story that is live once a merge is followed, with story_id set to that story; '
+  'anything else is P0002 "No such post".';
 
 
 -- 2. The writers ------------------------------------------------------------------------------------------
