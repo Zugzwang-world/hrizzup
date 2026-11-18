@@ -1,3 +1,4 @@
+import { decodeCursor } from '@hrizzup/social/cursor';
 import { ORPCError } from '@orpc/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { KEPT_LINE, RECORD_ID } from '@/lib/social/console-forms.ts';
@@ -629,25 +630,32 @@ describe('withdrawing a story', () => {
     expect(social.stories.save).not.toHaveBeenCalled();
   });
 
-  it('is not offered for a story that is not among the console’s newest, however many pages are read, and finds one on a later page', async () => {
+  it('asks who made it with one read of the console’s list, started at the story’s listing time, and is not offered one that is not found there', async () => {
     storyGet.mockResolvedValue(live);
     social.stories.list.mockResolvedValue({
       stories: [{ id: INVITE, madeBy: 'console' }],
-      next: 'more',
+      next: null,
     });
     const answer = await withdrawStoryAction(START, form({ id: STORY, reason: 'x' }));
     expect(answer.error).toMatch(/not known here/);
-    expect(social.stories.list).toHaveBeenCalledTimes(5);
+    expect(social.stories.list).toHaveBeenCalledTimes(1);
+    const [{ limit, cursor }] = social.stories.list.mock.calls[0] as [
+      { limit: number; cursor: string },
+    ];
+    expect(limit).toBe(100);
+    const key = decodeCursor('time', cursor);
+    expect(Date.parse(key.t)).toBe(Date.parse(live.createdAt) + 2 * 60_000);
+    expect(key.i).toBe(STORY);
     expect(social.stories.save).not.toHaveBeenCalled();
-    social.stories.list.mockReset();
-    social.stories.list
-      .mockResolvedValueOnce({ stories: [{ id: INVITE, madeBy: 'console' }], next: 'more' })
-      .mockResolvedValueOnce({ stories: [{ id: STORY, madeBy: 'console' }], next: null });
+    // Found there, as the console's, it is withdrawn.
+    social.stories.list.mockResolvedValue({
+      stories: [{ id: STORY, madeBy: 'console' }],
+      next: null,
+    });
     social.stories.save.mockResolvedValue({ id: STORY });
     await expect(withdrawStoryAction(START, form({ id: STORY, reason: 'x' }))).rejects.toThrow(
       'REDIRECT',
     );
-    expect(social.stories.list).toHaveBeenLastCalledWith({ limit: 20, cursor: 'more' });
   });
 
   it('is never offered for a story the checks keep, whoever made it: refused before anything is read', async () => {

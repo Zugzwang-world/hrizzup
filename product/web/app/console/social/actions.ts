@@ -198,8 +198,6 @@ export async function withdrawStoryAction(
   // Never a story the checks keep (refused before anything is read), and only one the console made.
   const kept = keptRefusal(id);
   if (kept) return { error: kept, problems: {}, values };
-  const refusal = changeRefusal(id, await madeByOf(id));
-  if (refusal) return { error: refusal, problems: {}, values };
   let story: social.StoryDetail;
   try {
     story = await serverApi.social.stories.get({ id });
@@ -209,6 +207,9 @@ export async function withdrawStoryAction(
   if (story.state !== 'live' || story.requestedId !== null) {
     return { error: 'This story is not live: there is nothing to withdraw.', problems: {}, values };
   }
+  // Who made it comes from one read of the console's list, started where the story was listed (its record's time).
+  const refusal = changeRefusal(id, await madeByOf(story));
+  if (refusal) return { error: refusal, problems: {}, values };
   const built = withdrawalFrom(form, story, Date.now());
   if (!built.ok) return built.state;
   try {

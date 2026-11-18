@@ -53,7 +53,7 @@ export default async function ConsoleStoryPage({ params }: Props) {
   // The checks' kept stories are never changed here, and only a story the console made is withdrawn.
   const keptNote = keptRefusal(story.id);
   const withdrawNote = testStoriesEnabled()
-    ? (keptNote ?? changeRefusal(story.id, await madeByOf(story.id)))
+    ? (keptNote ?? changeRefusal(story.id, await madeByOf(story)))
     : null;
   return (
     <Frame title={story.title} back={back}>
