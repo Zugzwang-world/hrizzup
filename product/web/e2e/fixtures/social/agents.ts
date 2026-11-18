@@ -41,7 +41,7 @@ export type AgentFixtureWorld = {
 };
 
 /** The answers that mean "another run is partway": try again from the top. */
-const AGAIN = new Set([401, 404, 409, 429]);
+const AGAIN = new Set([401, 404, 409]);
 
 /** The headers without the session: the bypass for a protected preview stays, and no one is signed in. */
 function signedOut(headers: Record<string, string>): Record<string, string> {

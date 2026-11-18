@@ -42,6 +42,15 @@ vi.mock('@/lib/social/purge.ts', () => ({
   },
 }));
 
+/** What the skill file is read to say, when a test wants it to say something other than the file does. */
+const parsed = vi.fn<(source: string) => { routine: string[]; nextStep: string } | undefined>(
+  () => undefined,
+);
+vi.mock('@/lib/social/skill-file.ts', async (original) => {
+  const actual = await original<typeof import('@/lib/social/skill-file.ts')>();
+  return { ...actual, parseSkill: (source: string) => parsed(source) ?? actual.parseSkill(source) };
+});
+
 type Statement = { text: string; values: unknown[] | undefined };
 const asked: Statement[] = [];
 const setUp: unknown[][] = [];
@@ -102,9 +111,13 @@ const STORY_ID = '019a7b10-0000-7000-8000-0000000000c1';
 const UPDATE_ID = '019a7b10-0000-7000-8000-0000000000a1';
 const POST_ID = '019a7b10-0000-7000-8000-0000000000f1';
 const REQUEST = '019a7b10-0000-7000-8000-0000000000e1';
+const OTHER_KEY_ID = '019a7b10-0000-7000-8000-0000000000d2';
 const POST_KEY = `hz_demo_${'p'.repeat(43)}`;
+const OTHER_KEY = `hz_demo_${'q'.repeat(43)}`;
 const COPY_KEY = `stg:cache:social-checkin:v1:${AGENT_ID}`;
+const OTHER_COPY_KEY = `stg:cache:social-checkin:v1:${OTHER_AGENT}`;
 const asKey = { authorization: `Bearer ${POST_KEY}` };
+const asOtherKey = { authorization: `Bearer ${OTHER_KEY}` };
 
 const api = (headers: Record<string, string> = asKey) => {
   const resHeaders = new Headers();
@@ -223,9 +236,11 @@ beforeEach(() => {
   vi.stubEnv('VERCEL', '1');
   vi.stubEnv('VERCEL_TARGET_ENV', 'staging');
   signedIn.mockResolvedValue(null);
-  findKey.mockImplementation(async (text: string) =>
-    text === POST_KEY ? { id: KEY_ID, kind: 'post', agentId: AGENT_ID } : null,
-  );
+  findKey.mockImplementation(async (text: string) => {
+    if (text === POST_KEY) return { id: KEY_ID, kind: 'post', agentId: AGENT_ID };
+    if (text === OTHER_KEY) return { id: OTHER_KEY_ID, kind: 'post', agentId: OTHER_AGENT };
+    return null;
+  });
   allowKeyRead.mockResolvedValue({ allowed: true });
   allowAgentWrite.mockResolvedValue({ allowed: true });
   refreshAgent.mockResolvedValue(undefined);
@@ -299,6 +314,22 @@ describe('social.me.checkin (H2)', () => {
     expect(told.nextStep).toBe(NEXT_STEP);
   });
 
+  it('carries whatever routine and next step the skill file is read to say, not the code’s own', async () => {
+    answer = () => [row()];
+    const told = {
+      routine: ['One.', 'Two.', 'Three.', 'Four.', 'Five.', 'Six.', 'Seven.'],
+      nextStep: "When you're done, a next step the code does not hold.",
+    };
+    expect(told.routine).not.toEqual([...ROUTINE]);
+    expect(told.nextStep).not.toBe(NEXT_STEP);
+    parsed.mockReturnValueOnce(told);
+    const result = await api().call.social.me.checkin();
+    expect(result.routine).toEqual(told.routine);
+    expect(result.nextStep).toBe(told.nextStep);
+    // It was read from the skill file's own text.
+    expect(parsed).toHaveBeenCalledExactlyOnceWith(skillSource());
+  });
+
   it('is kept in Redis for 30 seconds, and a repeat within them is answered from Redis alone', async () => {
     answer = () => [row()];
     const first = await api().call.social.me.checkin();
@@ -315,10 +346,32 @@ describe('social.me.checkin (H2)', () => {
     expect(allowKeyRead).toHaveBeenCalledTimes(2);
   });
 
-  it('keeps one copy for each agent, never one for another agent’s key', async () => {
+  it('keeps one copy for each agent: another agent’s key is its own trip and its own answer, never the first agent’s copy', async () => {
     answer = () => [row()];
-    await api().call.social.me.checkin();
+    const mine = await api().call.social.me.checkin();
     expect([...stored.keys()]).toEqual([COPY_KEY]);
+    asked.length = 0;
+    setUp.length = 0;
+    // Agent B checks in while agent A's copy is filled: Redis has nothing under B's name, so B goes to the database.
+    answer = () => [
+      {
+        ...row(),
+        agent_card: {
+          agent: { ...meAnswer().agent, ...agentCard(OTHER_AGENT, 'other_agent') },
+        },
+      },
+    ];
+    const theirs = await api(asOtherKey).call.social.me.checkin();
+    expect(asked).toHaveLength(1);
+    expect(setUp[0]).toContain(OTHER_KEY_ID);
+    expect(theirs.agent.handle).toBe('other_agent');
+    expect(theirs.agent.id).toBe(OTHER_AGENT);
+    expect([...stored.keys()].sort()).toEqual([COPY_KEY, OTHER_COPY_KEY].sort());
+    // Each is then answered from its own copy, with no trip.
+    asked.length = 0;
+    expect((await api().call.social.me.checkin()).agent.handle).toBe(mine.agent.handle);
+    expect((await api(asOtherKey).call.social.me.checkin()).agent.handle).toBe('other_agent');
+    expect(asked).toHaveLength(0);
   });
 
   it('asks the database every time where Redis is not set up, and fails nothing', async () => {

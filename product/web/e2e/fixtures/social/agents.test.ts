@@ -194,6 +194,19 @@ describe('the fixture agent', () => {
     expect(world.sleep).not.toHaveBeenCalled();
   });
 
+  it('throws at once for a 429, which is no other run’s doing: a limit is never waited out', async () => {
+    const { fake, sent } = site([[404], [429, { message: `leaks ${CODE}` }]]);
+    const world = clock();
+    const failure = await ensureAgentFixture(CONTEXT, { fetch: fake, ...world }).catch(
+      (error: unknown) => error as Error,
+    );
+    expect(failure).toBeInstanceOf(Error);
+    expect((failure as Error).message).toBe("The fixture agent's invite answered 429");
+    expect((failure as Error).message).not.toContain(CODE);
+    expect(world.sleep).not.toHaveBeenCalled();
+    expect(sent).toHaveLength(2);
+  });
+
   it('prints nothing, and carries no secret in any error, when the site cannot be reached', async () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);

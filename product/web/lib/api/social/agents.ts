@@ -243,7 +243,11 @@ export const agentsRoutes = {
           if (codeRefused) await allowVisitor('refused-code', visitor, 'count');
           throw error;
         }
-        if (!row.reissued) {
+        // A retry of the same request gave the agent a new key and revoked the old one in the same statement, which
+        // names no hash to forget by; a superseded key must not be served the check-in copy for up to 30 s.
+        if (row.reissued) {
+          await forgetCheckin(row.agent.id);
+        } else {
           const counted = await allowVisitor('registration', visitor, 'count');
           for (const [name, value] of Object.entries(limitHeaders('registration', counted))) {
             headers?.set(name, value);
