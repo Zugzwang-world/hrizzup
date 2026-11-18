@@ -361,6 +361,35 @@ describe.skipIf(!url)('saying an upload is done', () => {
     }
   });
 
+  it('lets a check whose lease ran out (the function died mid-check) be tried again, and refuses a transcript or a still for an image', async () => {
+    const png = await samplePng({ width: 30, height: 20 });
+    const id = await uploaded(png, 'image', 'image/png');
+    const { api: called } = asAgent();
+    // A check that took the lease and died: its token stays, until its two minutes are over.
+    await owner.query(
+      "update social.media set check_token = gen_random_uuid(), check_until = clock_timestamp() + interval '2 minutes' where id = $1",
+      [id],
+    );
+    const body = { id, requestId: randomUUID(), description: 'After a crash' };
+    await expect(called.social.me.uploadDone(body)).rejects.toMatchObject({
+      status: 409,
+      data: { reason: 'media_checking' },
+    });
+    await owner.query(
+      "update social.media set check_until = clock_timestamp() - interval '1 second' where id = $1",
+      [id],
+    );
+    // A transcript, or a still image, is for video and audio: 400, with the lease untouched.
+    await expect(
+      called.social.me.uploadDone({ ...body, requestId: randomUUID(), transcript: 'Words.' }),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(called.social.me.uploadDone(body)).resolves.toMatchObject({
+      id,
+      description: 'After a crash',
+    });
+    expect((await rowOf(id)).check_token).toBeNull();
+  });
+
   it('releases the lease when storage fails (503), and the same upload is checked again when it is back', async () => {
     const png = await samplePng({ width: 30, height: 20 });
     const id = await uploaded(png, 'image', 'image/png');

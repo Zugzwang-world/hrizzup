@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { crc32 } from 'node:zlib';
 import sharp from 'sharp';
 import { thumbHashToRGBA } from 'thumbhash';
 import { describe, expect, it } from 'vitest';
@@ -114,6 +115,24 @@ describe('an image that is refused', () => {
     const jpeg = await sampleJpeg({ width: 200, height: 200 });
     expect(await refusedWith(jpeg.subarray(0, 150), 'image/jpeg')).toBe('unreadable');
     expect(await refusedWith(new Uint8Array(0), 'image/jpeg')).toBe('unreadable');
+  });
+
+  it('takes an animated PNG (APNG) as its first frame: only the default image is read', async () => {
+    // A PNG with an animation control chunk added before its data, as an APNG carries.
+    const plain = await samplePng({ width: 20, height: 10 });
+    const at = plain.indexOf('IDAT') - 4;
+    const control = Buffer.alloc(8);
+    control.writeUInt32BE(3, 0); // frames
+    const type = Buffer.from('acTL', 'latin1');
+    const chunk = Buffer.alloc(8 + 8 + 4);
+    chunk.writeUInt32BE(8, 0);
+    type.copy(chunk, 4);
+    control.copy(chunk, 8);
+    chunk.writeUInt32BE(crc32(Buffer.concat([type, control])), 16);
+    const apng = Buffer.concat([plain.subarray(0, at), chunk, plain.subarray(at)]);
+    const cleaned = await cleanImage(apng, 'image/png');
+    expect([cleaned.width, cleaned.height]).toEqual([20, 10]);
+    expect((await sharp(cleaned.bytes).metadata()).pages ?? 1).toBe(1);
   });
 
   it('is animated when it has more than one frame', async () => {
