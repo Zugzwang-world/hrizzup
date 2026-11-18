@@ -2,9 +2,16 @@ import { createServer, type RequestListener, type Server } from 'node:http';
 import { createRequire } from 'node:module';
 import type { AddressInfo, Socket } from 'node:net';
 import { inspect } from 'node:util';
-import { type APIRequestContext, type Route, request } from '@playwright/test';
+import { type APIRequestContext, type APIResponse, type Route, request } from '@playwright/test';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { call, callWith, fetchThrough, quiet, quietRoute } from './quiet-request.ts';
+import {
+  call,
+  callWith,
+  fetchThrough,
+  type QuietResponse,
+  quiet,
+  quietRoute,
+} from './quiet-request.ts';
 
 /**
  * The proof that a request in a journey never prints a header when it fails (Round 6, R16, M5: the founder's
@@ -106,11 +113,20 @@ async function contextFor(baseURL: string): Promise<APIRequestContext> {
 }
 
 /** One server for the answers: JSON, a refusal as HTML that quotes the key, a redirect, and an echo of what it got. */
+const received: {
+  method: string;
+  url: string;
+  headers: Record<string, string | string[] | undefined>;
+  body: string;
+}[] = [];
+
 const answers: RequestListener = (req, res) => {
   const chunks: Buffer[] = [];
   req.on('data', (chunk: Buffer) => chunks.push(chunk));
   req.on('end', () => {
     const path = (req.url ?? '').split('?')[0];
+    const body = Buffer.concat(chunks).toString('utf8');
+    received.push({ method: req.method ?? '', url: req.url ?? '', headers: req.headers, body });
     if (path === '/json') {
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ ok: true, list: [1, 2, 3] }));
@@ -127,7 +143,7 @@ const answers: RequestListener = (req, res) => {
           method: req.method,
           url: req.url,
           headers: req.headers,
-          body: Buffer.concat(chunks).toString('utf8'),
+          body,
         }),
       );
     }
@@ -135,14 +151,20 @@ const answers: RequestListener = (req, res) => {
 };
 
 let closed: APIRequestContext;
+let closedBase: string;
 let answering: APIRequestContext;
+let answeringBase: string;
 let waiting: APIRequestContext;
 
 beforeAll(async () => {
-  closed = await contextFor(await closedAddress());
-  answering = await contextFor(await serve(answers));
+  answeringBase = await serve(answers);
+  answering = await contextFor(answeringBase);
   // Accepts the connection and never answers.
   waiting = await contextFor(await serve(() => {}));
+  // Last, and no server is started after it (a test that needs one more uses `answeringBase`): a port that was
+  // just freed can't be handed to another server, which would answer where the proof means nothing to.
+  closedBase = await closedAddress();
+  closed = await contextFor(closedBase);
 });
 
 afterAll(async () => {
@@ -183,7 +205,7 @@ describe("a request's failure in Playwright, raw and quiet", () => {
 
   it('quiet: fetch takes its method from its options, in capitals, and an address given in full is cut to its path', async () => {
     const error = await failure(() =>
-      quiet(closed).fetch('https://made-up.invalid/auth/v1/verify?token=made-up-token', {
+      quiet(closed).fetch(`${closedBase}/auth/v1/verify?token=made-up-token`, {
         method: 'post',
         headers: { authorization: `Bearer ${KEY}` },
       }),
@@ -228,7 +250,7 @@ describe("a request's failure in Playwright, raw and quiet", () => {
   });
 
   it('reading an answer once its context is gone says which call it was, and tells nothing', async () => {
-    const own = await contextFor(await serve(answers));
+    const own = await contextFor(answeringBase);
     const answer = await quiet(own).get('/json');
     expect(answer.status()).toBe(200);
     await own.dispose();
@@ -270,56 +292,135 @@ describe('what a quiet request sends and reads is what a raw one does', () => {
     expect(quietly.headers().location).toBe(raw.headers().location);
   });
 
-  it('a body of "{" with a JSON content type reaches the server byte for byte as the raw call sends it, and the headers a browser sets are kept', async () => {
-    const options = {
-      data: '{',
-      headers: {
-        'content-type': 'application/json',
-        origin: 'https://made-up.invalid',
-        'sec-fetch-site': 'cross-site',
-      },
-    };
-    const raw = await answering.post('/echo', options);
-    const quietly = await quiet(answering).post('/echo', options);
-    const rawSaw = (await raw.json()) as { body: string; headers: Record<string, string> };
-    const quietSaw = (await quietly.json()) as { body: string; headers: Record<string, string> };
-    expect(quietSaw.body).toBe(rawSaw.body);
-    expect(quietSaw.headers.origin).toBe('https://made-up.invalid');
-    expect(quietSaw.headers['sec-fetch-site']).toBe('cross-site');
-    expect(quietSaw.headers['content-type']).toBe(rawSaw.headers['content-type']);
-    expect(quietSaw.headers['content-length']).toBe(rawSaw.headers['content-length']);
-  });
+  type Options = NonNullable<Parameters<APIRequestContext['get']>[1]>;
+  type Sender = (
+    context: APIRequestContext,
+    path: string,
+    options: Options,
+  ) => Promise<QuietResponse>;
 
-  it('text() equals the raw text() byte for byte, json() the raw json(), and headers() the raw headers (date aside)', async () => {
-    for (const path of ['/json', '/echo?a=1']) {
-      const raw = await answering.get(path);
-      const quietly = await quiet(answering).get(path);
-      expect(await quietly.text()).toBe(await raw.text());
-      expect(await quietly.json()).toEqual(await raw.json());
-      expect((await quietly.body()).equals(await raw.body())).toBe(true);
-      const { date: _rawDate, ...rawHeaders } = raw.headers();
-      const { date: _quietDate, ...quietHeaders } = quietly.headers();
-      expect(quietHeaders).toEqual(rawHeaders);
-      expect(quietly.headersArray().length).toBe(raw.headersArray().length);
-      expect(quietly.url()).toBe(raw.url());
-      expect(quietly.ok()).toBe(raw.ok());
-      expect(quietly.statusText()).toBe(raw.statusText());
-    }
-  });
+  /** Each of the seven methods, sent raw and through quiet(); `fetch` names its own method (the server must see it). */
+  const SEVEN: { name: string; method: string; body: boolean; raw: Sender; quieted: Sender }[] = [
+    {
+      name: 'fetch',
+      method: 'OPTIONS',
+      body: true,
+      raw: (c, path, o) => c.fetch(path, { ...o, method: 'OPTIONS' }),
+      quieted: (c, path, o) => quiet(c).fetch(path, { ...o, method: 'OPTIONS' }),
+    },
+    {
+      name: 'get',
+      method: 'GET',
+      body: false,
+      raw: (c, path, o) => c.get(path, o),
+      quieted: (c, path, o) => quiet(c).get(path, o),
+    },
+    {
+      name: 'post',
+      method: 'POST',
+      body: true,
+      raw: (c, path, o) => c.post(path, o),
+      quieted: (c, path, o) => quiet(c).post(path, o),
+    },
+    {
+      name: 'put',
+      method: 'PUT',
+      body: true,
+      raw: (c, path, o) => c.put(path, o),
+      quieted: (c, path, o) => quiet(c).put(path, o),
+    },
+    {
+      name: 'patch',
+      method: 'PATCH',
+      body: true,
+      raw: (c, path, o) => c.patch(path, o),
+      quieted: (c, path, o) => quiet(c).patch(path, o),
+    },
+    {
+      name: 'delete',
+      method: 'DELETE',
+      body: true,
+      raw: (c, path, o) => c.delete(path, o),
+      quieted: (c, path, o) => quiet(c).delete(path, o),
+    },
+    {
+      name: 'head',
+      method: 'HEAD',
+      body: false,
+      raw: (c, path, o) => c.head(path, o),
+      quieted: (c, path, o) => quiet(c).head(path, o),
+    },
+  ];
 
-  it('a quiet request sends what it was given, and the options object reaches the context unchanged', async () => {
-    const options = { data: { a: 1 }, headers: { 'x-made-up': 'yes' } };
-    const seen: unknown[] = [];
+  for (const { name, method, body, raw, quieted } of SEVEN) {
+    it(`${name} sends ${method}, a body and the headers a browser sets as the raw call does, and reads the same`, async () => {
+      const path = `/echo/${name}?a=1`;
+      const options: Options = {
+        headers: {
+          origin: 'https://made-up.invalid',
+          'sec-fetch-site': 'cross-site',
+          ...(body ? { 'content-type': 'application/json' } : {}),
+        },
+        // A "{" that is not JSON, with a JSON content type: handed to Playwright as given.
+        ...(body ? { data: '{' } : {}),
+      };
+      const before = received.length;
+      const direct = await raw(answering, path, options);
+      const through = await quieted(answering, path, options);
+      const saw = received.slice(before);
+      expect(saw.length, 'the server got each request once').toBe(2);
+      const [sawDirect, sawThrough] = saw;
+      // The server's own record: the method it was sent, and byte for byte what the raw call sent.
+      expect(sawDirect?.method).toBe(method);
+      expect(sawThrough?.method).toBe(method);
+      expect(sawThrough?.body).toBe(sawDirect?.body);
+      expect(sawThrough?.headers).toEqual(sawDirect?.headers);
+      expect(sawThrough?.headers.origin).toBe('https://made-up.invalid');
+      expect(sawThrough?.headers['sec-fetch-site']).toBe('cross-site');
+      // What it reads back is the raw answer's.
+      expect(through.status()).toBe(direct.status());
+      expect(through.statusText()).toBe(direct.statusText());
+      expect(through.ok()).toBe(direct.ok());
+      expect(through.url()).toBe(direct.url());
+      expect(through.headersArray().length).toBe(direct.headersArray().length);
+      const { date: _directDate, ...directHeaders } = direct.headers();
+      const { date: _throughDate, ...throughHeaders } = through.headers();
+      expect(throughHeaders).toEqual(directHeaders);
+      expect(await through.text()).toBe(await direct.text());
+      expect((await through.body()).equals(await direct.body())).toBe(true);
+      // (A HEAD answer has no body to read as JSON.)
+      if (method !== 'HEAD') expect(await through.json()).toEqual(await direct.json());
+    });
+  }
+
+  it('each method passes its arguments on to the context unchanged: the same address and the very same options object', async () => {
+    const response = { status: () => 200 } as unknown as APIResponse;
+    const calls: { name: string; args: unknown[] }[] = [];
+    const record =
+      (name: string) =>
+      async (...args: unknown[]) => {
+        calls.push({ name, args });
+        return response;
+      };
     const stand = {
-      post: async (...args: unknown[]) => {
-        seen.push(...args);
-        return await answering.post('/echo', options);
-      },
+      fetch: record('fetch'),
+      get: record('get'),
+      post: record('post'),
+      put: record('put'),
+      patch: record('patch'),
+      delete: record('delete'),
+      head: record('head'),
     } as unknown as APIRequestContext;
-    const answer = await quiet(stand).post('/echo', options);
-    expect(seen[0]).toBe('/echo');
-    expect(seen[1]).toBe(options);
-    expect(answer.status()).toBe(200);
+    const through = quiet(stand);
+    for (const name of ['fetch', 'get', 'post', 'put', 'patch', 'delete', 'head'] as const) {
+      const options = { data: { a: 1 }, headers: { 'x-made-up': 'yes' } };
+      const answer = await through[name]('/x', options);
+      expect(calls.at(-1)?.name).toBe(name);
+      expect(calls.at(-1)?.args[0]).toBe('/x');
+      expect(calls.at(-1)?.args[1]).toBe(options);
+      expect(answer.status()).toBe(200);
+    }
+    expect(calls.length).toBe(7);
   });
 });
 

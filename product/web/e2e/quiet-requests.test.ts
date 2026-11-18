@@ -78,7 +78,12 @@ function compilerOptions(): ts.CompilerOptions {
   return { ...parsed.options, noEmit: true };
 }
 
-/** Whether `type` is, or in any member of its union or intersection is, Playwright's own context or route. */
+/**
+ * Whether `method` of `type` (made non-nullable, and each member of a union or intersection looked at) is a
+ * member declared by Playwright's own `APIRequestContext` (or, for `fetch`, `Route`). Asked of the property's
+ * declaration, not of the type's name, so a sub-interface (`interface Mine extends APIRequestContext {}`),
+ * `Pick<APIRequestContext, 'get'>` and `Partial<APIRequestContext>` count as well.
+ */
 function playwrightType(
   checker: ts.TypeChecker,
   type: ts.Type,
@@ -87,13 +92,15 @@ function playwrightType(
   const members = (t: ts.Type): ts.Type[] =>
     t.isUnionOrIntersection() ? t.types.flatMap(members) : [t];
   for (const member of members(checker.getApparentType(checker.getNonNullableType(type)))) {
-    const symbol = member.getSymbol();
-    const declaredByPlaywright = symbol?.declarations?.some((declaration) =>
-      normal(declaration.getSourceFile().fileName).endsWith('/playwright-core/types/types.d.ts'),
-    );
-    if (!declaredByPlaywright) continue;
-    if (symbol?.name === 'APIRequestContext') return 'APIRequestContext';
-    if (symbol?.name === 'Route' && method === 'fetch') return 'Route';
+    for (const declaration of checker.getPropertyOfType(member, method)?.declarations ?? []) {
+      const declaredByPlaywright = normal(declaration.getSourceFile().fileName).endsWith(
+        '/playwright-core/types/types.d.ts',
+      );
+      const owner = declaration.parent;
+      if (!declaredByPlaywright || !ts.isInterfaceDeclaration(owner)) continue;
+      if (owner.name.text === 'APIRequestContext') return 'APIRequestContext';
+      if (owner.name.text === 'Route' && method === 'fetch') return 'Route';
+    }
   }
   return undefined;
 }
@@ -133,7 +140,8 @@ const nameOf = (name: ts.PropertyName | ts.BindingName | undefined): string | un
 /**
  * Every use of a sending method on Playwright's request context (or `fetch` on a route) in the given files:
  * a property access `x.get` (called or not, so `.bind` and `const f = x.get` count), an element access
- * `x['get']`, and a binding `{ get } = x` (a declaration, a parameter or an assignment).
+ * `x['get']` (or `x[key]`, whose key's type is checked), and a binding `{ get } = x` (a declaration, a
+ * parameter or an assignment).
  */
 function findSends(program: ts.Program, paths: string[]): Send[] {
   const checker = program.getTypeChecker();
@@ -142,9 +150,18 @@ function findSends(program: ts.Program, paths: string[]): Send[] {
     const source = program.getSourceFile(path);
     if (!source) throw new Error(`${path} is not in the program`);
     const file = normal(source.fileName);
-    const note = (node: ts.Node, method: string, receiver: ts.Type | undefined) => {
-      if (!SEND_NAMES.includes(method) || !receiver) return;
-      const on = playwrightType(checker, receiver, method);
+    /** Notes a use of `method` (named as `method`, or as any of `candidates`) on `receiver`, if it is Playwright's. */
+    const note = (
+      node: ts.Node,
+      method: string,
+      receiver: ts.Type | undefined,
+      candidates: string[] = [method],
+    ) => {
+      if (!receiver) return;
+      const on = candidates
+        .filter((candidate) => SEND_NAMES.includes(candidate))
+        .map((candidate) => playwrightType(checker, receiver, candidate))
+        .find((found) => found !== undefined);
       if (!on) return;
       sends.push({
         file,
@@ -157,15 +174,19 @@ function findSends(program: ts.Program, paths: string[]): Send[] {
     const visit = (node: ts.Node) => {
       if (ts.isPropertyAccessExpression(node)) {
         note(node.name, node.name.text, checker.getTypeAtLocation(node.expression));
-      } else if (
-        ts.isElementAccessExpression(node) &&
-        ts.isStringLiteralLike(node.argumentExpression)
-      ) {
-        note(
-          node.argumentExpression,
-          node.argumentExpression.text,
-          checker.getTypeAtLocation(node.expression),
-        );
+      } else if (ts.isElementAccessExpression(node)) {
+        // The key's own type: `x['get']`, and a variable of a literal type, or a union of them (`x[m]`).
+        // A key that isn't made only of string literals could be any method, so on Playwright's context it is named.
+        const receiver = checker.getTypeAtLocation(node.expression);
+        const key = checker.getTypeAtLocation(node.argumentExpression);
+        const parts = key.isUnion() ? key.types : [key];
+        if (parts.every((part) => part.isStringLiteral())) {
+          for (const part of parts) {
+            if (part.isStringLiteral()) note(node.argumentExpression, part.value, receiver);
+          }
+        } else {
+          note(node.argumentExpression, '[key]', receiver, SEND_NAMES);
+        }
       } else if (ts.isObjectBindingPattern(node)) {
         for (const element of node.elements) {
           const method = nameOf(element.propertyName ?? element.name);
@@ -244,25 +265,40 @@ describe('a journey sends every request through the quiet wrapper', () => {
 
   /** One file in memory, added to the program the way a new journey would be, to prove what the scanner names. */
   const FORMS = join(E2E, 'support/scanner-forms-in-memory.ts');
+  /** A line ending `// named: get, post` must be named for exactly those methods; `// allowed` stands; the rest are not sends. */
   const FORMS_TEXT = [
     "import type { APIRequestContext, Route } from '@playwright/test';",
     "import { quietly } from './quiet-request.ts';",
+    '',
+    'interface Mine extends APIRequestContext {}',
     '',
     'export async function forms(',
     '  ctx: APIRequestContext,',
     '  maybe: APIRequestContext | null | undefined,',
     '  route: Route,',
+    '  mine: Mine,',
+    "  picked: Pick<APIRequestContext, 'get' | 'fetch'>,",
+    '  loose: Partial<APIRequestContext>,',
     ') {',
-    "  await ctx.get('/a'); // named",
-    "  await ctx['post']('/b'); // named",
-    '  const { put } = ctx; // named',
-    "  await maybe?.fetch('/c'); // named",
-    '  const bound = ctx.get.bind(ctx); // named',
-    '  await route.fetch(); // named',
-    '  const { delete: remove, head } = ctx; // named, named',
+    "  await ctx.get('/a'); // named: get",
+    "  await ctx['post']('/b'); // named: post",
+    '  const { put } = ctx; // named: put',
+    "  await maybe?.fetch('/c'); // named: fetch",
+    '  const bound = ctx.get.bind(ctx); // named: get',
+    '  await route.fetch(); // named: fetch',
+    '  const { delete: remove, head } = ctx; // named: delete, head',
+    "  await mine.get('/d'); // named: get",
+    "  await picked.fetch('/e'); // named: fetch",
+    "  await loose.get?.('/f'); // named: get",
+    "  const some = 'get' as 'get' | 'post';",
+    "  await ctx[some]('/g'); // named: get, post",
+    "  const key = 'get' as string;",
+    "  await ctx[key]('/h'); // named: [key]",
+    "  const other = 'dispose' as 'dispose' | 'storageState';",
+    '  await ctx[other](); // not a send',
     "  await quietly('GET', '/x', () => ctx.get('/x')); // allowed",
     "  await quietly('GET', '/y', async () => {",
-    "    const inner = () => ctx.patch('/y'); // named",
+    "    const inner = () => ctx.patch('/y'); // named: patch",
     '    return inner();',
     '  });',
     "  await quietly('GET', '/z', async () => {",
@@ -288,27 +324,23 @@ describe('a journey sends every request through the quiet wrapper', () => {
     const withForms = ts.createProgram({ rootNames: [FORMS], options, host });
     const found = findSends(withForms, [FORMS]);
     const lines = FORMS_TEXT.split('\n');
-    const wanted = (marker: string) =>
-      lines.flatMap((text, index) => (text.includes(`// ${marker}`) ? [index + 1] : []));
-    const named = found.filter((send) => !send.allowed);
-    expect(named.map((send) => `${send.line} ${send.method}`)).toEqual([
-      '9 get',
-      '10 post',
-      '11 put',
-      '12 fetch',
-      '13 get',
-      '14 fetch',
-      '15 delete',
-      '15 head',
-      '18 patch',
-    ]);
-    expect(new Set(named.map((send) => send.line))).toEqual(new Set(wanted('named')));
+    const wanted = lines.flatMap((text, index) => {
+      const methods = /\/\/ named: (.*)$/.exec(text)?.[1]?.split(', ') ?? [];
+      return methods.map((method) => `${index + 1} ${method}`);
+    });
+    expect(wanted.length, 'the forms were marked').toBeGreaterThan(10);
+    const written = (list: Send[]) => list.map((send) => `${send.line} ${send.method}`).sort();
+    expect(written(found.filter((send) => !send.allowed))).toEqual([...wanted].sort());
     // The send inside the callback itself stands, and is still a send the scanner saw.
     expect(found.filter((send) => send.allowed).map((send) => send.line)).toEqual(
-      wanted('allowed'),
+      lines.flatMap((text, index) => (text.includes('// allowed') ? [index + 1] : [])),
     );
-    // A `Map`'s own `get` is not Playwright's.
-    expect(found.some((send) => send.line === 22)).toBe(false);
+    // A `Map`'s own `get`, and a method of the context that sends nothing, are not sends.
+    const notSends = lines.flatMap((text, index) =>
+      text.includes('// not a send') ? [index + 1] : [],
+    );
+    expect(notSends.length).toBe(2);
+    for (const line of notSends) expect(found.some((send) => send.line === line)).toBe(false);
   }, 60_000);
 
   it("has no `toBeOK(` and no `_fetchLog` in any e2e file (a failed `toBeOK` prints Playwright's call log)", () => {
