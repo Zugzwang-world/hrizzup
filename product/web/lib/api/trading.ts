@@ -6,8 +6,8 @@ import type { Pool } from 'pg';
 import { database } from '@/lib/db.ts';
 import { apiKeysEnabled } from '@/lib/env.ts';
 import { type SignedIn, signedIn } from './context.ts';
-import { credentialOf } from './credential.ts';
-import { findKey } from './keys.ts';
+import { type Credential, credentialOf } from './credential.ts';
+import { type FoundKey, findKey } from './keys.ts';
 import {
   allowKeyRead,
   allowTrade,
@@ -30,6 +30,9 @@ import {
  *   before launch) is 401; a read-only key on a trading call is 403 `FORBIDDEN`, and so is any key
  *   on the keys' own calls, which need a signed-in session; more than its personal reads a minute
  *   is 429.
+ * - An agent's posting key (social, docs/social/build.md section 7.14) works only on social's own
+ *   calls (`lib/social/callers.ts`): here it is 401 on a personal read, as a key this call doesn't
+ *   take, and 403 on a trade, as a key that never trades.
  */
 
 /** A trading call's failure as the API's answer. */
@@ -96,9 +99,35 @@ const KEY_REFUSED = "This key can't trade";
 const notSignedIn = () => new ORPCError('UNAUTHORIZED', { status: 401, message: 'Not signed in' });
 const badKey = (message: string) => new ORPCError('UNAUTHORIZED', { status: 401, message });
 
+/** The live key a request carries (it must carry one: `credential` is a key's, valid or not), or its 401. */
+async function liveKey(credential: Extract<Credential, { kind: 'key' | 'bad-key' }>) {
+  if (!apiKeysEnabled()) throw badKey('API keys work only on staging until launch');
+  const found =
+    credential.kind === 'key'
+      ? await tradingCall(() => findKey(tradingPool(), credential.text))
+      : null;
+  if (!found) throw badKey("This API key isn't valid: it may have been revoked");
+  return found;
+}
+
+/**
+ * The kind of the live key a request carries: `read`, `trade` or `post` (an agent's), refused as
+ * `person` refuses a key that isn't valid (401): never made, revoked, malformed, or production's,
+ * before launch. For the MCP server, which shows each kind its own tools.
+ */
+export async function keyAccess(headers: Headers): Promise<FoundKey['kind']> {
+  const credential = credentialOf(headers);
+  if (credential.kind !== 'key' && credential.kind !== 'bad-key') {
+    throw badKey('This needs an API key: Authorization: Bearer <key>');
+  }
+  return (await liveKey(credential)).kind;
+}
+
 /**
  * The person making a personal call: from their session, or from a bot's API key when the request
- * carries one (and then only from the key). Refused as the call's need says (see above).
+ * carries one (and then only from the key). Refused as the call's need says (see above). An agent's
+ * posting key is no one's account: a personal read is refused as a key this call doesn't take (401),
+ * a trade as a key that never trades (403).
  */
 export async function person(headers: Headers, need: Need = 'session'): Promise<Person> {
   const credential = credentialOf(headers);
@@ -113,13 +142,17 @@ export async function person(headers: Headers, need: Need = 'session'): Promise<
       message: 'Keys are made and revoked only when signed in on the website, never with a key',
     });
   }
-  if (!apiKeysEnabled()) throw badKey('API keys work only on staging until launch');
-  const found =
-    credential.kind === 'key'
-      ? await tradingCall(() => findKey(tradingPool(), credential.text))
-      : null;
-  if (!found) throw badKey("This API key isn't valid: it may have been revoked");
-  if (need === 'trade' && found.scope !== 'trade') {
+  const found = await liveKey(credential);
+  if (found.kind === 'post') {
+    if (need === 'trade') {
+      throw new ORPCError('FORBIDDEN', {
+        status: 403,
+        message: 'A posting key never trades: only a trading key may trade',
+      });
+    }
+    throw badKey("A posting key works only on social's calls: use a read or trading key here");
+  }
+  if (need === 'trade' && found.kind !== 'trade') {
     throw new ORPCError('FORBIDDEN', {
       status: 403,
       message: 'This key is read-only: only a trading key may trade',
@@ -131,7 +164,7 @@ export async function person(headers: Headers, need: Need = 'session'): Promise<
     name: null,
     provider: null,
     testAccount: false,
-    key: { id: found.id, scope: found.scope },
+    key: { id: found.id, scope: found.kind },
   };
 }
 
