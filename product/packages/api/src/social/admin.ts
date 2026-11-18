@@ -20,7 +20,9 @@ import {
 /**
  * The social console (docs/social/build.md, sections 5 and 7.10; built by R5): invites, test stories
  * and their updates, the settings, and the agents' limits and keys. Admins only: to anyone else every
- * call answers "No such call". M3 makes three of them live (the two saves and creating an invite).
+ * call answers "No such call". M3 made three of them live (the two saves and creating an invite) and
+ * R5's M3a made six more (the three lists, the settings' two and an agent's limits); the two
+ * revocations, `invites.revoke` and `agents.revokeKeys`, stay not live until M3b.
  */
 
 /** A story as the agreement writes it (story/1), checked by the agreement's own check: each problem is one issue. */
@@ -71,6 +73,8 @@ export const invite = z.object({
   expiresAt: moment,
   usedAt: moment.nullable(),
   revokedAt: moment.nullable(),
+  /** Why it was revoked (an expired invite is revoked as `expired`); null while it isn't. */
+  revokedReason: z.string().nullable(),
   agent: z.object({ id, handle: z.string(), state: agentState }).nullable(),
 });
 
@@ -123,8 +127,11 @@ export const consoleUpdate = z.object({
 /** A setting's value as the console shows a change: a number, or the text of a provider or model. */
 const settingValue = z.union([z.number(), z.string()]);
 
-/** What the settings hold, with the ranges the database holds them to. */
-const settingFields = {
+/**
+ * What the settings hold, with the ranges the database holds them to. Exported so the handler's one
+ * table of columns (`SETTING_COLUMNS`, `web/lib/social/console.ts`) is held to exactly these names.
+ */
+export const settingFields = {
   postsPerDay: z.number().int().min(0).max(1000),
   repliesPerHour: z.number().int().min(0).max(10000),
   housePostsPerDay: z.number().int().min(0).max(1000),
@@ -182,9 +189,17 @@ export const setSettingsInput = z.strictObject({
   reason: oneLine(200),
 });
 
-/** An agent as the console shows it: its profile, where it stands, its invite's email, its limits and its keys. */
-export const adminAgent = agentProfile.extend({
+/**
+ * An agent as the console shows it: its profile (but for its files and skills, which a list of agents
+ * never reads: every agent holds a `profile` file, so an empty list would be false), where it stands,
+ * whether it is listed, why it was retired, its invite's email, its limits and its keys.
+ */
+export const adminAgent = agentProfile.omit({ files: true, skills: true }).extend({
   state: agentState,
+  /** Whether the agent shows in the directory and on the board (chosen with its invite, never changed). */
+  listed: z.boolean(),
+  /** Why it was retired; null while it is not (an agent whose owner's account was deleted has none). */
+  retiredReason: z.string().nullable(),
   inviteEmail: z.string().nullable(),
   /** The agent's own limit; null: the settings'. */
   postsPerDay: z.number().int().min(0).nullable(),
@@ -201,8 +216,9 @@ export const setAgentInput = z.strictObject({
   changes: z
     .strictObject({
       house: z.boolean(),
-      postsPerDay: z.number().int().min(0).nullable(),
-      repliesPerHour: z.number().int().min(0).nullable(),
+      // At most the settings' own maximums: a number past the database's integer would be a 500.
+      postsPerDay: z.number().int().min(0).max(1000).nullable(),
+      repliesPerHour: z.number().int().min(0).max(10000).nullable(),
       videoMediaId: id.nullable(),
     })
     .partial()
@@ -240,6 +256,7 @@ export const adminCalls = {
       invites: {
         /** The invites, newest first, each with its agent's handle and state. */
         list: consoleCall
+          .meta(live(consoleMeta))
           .route({
             method: 'GET',
             path: '/admin/social/invites',
@@ -281,6 +298,7 @@ export const adminCalls = {
       stories: {
         /** The console's stories, newest listed first. */
         list: consoleCall
+          .meta(live(consoleMeta))
           .route({
             method: 'GET',
             path: '/admin/social/stories',
@@ -322,6 +340,7 @@ export const adminCalls = {
       settings: {
         /** The settings, and the last 20 changes. */
         get: consoleCall
+          .meta(live(consoleMeta))
           .route({
             method: 'GET',
             path: '/admin/social/settings',
@@ -333,6 +352,7 @@ export const adminCalls = {
 
         /** Changes some settings, each logged with its reason. */
         set: consoleCall
+          .meta(live(consoleMeta))
           .route({
             method: 'POST',
             path: '/admin/social/settings',
@@ -346,6 +366,7 @@ export const adminCalls = {
       agents: {
         /** The agents, newest first, with their invites' emails and their keys. */
         list: consoleCall
+          .meta(live(consoleMeta))
           .route({
             method: 'GET',
             path: '/admin/social/agents',
@@ -357,6 +378,7 @@ export const adminCalls = {
 
         /** Changes an agent's mark, limits or video. */
         set: consoleCall
+          .meta(live(consoleMeta))
           .route({
             method: 'POST',
             path: '/admin/social/agents/{id}',

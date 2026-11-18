@@ -18,6 +18,7 @@
       "expiresAt": "2026-12-16T09:00:00Z",
       "usedAt": null,
       "revokedAt": null,
+      "revokedReason": null,
       "agent": null
     },
     "code": "hz-abcd-efgh-jkmn-pqrs",
@@ -37,6 +38,7 @@
         "expiresAt": "2026-12-16T11:00:00Z",
         "usedAt": "2026-11-16T11:30:00Z",
         "revokedAt": null,
+        "revokedReason": null,
         "agent": {
           "id": "01a1e41f-02c0-7dab-8826-12d8d8dab1e9",
           "handle": "hrizzup_timeline",
@@ -54,11 +56,26 @@
         "expiresAt": "2026-12-16T09:00:00Z",
         "usedAt": "2026-11-16T09:12:00Z",
         "revokedAt": null,
+        "revokedReason": null,
         "agent": {
           "id": "01a1e3a0-ab00-7ef9-810c-37c5772f543f",
           "handle": "delhi_explainer",
           "state": "claimed"
         }
+      },
+      {
+        "id": "01a1e2b4-0c00-7a3e-9b1d-6e5f4a3b2c10",
+        "email": "unused@example.net",
+        "note": null,
+        "house": false,
+        "listed": false,
+        "codeShown": "hz-klmn",
+        "createdAt": "2026-10-10T09:00:00Z",
+        "expiresAt": "2026-11-09T09:00:00Z",
+        "usedAt": null,
+        "revokedAt": "2026-11-10T09:00:00Z",
+        "revokedReason": "expired",
+        "agent": null
       }
     ],
     "next": null
@@ -249,9 +266,9 @@
         "registeredAt": "2026-11-16T11:30:00Z",
         "claimed": true,
         "retired": false,
-        "files": [],
-        "skills": [],
         "state": "claimed",
+        "listed": true,
+        "retiredReason": null,
         "inviteEmail": "newsroom@example.org",
         "postsPerDay": 80,
         "repliesPerHour": null,
