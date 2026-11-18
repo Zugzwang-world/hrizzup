@@ -25,8 +25,11 @@ local or remote. It proves:
   - it can fail: with `test`'s `dependsOn` removed from every `turbo.json` of that worktree, the
     same change to `core` moves only `core`'s own hash, so it is the `transit` line that carries
     the change;
-  - the root `turbo.json`'s `test` keeps `transit`, and a package's own `test` setting keeps it
-    (or `$TURBO_EXTENDS$`, which adds to the root's).
+  - every package's `transit` waits for the `transit` of each package its package.json lists
+    (`dependencies`, `devDependencies`, `optionalDependencies`), so no package's own `transit`
+    setting can cut the chain unseen;
+  - the root `turbo.json`'s `test` keeps `transit` and its `transit` keeps `^transit`, and a
+    package's own setting of either keeps it (or `$TURBO_EXTENDS$`, which adds to the root's).
 
 If Turborepo isn't installed here, the test fails and says so (`pnpm install` first); it never
 skips. Python's standard library only.
@@ -55,6 +58,8 @@ PROOFS = {
            ["@hrizzup/markets"], "@hrizzup/app"),
 }
 USES = ("dependencies", "devDependencies", "optionalDependencies", "peerDependencies")
+# What Turborepo's `^transit` follows: a package's `transit` waits for the `transit` of each of these.
+LINKS = ("dependencies", "devDependencies", "optionalDependencies")
 
 
 def run(command, cwd, env=None, stdin=None):
@@ -97,7 +102,10 @@ class TestsFollowPackages(unittest.TestCase):
         self.addCleanup(self.remove_worktree)
         run(["git", "worktree", "add", "--detach", "--quiet", self.tree, "HEAD"], cwd=ROOT)
         # The checkout's own uncommitted change to a turbo.json (none in CI, a clean checkout).
-        changes = run(["git", "diff", "HEAD", "--binary", "--", "*turbo.json"], cwd=ROOT).stdout
+        # The flags keep a user's own git settings (diff.noprefix, diff.external, color.diff) from
+        # changing what `git apply` reads.
+        changes = run(["git", "diff", "HEAD", "--binary", "--no-ext-diff", "--no-color",
+                       "--src-prefix=a/", "--dst-prefix=b/", "--", "*turbo.json"], cwd=ROOT).stdout
         if changes:
             run(["git", "apply", "-"], cwd=self.tree, stdin=changes)
 
@@ -189,6 +197,22 @@ class TestsFollowPackages(unittest.TestCase):
                           f"{task} doesn't wait for {transit}: a change to a package it uses wouldn't re-run it "
                           "(`test` in turbo.json, or this package's own `test` there, lost its `dependsOn`)")
 
+    def test_every_transit_waits_for_the_transit_of_what_its_package_uses(self):
+        tasks = self.hashes()
+        transits = {task: info for task, info in tasks.items() if task.endswith("#transit")}
+        self.assertTrue(transits, "turbo's dry run found no `transit` task at all")
+        self.maxDiff = None  # every problem, not the first few
+        missing = []
+        for task, info in sorted(transits.items()):
+            with open(os.path.join(self.tree, info["directory"], "package.json"), encoding="utf-8") as handle:
+                manifest = json.load(handle)
+            for name in sorted({name for kind in LINKS for name in manifest.get(kind, {})}):
+                if f"{name}#transit" in transits and f"{name}#transit" not in info["dependencies"]:
+                    missing.append(f"{task} doesn't wait for {name}#transit")
+        self.assertEqual(missing, [], "a package's `transit` must wait for the `transit` of each package its package.json "
+                         "lists, or a change to that package wouldn't reach its dependents' tests (a package's own "
+                         "`transit` in turbo.json lost `^transit`)")
+
     def test_a_change_to_core_re_runs_the_apps_and_the_websites_tests(self):
         self.prove("core")
 
@@ -222,6 +246,20 @@ class TestsFollowPackages(unittest.TestCase):
             kept = test["dependsOn"]
             self.assertTrue("transit" in kept or "$TURBO_EXTENDS$" in kept,
                             f"{os.path.relpath(path, ROOT)} sets `test`'s `dependsOn` without `transit` "
+                            "(or `$TURBO_EXTENDS$`, which keeps the root's)")
+
+    def test_the_configs_keep_up_transit_on_transit(self):
+        root = load(os.path.join(ROOT, "turbo.json"))
+        self.assertIn("^transit", root["tasks"]["transit"].get("dependsOn", []),
+                      "the root turbo.json's `transit` must depend on `^transit`: it is what carries a change "
+                      "from a package to every package that uses it")
+        for path in turbo_files(ROOT):
+            transit = (load(path).get("tasks") or {}).get("transit")
+            if path == os.path.join(ROOT, "turbo.json") or not isinstance(transit, dict) or "dependsOn" not in transit:
+                continue
+            kept = transit["dependsOn"]
+            self.assertTrue("^transit" in kept or "$TURBO_EXTENDS$" in kept,
+                            f"{os.path.relpath(path, ROOT)} sets `transit`'s `dependsOn` without `^transit` "
                             "(or `$TURBO_EXTENDS$`, which keeps the root's)")
 
 
