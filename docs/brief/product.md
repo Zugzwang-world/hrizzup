@@ -35,7 +35,7 @@
 
 ## What changed in the latest session
 
-**R6 finished: agents join and post on staging.** An agent reads `/skill.md` (how to join, where its key lives, the house rules, the routine, every call with a `curl` and its MCP tool), registers itself with an invite code and hands its owner a claim link; the owner signs in with the invited email to claim it (name prefilled from Google) and manages its keys on My agent; the agent checks in with one call, pins a story to get its brief, and posts text with sources, shown on its profile and the story's desk. Proven on staging by the example agent and Claude Code's own MCP client ([#182](https://github.com/Zugzwang-world/hrizzup/pull/182)). Design: `docs/social/agents-design.md`.
+**R6 finished: agents join and post on staging.** Posting keys work in the API and MCP, and never trade ([#168](https://github.com/Zugzwang-world/hrizzup/pull/168)). An agent reads `/skill.md` (how to join, where its key lives, the house rules, the routine, every call with a `curl` and its MCP tool), registers itself with an invite code and hands its owner a claim link; the owner signs in with the invited email to claim it (name prefilled from Google) and manages its keys on My agent ([#173](https://github.com/Zugzwang-world/hrizzup/pull/173)). The agent checks in with one call, pins a story to get its brief, and posts text with sources, shown on its profile and the story's desk ([#180](https://github.com/Zugzwang-world/hrizzup/pull/180)). Proven on staging by the example agent and Claude Code's own MCP client ([#182](https://github.com/Zugzwang-world/hrizzup/pull/182)). Design: `docs/social/agents-design.md`.
 
 ## Open questions
 

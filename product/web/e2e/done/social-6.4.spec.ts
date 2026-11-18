@@ -26,7 +26,8 @@ import { sessionFor, stagingKeys } from '../support/test-accounts.ts';
  * 6. the agent checks in with that story set: it pins it, posts a text take with the story's source, and finishes
  *    the check-in;
  * 7. the post shows through `GET /api/v1/social/posts/{id}`, `GET /api/v1/social/agents/{handle}/posts` and the story's desk,
- *    `GET /api/v1/social/stories/{id}/posts`;
+ *    `GET /api/v1/social/stories/{id}/posts`; and in a real browser, signed out, the claim page shows the agent (before the
+ *    claim), and the agent's profile and the story's page show the post (Review 1's pages);
  * 8. the official MCP client (as Claude Code speaks it), with the agent's posting key, lists the agent's tools and
  *    posts a second take through `social_me_post`, which shows through `posts.get` on its new ID.
  * Everything it makes stays unlisted (the invite, the story, so the agent never shows in the directory or on the
@@ -75,6 +76,7 @@ function updateRecord(id: string, storyId: string, label: string, at: Date) {
 
 test("R6's M6.4 done-test: the example agent joins, is claimed, checks in and posts; then the MCP client posts a second take, on staging", async ({
   playwright,
+  browser,
 }) => {
   test.setTimeout(600_000);
   expect(BASE, 'run against staging').toBe('https://staging.hrizzup.com');
@@ -151,6 +153,24 @@ test("R6's M6.4 done-test: the example agent joins, is claimed, checks in and po
       'the claim link is on staging',
     ).toBe(true);
 
+    // 4b. Review 1's pages, in a real browser on staging, signed out: first the claim page, showing the agent
+    // its owner is about to claim. A failed visit says only that it failed, never the address (it holds the token).
+    const visitor = await browser.newContext();
+    const page = await visitor.newPage();
+    const visit = async (address: string, what: string) => {
+      try {
+        const answer = await page.goto(address);
+        return answer?.status() ?? 0;
+      } catch {
+        throw new Error(`${what} did not open`);
+      }
+    };
+    expect(await visit(joined.claimUrl, 'The claim page'), 'the claim page answers').toBe(200);
+    expect(
+      (await page.getByText(handle).count()) > 0,
+      'the claim page shows the agent, signed out',
+    ).toBe(true);
+
     // 5. The owner claims it, signed in as the invited account.
     const claimed = await call(owner, 'POST', '/api/v1/owner/claims', {
       requestId: randomUUID(),
@@ -196,6 +216,24 @@ test("R6's M6.4 done-test: the example agent joins, is claimed, checks in and po
     const desk = await call(anyone, 'GET', `/api/v1/social/stories/${storyId}/posts?sort=latest`);
     expect(desk.status, 'stories.posts (the desk)').toBe(200);
     expect((desk.body.posts as { id: string }[]).map((one) => one.id)).toContain(ran.postId);
+    // 7b. And the pages Review 1 looks at: the agent's profile and the story's page (its desk), each with the post.
+    expect(
+      await visit(`${BASE}/sandbox/social/agents/${handle}`, 'The profile page'),
+      'the profile answers',
+    ).toBe(200);
+    expect(
+      await page.getByTestId('agent-post-list').locator(':scope > *').count(),
+      'the profile lists the post',
+    ).toBeGreaterThan(0);
+    expect(
+      await visit(`${BASE}/sandbox/social/stories/${storyId}`, "The story's page"),
+      'the story answers',
+    ).toBe(200);
+    expect(
+      (await page.getByText(handle).count()) > 0,
+      "the story's desk shows the agent's post",
+    ).toBe(true);
+    await visitor.close();
 
     // 8. The official MCP client, with the agent's posting key: the agent's tools, and a second take.
     const client = new Client({ name: 'hrizzup-done-test', version: '1.0.0' });
