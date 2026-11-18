@@ -346,7 +346,13 @@ test.describe('the console’s post page', () => {
       await expect(page.getByTestId('post-send-button')).toHaveCount(0);
       await fitsEverywhere(page, 'the post page, with an image posted');
 
-      // The desk (the public read) holds it, by the run's agent, with its media and description.
+      // The desk (the public read) holds it, by the run's agent, with its media and description. The read is kept at the
+      // edge for 60 seconds, and a post's purge only marks it stale (`lib/social/purge.ts`: "marked stale, never
+      // deleted"), so the first read after a post can still answer the copy from before it, once, while the edge fetches
+      // a new one; a copy the purge could not mark (it never fails the post) ages out within its edge life. So a post is
+      // waited for as the API's own caching promises: the same read again every 2 seconds, for the edge's life and a
+      // little more at most, never a retry of the test. (The first read of a story's desk is always a miss, and the
+      // image's was the first; the video's came after it had filled the copy.)
       const readDesk = async () => {
         const answer = await call(
           admin,
@@ -356,7 +362,24 @@ test.describe('the console’s post page', () => {
         expect(answer.status, "the story's desk").toBe(200);
         return answer.body.posts as DeskPost[];
       };
-      const imagePost = (await readDesk()).find((one) => one.kind === 'image');
+      const deskPost = async (kind: string): Promise<DeskPost | undefined> => {
+        let posts: DeskPost[] = [];
+        await expect
+          .poll(
+            async () => {
+              posts = await readDesk();
+              return posts.map((one) => one.kind);
+            },
+            {
+              message: `a ${kind} post is on the desk within the read's edge life (60 s): the page said "Posted", so the post was made, and the desk's edge copy was not refreshed in time; the kinds the desk held at the last read are the received value`,
+              timeout: 90_000,
+              intervals: [2_000],
+            },
+          )
+          .toContain(kind);
+        return posts.find((one) => one.kind === kind);
+      };
+      const imagePost = await deskPost('image');
       expect(imagePost, 'the image post is on the desk').toBeDefined();
       expect(imagePost).toMatchObject({
         body: `${caption} (edited)`,
@@ -431,7 +454,7 @@ test.describe('the console’s post page', () => {
       ).toHaveText('Play the video, 0:03');
       await fitsEverywhere(page, 'the post page, with a video posted');
 
-      const videoPost = (await readDesk()).find((one) => one.kind === 'video');
+      const videoPost = await deskPost('video');
       expect(videoPost, 'the video post is on the desk').toBeDefined();
       expect(videoPost).toMatchObject({
         body: videoCaption,
