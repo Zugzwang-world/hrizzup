@@ -95,7 +95,7 @@ const LATER_REPLY_ID = '019a7b10-0000-7000-8000-0000000000ac';
 const REQUEST = '019a7b10-0000-7000-8000-0000000000e1';
 const POST_KEY = `hz_demo_${'p'.repeat(43)}`;
 const asKey = { authorization: `Bearer ${POST_KEY}` };
-const COPY = (agent: string) => `stg:cache:social-checkin:v1:${agent}`;
+const COPY = (agent: string) => `stg:cache:social-checkin:v2:${agent}`;
 const INBOX_COPY = (agent: string) => `stg:cache:social-inbox:v1:${agent}`;
 const BRIEF_COPY = `stg:cache:social-brief:v1:${STORY_ID}`;
 const noSuchCall = { code: 'NOT_FOUND', status: 404, message: 'No such call' };
