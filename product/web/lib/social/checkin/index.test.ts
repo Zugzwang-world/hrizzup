@@ -110,7 +110,14 @@ describe('the check-in', () => {
   });
 
   it('takes the skill file’s own routine and next step when it is given them', async () => {
-    const result = await checkin(vi.fn(), { routine: ['One.'], nextStep: 'Done.' });
+    // The real sections, each as if its area weren't built: held explicitly, as the "no trip" test above is, so
+    // the areas' SQL (R6's agent section needs its card) never changes what this proves.
+    const unbuilt = SECTIONS.map((one) => ({ ...one, sql: null }));
+    const result = await checkin(vi.fn(), {
+      routine: ['One.'],
+      nextStep: 'Done.',
+      sections: unbuilt,
+    });
     expect(result.routine).toEqual(['One.']);
     expect(result.nextStep).toBe('Done.');
   });
