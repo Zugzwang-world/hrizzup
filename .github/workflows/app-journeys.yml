@@ -22,6 +22,13 @@
 # the checks themselves (.github/workflows or .github/scripts) runs the journeys too.
 #
 # The job name is meant to become a required check in the "main" ruleset once it is steady.
+#
+# Beside it runs a trial (the faster checks, docs/research/faster-checks.md, proposal 4; Round 6):
+# the same journeys on two machines, the phone's on one, the tablet's and the cold start on the
+# other ("App journeys on two machines, phone" and ", tablet"), and a job that compares the two
+# ways on pull requests ("App journeys on two machines"). The required job above is not touched by
+# it; the trial's jobs are never required. A later change moves the required name to the faster way
+# once five pull requests in a row compared clean (.github/scripts/side_by_side.py says how).
 
 name: App journeys
 
@@ -304,3 +311,366 @@ jobs:
           path: ${{ runner.temp }}/journeys/
           if-no-files-found: ignore
           retention-days: 30
+
+  # The trial: App journeys' two sizes on two machines, beside the job above, which stays the
+  # required one and stays exactly as it is (the "App journeys" check). One machine runs the phone's
+  # journeys; the other the tablet's, then the cold start at the phone size. They run side by side
+  # with the job above, with no `needs`, each with its own emulator on its own machine, so neither
+  # disturbs the other's measuring. A change to the app builds it in each of the three jobs when
+  # nothing cached has these files. On main the tablet's machine saves the two-machine cold start
+  # (the baseline) under its own prefix; a pull request compares against it. Nothing reports on the
+  # pull request: the comparison job below judges. Names are never a required check's.
+  app-size:
+    name: App journeys on two machines, ${{ matrix.size }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        size: [phone, tablet]
+    permissions:
+      contents: read
+      id-token: write # for the Remote Cache's short-lived token
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+      # pnpm's packages come from main's store in GitHub's cache (the Tool cache workflow fills
+      # it), read only: with no exact hit, the newest store of main under the same prefix, so a
+      # pull request that changes the lockfile downloads only the difference.
+      - name: Where pnpm keeps its packages, and main's key for them
+        id: store
+        run: python3 .github/scripts/tools.py key pnpm-store >> "$GITHUB_OUTPUT"
+      - name: The packages, from GitHub's cache (read only)
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.store.outputs.pnpm_store_file }}
+          key: ${{ steps.store.outputs.pnpm_store_key }}
+          restore-keys: ${{ steps.store.outputs.pnpm_store_prefix }}
+      - name: Connect the Remote Cache
+        uses: vercel/setup-turborepo-remote-cache-action@49d7b1b46ba4c9251e1977986bfe18336feabc8f # v1.1.0
+        continue-on-error: true
+        with:
+          team: ${{ vars.TURBO_TEAM }}
+      - run: pnpm install --frozen-lockfile
+
+      - name: Does this change touch the app?
+        id: affected
+        if: github.event_name == 'pull_request'
+        env:
+          TURBO_SCM_BASE: ${{ github.event.pull_request.base.sha }}
+          TURBO_SCM_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: python3 .github/scripts/affected.py
+      # The signed-in journey also runs code of the website's (its account script and the run
+      # accounts it builds on, which read the staging project's settings), which Turborepo
+      # doesn't count as part of the app.
+      - name: Does this change touch what the journeys use from the website?
+        id: helpers
+        if: github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if git diff --quiet "$BASE...$HEAD" -- product/web/scripts/app-journey-account.ts product/web/e2e/support/ infra/doppler/ infra/supabase/project/settings.json; then
+            echo "touched=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "touched=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Run the journeys?
+        id: run
+        env:
+          ON_PULL_REQUEST: ${{ github.event_name == 'pull_request' }}
+          APP_TOUCHED: ${{ steps.affected.outputs.app }}
+          HELPERS_TOUCHED: ${{ steps.helpers.outputs.touched }}
+        run: |
+          if [ "$ON_PULL_REQUEST" != "true" ] || [ "$APP_TOUCHED" = "true" ] || [ "$HELPERS_TOUCHED" = "true" ]; then
+            echo "app=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "app=false" >> "$GITHUB_OUTPUT"
+            echo "The app isn't affected by this change, so there is no journey to run."
+          fi
+
+      # GitHub's machines for private repositories have 14 GB of disk; the Android build and the
+      # emulator need more, so the big preinstalled tools this job never uses go first.
+      - name: Make room on the machine's disk
+        if: steps.run.outputs.app == 'true'
+        run: |
+          df -h / | tail -1
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL \
+            /usr/local/share/powershell /usr/share/swift /usr/local/share/boost
+          sudo docker image prune --all --force > /dev/null || true
+          df -h / | tail -1
+
+      # The app, built once per set of files.
+      - name: The app's files, as one key
+        id: key
+        if: steps.run.outputs.app == 'true'
+        # Every tracked file the built app is made from; the journeys and the app's scripts
+        # don't change the app, so changing only them reuses the last build.
+        run: |
+          git ls-files -s product/app product/packages pnpm-lock.yaml .node-version \
+            | grep -v -e $'\tproduct/app/journeys/' -e $'\tproduct/app/scripts/' \
+              -e $'\tproduct/app/bundle-limit.json' -e $'\tproduct/app/vitest.config.ts' \
+            | sha256sum | cut -c1-40 | sed 's/^/files=/' >> "$GITHUB_OUTPUT"
+      - name: The built app, if these files were built before
+        id: built
+        if: steps.run.outputs.app == 'true'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: product/app/journeys-build/app.apk
+          key: app-release-x86_64-${{ steps.key.outputs.files }}
+      - name: Java 17, for Gradle and Maestro
+        if: steps.run.outputs.app == 'true'
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Gradle, with its cache (saved from main only)
+        if: steps.run.outputs.app == 'true' && steps.built.outputs.cache-hit != 'true'
+        uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+      - name: Build the app (release build, its code inside, for the emulator)
+        if: steps.run.outputs.app == 'true' && steps.built.outputs.cache-hit != 'true'
+        working-directory: product/app
+        run: |
+          set -euo pipefail
+          pnpm exec expo prebuild --platform android --no-install
+          (cd android && ./gradlew assembleRelease -PreactNativeArchitectures=x86_64 --build-cache)
+          mkdir -p journeys-build
+          cp android/app/build/outputs/apk/release/app-release.apk journeys-build/app.apk
+          # The build's own files take gigabytes the emulator needs; Gradle's cache keeps what
+          # the next build reuses.
+          (cd android && ./gradlew --stop)
+          rm -rf android
+          df -h / | tail -1
+      - name: Keep the built app for the next run of these same files
+        if: steps.run.outputs.app == 'true' && steps.built.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: product/app/journeys-build/app.apk
+          key: app-release-x86_64-${{ steps.key.outputs.files }}
+
+      # Maestro and the emulator, at the versions .github/scripts/tools.py pins.
+      - name: The pinned versions of Maestro, the emulator and its system image
+        id: pins
+        if: steps.run.outputs.app == 'true'
+        run: python3 .github/scripts/tools.py key maestro android-emulator android-system-image >> "$GITHUB_OUTPUT"
+      - name: Maestro, from GitHub's cache
+        if: steps.run.outputs.app == 'true'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.pins.outputs.maestro_file }}
+          key: ${{ steps.pins.outputs.maestro_key }}
+      - name: The emulator, from GitHub's cache
+        if: steps.run.outputs.app == 'true'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.pins.outputs.android_emulator_file }}
+          key: ${{ steps.pins.outputs.android_emulator_key }}
+      - name: Its system image, from GitHub's cache
+        if: steps.run.outputs.app == 'true'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.pins.outputs.android_system_image_file }}
+          key: ${{ steps.pins.outputs.android_system_image_key }}
+      - name: Maestro, the emulator and its system image (pinned versions, checksums checked)
+        if: steps.run.outputs.app == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }} # signed-in downloads from GitHub; read-only
+          MAESTRO: ${{ steps.pins.outputs.maestro_path }}
+          EMULATOR: ${{ steps.pins.outputs.android_emulator_path }}
+          IMAGE: ${{ steps.pins.outputs.android_system_image_path }}
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/tools.py fetch maestro android-emulator android-system-image
+          unzip -q "$MAESTRO" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
+          bash product/app/journeys/emulator.sh install "$EMULATOR" "$IMAGE"
+          rm -f "$MAESTRO" "$EMULATOR" "$IMAGE" # unpacked; the disk is needed for the emulator
+          df -h / | tail -1
+      - name: Let the emulator use the processor's virtualisation (KVM)
+        if: steps.run.outputs.app == 'true'
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: The emulator's saved snapshot
+        id: emulator
+        if: steps.run.outputs.app == 'true'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: emulator-snapshot-${{ env.PROFILE }}-${{ steps.pins.outputs.android_emulator_version }}-${{ steps.pins.outputs.android_system_image_version }}-v2
+      - name: Boot the emulator once and save its snapshot (first run only)
+        if: steps.run.outputs.app == 'true' && steps.emulator.outputs.cache-hit != 'true'
+        run: bash product/app/journeys/emulator.sh snapshot
+      - name: Keep the emulator's snapshot for later runs
+        if: steps.run.outputs.app == 'true' && steps.emulator.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: emulator-snapshot-${{ env.PROFILE }}-${{ steps.pins.outputs.android_emulator_version }}-${{ steps.pins.outputs.android_system_image_version }}-v2
+      # The tablet's machine times the cold start, against main's own two-machine cold start: a
+      # separate baseline under its own prefix, which today's job (restore-keys `app-startup-main-`)
+      # never picks up, because the two ways run on different machines and one baseline would mix them.
+      - name: Main's two-machine cold start, to compare with (pull requests)
+        if: steps.run.outputs.app == 'true' && github.event_name == 'pull_request' && matrix.size == 'tablet'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/startup-two-machines-main
+          key: app-startup-two-machines-main-${{ github.sha }}
+          restore-keys: app-startup-two-machines-main-
+      # Before any key is loaded: every name in stg_preview must be one of the app's keys
+      # (infra/doppler/app-keys.txt), so a tool token there stops this job before it sits beside
+      # the pull request's code. Names only.
+      - name: The previews' keys are the app's own (names only)
+        if: steps.run.outputs.app == 'true'
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN_PREVIEW }}
+        run: python3 infra/doppler/app_keys.py check stg_preview
+      # The signed-in journey signs in a fresh account of this run's with a code made by staging's
+      # admin access (no email sent; product/web/scripts/app-journey-account.ts). The read-only
+      # token goes to that command's key request alone (infra/doppler/named_keys.py, three keys by
+      # name): emulator.sh and run.sh take it out of the environment before the emulator, adb or
+      # Maestro start, so none of them, nor the app, ever holds it or a key.
+      - name: The app's journeys at this machine's size (the tablet's machine then times the cold start)
+        if: steps.run.outputs.app == 'true'
+        env:
+          STARTUP_BASELINE: ${{ runner.temp }}/startup-two-machines-main/startup.json
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN_PREVIEW }} # read-only; run.sh asks it for three keys by name
+        run: bash product/app/journeys/emulator.sh run bash product/app/journeys/run.sh product/app/journeys-build/app.apk "$RUNNER_TEMP/journeys" ${{ matrix.size }}
+      - name: Keep main's two-machine cold start for the next pull requests (main only)
+        if: steps.run.outputs.app == 'true' && github.ref == 'refs/heads/main' && matrix.size == 'tablet'
+        run: |
+          mkdir -p "$RUNNER_TEMP/startup-two-machines-main"
+          cp "$RUNNER_TEMP/journeys/startup.json" "$RUNNER_TEMP/startup-two-machines-main/startup.json"
+      - name: Save main's two-machine cold start
+        if: steps.run.outputs.app == 'true' && github.ref == 'refs/heads/main' && matrix.size == 'tablet'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/startup-two-machines-main
+          key: app-startup-two-machines-main-${{ github.sha }}
+      # No comment on the pull request: only the required job reports there. The comparison job reads
+      # these.
+      - name: Screenshots and results (this machine's size)
+        if: ${{ !cancelled() && steps.run.outputs.app == 'true' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: app-journeys-${{ matrix.size }}
+          path: ${{ runner.temp }}/journeys/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # The comparison: the one-machine job's results beside the two machines', judged as
+  # .github/scripts/side_by_side.py's description says (every flow passed on both sides at both
+  # sizes with the same names; the cold start's verdicts equal; the two cold starts' medians within
+  # product/app/journeys/cold-start-allowances.json's allowance, worked out from real runs). It
+  # runs on pull requests only, and whatever the required job's result was (`!cancelled()`), not
+  # after a cancelled run. Not a required check, so it never fails on "not clean": the record says
+  # so, its artifact's name carries the verdict ("app-comparison-clean", "-not-clean" or "-not-run"
+  # for a comparison that errored, which the tally passes over), and the tally counts it. There is
+  # no record until main holds a two-machine baseline (main's next run of this workflow saves it),
+  # nor when the app wasn't touched or the required job stopped before its cold start. Records are
+  # kept 90 days: pull requests that touch the app are fewer, and five may span weeks.
+  app-compare:
+    name: App journeys on two machines
+    needs: [app, app-size]
+    if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read # to count the earlier comparisons kept as artifacts
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # By pattern, never by name: a name that isn't there fails the download, and an artifact is
+      # missing whenever the app wasn't touched or a machine left no files.
+      - name: The one-machine App journeys' results
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: app-journeys
+          merge-multiple: true
+          path: ${{ runner.temp }}/one
+      - name: The phone machine's results
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: app-journeys-phone
+          merge-multiple: true
+          path: ${{ runner.temp }}/phone
+      - name: The tablet machine's results
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: app-journeys-tablet
+          merge-multiple: true
+          path: ${{ runner.temp }}/tablet
+      # Whether main holds a two-machine baseline: a look-up only (nothing is downloaded) of any entry
+      # under the prefix the tablet's machine saves on main. The first key is never saved. The path is
+      # the same text the machines save and restore with: a cache entry matches on it as well as on its key.
+      - name: Does main hold a two-machine cold start yet?
+        id: baseline
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/startup-two-machines-main
+          key: app-startup-two-machines-main-none
+          restore-keys: app-startup-two-machines-main-
+          lookup-only: true
+
+      # What to do, from what the jobs before it left: with no cold start from the required job, or no
+      # baseline on main, there is nothing to compare and no record, and the summary says why.
+      - name: Is there anything to compare?
+        id: plan
+        env:
+          BASELINE: ${{ steps.baseline.outputs.cache-matched-key != '' }}
+        run: python3 .github/scripts/side_by_side.py app-plan "$RUNNER_TEMP/one" "$RUNNER_TEMP/app-comparison" >> "$GITHUB_OUTPUT"
+      - name: The two ways of running the journeys, compared
+        if: ${{ !cancelled() && steps.plan.outputs.measured == 'true' }}
+        env:
+          COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: python3 .github/scripts/side_by_side.py app-compare "$RUNNER_TEMP/one" "$RUNNER_TEMP/phone" "$RUNNER_TEMP/tablet" "$RUNNER_TEMP/app-comparison" --allowances product/app/journeys/cold-start-allowances.json
+      # Whatever happened above (unless the run was cancelled), a comparison that was due leaves a
+      # record: if the step before it errored, this one writes a not-run record ("the comparison
+      # failed"). It says which verdict the record has, for the artifact's name.
+      - name: This comparison's verdict
+        id: record
+        if: ${{ !cancelled() && steps.plan.outputs.measured == 'true' }}
+        env:
+          COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: python3 .github/scripts/side_by_side.py finalize "$RUNNER_TEMP/app-comparison" app >> "$GITHUB_OUTPUT"
+      - name: The verdicts and the two ways' numbers
+        if: ${{ !cancelled() }}
+        run: |
+          {
+            echo "## App journeys on two machines, beside App journeys"
+            echo
+            cat "$RUNNER_TEMP/app-comparison/comparison.md" 2>/dev/null || echo "Nothing was compared."
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: This comparison's record
+        if: ${{ !cancelled() && steps.record.outputs.verdict != '' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: app-comparison-${{ steps.record.outputs.verdict }}
+          path: ${{ runner.temp }}/app-comparison/comparison.json
+          retention-days: 90
+      - name: How many pull requests in a row compared clean
+        if: ${{ !cancelled() }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.head_ref }}
+          OUT: ${{ runner.temp }}/app-comparison
+        run: python3 .github/scripts/side_by_side.py tally app --limits product/app/journeys/cold-start-allowances.json --current "$OUT/comparison.json" >> "$GITHUB_STEP_SUMMARY"

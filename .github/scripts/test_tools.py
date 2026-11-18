@@ -1218,9 +1218,10 @@ class EveryWorkflow(unittest.TestCase):
                                          "a check's own broken key step must fail the check")
                         self.assertIn("package-manager-cache: false", steps[node[0]])
                     self.assertFalse([step for step in steps if "actions/cache/save@" in step and "pnpm_store" in step])
-        # Quick checks, Database, Screen, Speed, the Speed trial's parts and its comparison, App journeys,
-        # Staging, Release: each new job is held to every rule above.
-        self.assertEqual(counted, 9)
+        # Quick checks, Database, Screen, Speed, the Speed trial's parts and its comparison, App journeys and
+        # its two-machine trial's sizes (the trial's comparison installs nothing), Staging, Release: each new
+        # job is held to every rule above.
+        self.assertEqual(counted, 10)
 
     def test_nothing_reads_the_old_setup_node_key_any_more(self):
         for file in workflow_files():

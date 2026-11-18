@@ -4,8 +4,11 @@
     python3 .github/scripts/side_by_side.py untouched <folder> <part>/<of>
     python3 .github/scripts/side_by_side.py not-measured <folder> <part>/<of>
     python3 .github/scripts/side_by_side.py speed-plan <one-machine folder> <parts folder> <of> <out folder> >> "$GITHUB_OUTPUT"
-    python3 .github/scripts/side_by_side.py finalize <out folder> >> "$GITHUB_OUTPUT"
+    python3 .github/scripts/side_by_side.py finalize <out folder> [app] >> "$GITHUB_OUTPUT"
     python3 .github/scripts/side_by_side.py tally speed --limits <speed-allowances.json> [--current <comparison.json>] >> "$GITHUB_STEP_SUMMARY"
+    python3 .github/scripts/side_by_side.py app-plan <one-machine folder> <out folder> >> "$GITHUB_OUTPUT"
+    python3 .github/scripts/side_by_side.py app-compare <one-machine folder> <phone folder> <tablet folder> <out folder> --allowances <cold-start-allowances.json>
+    python3 .github/scripts/side_by_side.py tally app --limits <cold-start-allowances.json> [--current <comparison.json>] >> "$GITHUB_STEP_SUMMARY"
 
 A faster version of a required check runs beside today's one (.github/workflows/checks.yml: "Speed
 check on three machines" beside "Speed check"). Today's check stays the required one and stays as it
@@ -36,7 +39,7 @@ the verdict, so the tally can count from names alone and read a file only when i
     one-machine check about whether the website was touched).
   - `finalize` says which record there is: `verdict=clean`, `verdict=not-clean` or
     `verdict=not-run`. If the comparison step errored and left no record, it writes a not-run one,
-    "the comparison failed".
+    "the comparison failed" (of the Speed check's kind, or `app`'s).
   - `tally` counts, from the artifacts' names, how many pull requests in a row compared clean:
     it lists the repository's artifacts of the three names through GitHub's API (GITHUB_TOKEN with
     `actions: read`, GITHUB_REPOSITORY), the not-clean and not-run names before the clean one and
@@ -52,6 +55,26 @@ the verdict, so the tally can count from names alone and read a file only when i
     not-run record was listed it says "at least N"; before that it gives no count at all. If GitHub
     doesn't answer, it says so and exits 0.
 
+App journeys on two machines runs the same trial (.github/workflows/app-journeys.yml: "App journeys on
+two machines" beside the required "App journeys"), with the artifacts `app-comparison-clean`,
+`-not-clean` and `-not-run` (kept 90 days: app-touching pull requests are fewer, and five may span
+weeks), the same tally and the same rules, and these of its own:
+
+  - `app-plan` says whether there is a comparison at all: `measured=true` only when the one-machine
+    App journeys left its cold start (startup.json: its journeys all passed and the cold start ran)
+    AND main holds a two-machine baseline (BASELINE=true, from a cache lookup). Otherwise there is
+    no record, and comparison.md says why ("not counted: ...").
+  - `app-compare` judges the two ways of running the same journeys. Clean only when ALL hold: every
+    flow passed on both sides at both sizes with the same names (the Maestro JUnit files phone.xml
+    and tablet.xml); both sides' cold start verdicts (startup.json's `passes`, each against its own
+    main baseline) are equal; and the two-machine cold start's median is within `allowanceMs` of the
+    one-machine median (product/app/journeys/cold-start-allowances.json). A side that left nothing
+    while the one-machine run measured is not clean ("measured nothing"). `flip` is true when two
+    machines pass a flow, or the cold start's verdict, that one machine fails. The record holds the
+    signed `differenceMs` (two machines - one machine).
+  - The five-comparison average is the average of the five pull requests' `differenceMs`, each pull
+    request weighted equally, within `fiveComparisonAverageMs`.
+
 Python's standard library only. Prints no secrets: counts, pull request numbers and page paths.
 """
 import http.client
@@ -64,6 +87,7 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+import xml.etree.ElementTree as ET
 import zipfile
 
 NEEDED = 5  # pull requests in a row that compared clean before a later change switches
@@ -75,7 +99,9 @@ RECORD_LIMIT = 1024 * 1024  # a record is a few kilobytes; nothing bigger is rea
 # The artifacts' names by verdict, in the order they are listed: what could end the row or be passed
 # over comes first, so a list cut short by the request budget can't overstate the count.
 NAMES = {"speed": {"not-clean": "speed-comparison-not-clean", "not-run": "speed-comparison-not-run",
-                   "clean": "speed-comparison-clean"}}
+                   "clean": "speed-comparison-clean"},
+         "app": {"not-clean": "app-comparison-not-clean", "not-run": "app-comparison-not-run",
+                 "clean": "app-comparison-clean"}}
 API = "https://api.github.com"
 M75_BRANCH = "claude/r6-r4-m7-5-speed-split"  # its runs prove the plumbing, not the comparison: never counted
 NOT_COUNTED = frozenset({"main", M75_BRANCH})
@@ -136,15 +162,18 @@ def verdict_of(record):
     return "clean" if record["clean"] else "not-clean"
 
 
-def failed_record(commit, pr, reason):
-    """A comparison that was due and didn't run: no pages, so the tally passes it over."""
+def failed_record(commit, pr, reason, kind="speed"):
+    """A comparison that was due and didn't run (`ran: false`), so the tally passes it over."""
+    if kind == "app":
+        return {"kind": "app", "commit": commit, "pr": pr, "measured": True, "ran": False, "clean": False,
+                "reasons": [reason], "differenceMs": None, "flip": False}
     return {"kind": "speed", "commit": commit, "pr": pr, "measured": True, "ran": False, "clean": False,
             "reasons": [reason], "pages": [], "averages": {"busyMs": 0, "loadMs": 0}, "flip": False}
 
 
-def write_failed(out, environ, reason):
+def write_failed(out, environ, reason, kind="speed"):
     write_json(os.path.join(out, RECORD), failed_record(environ.get("COMMIT", ""),
-                                                        pr_number(environ.get("PR_NUMBER", "")), reason))
+                                                        pr_number(environ.get("PR_NUMBER", "")), reason, kind))
     with open(os.path.join(out, "comparison.md"), "w", encoding="utf-8") as f:
         f.write(f"**Not run, so passed over and not counted:** {reason}\n")
 
@@ -200,16 +229,191 @@ def plan(argv, environ=os.environ):
     return 0
 
 
-def finalize(out, environ=os.environ):
+def finalize(out, environ=os.environ, kind="speed"):
     """Says `verdict=clean`, `verdict=not-clean` or `verdict=not-run` for the record in <out>, writing
     a not-run one first if the comparison errored and left none."""
     record = read_json(os.path.join(out, RECORD))
     verdict = verdict_of(record)
     if verdict is None:
-        write_failed(out, environ, "the comparison failed")
+        write_failed(out, environ, "the comparison failed", kind)
         verdict = verdict_of(read_json(os.path.join(out, RECORD)))
         say("The comparison step left no record: a not-run one is kept, so a failing comparison leaves a trace.")
     print(f"verdict={verdict}")
+    return 0
+
+
+# --- App journeys on two machines: the plan and the comparison --------------------------------------
+
+SIZES = ("phone", "tablet")
+BASELINE_NONE = "Not counted: no two-machine baseline on main yet (main's next App journeys run saves it)."
+UNTOUCHED = ("Not counted: the app wasn't touched, or the one-machine App journeys stopped before its cold start "
+             "(it left no startup.json), so there is nothing to compare.")
+
+
+def app_plan(one_folder, out, environ=os.environ):
+    """Whether there is a comparison at all: the one-machine App journeys left its cold start and main
+    holds a two-machine baseline. Otherwise no record: comparison.md says why."""
+    left_numbers = os.path.isfile(os.path.join(one_folder, "startup.json"))
+    baseline = environ.get("BASELINE", "") == "true"
+    measured = left_numbers and baseline
+    print(f"measured={'true' if measured else 'false'}")
+    if measured:
+        say("The one-machine App journeys left its cold start and main holds a two-machine baseline: compared.")
+        return 0
+    reason = UNTOUCHED if not left_numbers else BASELINE_NONE
+    os.makedirs(out, exist_ok=True)
+    with open(os.path.join(out, "comparison.md"), "w", encoding="utf-8") as f:
+        f.write(reason + "\n")
+    say(reason)
+    return 0
+
+
+def read_flows(path):
+    """{flow name: passed} from a Maestro JUnit file, or None when there is no readable one. A flow passed
+    when its testcase has no failure or error and its status (Maestro writes one) is SUCCESS or WARNING."""
+    try:
+        with open(path, "rb") as f:
+            data = f.read(RECORD_LIMIT + 1)
+        if len(data) > RECORD_LIMIT or b"<!DOCTYPE" in data or b"<!ENTITY" in data:
+            return None  # a report is a few kilobytes and has no entities
+        root = ET.fromstring(data)
+    except (OSError, ET.ParseError):
+        return None
+    flows = {}
+    for case in root.iter("testcase"):
+        name = case.get("name") or case.get("id")
+        if not name:
+            continue
+        status = case.get("status")
+        flows[name] = (case.find("failure") is None and case.find("error") is None
+                       and (status is None or status.upper() in ("SUCCESS", "WARNING")))
+    return flows
+
+
+def read_startup(path):
+    """startup.json's {medianMs, passes}, or None when there is none or it isn't one."""
+    found = read_json(path)
+    if isinstance(found, dict) and number(found.get("medianMs")) and isinstance(found.get("passes"), bool):
+        return {"medianMs": found["medianMs"], "passes": found["passes"]}
+    return None
+
+
+def read_app_allowance(path):
+    found = read_json(path)
+    allowance = found.get("allowanceMs") if isinstance(found, dict) else None
+    if not number(allowance) or allowance <= 0:
+        sys.exit(f"{path} has no allowanceMs")
+    return allowance
+
+
+def names_of(flows):
+    """Up to six flow names, each in backticks and kept to one plain line."""
+    return (", ".join(f"`{clean_name_text(name)[:80]}`" for name in sorted(flows)[:6])
+            + (" and more" if len(flows) > 6 else ""))
+
+
+def compare_flows(size, one, two):
+    """(reasons, flip, counts) for one size's journeys: the same flow names, each passed, on both sides.
+    `one` and `two` are {name: passed} or None (no report)."""
+    reasons, flip = [], False
+    counts = {side: ([sum(flows.values()), len(flows)] if flows is not None else None)
+              for side, flows in (("one", one), ("two", two))}
+    if two is None:
+        reasons.append(f"the two-machine side measured nothing at the {size} size (no {size}.xml)")
+    if one is None:
+        reasons.append(f"the one-machine run left no {size}.xml")
+    for side, flows, label in (("one", one, "one machine"), ("two", two, "two machines")):
+        if flows is not None and not flows:
+            reasons.append(f"no flow ran at the {size} size on {label}")
+        failed = sorted(name for name, passed in (flows or {}).items() if not passed)
+        if failed:
+            reasons.append(f"at the {size} size, {names_of(failed)} failed on {label}")
+    if one is not None and two is not None:
+        if set(one) != set(two):
+            only_one, only_two = sorted(set(one) - set(two)), sorted(set(two) - set(one))
+            reasons.append(f"the flows at the {size} size differ: only on one machine: "
+                           f"{names_of(only_one) or 'none'}; only on two machines: {names_of(only_two) or 'none'}")
+        flip = any(one[name] is False and two.get(name) is True for name in one)
+    return reasons, flip, counts
+
+
+def compare_app(one_folder, phone_folder, tablet_folder, allowance, commit="", pr=None):
+    """(record, text) for the two ways of running App journeys: see the module's description."""
+    reasons, flip, flows = [], False, {}
+    sides = {"phone": phone_folder, "tablet": tablet_folder}
+    explained = {"one": False, "two": False}  # a side that failed a flow or left a report stops before its cold start
+    for size in SIZES:
+        one = read_flows(os.path.join(one_folder, f"{size}.xml"))
+        two = read_flows(os.path.join(sides[size], f"{size}.xml"))
+        found, flipped, counts = compare_flows(size, one, two)
+        reasons += found
+        flip = flip or flipped
+        flows[size] = {"oneMachine": counts["one"], "twoMachines": counts["two"]}
+        for side, flows_of in (("one", one), ("two", two)):
+            explained[side] = explained[side] or flows_of is None or not all(flows_of.values())
+    one_start = read_startup(os.path.join(one_folder, "startup.json"))
+    two_start = read_startup(os.path.join(tablet_folder, "startup.json"))
+    if two_start is None and not explained["two"]:
+        reasons.append("the two-machine side measured no cold start (its tablet machine left no startup.json)")
+    if one_start is None and not explained["one"]:
+        reasons.append("the one-machine run left no cold start")
+    difference = None
+    if one_start and two_start:
+        difference = two_start["medianMs"] - one_start["medianMs"]
+        if one_start["passes"] != two_start["passes"]:
+            reasons.append("the cold start's verdict differs: "
+                           f"{'passes' if two_start['passes'] else 'fails'} on two machines, "
+                           f"{'passes' if one_start['passes'] else 'fails'} on one")
+            flip = flip or (two_start["passes"] and not one_start["passes"])
+        if abs(difference) > allowance:
+            reasons.append(f"the two-machine cold start's median differs by {difference:+g} ms from the one-machine "
+                           f"run's, more than the allowance of {allowance:g} ms")
+    record = {"kind": "app", "commit": commit, "pr": pr, "measured": True, "ran": True, "clean": not reasons,
+              "reasons": reasons, "flip": flip, "flows": flows,
+              "oneMedianMs": one_start["medianMs"] if one_start else None,
+              "twoMedianMs": two_start["medianMs"] if two_start else None,
+              "differenceMs": difference, "allowanceMs": allowance,
+              "verdicts": {"one": one_start["passes"] if one_start else None,
+                           "two": two_start["passes"] if two_start else None}}
+    return record, app_text(record)
+
+
+def app_text(record):
+    def flows(counts):
+        return f"{counts[0]} of {counts[1]} passed" if counts else "no results"
+
+    def start(median, passes):
+        return "not measured" if median is None else f"{median / 1000:.2f} s ({'passes' if passes else 'fails'} against main)"
+
+    if record["clean"]:
+        lines = ["**Clean:** every flow passed on both sides at both sizes, the cold starts agree, and their "
+                 "medians are within the allowance."]
+    else:
+        lines = ["**Not clean:**"] + [f"- {clean_name_text(r)}" for r in record["reasons"]]
+        if record["flip"]:
+            lines.append("- **something passes on two machines that fails on one**")
+    verdicts = record["verdicts"]
+    lines += ["", "| | One machine | Two machines |", "|---|---|---|"]
+    for size in SIZES:
+        counts = record["flows"][size]
+        lines.append(f"| Journeys, {size} size | {flows(counts['oneMachine'])} | {flows(counts['twoMachines'])} |")
+    lines.append(f"| Cold start, median of 7 | {start(record['oneMedianMs'], verdicts['one'])} | "
+                 f"{start(record['twoMedianMs'], verdicts['two'])} |")
+    if record["differenceMs"] is not None:
+        lines += ["", f"The difference (two machines - one machine): {record['differenceMs']:+g} ms, "
+                      f"against an allowance of {record['allowanceMs']:g} ms."]
+    return "\n".join(lines) + "\n"
+
+
+def app_compare(argv, environ=os.environ):
+    one, phone, tablet, out = argv[:4]
+    allowance = read_app_allowance(argv[5])
+    record, text = compare_app(one, phone, tablet, allowance, environ.get("COMMIT", ""),
+                               pr_number(environ.get("PR_NUMBER", "")))
+    write_json(os.path.join(out, RECORD), record)
+    with open(os.path.join(out, "comparison.md"), "w", encoding="utf-8") as f:
+        f.write(text)
+    say("Compared: " + ("clean." if record["clean"] else "not clean: " + "; ".join(record["reasons"]) + "."))
     return 0
 
 
@@ -341,7 +545,20 @@ def number(value):
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
-def averaged(github, groups, branches, budget, limits):
+def figures(kind, record, keys):
+    """{key: number} for the difference(s) a comparison record carries (the Speed check's `averages`; App
+    journeys' `differenceMs`), or None when it isn't a usable record of that kind."""
+    if not isinstance(record, dict) or record.get("kind") != kind:
+        return None
+    source = record.get("averages") if kind == "speed" else record
+    if not isinstance(source, dict) or not all(number(source.get(key)) for key in keys):
+        return None
+    if not isinstance(record.get("pr"), int) or isinstance(record.get("pr"), bool) or record["pr"] <= 0:
+        return None
+    return {key: source[key] for key in keys}
+
+
+def averaged(github, groups, branches, budget, limits, kind="speed"):
     """(averages, problems): each pull request's records' average difference, then the five averaged
     with equal weight. Every record of the pull requests is read; a record that is missing, isn't a
     comparison, or carries another pull request's number is a problem, and so is a branch whose
@@ -354,35 +571,58 @@ def averaged(github, groups, branches, budget, limits):
             if record is None:
                 budget.take()
                 record = record_in(github.download(entry["id"]))
-            usable = (isinstance(record, dict) and record.get("kind") == "speed"
-                      and isinstance(record.get("averages"), dict)
-                      and number(record["averages"].get("busyMs")) and number(record["averages"].get("loadMs"))
-                      and isinstance(record.get("pr"), int) and not isinstance(record.get("pr"), bool)
-                      and record["pr"] > 0)
-            if not usable:
+            found = figures(kind, record, tuple(limits))
+            if found is None:
                 problems.append("a record of one of the five pull requests can't be read")
                 continue
-            records.append(record)
+            records.append(found)
             numbers.add(record["pr"])
         if len(numbers) > 1:
             problems.append("one branch's records carry two pull request numbers: "
                             + " and ".join(f"#{n}" for n in sorted(numbers)))
         if records:
-            per_pr.append({key: mean([r["averages"][key] for r in records]) for key in ("busyMs", "loadMs")})
+            per_pr.append({key: mean([r[key] for r in records]) for key in limits})
     if problems or len(per_pr) < len(branches):
         return None, problems or ["a pull request's records are missing"]
-    return {key: mean([p[key] for p in per_pr]) for key in ("busyMs", "loadMs")}, []
+    return {key: mean([p[key] for p in per_pr]) for key in limits}, []
 
 
 def clean_name(text):
     return re.sub(r"[^\w./-]", "?", text)
 
 
+# What the tally says for each trial, besides the numbers.
+WORDS = {"speed": {"title": "the Speed check on three machines, beside the Speed check",
+                   "flip": "a budget passes on three machines that fails on one",
+                   "passed_over": "(a part left no results, or the comparison failed; not counted either way)"},
+         "app": {"title": "App journeys on two machines, beside App journeys",
+                 "flip": "a flow or the cold start's verdict passes on two machines that fails on one",
+                 "passed_over": "(the comparison failed; not counted either way)"}}
+
+
+def average_line(kind, averages, limits):
+    """The line about the five pull requests' average difference, and whether it is within its limits."""
+    if kind == "app":
+        diff, limit = averages["differenceMs"], limits["differenceMs"]
+        standing = ("**outside its limit:** the cold start's median" if abs(diff) > limit
+                    else "**within its limits**")
+        return ("The five pull requests' average difference in the cold start's median (two machines - one "
+                f"machine, each pull request weighted equally): {diff:+.1f} ms (limit +/-{limit} ms): {standing}.")
+    busy, load = averages["busyMs"], averages["loadMs"]
+    outside = [name for name, value, limit in (("busy time", busy, limits["busyMs"]),
+                                               ("load", load, limits["loadMs"])) if abs(value) > limit]
+    standing = ("**outside its limits:** " + " and ".join(outside)) if outside else "**within its limits**"
+    return ("The five pull requests' average difference (three machines - one machine, each pull request "
+            f"weighted equally): busy {busy:+.1f} ms (limit +/-{limits['busyMs']} ms), load {load:+.1f} ms "
+            f"(limit +/-{limits['loadMs']} ms): {standing}.")
+
+
 def tally(github, kind, limits, current=None, branch=None, run_id=None, budget=None):
     """(summary text, pull requests counted or None, reached the budget). See the module's description."""
     names = NAMES[kind]
+    words = WORDS[kind]
     budget = budget or Requests()
-    heading = ["### The tally: the Speed check on three machines, beside the Speed check", ""]
+    heading = [f"### The tally: {words['title']}", ""]
     entries, complete = listing(github, names, budget)
     capped = not all(complete.values())
     # The count is only an "at least" if every list that could end the row or be passed over was read.
@@ -436,20 +676,19 @@ def tally(github, kind, limits, current=None, branch=None, run_id=None, budget=N
             pr = record.get("pr")
             lines.append(f"Its newest not-clean record is for #{pr if isinstance(pr, int) else '?'} (commit "
                          f"`{clean_name(str(record.get('commit') or '')[:7])}`)"
-                         + (", and **a budget passes on three machines that fails on one**:" if record.get("flip") is True
-                            else ":"))
+                         + (f", and **{words['flip']}**:" if record.get("flip") is True else ":"))
             lines += [f"- {clean_name_text(r)}" for r in (record.get("reasons") or [])[:8] if isinstance(r, str)]
     if passed:
         shown = {}
         for entry in passed:
             shown[entry["branch"]] = shown.get(entry["branch"], 0) + 1
         names_shown = [f"`{clean_name(b)}`" + (f" ({n} records)" if n > 1 else "") for b, n in list(shown.items())[:10]]
-        lines += ["", "Passed over, because the comparison didn't run (a part left no results, or the comparison "
-                      "failed; not counted either way): " + ", ".join(names_shown)
+        lines += ["", "Passed over, because the comparison didn't run " + words["passed_over"] + ": "
+                  + ", ".join(names_shown)
                   + (f" and {len(shown) - 10} more" if len(shown) > 10 else "") + "."]
     if len(counted) == NEEDED and not capped:
         try:
-            averages, problems = averaged(github, groups, counted, budget, limits)
+            averages, problems = averaged(github, groups, counted, budget, limits, kind)
         except OverBudget:
             averages, problems = None, [f"the {MAX_REQUESTS} requests this tally may make ran out before every "
                                         "record was read"]
@@ -459,14 +698,7 @@ def tally(github, kind, limits, current=None, branch=None, run_id=None, budget=N
         if averages is None:
             lines.append("**The five-comparison average can't be checked this run:** " + "; ".join(problems) + ".")
         else:
-            busy, load = averages["busyMs"], averages["loadMs"]
-            outside = [name for name, value, limit in (("busy time", busy, limits["busyMs"]),
-                                                       ("load", load, limits["loadMs"])) if abs(value) > limit]
-            standing = ("**outside its limits:** " + " and ".join(outside)) if outside else "**within its limits**"
-            lines.append(
-                "The five pull requests' average difference (three machines - one machine, each pull request "
-                f"weighted equally): busy {busy:+.1f} ms (limit +/-{limits['busyMs']} ms), load {load:+.1f} ms "
-                f"(limit +/-{limits['loadMs']} ms): {standing}.")
+            lines.append(average_line(kind, averages, limits))
     return "\n".join(lines) + "\n", len(counted), capped
 
 
@@ -480,8 +712,15 @@ def line_for(count):
     return f"{count} {noun} in a row clean (the switch needs {NEEDED})"
 
 
-def read_limits(path):
+def read_limits(path, kind="speed"):
+    """The five-comparison average's limits from an allowances file: the Speed check's busy and load times,
+    or App journeys' one number (`fiveComparisonAverageMs`)."""
     allowances = read_json(path)
+    if kind == "app":
+        limit = allowances.get("fiveComparisonAverageMs") if isinstance(allowances, dict) else None
+        if not number(limit) or limit <= 0:
+            sys.exit(f"{path} has no fiveComparisonAverageMs limit")
+        return {"differenceMs": limit}
     average = allowances.get("fiveComparisonAverage") if isinstance(allowances, dict) else None
     if not (isinstance(average, dict) and number(average.get("busyMs")) and number(average.get("loadMs"))):
         sys.exit(f"{path} has no fiveComparisonAverage limits")
@@ -491,7 +730,7 @@ def read_limits(path):
 def run_tally(argv, environ=os.environ):
     kind, rest = argv[0], argv[1:]
     options = dict(zip(rest[::2], rest[1::2]))
-    limits = read_limits(options["--limits"])
+    limits = read_limits(options["--limits"], kind)
     current = read_json(options["--current"]) if "--current" in options else None
     if not isinstance(current, dict):
         current = None  # this run left none: the stored ones still count
@@ -523,8 +762,12 @@ def main(argv=None):
         return 0
     if command == "speed-plan" and len(rest) == 4 and rest[2].isdigit() and int(rest[2]) >= 1:
         return plan(rest)
-    if command == "finalize" and len(rest) == 1:
-        return finalize(rest[0])
+    if command == "finalize" and len(rest) in (1, 2) and (len(rest) == 1 or rest[1] == "app"):
+        return finalize(rest[0], kind=rest[1] if len(rest) == 2 else "speed")
+    if command == "app-plan" and len(rest) == 2:
+        return app_plan(*rest)
+    if command == "app-compare" and len(rest) == 6 and rest[4] == "--allowances":
+        return app_compare(rest)
     if (command == "tally" and len(rest) in (3, 5) and rest[0] in NAMES and rest[1] == "--limits"
             and (len(rest) == 3 or rest[3] == "--current")):
         return run_tally(rest)

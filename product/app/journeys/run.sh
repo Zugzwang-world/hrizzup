@@ -3,14 +3,26 @@
 # then a tablet size, with a screenshot of each screen at each size, and then the app's cold
 # start timed and compared with main's (startup.sh).
 #
-#   bash product/app/journeys/run.sh <the app's .apk> <folder for results and screenshots>
+#   bash product/app/journeys/run.sh <the app's .apk> <folder for results and screenshots> [phone|tablet|both]
 #
 # The emulator is a phone (Pixel 7). For the tablet size, Android's own display override
 # (`wm size` and `wm density`) turns its screen into an 800 by 1280 point tablet, so the app
 # lays itself out as on a tablet; the override is undone at the end.
+#
+# The third argument says which size's journeys this machine runs: `both` (the default, and what
+# the App journeys check does), `phone` (only the phone's journeys) or `tablet` (the tablet's
+# journeys, then the cold start at the phone size, which keeps the journeys right before it as
+# `both` does). App journeys on two machines, beside the check (.github/workflows/app-journeys.yml),
+# runs `phone` on one machine and `tablet` on the other. Anything else is refused at once, before
+# anything is made or started.
 set -euo pipefail
 apk="$1"
 out="$2"
+size="${3-both}" # only a missing argument means both: an empty one (a size that came out empty) is refused
+case "$size" in
+  phone | tablet | both) ;;
+  *) echo "The size to run is phone, tablet or both, not '$size'." >&2; exit 2 ;;
+esac
 flows="$(cd "$(dirname "$0")" && pwd)"
 root="$(cd "$flows/../../.." && pwd)"
 mkdir -p "$out"
@@ -117,15 +129,26 @@ journeys() {
   return "$status"
 }
 
+# Which sizes this machine runs, in the order the App journeys check always has: the phone's
+# journeys, then the tablet's, then (when the tablet's ran, or both) the cold start at the phone
+# size, against main's (startup.sh says why not the phone budget itself): last, so the journeys
+# always run first. `phone` stops after the phone's journeys.
+run_sizes() {
+  adb shell wm size reset
+  adb shell wm density reset
+  if [ "$1" != tablet ]; then
+    journeys phone
+  fi
+  if [ "$1" = phone ]; then
+    return 0
+  fi
+  adb shell wm size 1600x2560
+  adb shell wm density 320
+  journeys tablet
+  adb shell wm size reset
+  adb shell wm density reset
+  bash "$flows/startup.sh" "$out" "${STARTUP_BASELINE:-}"
+}
+
 trap 'adb shell wm size reset; adb shell wm density reset' EXIT
-adb shell wm size reset
-adb shell wm density reset
-journeys phone
-adb shell wm size 1600x2560
-adb shell wm density 320
-journeys tablet
-adb shell wm size reset
-adb shell wm density reset
-# The app's cold start, at the phone size, against main's (startup.sh says why not the phone
-# budget itself): last, so the journeys at both sizes always run first.
-bash "$flows/startup.sh" "$out" "${STARTUP_BASELINE:-}"
+run_sizes "$size"
