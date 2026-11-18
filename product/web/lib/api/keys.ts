@@ -9,6 +9,8 @@ import type {
 } from '@hrizzup/api';
 import { redisKey } from '@hrizzup/core';
 import { DatabaseBusyError, errorCode, type Transaction, transaction } from '@hrizzup/db';
+import { socialRedis } from '@hrizzup/social';
+import { isUuid } from '@hrizzup/social/uuid';
 import { ORPCError } from '@orpc/server';
 import { Redis } from '@upstash/redis';
 import type { Pool } from 'pg';
@@ -23,11 +25,15 @@ import { apiKeysEnabled } from '@/lib/env.ts';
  *   (`hz_demo_`), and shown once. The database keeps only its SHA-256 hash and its first characters.
  *   A fast hash is the standard for a secret this long (GitHub's and Stripe's tokens are stored the
  *   same way): no one can guess 256 random bits, so there's nothing for a slow hash to slow down.
- * - **Who a key is** is kept in Upstash Redis for a minute (`stg:key:v1:<hash>`, never anything
- *   personal in the name), so a busy bot costs the database one lookup a minute. Revoking writes
- *   "revoked" over it at once, and the database stamps every trade with its key and refuses a
+ * - **A key is an account's** (`read` or `trade`, made on the keys page) **or an agent's** (`post`,
+ *   social's posting key, docs/social/build.md section 7.14): one text, one hash, one lookup
+ *   (`keys.find`), told apart by its kind.
+ * - **Who a key is** is kept in Upstash Redis for a minute (`stg:key:v2:<hash>`, with its kind, never
+ *   anything personal in the name), so a busy bot costs the database one lookup a minute. Revoking
+ *   writes "none" over it at once, and the database stamps every trade with its key and refuses a
  *   revoked one, so a revoked key never trades again. If Redis is slow or down, the database is
- *   asked: Redis is never the only copy.
+ *   asked: Redis is never the only copy. `key:v1` is what a deployment from before posting keys
+ *   kept: it is read beside v2 (only to honour a revocation it wrote) and never written by a lookup.
  */
 
 type Database = Pick<Pool, 'connect'>;
@@ -60,16 +66,22 @@ export function shownPart(text: string): string {
   return text.slice(0, KEY_PREFIX.length + 4);
 }
 
-/** A live key, as the database found it by its hash. */
-export type FoundKey = { id: string; userId: string; scope: KeyScope };
+/**
+ * A live key, as the database found it by its hash: an account's (`read` or `trade`, whose account is
+ * `userId`) or an agent's posting key (`post`, whose agent is `agentId`).
+ */
+export type FoundKey =
+  | { id: string; kind: 'read' | 'trade'; userId: string }
+  | { id: string; kind: 'post'; agentId: string };
 
 // Who a key is ------------------------------------------------------------------------------------
 
 /** How long Redis keeps who a key is (or that it isn't one). */
-export const KEY_CACHE_SECONDS = 60;
+export const KEY_CACHE_SECONDS = socialRedis.keyCopy.seconds;
 /** How long a lookup waits for Redis before asking the database. */
 const REDIS_TIMEOUT_MS = 500;
 const REVOKED = 'none';
+const HASH_HEX = /^[0-9a-f]{64}$/;
 
 let redisClient: Redis | null | undefined;
 let cachePrefix: string | undefined;
@@ -93,23 +105,56 @@ export function resetKeyCache(client?: Redis | null, prefix?: string): void {
   cachePrefix = prefix;
 }
 
-const cacheName = (hash: Buffer) => redisKey(cachePrefix ?? '', 'key', 'v1', hash.toString('hex'));
+/** What a deployment from before posting keys kept: who a read or trading key is, or "none". */
+const oldCopyName = (hashHex: string) => redisKey(cachePrefix ?? '', 'key', 'v1', hashHex);
+/** What this code keeps, with the key's kind (`socialRedis.keyCopy`). */
+const copyName = (hashHex: string) => socialRedis.keyCopy.key(cachePrefix ?? '', hashHex);
 
 function withTimeout<T>(work: Promise<T>): Promise<T | undefined> {
-  return Promise.race([
-    work,
-    new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), REDIS_TIMEOUT_MS)),
-  ]);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<undefined>((resolve) => {
+    timer = setTimeout(() => resolve(undefined), REDIS_TIMEOUT_MS);
+  });
+  return Promise.race([work, late]).finally(() => clearTimeout(timer));
 }
 
-/** What Redis holds for a hash: a key, "not a key", or nothing (also when Redis fails). */
-async function fromCache(hash: Buffer): Promise<FoundKey | null | undefined> {
+/**
+ * A key as a copy or the database's answer holds it, or null when it isn't a whole one: an ID, a kind,
+ * and the account (read, trade) or agent (post) it belongs to, each a UUID. Anything else, whatever
+ * else it carries, is rebuilt from these fields alone.
+ */
+function foundOf(value: unknown): FoundKey | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const { id, kind, userId, agentId } = value as Record<string, unknown>;
+  if (!isUuid(id)) return null;
+  if ((kind === 'read' || kind === 'trade') && isUuid(userId)) return { id, kind, userId };
+  if (kind === 'post' && isUuid(agentId)) return { id, kind, agentId };
+  return null;
+}
+
+/**
+ * What Redis holds for a hash: a key, "not a key", or nothing (also when Redis fails, or what it holds
+ * isn't a whole copy). One `MGET` reads v2 and v1 together:
+ *
+ * - v2 "none": a revoked key.
+ * - v2 a posting key's copy: that, whatever v1 says (a deployment from before posting keys cached
+ *   every key it didn't know as a v1 miss, a posting key included).
+ * - v2 a read or trading key's copy: that, unless v1 says "none" (a revocation from before posting
+ *   keys wrote only v1).
+ * - Otherwise nothing: v1 alone never answers, so the database does.
+ */
+async function fromCache(hashHex: string): Promise<FoundKey | null | undefined> {
   const redis = keyCache();
   if (!redis) return undefined;
   try {
-    const held = await withTimeout(redis.get<FoundKey | typeof REVOKED>(cacheName(hash)));
-    if (held === undefined || held === null) return undefined;
-    return held === REVOKED ? null : held;
+    const held = await withTimeout(redis.mget<unknown[]>(oldCopyName(hashHex), copyName(hashHex)));
+    if (!Array.isArray(held)) return undefined;
+    const [old, current] = held;
+    if (current === REVOKED) return null;
+    const copy = foundOf(current);
+    if (copy === null) return undefined;
+    if (copy.kind !== 'post' && old === REVOKED) return null;
+    return copy;
   } catch {
     return undefined;
   }
@@ -117,33 +162,47 @@ async function fromCache(hash: Buffer): Promise<FoundKey | null | undefined> {
 
 /**
  * Keeps what the database said for a minute, unless something is already kept (`NX`): a revoke that
- * landed in between has written "revoked", and a lookup must never write over it.
+ * landed in between has written "none", and a lookup must never write over it. Never writes v1.
  */
-async function toCache(hash: Buffer, found: FoundKey | null): Promise<void> {
+async function toCache(hashHex: string, found: FoundKey | null): Promise<void> {
   const redis = keyCache();
   if (!redis) return;
   try {
     await withTimeout(
-      redis.set(cacheName(hash), found ?? REVOKED, { ex: KEY_CACHE_SECONDS, nx: true }),
+      redis.set(copyName(hashHex), found ?? REVOKED, { ex: KEY_CACHE_SECONDS, nx: true }),
     );
   } catch {
     // Redis failed: the next request asks the database again.
   }
 }
 
-/** Marks a revoked key's hash revoked in Redis, over whatever was kept, trying twice. */
-async function revokedInCache(hash: Buffer): Promise<void> {
+/**
+ * Marks revoked keys' hashes "none" in Redis, in v1 and v2, over whatever was kept (not `NX`), in one
+ * pipeline, trying twice. A revocation (an account's key, an agent's) runs in this order: the database,
+ * then this, then any purge. Never throws for Redis, which is never the only copy (the database
+ * refuses a revoked key's trades anyway, and its reads once the copy expires, within a minute); it
+ * throws a `TypeError` for a hash that isn't 64 lower-case hex characters, Redis set up or not.
+ */
+export async function revokeAgentKeys(hashes: string[]): Promise<void> {
+  for (const hash of hashes) {
+    if (typeof hash !== 'string' || !HASH_HEX.test(hash)) {
+      throw new TypeError('A key is named by its hash: 64 hex characters');
+    }
+  }
+  if (hashes.length === 0) return;
   const redis = keyCache();
   if (!redis) return;
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
-      const done = await withTimeout(
-        redis.set(cacheName(hash), REVOKED, { ex: KEY_CACHE_SECONDS }),
-      );
+      const pipeline = redis.pipeline();
+      for (const hash of hashes) {
+        pipeline.set(oldCopyName(hash), REVOKED, { ex: KEY_CACHE_SECONDS });
+        pipeline.set(copyName(hash), REVOKED, { ex: KEY_CACHE_SECONDS });
+      }
+      const done = await withTimeout(pipeline.exec());
       if (done !== undefined) return;
     } catch {
-      // Tried again once; if Redis still fails, the database refuses the key's trades anyway, and
-      // its reads once the copy expires, within a minute.
+      // Tried again once; if Redis still fails, the copy expires within a minute.
     }
   }
 }
@@ -167,19 +226,22 @@ async function one<R>(
   );
 }
 
-/** The live key with this text, or null for none (never made, or revoked). */
+/** The live key with this text, whatever its kind, or null for none (never made, or revoked). */
 export async function findKey(pool: Database, text: string): Promise<FoundKey | null> {
   const hash = hashKey(text);
-  const held = await fromCache(hash);
+  const hashHex = hash.toString('hex');
+  const held = await fromCache(hashHex);
   if (held !== undefined) return held;
-  const row = await one<{ id: string; user_id: string; scope: KeyScope } | null>(
-    pool,
-    null,
-    'select keys.verify($1) as answer',
-    [hash],
-  );
-  const found = row ? { id: row.id, userId: row.user_id, scope: row.scope } : null;
-  await toCache(hash, found);
+  const row = await one<{
+    id: string;
+    kind: string;
+    user_id?: string;
+    agent_id?: string;
+  } | null>(pool, null, 'select keys.find($1) as answer', [hash]);
+  const found = row
+    ? foundOf({ id: row.id, kind: row.kind, userId: row.user_id, agentId: row.agent_id })
+    : null;
+  await toCache(hashHex, found);
   return found;
 }
 
@@ -300,7 +362,7 @@ export function revokeKey(pool: Database, account: string, id: string): Promise<
       'select keys.revoke($1) as answer',
       [id],
     );
-    await revokedInCache(Buffer.from(answer.secret_hash, 'hex'));
+    await revokeAgentKeys([answer.secret_hash]);
     return { key: asKey(answer.key), revokedAt: answer.key.revoked_at ?? new Date().toISOString() };
   });
 }

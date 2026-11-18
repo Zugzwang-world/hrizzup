@@ -4,7 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 /**
  * The typed API's route (route.ts) with bots' API keys (PLAN.md step 3.5a), over HTTP as a bot
  * sends them: who may make which call with a key, what each refusal answers, and that a key's trade
- * runs as the key, so the database stamps it. Who is signed in, who a key is, the limits, the calls'
+ * runs as the key, so the database stamps it. An agent's posting key (social, K4 of
+ * docs/social/agents-design.md) works on none of the market calls: a personal read is 401, a trade 403. Who is signed in, who a key is, the limits, the calls'
  * work and the edge are stood in for; finding and making keys is tested in lib/api/keys.test.ts,
  * and the database's part in infra/supabase/tests/api_keys.test.sql.
  */
@@ -62,8 +63,11 @@ const ADA = { id: '00000000-0000-4000-8000-00000000a0a1', email: 'ada@keys.test'
 // Made-up keys, never real ones.
 const READ_KEY = `hz_demo_${'r'.repeat(43)}`;
 const TRADE_KEY = `hz_demo_${'t'.repeat(43)}`;
-const READ = { id: '019a7b10-0000-7000-8000-00000000000a', userId: ADA.id, scope: 'read' };
-const TRADE = { id: '019a7b10-0000-7000-8000-00000000000b', userId: ADA.id, scope: 'trade' };
+const POST_KEY = `hz_demo_${'p'.repeat(43)}`;
+const READ = { id: '019a7b10-0000-7000-8000-00000000000a', userId: ADA.id, kind: 'read' };
+const TRADE = { id: '019a7b10-0000-7000-8000-00000000000b', userId: ADA.id, kind: 'trade' };
+const AGENT = '00000000-0000-4000-8000-00000000b0b1';
+const POST = { id: '019a7b10-0000-7000-8000-00000000000c', agentId: AGENT, kind: 'post' };
 
 async function answer(
   method: 'GET' | 'POST',
@@ -102,7 +106,7 @@ beforeEach(() => {
   vi.stubEnv('VERCEL_TARGET_ENV', 'staging');
   signedIn.mockResolvedValue(null);
   findKey.mockImplementation(async (text: string) =>
-    text === READ_KEY ? READ : text === TRADE_KEY ? TRADE : null,
+    text === READ_KEY ? READ : text === TRADE_KEY ? TRADE : text === POST_KEY ? POST : null,
   );
   allowTrade.mockResolvedValue({ allowed: true });
   allowKeyRead.mockResolvedValue({ allowed: true });
@@ -183,6 +187,71 @@ describe('a bot with a trading key', () => {
     );
     const failed = await answer('POST', '/api/v1/trades', { key: TRADE_KEY, body: buy });
     expect(failed.status).toBe(500);
+  });
+});
+
+describe("an agent's posting key on the market calls (K4)", () => {
+  it('is refused a personal read (401), as a key this call does not take, before anything is counted', async () => {
+    for (const path of ['/api/v1/me', '/api/v1/me/positions']) {
+      const refused = await answer('GET', path, { key: POST_KEY });
+      expect(refused.status, path).toBe(401);
+      expect(refused.body, path).toMatchObject({
+        code: 'UNAUTHORIZED',
+        message: "A posting key works only on social's calls: use a read or trading key here",
+      });
+    }
+    expect(allowKeyRead).not.toHaveBeenCalled();
+    expect(calls.positions).not.toHaveBeenCalled();
+    expect(signedIn).not.toHaveBeenCalled();
+  });
+
+  it('is refused a trade (403), as a key that never trades, before anything is counted or written', async () => {
+    const refused = await answer('POST', '/api/v1/trades', { key: POST_KEY, body: buy });
+    expect(refused.status).toBe(403);
+    expect(refused.body).toMatchObject({
+      code: 'FORBIDDEN',
+      message: 'A posting key never trades: only a trading key may trade',
+    });
+    expect(allowTrade).not.toHaveBeenCalled();
+    expect(calls.placeTrade).not.toHaveBeenCalled();
+    expect(signedAs.keys).toEqual([]);
+  });
+
+  it("is refused the keys' own calls (403), as every key is, without the key being looked up", async () => {
+    for (const [method, path, body] of [
+      ['GET', '/api/v1/me/keys', undefined],
+      ['POST', '/api/v1/me/keys', { name: 'Another', scope: 'trade' }],
+      ['POST', `/api/v1/me/keys/${POST.id}/revoke`, undefined],
+    ] as const) {
+      const refused = await answer(method, path, { key: POST_KEY, body });
+      expect(refused.status, path).toBe(403);
+      expect(refused.body).toMatchObject({
+        code: 'FORBIDDEN',
+        message: 'Keys are made and revoked only when signed in on the website, never with a key',
+      });
+    }
+    expect(findKey).not.toHaveBeenCalled();
+    expect(Object.values(keyCalls).every((fn) => fn.mock.calls.length === 0)).toBe(true);
+  });
+
+  it('is the same 401 as any key that is not valid once revoked, and never reaches a public read', async () => {
+    findKey.mockResolvedValue(null);
+    const revoked = await answer('GET', '/api/v1/me/positions', { key: POST_KEY });
+    expect(revoked).toMatchObject({ status: 401, body: { code: 'UNAUTHORIZED' } });
+    expect(revoked.body).toMatchObject({
+      message: "This API key isn't valid: it may have been revoked",
+    });
+    findKey.mockClear();
+    const health = await answer('GET', '/api/v1/health', { key: POST_KEY });
+    expect(health.status).toBe(200);
+    expect(findKey).not.toHaveBeenCalled();
+  });
+
+  it('is refused as every key is on production, before launch, and never looked up', async () => {
+    vi.stubEnv('VERCEL_TARGET_ENV', 'production');
+    const refused = await answer('POST', '/api/v1/trades', { key: POST_KEY, body: buy });
+    expect(refused).toMatchObject({ status: 401, body: { code: 'UNAUTHORIZED' } });
+    expect(findKey).not.toHaveBeenCalled();
   });
 });
 

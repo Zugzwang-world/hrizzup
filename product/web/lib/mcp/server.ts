@@ -5,7 +5,7 @@ import { createRouterClient, ORPCError } from '@orpc/server';
 import { z } from 'zod';
 import { credentialOf } from '@/lib/api/credential.ts';
 import { router } from '@/lib/api/router.ts';
-import { person } from '@/lib/api/trading.ts';
+import { keyAccess } from '@/lib/api/trading.ts';
 import { currentEnvironment } from '@/lib/env.ts';
 
 /**
@@ -20,9 +20,11 @@ import { currentEnvironment } from '@/lib/env.ts';
  *   with "(beta)"), taking the call's own input. Each runs that very call in-process, through the API's own
  *   handlers, so every rule (the key's scope, the limits, the books' checks, the exact decimals) is the
  *   API's, never copied here.
- * - **A key's scope decides which tools exist:** none sent, the public reads only; a read-only key,
- *   every read (its balance, positions, orders and trades too); a trading key, every tool. A key that
- *   isn't valid is refused (401) before anything runs.
+ * - **A key's kind decides which tools exist:** none sent, the public reads only; a read-only key,
+ *   every read (its balance, positions, orders and trades too); a trading key, every market tool; an
+ *   agent's posting key, the public reads and social's own tools. A social call's `who` (its meta)
+ *   adds to it: `anyone`'s calls are every key's and no key's, an `agent`'s only the posting key's. A
+ *   key that isn't valid is refused (401) before anything runs.
  * - **Only the key, never a cookie:** the tools act with the request's `Authorization` header alone;
  *   a request from another site's page (its `Origin`) is refused, so a browser's own session can never
  *   be used through it. The key is never passed on to anyone.
@@ -33,7 +35,7 @@ import { currentEnvironment } from '@/lib/env.ts';
  * - **Not on production** until its API opens at launch (5.2): there it answers "not found".
  */
 
-export type Access = 'public' | 'read' | 'trade';
+export type Access = 'public' | 'read' | 'trade' | 'post';
 
 type Procedure = ReturnType<typeof procedures>[number][1];
 
@@ -49,6 +51,8 @@ export type ToolSpec = {
   reads: boolean;
   /** A public read, the same for everyone, needing no key. */
   isPublic: boolean;
+  /** Who a social call is for (its meta): `anyone`, or only an `agent` with its posting key. Unset on every market call. */
+  who?: 'anyone' | 'agent';
   procedure: Procedure;
 };
 
@@ -68,6 +72,7 @@ export function toolsOf(router: object): ToolSpec[] {
     .map(({ path, procedure }) => {
       const beta = procedure['~orpc'].meta.beta === true;
       const summary = procedure['~orpc'].route.summary ?? path.join('.');
+      const who = procedure['~orpc'].meta.who;
       return {
         name: path.join('_'),
         path,
@@ -75,6 +80,7 @@ export function toolsOf(router: object): ToolSpec[] {
         beta,
         reads: procedure['~orpc'].route.method === 'GET',
         isPublic: procedure['~orpc'].meta.caching.kind === 'public',
+        ...(who === undefined ? {} : { who }),
         procedure,
       };
     });
@@ -83,11 +89,19 @@ export function toolsOf(router: object): ToolSpec[] {
 /** The published calls but `health`, as tools, in the contract's own order. */
 export const TOOLS: readonly ToolSpec[] = toolsOf(contract);
 
-/** The tools a scope may see. */
-export function toolsFor(access: Access): ToolSpec[] {
-  return TOOLS.filter((tool) =>
-    access === 'trade' ? true : access === 'read' ? tool.reads : tool.reads && tool.isPublic,
-  );
+/**
+ * The tools an access may see (of `tools`, the published calls). `who` comes first: an `agent`'s tool
+ * is only the posting key's, an `anyone`'s tool is everyone's, a key or none. The rest follow the
+ * market API's rule, a posting key counting as none: the public reads.
+ */
+export function toolsFor(access: Access, tools: readonly ToolSpec[] = TOOLS): ToolSpec[] {
+  return tools.filter((tool) => {
+    if (tool.who === 'agent') return access === 'post';
+    if (tool.who === 'anyone') return true;
+    if (access === 'trade') return true;
+    if (access === 'read') return tool.reads;
+    return tool.reads && tool.isPublic;
+  });
 }
 
 type AnySchema = z.ZodType;
@@ -149,6 +163,14 @@ const INSTRUCTIONS = `Hrizzup's demo on staging: play-money prediction markets a
 - Perp orders fill at the next price, about every 5 seconds, so they answer within seconds.
 - Lists page with limit and cursor (the next of the page before). Docs: https://staging.hrizzup.com/docs`;
 
+/** What a tool says about who may use it. */
+export function describedUse(tool: ToolSpec): string {
+  if (tool.who === 'agent') return "Your agent's own: needs its posting key.";
+  if (tool.isPublic) return 'Public: needs no key.';
+  if (tool.who === 'anyone') return 'Anyone: needs no key.';
+  return tool.reads ? 'Your own: needs a key.' : 'Trades play money: needs a trading key.';
+}
+
 /** A tool's answer: the call's answer as JSON text and as structured content, or its refusal. */
 function answerOf(value: unknown): CallToolResult {
   return {
@@ -165,14 +187,18 @@ function refusalOf(error: unknown): CallToolResult {
   return { content: [{ type: 'text', text: JSON.stringify(refusal, null, 2) }], isError: true };
 }
 
-/** A fresh MCP server with the tools `access` may use, each acting with `headers` (the key alone). */
-export function mcpServer(access: Access, headers: Headers): McpServer {
+/**
+ * A fresh MCP server with the tools `access` may use, each acting with `headers` (the key alone). `url`
+ * is the request's own address, given to every call as an HTTP call's is (a call that writes a link to
+ * the site, an agent's claim link, takes its origin from it).
+ */
+export function mcpServer(access: Access, headers: Headers, url?: string): McpServer {
   const server = new McpServer(
     { name: 'hrizzup', title: 'Hrizzup (staging, the demo)', version: '1.0.0' },
     { instructions: INSTRUCTIONS },
   );
   const client = createRouterClient(router, {
-    context: () => ({ headers, resHeaders: new Headers() }),
+    context: () => ({ headers, resHeaders: new Headers(), ...(url === undefined ? {} : { url }) }),
   }) as unknown as Record<string, unknown>;
   for (const tool of toolsFor(access)) {
     const call = tool.path.reduce<unknown>(
@@ -185,7 +211,7 @@ export function mcpServer(access: Access, headers: Headers): McpServer {
       tool.name,
       {
         title: tool.summary,
-        description: `${tool.summary}. ${tool.isPublic ? 'Public: needs no key.' : tool.reads ? 'Your own: needs a key.' : 'Trades play money: needs a trading key.'}${takesRequest ? ' Send a new requestId (a UUID) of your own to retry safely; left out, the server makes one.' : ''} The API's call ${tool.path.join('.')}: https://staging.hrizzup.com/docs/calls/${tool.path.join('.')}`,
+        description: `${tool.summary}. ${describedUse(tool)}${takesRequest ? ' Send a new requestId (a UUID) of your own to retry safely; left out, the server makes one.' : ''} The API's call ${tool.path.join('.')}: https://staging.hrizzup.com/docs/calls/${tool.path.join('.')}`,
         inputSchema,
         annotations: {
           title: tool.summary,
@@ -241,8 +267,8 @@ function refused(status: number, code: string, message: string): Response {
 }
 
 /**
- * Which tools a request may use, by its key: none sent, the public reads; else the key's own scope.
- * A refusal (as the API's answer) for a key that isn't valid, a sign-in session, or another site.
+ * Which tools a request may use, by its key: none sent, the public reads; else the key's own kind
+ * (`read`, `trade`, or an agent's `post`). A refusal (as the API's answer) for a key that isn't valid, a sign-in session, or another site.
  */
 export async function accessFor(request: Request): Promise<Access | Response> {
   const origin = request.headers.get('origin');
@@ -263,11 +289,9 @@ export async function accessFor(request: Request): Promise<Access | Response> {
     );
   }
   try {
-    const who = await person(
+    return await keyAccess(
       new Headers({ authorization: request.headers.get('authorization') ?? '' }),
-      'read',
     );
-    return who.key?.scope === 'trade' ? 'trade' : 'read';
   } catch (error) {
     if (error instanceof ORPCError) return refused(error.status, error.code, error.message);
     throw error;
@@ -301,7 +325,7 @@ export async function serveMcp(request: Request): Promise<Response> {
   // The tools act with the key alone: no cookie, no other header of the request's.
   const authorization = request.headers.get('authorization');
   const headers = new Headers(authorization ? { authorization } : {});
-  const handler = createMcpHandler(() => mcpServer(access, headers), {
+  const handler = createMcpHandler(() => mcpServer(access, headers, request.url), {
     legacy: 'stateless',
     responseMode: 'json',
   });

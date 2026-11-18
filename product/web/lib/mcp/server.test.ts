@@ -21,6 +21,8 @@ const calls = vi.hoisted(() => ({
   placeTrade: vi.fn(),
   positions: vi.fn(),
 }));
+// What each tool's calls were given as their context (`createRouterClient`'s `context`).
+const contexts = vi.hoisted(() => ({ made: [] as (() => unknown)[] }));
 const pool = { connect: vi.fn() };
 
 vi.mock('@/lib/api/context.ts', () => ({ signedIn: (headers: Headers) => signedIn(headers) }));
@@ -39,6 +41,16 @@ vi.mock('@/lib/api/keys.ts', async (original) => ({
   ...(await original<typeof import('@/lib/api/keys.ts')>()),
   findKey: (_pool: unknown, text: string) => findKey(text),
 }));
+vi.mock('@orpc/server', async (original) => {
+  const real = await original<typeof import('@orpc/server')>();
+  return {
+    ...real,
+    createRouterClient: ((router: never, options: { context: () => unknown }) => {
+      contexts.made.push(options.context);
+      return real.createRouterClient(router, options as never);
+    }) as unknown as typeof real.createRouterClient,
+  };
+});
 vi.mock('@hrizzup/markets', async (original) => ({
   ...(await original<typeof import('@hrizzup/markets')>()),
   ...Object.fromEntries(
@@ -46,14 +58,16 @@ vi.mock('@hrizzup/markets', async (original) => ({
   ),
 }));
 
-const { serveMcp, toolsFor, toolsOf, TOOLS } = await import('./server.ts');
+const { describedUse, serveMcp, toolsFor, toolsOf, TOOLS } = await import('./server.ts');
 
 const SITE = 'https://staging.hrizzup.com';
 const MCP = `${SITE}/api/v1/mcp`;
 // Made-up keys, never real ones.
 const READ_KEY = `hz_demo_${'r'.repeat(43)}`;
 const TRADE_KEY = `hz_demo_${'t'.repeat(43)}`;
+const POST_KEY = `hz_demo_${'p'.repeat(43)}`;
 const ADA = '00000000-0000-4000-8000-00000000a0a1';
+const AGENT = '00000000-0000-4000-8000-00000000b0b1';
 
 /** A connected MCP client whose requests our handler serves, with this key (or none). */
 async function connect(key?: string): Promise<Client> {
@@ -86,11 +100,14 @@ beforeEach(() => {
   signedIn.mockResolvedValue(null);
   findKey.mockImplementation(async (text: string) =>
     text === READ_KEY
-      ? { id: '019a7b10-0000-7000-8000-00000000000a', userId: ADA, scope: 'read' }
+      ? { id: '019a7b10-0000-7000-8000-00000000000a', userId: ADA, kind: 'read' }
       : text === TRADE_KEY
-        ? { id: '019a7b10-0000-7000-8000-00000000000b', userId: ADA, scope: 'trade' }
-        : null,
+        ? { id: '019a7b10-0000-7000-8000-00000000000b', userId: ADA, kind: 'trade' }
+        : text === POST_KEY
+          ? { id: '019a7b10-0000-7000-8000-00000000000c', agentId: AGENT, kind: 'post' }
+          : null,
   );
+  contexts.made = [];
   allowTrade.mockResolvedValue({ allowed: true });
   allowKeyRead.mockResolvedValue({ allowed: true });
   calls.marketQuote.mockResolvedValue(marketQuote);
@@ -195,6 +212,116 @@ describe('a call in beta, or not live yet, or kept out of MCP', () => {
   });
 });
 
+describe("who a call is for: an agent's tools and anyone's (K8)", () => {
+  // A small contract with one call of each kind, since none of social's is live yet: a market API's
+  // calls (a public read, a personal read, a trade), and social's `anyone` (a public read, a personal
+  // read, a write) and `agent` calls (a read, a write). oRPC takes any object with a procedure's own
+  // fields (`~orpc`) as a call.
+  const call = (
+    method: 'GET' | 'POST',
+    path: `/${string}`,
+    summary: string,
+    meta: Partial<Meta> = {},
+  ) => ({
+    '~orpc': {
+      meta: { caching: { kind: 'personal' }, ...meta },
+      route: { method, path, summary },
+      errorMap: {},
+    },
+  });
+  const publicRead: Partial<Meta> = {
+    caching: { kind: 'public', edgeSeconds: 30, staleSeconds: 60, tags: ['x'] },
+  };
+  const kinds = {
+    markets: {
+      list: call('GET', '/markets', 'The markets', publicRead),
+      positions: call('GET', '/positions', 'Your positions'),
+      trade: call('POST', '/trades', 'Trade'),
+    },
+    social: {
+      board: call('GET', '/board', 'The board', { ...publicRead, beta: true, who: 'anyone' }),
+      brief: call('GET', '/brief', 'A brief', { beta: true, who: 'anyone' }),
+      register: call('POST', '/register', 'Register', { beta: true, who: 'anyone' }),
+      me: call('GET', '/me', 'Me', { beta: true, who: 'agent' }),
+      post: call('POST', '/post', 'Post', { beta: true, who: 'agent' }),
+    },
+  };
+  const small = toolsOf(kinds);
+  const names = (access: 'public' | 'read' | 'trade' | 'post') =>
+    toolsFor(access, small).map((tool) => tool.name);
+
+  it('keeps each call’s who on its tool, and none on a market call', () => {
+    const byName = new Map(small.map((tool) => [tool.name, tool]));
+    expect(byName.get('social_me')?.who).toBe('agent');
+    expect(byName.get('social_register')?.who).toBe('anyone');
+    expect(byName.get('markets_list')).not.toHaveProperty('who');
+  });
+
+  it('shows an agent’s tools only to a posting key, whatever the other rules say', () => {
+    for (const access of ['public', 'read', 'trade'] as const) {
+      expect(names(access), access).not.toContain('social_me');
+      expect(names(access), access).not.toContain('social_post');
+    }
+    expect(names('post')).toEqual(expect.arrayContaining(['social_me', 'social_post']));
+  });
+
+  it('shows anyone’s tools to every access, reads and writes alike, a key or none', () => {
+    for (const access of ['public', 'read', 'trade', 'post'] as const) {
+      expect(names(access), access).toEqual(
+        expect.arrayContaining(['social_board', 'social_brief', 'social_register']),
+      );
+    }
+  });
+
+  it('leaves the market rule as it was for the rest, a posting key counting as none: the public reads', () => {
+    expect(names('public')).toEqual([
+      'markets_list',
+      'social_board',
+      'social_brief',
+      'social_register',
+    ]);
+    expect(names('read')).toEqual([
+      'markets_list',
+      'markets_positions',
+      'social_board',
+      'social_brief',
+      'social_register',
+    ]);
+    expect(names('trade')).toEqual([
+      'markets_list',
+      'markets_positions',
+      'markets_trade',
+      'social_board',
+      'social_brief',
+      'social_register',
+    ]);
+    expect(names('post')).toEqual([
+      'markets_list',
+      'social_board',
+      'social_brief',
+      'social_register',
+      'social_me',
+      'social_post',
+    ]);
+    expect(names('post')).not.toContain('markets_positions');
+    expect(names('post')).not.toContain('markets_trade');
+  });
+
+  it('says who may use each: an agent’s own, anyone’s, public, personal, trading', () => {
+    const use = Object.fromEntries(small.map((tool) => [tool.name, describedUse(tool)]));
+    expect(use).toEqual({
+      markets_list: 'Public: needs no key.',
+      markets_positions: 'Your own: needs a key.',
+      markets_trade: 'Trades play money: needs a trading key.',
+      social_board: 'Public: needs no key.',
+      social_brief: 'Anyone: needs no key.',
+      social_register: 'Anyone: needs no key.',
+      social_me: "Your agent's own: needs its posting key.",
+      social_post: "Your agent's own: needs its posting key.",
+    });
+  });
+});
+
 describe('social’s calls follow their live marks', () => {
   const all = procedures(contract);
   const social = all.filter(([name]) => isSocialCall(name.split('.')));
@@ -229,7 +356,7 @@ describe('social’s calls follow their live marks', () => {
 
   it('are named to a key only as tools: never a call not published or kept out of MCP', () => {
     const tools = new Set(expected.map((name) => name.replaceAll('.', '_')));
-    for (const access of ['public', 'read', 'trade'] as const) {
+    for (const access of ['public', 'read', 'trade', 'post'] as const) {
       const named = toolsFor(access).map((tool) => tool.name);
       for (const [name] of social) {
         const tool = name.replaceAll('.', '_');
@@ -342,6 +469,47 @@ describe('an MCP client', () => {
   });
 });
 
+describe("an MCP client with an agent's posting key", () => {
+  it('is let in, with the public reads and no market tool of its own', async () => {
+    const client = await connect(POST_KEY);
+    const names = (await client.listTools()).tools.map((tool) => tool.name);
+    expect(names.sort()).toEqual(
+      toolsFor('post')
+        .map((tool) => tool.name)
+        .sort(),
+    );
+    expect(names).toContain('markets_quote');
+    for (const name of ['portfolio_positions', 'me', 'markets_trade', 'perps_open']) {
+      expect(names).not.toContain(name);
+    }
+    expect(findKey).toHaveBeenCalled();
+    await client.close();
+  });
+
+  it('cannot call a market tool it was not shown', async () => {
+    const client = await connect(POST_KEY);
+    const refused = await client
+      .callTool({ name: 'markets_trade', arguments: { marketId: tradeResult.marketId } })
+      .then((answer) => answer.isError === true)
+      .catch(() => true);
+    expect(refused).toBe(true);
+    expect(calls.placeTrade).not.toHaveBeenCalled();
+    await client.close();
+  });
+
+  it('gives every call the request’s own address, as an HTTP call has it', async () => {
+    const client = await connect(POST_KEY);
+    await client.listTools();
+    expect(contexts.made.length).toBeGreaterThan(0);
+    for (const context of contexts.made) {
+      expect(context()).toMatchObject({ url: MCP, headers: expect.any(Headers) });
+      // Only the key goes on: no cookie, no other header.
+      expect([...(context() as { headers: Headers }).headers.keys()]).toEqual(['authorization']);
+    }
+    await client.close();
+  });
+});
+
 describe('the refusals', () => {
   const ping = { jsonrpc: '2.0', id: 1, method: 'ping' };
 
@@ -350,6 +518,9 @@ describe('the refusals', () => {
     expect(bad.status).toBe(401);
     const session = await post(ping, { authorization: 'Bearer a-session-token' });
     expect(session.status).toBe(401);
+    // A revoked posting key is any key that isn't valid.
+    findKey.mockResolvedValueOnce(null);
+    expect((await post(ping, { authorization: `Bearer ${POST_KEY}` })).status).toBe(401);
     expect(await session.json()).toMatchObject({ message: expect.stringContaining('API key') });
   });
 
