@@ -739,7 +739,7 @@ describe('the settings', () => {
     await expect(
       api().admin.social.settings.set({ changes: { postsPerDay: 5 }, reason: 'x' }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST', status: 400, data: { issues: [{ path: '' }] } });
-    // A 23514 of a setting's own constraint on any other call is the shared map's, not this call's.
+    // The database's refusal of anyone but an admin is "No such call", from this call too.
     answer = () => fault('42501', 'not an admin');
     await expect(
       api().admin.social.settings.set({ changes: { postsPerDay: 5 }, reason: 'x' }),

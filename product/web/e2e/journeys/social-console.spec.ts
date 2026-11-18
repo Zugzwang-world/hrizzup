@@ -123,7 +123,7 @@ describeApiOnly("the console's lists, settings and agents", () => {
   // write to its typed API (journeys/console-api.spec.ts says why); previews have no such rule.
   test.skip(() => environment() === 'staging', 'These are writes: see console-api.spec.ts');
 
-  test("the run's own invite and story are in the lists, the settings and the agents are read, and a cursor of another list is refused", async ({
+  test("the run's own invite and story are in the lists, the settings and the agents are read, and a cursor that is not the list's own is refused", async ({
     playwright,
     baseURL,
     browserName,
@@ -260,18 +260,26 @@ describeApiOnly("the console's lists, settings and agents", () => {
         }
       }
 
-      // A cursor that is not the list's own is a 400 with the issue on `cursor`, whatever the list.
+      // A cursor that is not the list's own is a 400 with the issue on `cursor`, whatever the list: a
+      // made-up one, and (when the stories run to a second page) the stories' own sent to the others.
+      const stories1 = await call(admin, 'GET', '/api/v1/admin/social/stories?limit=1');
+      expect(stories1.status).toBe(200);
+      const theirs = (stories1.body as { next: string | null }).next;
+      const refusedCursors = ['not-a-cursor', ...(theirs === null ? [] : [theirs])];
       for (const list of ['invites', 'stories', 'agents']) {
-        const refused = await call(
-          admin,
-          'GET',
-          `/api/v1/admin/social/${list}?cursor=not-a-cursor`,
-        );
-        expect(refused.status, list).toBe(400);
-        expect(refused.body, list).toMatchObject({
-          code: 'BAD_REQUEST',
-          data: { issues: [{ path: 'cursor' }] },
-        });
+        for (const cursor of refusedCursors) {
+          if (list === 'stories' && cursor === theirs) continue;
+          const refused = await call(
+            admin,
+            'GET',
+            `/api/v1/admin/social/${list}?cursor=${encodeURIComponent(cursor)}`,
+          );
+          expect(refused.status, `${list}: ${cursor}`).toBe(400);
+          expect(refused.body, `${list}: ${cursor}`).toMatchObject({
+            code: 'BAD_REQUEST',
+            data: { issues: [{ path: 'cursor' }] },
+          });
+        }
       }
     } finally {
       await admin.dispose();
