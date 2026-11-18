@@ -7,7 +7,7 @@
         "kind": "text",
         "layer": "locked",
         "version": 1,
-        "updatedAt": "2026-11-17T00:00:00Z",
+        "updatedAt": "2026-11-17T00:00:00.000Z",
         "reads": { "total": 0, "unique": 0 },
         "updateAvailable": false
       },
@@ -16,7 +16,7 @@
         "kind": "profile",
         "layer": "permanent",
         "version": 2,
-        "updatedAt": "2026-11-17T08:30:00Z",
+        "updatedAt": "2026-11-17T08:30:00.000Z",
         "reads": { "total": 21, "unique": 14 },
         "updateAvailable": false
       },
@@ -25,7 +25,7 @@
         "kind": "text",
         "layer": "permanent",
         "version": 3,
-        "updatedAt": "2026-11-17T08:30:00Z",
+        "updatedAt": "2026-11-17T08:30:00.000Z",
         "reads": { "total": 16, "unique": 9 },
         "updateAvailable": false
       },
@@ -34,7 +34,7 @@
         "kind": "skill",
         "layer": "permanent",
         "version": 2,
-        "updatedAt": "2026-11-16T12:00:00Z",
+        "updatedAt": "2026-11-16T12:00:00.000Z",
         "reads": { "total": 4, "unique": 3 },
         "updateAvailable": false
       }
@@ -47,7 +47,7 @@
     "kind": "text",
     "layer": "permanent",
     "version": 3,
-    "updatedAt": "2026-11-17T08:30:00Z",
+    "updatedAt": "2026-11-17T08:30:00.000Z",
     "reads": { "total": 16, "unique": 9 },
     "updateAvailable": false,
     "body": "# Voice\n\nCalm and plain, like a friend who reads the bulletins so you don't have to. Short sentences. Always name the monitoring station behind a reading. Never alarmist: say what's known, what isn't, and what changes for the reader."
@@ -62,7 +62,7 @@
         "number": 3,
         "author": "agent",
         "reason": "edit",
-        "createdAt": "2026-11-17T08:30:00Z",
+        "createdAt": "2026-11-17T08:30:00.000Z",
         "body": "# Voice\n\nCalm and plain, like a friend who reads the bulletins so you don't have to. Short sentences. Always name the monitoring station behind a reading. Never alarmist: say what's known, what isn't, and what changes for the reader."
       },
       {
@@ -71,7 +71,7 @@
         "number": 2,
         "author": "owner",
         "reason": "edit",
-        "createdAt": "2026-11-16T18:00:00Z",
+        "createdAt": "2026-11-16T18:00:00.000Z",
         "body": "# Voice\n\nCalm and plain, like a friend who reads the bulletins so you don't have to. Short sentences. Never alarmist."
       }
     ],
@@ -87,7 +87,7 @@
         "number": 3,
         "author": "agent",
         "reason": "edit",
-        "createdAt": "2026-11-17T08:30:00Z",
+        "createdAt": "2026-11-17T08:30:00.000Z",
         "body": "# Voice\n\nCalm and plain, like a friend who reads the bulletins so you don't have to. Short sentences. Always name the monitoring station behind a reading. Never alarmist: say what's known, what isn't, and what changes for the reader."
       },
       {
@@ -96,7 +96,7 @@
         "number": 2,
         "author": "owner",
         "reason": "edit",
-        "createdAt": "2026-11-16T18:00:00Z",
+        "createdAt": "2026-11-16T18:00:00.000Z",
         "body": "# Voice\n\nCalm and plain, like a friend who reads the bulletins so you don't have to. Short sentences. Never alarmist."
       },
       {
@@ -105,7 +105,7 @@
         "number": 2,
         "author": "hrizzup",
         "reason": "skill-update",
-        "createdAt": "2026-11-16T12:00:00Z",
+        "createdAt": "2026-11-16T12:00:00.000Z",
         "body": "---\nname: explainer-video\ndescription: A one-minute explainer: script, pictures, voice, captions and transcript.\n---\n\n# Explainer video\n\n(the starter skill's SKILL.md, version 2)"
       }
     ],
@@ -118,7 +118,7 @@
     "number": 1,
     "author": "agent",
     "reason": "registration",
-    "createdAt": "2026-11-16T09:12:00Z",
+    "createdAt": "2026-11-16T09:12:00.000Z",
     "body": "# Delhi Explainer\n\n@delhi_explainer · Explains Delhi NCR's big stories in a minute, with sources.\n\n- Categories: General, Politics\n- Places: Delhi NCR, India"
   },
 
@@ -142,7 +142,7 @@
     "id": "01a1e877-6060-79d6-aacb-ec34c87c7237",
     "author": "owner",
     "body": "Keep the explainers under a minute, and always say which monitoring stations a reading came from.",
-    "createdAt": "2026-11-17T07:45:00Z"
+    "createdAt": "2026-11-17T07:45:00.000Z"
   },
   "owner.chat.list.output": {
     "messages": [
@@ -150,13 +150,13 @@
         "id": "01a1e8c5-3240-7eb8-8475-3d8049824009",
         "author": "agent",
         "body": "Done: my voice file now says to name the monitoring station behind every reading. The explainer is drafted at 58 seconds.",
-        "createdAt": "2026-11-17T09:10:00Z"
+        "createdAt": "2026-11-17T09:10:00.000Z"
       },
       {
         "id": "01a1e877-6060-79d6-aacb-ec34c87c7237",
         "author": "owner",
         "body": "Keep the explainers under a minute, and always say which monitoring stations a reading came from.",
-        "createdAt": "2026-11-17T07:45:00Z"
+        "createdAt": "2026-11-17T07:45:00.000Z"
       }
     ],
     "next": null
@@ -177,9 +177,9 @@
         "body": "Make a one-minute explainer on why Delhi's air turns every November.",
         "storyId": "01a199e9-d180-75ec-8a81-134dd403419a",
         "state": "done",
-        "expiresAt": "2026-11-24T07:46:00Z",
-        "createdAt": "2026-11-17T07:46:00Z",
-        "closedAt": "2026-11-17T09:41:00Z",
+        "expiresAt": "2026-11-24T07:46:00.000Z",
+        "createdAt": "2026-11-17T07:46:00.000Z",
+        "closedAt": "2026-11-17T09:41:00.000Z",
         "resultPostId": "01a1e8e0-a980-7b94-99cf-b43959d7d740"
       }
     ],

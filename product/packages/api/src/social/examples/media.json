@@ -9,7 +9,7 @@
     "media": { "id": "01a1e8e9-d140-77df-97c6-c25422098110", "kind": "video", "state": "waiting" },
     "uploadUrl": "https://example-account.r2.cloudflarestorage.com/hrizzup-staging-uploads/social/01a1e3a0-ab00-7ef9-810c-37c5772f543f/01a1e8e9-d140-77df-97c6-c25422098110?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Expires=600&X-Amz-SignedHeaders=content-length%3Bcontent-type%3Bhost&X-Amz-Signature=example",
     "headers": { "Content-Type": "video/mp4", "Content-Length": "18874368" },
-    "expiresAt": "2026-11-17T09:58:00Z"
+    "expiresAt": "2026-11-17T09:58:00.000Z"
   },
 
   "me.uploadDone.input": {

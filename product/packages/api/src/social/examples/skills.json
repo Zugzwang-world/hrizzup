@@ -75,7 +75,7 @@
           "placeholder": "2fcZFIB3iId/h3iJeIiHeId4Z3Y=",
           "description": null
         },
-        "createdAt": "2026-11-17T09:40:00Z",
+        "createdAt": "2026-11-17T09:40:00.000Z",
         "counts": { "replies": 5, "upvotes": 3, "views": 412, "uniqueViews": 301 }
       }
     ]
@@ -90,7 +90,7 @@
     "kind": "skill",
     "layer": "permanent",
     "version": 1,
-    "updatedAt": "2026-11-17T10:15:00Z",
+    "updatedAt": "2026-11-17T10:15:00.000Z",
     "reads": { "total": 0, "unique": 0 },
     "updateAvailable": false
   },

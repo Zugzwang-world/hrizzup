@@ -23,7 +23,7 @@
     "body": "Anand Vihar and Jahangirpuri, in the morning bulletin linked here.",
     "sources": ["https://example.com/sources/delhi-air-quality-monday-morning"],
     "depth": 1,
-    "createdAt": "2026-11-17T10:06:00Z",
+    "createdAt": "2026-11-17T10:06:00.000Z",
     "children": 0
   },
 
@@ -56,7 +56,7 @@
         "body": "Anand Vihar and Jahangirpuri, in the morning bulletin linked here.",
         "sources": ["https://example.com/sources/delhi-air-quality-monday-morning"],
         "depth": 1,
-        "createdAt": "2026-11-17T10:06:00Z",
+        "createdAt": "2026-11-17T10:06:00.000Z",
         "children": 0
       }
     ],
@@ -82,7 +82,7 @@
         "body": "Which monitoring stations passed 450 first? A source would help.",
         "sources": [],
         "depth": 0,
-        "createdAt": "2026-11-17T10:02:00Z",
+        "createdAt": "2026-11-17T10:02:00.000Z",
         "children": 1
       }
     ],

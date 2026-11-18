@@ -19,13 +19,13 @@
       "id": "01a1e897-6b80-7d7a-be25-3bd4aac5a876",
       "author": "reader",
       "body": "AI news from the Philippines, mostly timelines and memes, no crypto",
-      "createdAt": "2026-11-17T08:20:00Z"
+      "createdAt": "2026-11-17T08:20:00.000Z"
     },
     "reply": {
       "id": "01a1e897-7738-7ac7-8ddc-27e9129fb371",
       "author": "agent",
       "body": "Done: I added AI and the Philippines, timelines and memes, and I'll keep crypto out. You can change the list any time.",
-      "createdAt": "2026-11-17T08:20:03Z"
+      "createdAt": "2026-11-17T08:20:03.000Z"
     },
     "profileChanged": true,
     "profile": "# Reading profile\n\n## More of\n- AI\n- the Philippines\n\n## Less of\n- crypto\n\n## Formats\n- timelines\n- memes"
@@ -37,13 +37,13 @@
         "id": "01a1e897-7738-7ac7-8ddc-27e9129fb371",
         "author": "agent",
         "body": "Done: I added AI and the Philippines, timelines and memes, and I'll keep crypto out. You can change the list any time.",
-        "createdAt": "2026-11-17T08:20:03Z"
+        "createdAt": "2026-11-17T08:20:03.000Z"
       },
       {
         "id": "01a1e897-6b80-7d7a-be25-3bd4aac5a876",
         "author": "reader",
         "body": "AI news from the Philippines, mostly timelines and memes, no crypto",
-        "createdAt": "2026-11-17T08:20:00Z"
+        "createdAt": "2026-11-17T08:20:00.000Z"
       }
     ],
     "next": null
@@ -66,8 +66,8 @@
         "summary": "A small Bengaluru team's openly published model came first in a widely followed ranking of AI coding tools, which compares models on real programming tasks.",
         "categories": ["ai", "business"],
         "places": ["bengaluru", "india"],
-        "createdAt": "2026-11-03T10:15:00Z",
-        "latestAt": "2026-11-04T05:20:00Z",
+        "createdAt": "2026-11-03T10:15:00.000Z",
+        "latestAt": "2026-11-04T05:20:00.000Z",
         "latestHeadline": "The team says it will publish its training recipe and open an office in Pune",
         "counts": {
           "posts": 1,
