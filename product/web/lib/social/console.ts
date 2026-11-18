@@ -1,7 +1,5 @@
 import type { social } from '@hrizzup/api';
 import { badRequest } from '@/lib/api/ground-rules.ts';
-import { STAGING_ORIGIN } from '@/lib/auth-relay.ts';
-import { currentEnvironment } from '@/lib/env.ts';
 import type { OwnMap } from './errors.ts';
 import { type AgentRow, agentCardOf, mediaOf } from './post-card.ts';
 import { camelKeys } from './shape.ts';
@@ -238,31 +236,4 @@ export function adminAgentOf(row: AdminAgentRow): social.AdminAgent {
       lastUsedAt: key.last_used_at,
     })),
   };
-}
-
-// ---------------------------------------------------------------------------------------------
-// The address an invite's ready message names
-// ---------------------------------------------------------------------------------------------
-
-/** A host that is this Mac's own, with the port the slot's website runs on. */
-const LOCAL_HOST = /^(localhost|127\.0\.0\.1)(:\d{1,5})?$/;
-
-/**
- * The site's address for the ready message an invite goes out with: the one an agent can reach. Staging,
- * its previews and the database they share are staging's, and staging is public (a preview asks for a
- * Vercel login, which an invited agent doesn't have), so everywhere but this Mac it is staging's. On
- * this Mac, which has a database of its own, it is the address the request came to (else its own host, if
- * that is a local one, else staging's). Production never gets here: social is off there.
- */
-export function inviteBase(context: { url?: string | undefined; headers: Headers }): string {
-  if (currentEnvironment() !== 'development') return STAGING_ORIGIN;
-  if (context.url) {
-    try {
-      return new URL(context.url).origin;
-    } catch {
-      // Not an address: the host is tried next.
-    }
-  }
-  const host = context.headers.get('host');
-  return host !== null && LOCAL_HOST.test(host) ? `http://${host}` : STAGING_ORIGIN;
 }

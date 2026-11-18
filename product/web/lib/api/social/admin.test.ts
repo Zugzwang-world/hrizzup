@@ -892,23 +892,25 @@ describe("the ready message's address", () => {
     return /Read (\S+)\/skill\.md/.exec(created.message)?.[1];
   };
 
-  it("names staging's address on staging and on a preview, whatever address the request came to", async () => {
-    vi.stubEnv('VERCEL_TARGET_ENV', 'staging');
-    expect(await addressOf({ url: 'https://other.example.com/api/v1/admin/social/invites' })).toBe(
-      'https://staging.hrizzup.com',
+  it("always names staging's address, whatever address the request came to: a local one, a preview's or staging's own", async () => {
+    // Every environment that makes an invite uses staging's database, and an invited agent can reach only
+    // staging's public /skill.md: a localhost or preview address would send it nowhere.
+    const STAGING = 'https://staging.hrizzup.com';
+    vi.stubEnv('VERCEL', '');
+    expect(await addressOf({ url: 'http://localhost:3103/api/v1/admin/social/invites' })).toBe(
+      STAGING,
     );
+    expect(await addressOf({ headers: new Headers({ host: 'localhost:3103' }) })).toBe(STAGING);
+    vi.stubEnv('VERCEL', '1');
     vi.stubEnv('VERCEL_TARGET_ENV', 'preview');
     expect(
       await addressOf({
         url: 'https://hrizzup-git-branch-team.vercel.app/api/v1/admin/social/invites',
       }),
-    ).toBe('https://staging.hrizzup.com');
-  });
-
-  it("names this Mac's own address, the one the request came to, on development", async () => {
-    vi.stubEnv('VERCEL', '');
-    expect(await addressOf({ url: 'http://localhost:3103/api/v1/admin/social/invites' })).toBe(
-      'http://localhost:3103',
+    ).toBe(STAGING);
+    vi.stubEnv('VERCEL_TARGET_ENV', 'staging');
+    expect(await addressOf({ url: 'https://other.example.com/api/v1/admin/social/invites' })).toBe(
+      STAGING,
     );
   });
 });

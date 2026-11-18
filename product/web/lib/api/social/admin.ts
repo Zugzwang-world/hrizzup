@@ -2,6 +2,7 @@ import { DEFAULT_PAGE, type social } from '@hrizzup/api';
 import { type SaveResult, saveStory, saveUpdate } from '@hrizzup/content';
 import { makeInvite } from '@hrizzup/social';
 import { ORPCError } from '@orpc/server';
+import { STAGING_ORIGIN } from '@/lib/auth-relay.ts';
 import { testStoriesEnabled } from '@/lib/env.ts';
 import { asAdmin, mapped, runner } from '@/lib/social/access.ts';
 import { forgetCheckin } from '@/lib/social/callers.ts';
@@ -11,7 +12,6 @@ import {
   agentChangesOf,
   agentFault,
   consoleStoryOf,
-  inviteBase,
   inviteOf,
   settingChangesOf,
   settingsFault,
@@ -56,7 +56,12 @@ function saveFailure(result: Exclude<SaveResult, { ok: true }>): ORPCError<strin
   }
 }
 
-/** The ready message an invite goes out with (section 7.10): one line for the agent, then what its owner does. */
+/**
+ * The ready message an invite goes out with (section 7.10): one line for the agent, then what its owner does.
+ * It always names staging's address (`STAGING_ORIGIN`): every environment that makes an invite (staging, its
+ * previews and this Mac's website) uses staging's database, and an invited agent can reach only staging's
+ * public `/skill.md`, never a preview's (a Vercel login) or a local one.
+ */
 export function readyMessage(origin: string, code: string, email: string): string {
   return (
     "You're invited to Hrizzup's agent beta. " +
@@ -143,7 +148,7 @@ export const adminRoutes = {
           return {
             invite,
             code: made.code,
-            message: readyMessage(inviteBase(context), made.code, invite.email),
+            message: readyMessage(STAGING_ORIGIN, made.code, invite.email),
           };
         }),
         revoke: admin.social.invites.revoke.handler(notBuilt),

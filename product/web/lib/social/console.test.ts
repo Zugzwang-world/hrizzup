@@ -9,7 +9,6 @@ import {
   agentChangesOf,
   agentFault,
   consoleStoryOf,
-  inviteBase,
   inviteOf,
   SETTING_COLUMNS,
   settingChangesOf,
@@ -20,7 +19,7 @@ import { camelKeys } from './shape.ts';
 
 /**
  * The console's mappers (R5's design note, R8 and M3a): the tables that say which camelCase name is
- * which column, what an agent is built from, and the address of the ready message. The database's own
+ * which column, and what an agent is built from. The database's own
  * columns, constraint names and answers are held to these in `lib/api/social/console.db.test.ts`.
  */
 
@@ -285,66 +284,3 @@ function camelKeysInverse(value: unknown): Record<string, unknown> {
   };
   return walk(value) as Record<string, unknown>;
 }
-
-describe("the ready message's address", () => {
-  const headers = (host?: string) => new Headers(host === undefined ? {} : { host });
-  const STAGING = 'https://staging.hrizzup.com';
-
-  it("is staging's everywhere but this Mac, whatever the request came to or says its host is", () => {
-    for (const env of ['staging', 'preview', 'production']) {
-      vi.stubEnv('VERCEL', '1');
-      vi.stubEnv('VERCEL_TARGET_ENV', env);
-      expect(
-        inviteBase({
-          url: 'https://a-preview-link.vercel.app/api/v1/x',
-          headers: headers('localhost:3000'),
-        }),
-        env,
-      ).toBe(STAGING);
-      expect(inviteBase({ headers: headers('localhost:3000') }), env).toBe(STAGING);
-    }
-  });
-
-  describe('on this Mac', () => {
-    it("is the request's own origin when it has an address", () => {
-      vi.stubEnv('VERCEL', '');
-      expect(
-        inviteBase({
-          url: 'http://localhost:3103/api/v1/admin/social/invites',
-          headers: headers(),
-        }),
-      ).toBe('http://localhost:3103');
-      expect(
-        inviteBase({ url: 'http://127.0.0.1:3101/x?y=1', headers: headers('evil.example') }),
-      ).toBe('http://127.0.0.1:3101');
-    });
-
-    it("is the request's host, when that is this Mac's own and no address came", () => {
-      vi.stubEnv('VERCEL', '');
-      for (const host of ['localhost', 'localhost:3103', '127.0.0.1', '127.0.0.1:55352']) {
-        expect(inviteBase({ headers: headers(host) }), host).toBe(`http://${host}`);
-      }
-    });
-
-    it("is staging's when no address came and the host is not this Mac's own, or is missing", () => {
-      vi.stubEnv('VERCEL', '');
-      for (const host of [
-        undefined,
-        'evil.example',
-        'localhost.evil.example',
-        'localhost:99999999',
-        'localhost:3000/path',
-        'user@localhost',
-        '10.0.0.5:3000',
-        '',
-      ]) {
-        expect(inviteBase({ headers: headers(host) }), String(host)).toBe(STAGING);
-      }
-      // An address that isn't one is no address.
-      expect(inviteBase({ url: 'not an address', headers: headers() })).toBe(STAGING);
-      expect(inviteBase({ url: '', headers: headers('localhost:3000') })).toBe(
-        'http://localhost:3000',
-      );
-    });
-  });
-});

@@ -923,8 +923,8 @@ describe.skipIf(!url)('who may make these calls, over the real admins table', ()
   });
 });
 
-describe.skipIf(!url)("the ready message's address, on this Mac", () => {
-  it("names this website's own address, the one the request came to, and the code in it works for no one else", async () => {
+describe.skipIf(!url)("the ready message's address, from this Mac", () => {
+  it("names staging's address, though the request came to a local one: an invited agent reaches only staging", async () => {
     const created = await api({
       url: 'http://localhost:3103/api/v1/admin/social/invites',
     }).admin.social.invites.create({
@@ -932,7 +932,7 @@ describe.skipIf(!url)("the ready message's address, on this Mac", () => {
       email: `message-${seeded.run}@social-console.test`,
       listed: false,
     });
-    expect(created.message).toContain('Read http://localhost:3103/skill.md and join Hrizzup');
+    expect(created.message).toContain('Read https://staging.hrizzup.com/skill.md and join Hrizzup');
     expect(created.message).toContain(created.code);
     expect(created.invite).toMatchObject({ revokedAt: null, revokedReason: null });
     // The invite the database holds never holds the code.

@@ -11,7 +11,7 @@ import { adminState, signedInState, signedOutState } from '../support/states.ts'
  * made, so the journey signs nobody in itself.
  * - As the admin test account, the run makes its own unlisted story and its own unlisted invite (M3's
  *   calls), and then: the invites list pages until it finds the run's invite (with no reason for a
- *   revocation, and never a code), the ready message names an address an agent can reach, the stories
+ *   revocation, and never a code), the ready message names staging's address, the one an agent can reach, the stories
  *   list finds the run's story (unlisted, made by the console, with a null `saved`), the settings answer
  *   every setting and the log, the agents list answers a page of agents as the console shows them, and a
  *   cursor that is not that list's is a 400 on `cursor`.
@@ -25,7 +25,6 @@ import { adminState, signedInState, signedOutState } from '../support/states.ts'
  */
 
 const environment = () => process.env.SCREEN_CHECK_ENVIRONMENT;
-const onVercel = () => ['preview', 'staging', 'production'].includes(environment() ?? '');
 
 /** The pages a list may take to show the run's own row: it is the newest, so the first, but runs overlap. */
 const MOST_PAGES = 10;
@@ -164,10 +163,12 @@ describeApiOnly("the console's lists, settings and agents", () => {
       };
       expect(code).toMatch(CODE);
 
-      // The ready message names an address an agent can reach: staging's, except on this Mac, where it
-      // is the address the request came to.
-      const base = onVercel() ? 'https://staging.hrizzup.com' : new URL(baseURL ?? '').origin;
-      expect(message).toContain(`Read ${base}/skill.md and join Hrizzup with invite code ${code}.`);
+      // The ready message names the one address an invited agent can reach, staging's public /skill.md,
+      // whichever address the request came to (a preview's, or this Mac's own): every environment that
+      // makes an invite uses staging's database.
+      expect(message).toContain(
+        `Read https://staging.hrizzup.com/skill.md and join Hrizzup with invite code ${code}.`,
+      );
 
       // The invites list: the run's invite, found by its ID, with no reason for a revocation, and no code.
       const invites = await findIn<Record<string, unknown> & { id: string }>(
