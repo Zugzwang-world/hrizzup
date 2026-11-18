@@ -33,6 +33,25 @@ import { resetSocialCache } from '@/lib/social/cache.ts';
 
 const url = process.env.SOCIAL_DATABASE_URL;
 
+/**
+ * This file seeds accounts, an admin and stories with the database's own login, so it runs only on a
+ * database on this Mac (the slot's), never on one it was pointed at by mistake: any other host stops it,
+ * loudly, before a connection is made.
+ */
+function localDatabaseOrThrow(address: string): void {
+  let host: string;
+  try {
+    host = new URL(address).hostname;
+  } catch {
+    throw new Error('SOCIAL_DATABASE_URL is not an address');
+  }
+  if (host !== '127.0.0.1' && host !== 'localhost') {
+    throw new Error(
+      'SOCIAL_DATABASE_URL must be a database on this Mac (127.0.0.1 or localhost): this test writes accounts and an admin to it',
+    );
+  }
+}
+
 const held = vi.hoisted(() => ({ pool: null as import('pg').Pool | null }));
 vi.mock('@/lib/db.ts', () => ({ database: () => held.pool }));
 
@@ -137,6 +156,7 @@ async function saveUpdate(id: string, story: string, headline: string, reportedM
 
 beforeAll(async () => {
   if (!url) return;
+  localDatabaseOrThrow(url);
   owner = new pg.Pool({ connectionString: url, max: 2 });
   app = new pg.Pool({ connectionString: url, max: 4 });
   owner.on('error', () => {});
@@ -314,6 +334,27 @@ beforeAll(async () => {
 afterAll(async () => {
   await Promise.all([owner?.end(), app?.end()]);
   resetSocialCache();
+});
+
+describe('the database this test seeds', () => {
+  it('is on this Mac: any other host stops it before a connection is made', () => {
+    expect(() =>
+      localDatabaseOrThrow('postgresql://postgres:postgres@127.0.0.1:55352/postgres'),
+    ).not.toThrow();
+    expect(() =>
+      localDatabaseOrThrow('postgresql://postgres:postgres@localhost:5432/postgres'),
+    ).not.toThrow();
+    for (const elsewhere of [
+      'postgresql://postgres:x@db.example.supabase.co:5432/postgres',
+      'postgresql://postgres:x@aws-0-ap-south-1.pooler.supabase.com:6543/postgres',
+      'postgresql://postgres:x@127.0.0.1.example.com:5432/postgres',
+      'postgresql://postgres:x@localhost.example.com/postgres',
+      'postgresql://postgres:x@10.0.0.5:5432/postgres',
+      'not an address',
+    ]) {
+      expect(() => localDatabaseOrThrow(elsewhere), elsewhere).toThrow();
+    }
+  });
 });
 
 describe.skipIf(!url)('the six reads over the real functions', () => {
