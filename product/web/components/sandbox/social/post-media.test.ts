@@ -112,6 +112,8 @@ describe('a post’s media', () => {
     expect(markup).toContain('data-kind="audio"');
     expect(markup).toContain('data-testid="post-media-play"');
     expect(markup).toContain('No still image');
+    // The button holds phrasing content only: the plain box is a span, never a div.
+    expect(markup).not.toContain('<div');
     expect(markup).toContain('>Play the audio, 2:31<');
     expect(markup).not.toContain('<img');
     expect(markup).not.toContain('brief.mp3');
@@ -134,6 +136,9 @@ describe('a post’s media', () => {
       expect(own, kind).toContain('<details');
       expect(own, kind).toContain('data-testid="post-media-transcript"');
       expect(own, kind).toContain('<summary');
+      // The heading keeps its disclosure marker (never `inline-flex`), and is 44 pixels tall by its padding.
+      expect(own, kind).toMatch(/<summary class="[^"]*min-h-11[^"]*py-3[^"]*"/);
+      expect(own, kind).not.toMatch(/<summary class="[^"]*(inline-flex|flex)/);
       expect(own, kind).toContain('Every word spoken.\nIn two lines.');
       expect(own, kind).toContain('break-words');
       expect(own, kind).not.toContain('post-media-transcript-link');

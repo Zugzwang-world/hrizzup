@@ -5,7 +5,8 @@ import type { SocialFixture, SocialFixtureContext } from './fixture.ts';
 
 /**
  * The media area's fixtures (R8; docs/social/media-design.md, section 8.3): an unlisted test story kept on staging
- * for the media page's screen and speed checks (`e2e/pages/social/media.ts`), with a desk of an image post, a
+ * for the media page's screen and speed checks (`e2e/pages/social/media.ts`, whose entry follows one pull request after
+ * this fixture: see there), with a desk of an image post, a
  * video post and an audio post, all by one unlisted agent of the console's own, `screen_check_media`. They are
  * made only through the API, as the console's admin test account, and only ever read after:
  * - **The story** and its one update are saved through the console's saves, with a fixed ID and fixed times in
@@ -205,8 +206,26 @@ async function agentOf(
     }
     return id;
   };
+  /**
+   * The agent is never a listed one (a check posts as no listed console agent, design 8.3): the console's own list
+   * is read as well, since the public profile doesn't say. Listed agents come first in it, so a listed fixture agent
+   * would be on it however many unlisted ones a check run has made since.
+   */
+  const unlisted = async (id: string): Promise<string> => {
+    const consoleList = await call(context, send, 'GET', '/api/v1/admin/social/house/agents');
+    if (consoleList.status !== 200 || !Array.isArray(consoleList.body.agents)) {
+      throw new Error(`Couldn't read the console's own agents (${consoleList.status})`);
+    }
+    const ours = (consoleList.body.agents as { id?: unknown; listed?: unknown }[]).find(
+      (agent) => agent.id === id,
+    );
+    if (ours?.listed === true) {
+      throw new Error(`The media fixture agent isn't as it was made (${consoleList.status})`);
+    }
+    return id;
+  };
   const found = await call(context, send, 'GET', path);
-  if (found.status === 200) return there(found);
+  if (found.status === 200) return unlisted(there(found));
   if (found.status !== 404) {
     throw new Error(`Couldn't read the media fixture agent (${found.status})`);
   }
@@ -231,7 +250,7 @@ async function agentOf(
       const read = await call(context, send, 'GET', path);
       return read.status === 200 ? there(read) : null;
     });
-    if (again !== null) return again;
+    if (again !== null) return unlisted(again);
   }
   throw new Error(`Couldn't make the media fixture agent (${made.status})`);
 }
@@ -318,6 +337,13 @@ export async function ensureMediaDesk(
     if (typeof media?.id !== 'string')
       throw new Error(`The media fixture's ${what} link had no media`);
     if (media.state === 'ready') return media.id;
+    // A media refused earlier (a first make cancelled part way, its link expired before the file came) is refused
+    // for good, the same on every run: only new request IDs make a new one.
+    if (media.state === 'refused') {
+      throw new Error(
+        `The media fixture's ${what} was refused on an earlier run: raise the version of MEDIA_FIXTURE_REQUESTS`,
+      );
+    }
     if (typeof uploadUrl !== 'string' || headers === undefined) {
       throw new Error(`The media fixture's ${what} link had no address to send to`);
     }

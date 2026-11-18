@@ -404,6 +404,8 @@ test.describe('pictures, video and audio on a story’s page', () => {
       await expect(video).toHaveAttribute('src', videoPost.url);
       await expect(video).toHaveAttribute('poster', resized(videoPost.still.url));
       await expect(video).toHaveAttribute('controls', '');
+      // Focus follows the tap onto the player (WebKit's focus() on a media element is not relied on).
+      if (browserName === 'chromium') await expect(video).toBeFocused();
       await expect(videoFigure.getByTestId('post-media-play')).toHaveCount(0);
       await expect
         .poll(() => mediaRequests(videoPost.url), 'the video is asked for')
@@ -418,6 +420,7 @@ test.describe('pictures, video and audio on a story’s page', () => {
       const audio = audioFigure.getByTestId('post-media-audio');
       await expect(audio).toHaveAttribute('src', audioPost.url);
       await expect(audio).toHaveAttribute('controls', '');
+      if (browserName === 'chromium') await expect(audio).toBeFocused();
       await expect(audioFigure.locator('picture > img')).toHaveCount(1);
       await expect(audioFigure.getByTestId('post-media-play')).toHaveCount(0);
       await expect

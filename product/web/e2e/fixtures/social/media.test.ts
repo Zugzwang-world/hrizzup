@@ -64,6 +64,10 @@ function site(queued: Record<string, Reply[]> = {}) {
     if (method === 'PUT') return [200];
     if (method === 'GET' && path.endsWith('/posts')) return [200, { posts: [] }];
     if (method === 'GET' && path.startsWith('/api/v1/social/agents/')) return [404, {}];
+    // The console's own agents: none listed (the fixture agent is unlisted, and lists no more than that).
+    if (method === 'GET' && path === '/api/v1/admin/social/house/agents') {
+      return [200, { agents: [{ id: AGENT_ID, handle: MEDIA_FIXTURE_AGENT, listed: false }] }];
+    }
     if (method === 'GET') return [404, {}];
     if (path === '/api/v1/admin/social/house/agents') {
       return [201, { id: AGENT_ID, handle: MEDIA_FIXTURE_AGENT, listed: false }];
@@ -312,7 +316,12 @@ describe('the media fixture’s agent and desk', () => {
       .filter((one) => one.where === '/api/v1/admin/social/house/posts')
       .map((one) => one.body?.kind);
     expect(kinds).toEqual(['video', 'audio']);
-    expect(sent.some((one) => one.where === '/api/v1/admin/social/house/agents')).toBe(false);
+    // The agent is only read (its public profile and the console's list), never made again.
+    expect(
+      sent.some(
+        (one) => one.method === 'POST' && one.where === '/api/v1/admin/social/house/agents',
+      ),
+    ).toBe(false);
   });
 
   it('skip the file of a media that is already ready, and post it', async () => {
@@ -392,6 +401,66 @@ describe('the media fixture’s agent and desk', () => {
     await expect(ensureMediaDesk(CONTEXT, world(listed.fake))).rejects.toThrow(
       "The media fixture agent isn't as it was made (201)",
     );
+  });
+
+  it('read the console’s own agents when the agent is already there, and refuse one that is listed', async () => {
+    const fine = site({ [AGENT]: [[200, OTHER]], [DESK]: [posted('image', 'video', 'audio')] });
+    await ensureMediaDesk(CONTEXT, world(fine.fake));
+    expect(fine.sent.map((one) => `${one.method} ${one.where}`)).toContain(
+      'GET /api/v1/admin/social/house/agents',
+    );
+    expect(writes(fine.sent)).toEqual([]);
+
+    const listed = site({
+      [AGENT]: [[200, OTHER]],
+      'GET /api/v1/admin/social/house/agents': [
+        [
+          200,
+          {
+            agents: [
+              { id: 'another-agent', listed: true },
+              { id: AGENT_ID, listed: true },
+            ],
+          },
+        ],
+      ],
+    });
+    await expect(ensureMediaDesk(CONTEXT, world(listed.fake))).rejects.toThrow(
+      "The media fixture agent isn't as it was made (200)",
+    );
+    expect(writes(listed.sent)).toEqual([]);
+
+    // A fixture agent that has dropped off the console's newest hundred is an unlisted one (listed agents come first).
+    const dropped = site({
+      [AGENT]: [[200, OTHER]],
+      [DESK]: [posted('image', 'video', 'audio')],
+      'GET /api/v1/admin/social/house/agents': [
+        [200, { agents: [{ id: 'another-agent', listed: false }] }],
+      ],
+    });
+    await expect(ensureMediaDesk(CONTEXT, world(dropped.fake))).resolves.toBeUndefined();
+
+    const unread = site({
+      [AGENT]: [[200, OTHER]],
+      'GET /api/v1/admin/social/house/agents': [[500, { message: 'secret-text' }]],
+    });
+    await expect(ensureMediaDesk(CONTEXT, world(unread.fake))).rejects.toThrow(
+      "Couldn't read the console's own agents (500)",
+    );
+  });
+
+  it('refuse a media that was refused on an earlier run, naming what to raise, and never send its file again', async () => {
+    const { sent, fake } = site({
+      [AGENT]: [[200, OTHER]],
+      'POST /api/v1/admin/social/uploads': [
+        [201, { media: { id: '5c0e0b11-0f00-4000-8000-0000000000d1', state: 'refused' } }],
+      ],
+    });
+    await expect(ensureMediaDesk(CONTEXT, world(fake))).rejects.toThrow(
+      "The media fixture's picture was refused on an earlier run: raise the version of MEDIA_FIXTURE_REQUESTS",
+    );
+    expect(sent.filter((one) => one.method === 'PUT')).toHaveLength(0);
+    expect(writes(sent)).toEqual(['POST /api/v1/admin/social/uploads']);
   });
 
   it('wait for an agent another run is making (a conflict or a busy site) and take it when it is there, but not for any other refusal', async () => {

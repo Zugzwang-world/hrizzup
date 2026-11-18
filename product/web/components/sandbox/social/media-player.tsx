@@ -41,8 +41,9 @@ export function MediaPlayer(props: Player) {
 /**
  * The player after the tap: a `<video>` over its still image, or the still image and an `<audio>` under it. The tap
  * has already been made, so it starts at once: `autoPlay` says so, and `play()` is called once the element is
- * there as well, since WebKit may leave an element made after a tap paused. A refusal to play (a browser that
- * wants another tap, a file it can't read) leaves the controls to the reader.
+ * there as well, since WebKit may leave an element made after a tap paused, and focus moves to it, since the button
+ * that had it is gone. A refusal to play (a browser that wants another tap, a file it can't read) leaves the
+ * controls to the reader.
  *
  * Neither element has a caption track: the post carries no timed captions to give. What stands in for them is the
  * full transcript (under the player on the post's own page, and linked from every card that shows it; the video
@@ -51,6 +52,9 @@ export function MediaPlayer(props: Player) {
 export function PlayingMedia({ kind, src, poster, width, height, children }: Player) {
   const element = useRef<HTMLMediaElement | null>(null);
   useEffect(() => {
+    // The button the reader tapped is gone: focus goes to the player, so the keyboard and a screen reader are where
+    // the reader is, not at the top of the page.
+    element.current?.focus();
     element.current?.play()?.catch(() => undefined);
   }, []);
   if (kind === 'video') {

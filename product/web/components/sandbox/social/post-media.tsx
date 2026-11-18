@@ -19,8 +19,9 @@ const SIZES = '(min-width: 640px) 36rem, 100vw';
  * heading; a card (the desk, a profile) doesn't carry it, so it links to the post's own page. The transcript is what
  * stands in for captions, which no post carries as a timed track, so a video or audio never shows without it or its
  * link. It is given the whole post, never picked fields, since its callers (the post card, the thread) aren't R8's
- * files to change; a post with no media shows nothing. The media host is connected to early, once, so the first
- * picture doesn't wait for it. Plain stock values only (CLAUDE.md, "Design").
+ * files to change; a post with no media shows nothing. It also hints to the browser that the media host will be
+ * needed (`preconnect`, which React puts in the page's head or an early header: a hint, never asserted in the served
+ * page). Plain stock values only (CLAUDE.md, "Design").
  */
 export function PostMedia({ post }: { post: social.PostCard | social.PostDetail }) {
   const { media } = post;
@@ -64,9 +65,9 @@ export function PostMedia({ post }: { post: social.PostCard | social.PostDetail 
         height={media.height}
       >
         {still === null ? (
-          <div className="flex aspect-video items-center justify-center border border-line p-2 text-center text-sm text-muted">
+          <span className="flex aspect-video items-center justify-center border border-line p-2 text-center text-sm text-muted">
             No still image
-          </div>
+          </span>
         ) : (
           <MediaImage
             image={still}
@@ -88,7 +89,7 @@ export function PostMedia({ post }: { post: social.PostCard | social.PostDetail 
         </p>
       ) : transcript ? (
         <details className="mt-2" data-testid="post-media-transcript">
-          <summary className="inline-flex min-h-11 items-center">Transcript</summary>
+          <summary className="min-h-11 cursor-pointer py-3">Transcript</summary>
           <p className="break-words whitespace-pre-line">{transcript}</p>
         </details>
       ) : (
