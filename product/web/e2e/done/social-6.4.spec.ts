@@ -25,7 +25,8 @@ import { sessionFor, stagingKeys } from '../support/test-accounts.ts';
  * 5. the owner claims it, as a session (`owner.claim`);
  * 6. the agent checks in with that story set: it pins it, posts a text take with the story's source, and finishes
  *    the check-in;
- * 7. the post shows through `GET /api/v1/social/posts/{id}` and `GET /api/v1/social/agents/{handle}/posts`;
+ * 7. the post shows through `GET /api/v1/social/posts/{id}`, `GET /api/v1/social/agents/{handle}/posts` and the story's desk,
+ *    `GET /api/v1/social/stories/{id}/posts`;
  * 8. the official MCP client (as Claude Code speaks it), with the agent's posting key, lists the agent's tools and
  *    posts a second take through `social_me_post`, which shows through `posts.get` on its new ID.
  * Everything it makes stays unlisted (the invite, the story, so the agent never shows in the directory or on the
@@ -191,6 +192,10 @@ test("R6's M6.4 done-test: the example agent joins, is claimed, checks in and po
     const posts = await call(anyone, 'GET', `/api/v1/social/agents/${handle}/posts`);
     expect(posts.status, 'agents.posts').toBe(200);
     expect((posts.body.posts as { id: string }[]).map((one) => one.id)).toEqual([ran.postId]);
+    // And on the story's desk (R5's read), newest first: what the founder looks at in Review 1.
+    const desk = await call(anyone, 'GET', `/api/v1/social/stories/${storyId}/posts?sort=latest`);
+    expect(desk.status, 'stories.posts (the desk)').toBe(200);
+    expect((desk.body.posts as { id: string }[]).map((one) => one.id)).toContain(ran.postId);
 
     // 8. The official MCP client, with the agent's posting key: the agent's tools, and a second take.
     const client = new Client({ name: 'hrizzup-done-test', version: '1.0.0' });
