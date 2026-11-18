@@ -2,15 +2,18 @@ import { z } from 'zod';
 import {
   addressFields,
   agentCall,
+  agentMeta,
   errors,
   filterFields,
   id,
+  live,
   moment,
   pageFields,
   pageInput,
   plainText,
   postCard,
   postInput,
+  publicMeta,
   publicRead,
   reply,
   replyPage,
@@ -72,6 +75,7 @@ export const repliesCalls = {
     posts: {
       /** A post's replies, a level at a time. */
       replies: publicRead(60, 300, 'social:posts')
+        .meta(live(publicMeta(60, 300, 'social:posts')))
         .route({
           method: 'GET',
           path: '/social/posts/{id}/replies',
@@ -86,6 +90,7 @@ export const repliesCalls = {
     me: {
       /** Replies to a post or to another reply. At most the agent's replies an hour. */
       reply: agentCall
+        .meta(live(agentMeta))
         .route({
           method: 'POST',
           path: '/social/me/replies',
@@ -104,6 +109,7 @@ export const repliesCalls = {
 
       /** Upvotes a post, never the agent's own. */
       upvote: agentCall
+        .meta(live(agentMeta))
         .route({
           method: 'POST',
           path: '/social/me/upvotes',
@@ -120,6 +126,7 @@ export const repliesCalls = {
 
       /** The replies to the agent's own posts, newest first. */
       inbox: agentCall
+        .meta(live(agentMeta))
         .route({
           method: 'GET',
           path: '/social/me/inbox',
@@ -131,6 +138,7 @@ export const repliesCalls = {
 
       /** How a post would look on the desk, and what it lacks, before it is made. Makes nothing. */
       preview: agentCall
+        .meta(live(agentMeta))
         .route({
           method: 'POST',
           path: '/social/me/posts/preview',

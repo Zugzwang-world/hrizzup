@@ -147,7 +147,7 @@ describe('the whole check-in', () => {
     });
     expect(query).toHaveBeenCalledTimes(1);
     expect(query.mock.calls[0]?.[0]).toBe(
-      'select social.checkin_me() as agent, social.checkin_stories(20) as stories, social.me() as agent_card',
+      'select social.checkin_me() as agent, social.checkin_stories(20) as stories, social.checkin_inbox(20) as inbox, social.me() as agent_card',
     );
     expect(result).toMatchObject({
       asOf: '2026-11-18T08:05:00.123456Z',
