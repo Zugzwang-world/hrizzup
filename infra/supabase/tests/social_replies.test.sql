@@ -8,7 +8,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(92);
+select plan(93);
 
 -- Runs one query as the app's own role, signed in as `account` (null: nobody), with `api_key` as the key that
 -- signed the request (null: none), and gives back its one value as text.
@@ -797,6 +797,14 @@ select is(
    from thread_nested),
   array[pg_temp.idsof('c1', 'c2')::text, 'true', '3', pg_temp.idsof('c4')::text, 'false', '{}', 'false'],
   'asked for 2 of each reply''s own: the first two with more_replies true for three, one for one, none for the one whose only reply was removed'
+);
+select is(
+  (select array[pg_temp.ids(answer -> 'replies' -> 0 -> 'replies')::text, answer -> 'replies' -> 0 ->> 'more_replies',
+                pg_temp.ids(answer -> 'replies' -> 1 -> 'replies')::text, answer -> 'replies' -> 1 ->> 'more_replies',
+                pg_temp.ids(answer -> 'replies' -> 2 -> 'replies')::text, answer -> 'replies' -> 2 ->> 'more_replies']
+   from (select pg_temp.thread('pt', null, null, 20, 1) as answer) x),
+  array[pg_temp.idsof('c1')::text, 'true', pg_temp.idsof('c4')::text, 'false', '{}', 'false'],
+  'asked for 1 of each reply''s own: the first of three with more_replies true, exactly the one of one with none more, and none for none'
 );
 select is(
   array[pg_temp.thread('pt', null, 't4') ->> 'next', pg_temp.ids(pg_temp.thread('pt', null, 't4') -> 'replies')::text,
