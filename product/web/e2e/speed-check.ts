@@ -6,7 +6,7 @@ import lighthouse, { type Flags } from 'lighthouse';
 import puppeteer, { type Browser, type Page as Tab } from 'puppeteer-core';
 import { budgets, type Page, pagesIn } from './pages.ts';
 import {
-  comparePages,
+  compareRuns,
   comparisonMarkdown,
   comparisonRecord,
   contrastOf,
@@ -20,6 +20,7 @@ import {
   overBudgetRuns,
   type PageReport,
   pagePasses,
+  parseAllowances,
   parsePart,
   partOf,
   RUNS,
@@ -376,15 +377,21 @@ async function joinMode(args: string[]) {
 
 /**
  * `--compare <one-machine website.json> <joined website.json> <out>`: whether three machines
- * measured what one did. Never fails on a difference: the answer is recorded and counted.
+ * measured what one did, each page's medians within that page's allowance
+ * (`speed-allowances.json`, worked out from real checks of the same code). Never fails on a
+ * difference: the answer is recorded and counted.
  */
 async function compareMode(args: string[]) {
   const [oneFile, threeFile, outDir] = after(args, '--compare');
   if (!oneFile || !threeFile || !outDir) {
     throw new Error('Usage: speed-check.ts --compare <one-machine json> <joined json> <out>');
   }
-  const [one, three] = await Promise.all([readResult(oneFile), readResult(threeFile)]);
-  const comparison = comparePages(one.reports, three.reports);
+  const [one, three, allowances] = await Promise.all([
+    readResult(oneFile),
+    readResult(threeFile),
+    readFile(join(import.meta.dirname, 'speed-allowances.json'), 'utf8').then(parseAllowances),
+  ]);
+  const comparison = compareRuns(one.reports, three.reports, allowances);
   const pr = Number(process.env.PR_NUMBER);
   const record = comparisonRecord(
     comparison,

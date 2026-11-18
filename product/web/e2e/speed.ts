@@ -482,107 +482,245 @@ export function joinResults(results: WebsiteResult[], order: readonly string[]):
   };
 }
 
+/**
+ * How far a page's three-machine median may sit from its one-machine median and still be clean,
+ * in the units of the numbers (milliseconds, layout shift, bytes). `speed-allowances.json` holds
+ * them, worked out from real checks of the same code (`.github/scripts/speed_allowances.py`).
+ */
+export type Allowance = {
+  busyMs: number;
+  loadMs: number;
+  shift: number;
+  codeBytes: number;
+  totalBytes: number;
+};
+
+export type Allowances = {
+  /** What the five counted comparisons' average difference may be before the switch. */
+  fiveComparisonAverage: { busyMs: number; loadMs: number };
+  /** For a page the file doesn't list. */
+  pooled: Allowance;
+  pages: Record<string, Allowance>;
+};
+
+const ALLOWANCE_KEYS = ['busyMs', 'loadMs', 'shift', 'codeBytes', 'totalBytes'] as const;
+
+const positive = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value) && value > 0;
+
+function allowanceFrom(value: unknown, where: string): Allowance {
+  const found = value as Record<string, unknown> | undefined;
+  for (const key of ALLOWANCE_KEYS) {
+    if (!positive(found?.[key])) throw new Error(`${where}: ${key} isn't a positive number`);
+  }
+  const { busyMs, loadMs, shift, codeBytes, totalBytes } = found as Allowance;
+  return { busyMs, loadMs, shift, codeBytes, totalBytes };
+}
+
+/** Reads `speed-allowances.json`, refusing anything that isn't whole and positive. */
+export function parseAllowances(text: string): Allowances {
+  const file = JSON.parse(text) as Record<string, unknown>;
+  const average = file.fiveComparisonAverage as Record<string, unknown> | undefined;
+  if (!positive(average?.busyMs) || !positive(average?.loadMs)) {
+    throw new Error('fiveComparisonAverage needs a positive busyMs and loadMs');
+  }
+  const listed = file.pages as Record<string, unknown> | undefined;
+  if (!listed || typeof listed !== 'object') throw new Error('The file lists no pages');
+  return {
+    fiveComparisonAverage: { busyMs: average.busyMs, loadMs: average.loadMs },
+    pooled: allowanceFrom(file.pooled, 'pooled'),
+    pages: Object.fromEntries(
+      Object.entries(listed).map(([path, value]) => [path, allowanceFrom(value, path)]),
+    ),
+  };
+}
+
+/** The numbers compared, each page's median of its runs. */
+export type Medians = Allowance;
+
+const COMPARED = [
+  { key: 'busyMs', label: 'Busy time', show: ms },
+  { key: 'loadMs', label: 'Load', show: ms },
+  { key: 'shift', label: 'Layout shift', show: shiftText },
+  { key: 'codeBytes', label: 'Code', show: bytes },
+  { key: 'totalBytes', label: 'Total download', show: bytes },
+] as const;
+
+function ms(value: number) {
+  return `${Math.round(value)} ms`;
+}
+function bytes(value: number) {
+  return `${Math.round(value)} bytes`;
+}
+function shiftText(value: number) {
+  return value.toFixed(4);
+}
+const signed = (text: string, value: number) => (value > 0 ? `+${text}` : text);
+
+/** A page's median of each number over its runs (as `summarize` takes them); none without runs. */
+function mediansOf(runs: RunNumbers[]): Medians | undefined {
+  if (runs.length === 0) return undefined;
+  const of = (pick: (r: RunNumbers) => number) => median(runs.map(pick));
+  return {
+    busyMs: of((r) => r.blockingMs),
+    loadMs: of((r) => r.loadMs),
+    shift: of((r) => r.layoutShift),
+    codeBytes: of((r) => r.codeBytes),
+    totalBytes: of((r) => r.totalBytes),
+  };
+}
+
 /** How the one-machine run and the joined parts compared on one page. */
 export type PageComparison = {
   path: string;
   clean: boolean;
   /** What differed, each line naming the number and both sides' values; empty when clean. */
-  problems: string[];
+  reasons: string[];
+  one?: Medians;
+  three?: Medians;
+  /** Three machines minus one machine, signed. */
+  difference?: Medians;
+  allowance: Allowance;
 };
 
-export type Comparison = { clean: boolean; pages: PageComparison[] };
+export type Comparison = {
+  clean: boolean;
+  /** Every page's reasons, each starting with the page. */
+  reasons: string[];
+  pages: PageComparison[];
+  /** The mean over the pages measured both ways of (three machines - one machine). */
+  averages: { busyMs: number; loadMs: number };
+  /** A page passes a budget on three machines that it fails on one. */
+  flip: boolean;
+};
 
-/**
- * The numbers a page's runs keep, as the comparison says them: at the precision they are stored
- * (whole milliseconds and bytes, four places of layout shift), so a miss of a few bytes or
- * milliseconds never prints as equal numbers on both sides.
- */
-const RANGED = [
-  { key: 'loadMs', label: 'Load', show: (v: number) => `${Math.round(v)} ms` },
-  { key: 'blockingMs', label: 'Busy time', show: (v: number) => `${Math.round(v)} ms` },
-  { key: 'layoutShift', label: 'Layout shift', show: (v: number) => v.toFixed(4) },
-  { key: 'codeBytes', label: 'Code', show: (v: number) => `${Math.round(v)} bytes` },
-  { key: 'totalBytes', label: 'Total download', show: (v: number) => `${Math.round(v)} bytes` },
-] as const;
+/** Beyond float noise, so a difference of exactly the allowance is inside it. */
+const EDGE = 1e-9;
 
-const passFail = (passes: boolean) => (passes ? 'passes' : 'fails');
-
-function comparePage(one: PageReport, three: PageReport): string[] {
-  const problems: string[] = [];
+function comparePage(
+  path: string,
+  one: PageReport | undefined,
+  three: PageReport | undefined,
+  allowance: Allowance,
+): { page: PageComparison; flip: boolean } {
+  const base = { path, allowance };
+  const a = one && mediansOf(one.runs);
+  const b = three && mediansOf(three.runs);
+  if (!one || !a) {
+    const reasons = ['the one-machine check measured nothing on this page'];
+    return { page: { ...base, clean: false, reasons }, flip: false };
+  }
+  if (!three || !b) {
+    const reasons = ['the three machines measured nothing on this page'];
+    return { page: { ...base, clean: false, reasons }, flip: false };
+  }
+  const reasons: string[] = [];
+  let flip = false;
+  const difference = {} as Medians;
+  for (const { key, label, show } of COMPARED) {
+    const d = b[key] - a[key];
+    difference[key] = d;
+    if (Math.abs(d) > allowance[key] + EDGE) {
+      reasons.push(
+        `${label}: three machines ${show(b[key])}, one machine ${show(a[key])}, ` +
+          `difference ${signed(show(d), d)}, allowance ${show(allowance[key])}`,
+      );
+    }
+  }
   for (const verdict of one.verdicts) {
     const other = three.verdicts.find((v) => v.label === verdict.label);
     if (!other) {
-      problems.push(`${verdict.label}: the three machines gave no verdict`);
+      reasons.push(`${verdict.label}: the three machines gave no verdict`);
     } else if (other.passes !== verdict.passes) {
-      problems.push(
+      flip ||= other.passes && !verdict.passes;
+      reasons.push(
         `${verdict.label}: ${passFail(verdict.passes)} on one machine (${verdict.value}), ` +
           `${passFail(other.passes)} on three (${other.value})`,
       );
     }
   }
-  for (const { key, label, show } of RANGED) {
-    const ones = one.runs.map((r) => r[key]);
-    const threes = three.runs.map((r) => r[key]);
-    if (ones.length === 0 || threes.length === 0) {
-      problems.push(`${label}: a side has no runs to compare`);
-      continue;
-    }
-    const middle = median(threes);
-    const low = Math.min(...ones);
-    const high = Math.max(...ones);
-    if (middle < low || middle > high) {
-      problems.push(
-        `${label}: the three machines' median ${show(middle)} is outside the one machine's ` +
-          `runs (${show(low)} to ${show(high)})`,
-      );
-    }
-  }
   for (const scheme of ['light', 'dark'] as const) {
     if (one.contrast[scheme] !== three.contrast[scheme]) {
-      problems.push(
+      reasons.push(
         `Text contrast in the ${scheme} scheme: ${passFail(one.contrast[scheme])} on one machine, ` +
           `${passFail(three.contrast[scheme])} on three`,
       );
     }
   }
-  return problems;
+  return {
+    page: { ...base, clean: reasons.length === 0, reasons, one: a, three: b, difference },
+    flip,
+  };
 }
 
+const passFail = (passes: boolean) => (passes ? 'passes' : 'fails');
+
+const mean = (values: number[]) =>
+  values.length === 0 ? 0 : values.reduce((sum, value) => sum + value, 0) / values.length;
+
 /**
- * The trial's question, page by page. A page is clean when every budget line passes or fails the
- * same on both, each of the three machines' medians (load, busy time, layout shift, code, total
- * download) lies between the lowest and the highest of the one machine's runs, and the contrast
- * verdicts are equal in both schemes. A page only one side measured is not clean, and no page at
- * all is not clean either.
+ * The trial's question, page by page. A page is clean when each of its three-machine medians
+ * (busy time, load, layout shift, code, total download) is within that page's allowance of the
+ * one-machine median, every budget verdict passes or fails the same, and the contrast verdicts are
+ * equal in both schemes. A page only one side measured is not clean, and no page at all is not
+ * clean either. The allowances come from real checks of the same code (`speed-allowances.json`);
+ * a page the file doesn't list uses the pooled ones.
  */
-export function comparePages(one: PageReport[], three: PageReport[]): Comparison {
+export function compareRuns(
+  one: PageReport[],
+  three: PageReport[],
+  allowances: Allowances,
+): Comparison {
   const paths = [...new Set([...one, ...three].map((report) => report.path))];
-  const pages = paths.map((path) => {
-    const a = one.find((report) => report.path === path);
-    const b = three.find((report) => report.path === path);
-    const problems = !a
-      ? ["the one-machine check didn't measure this page"]
-      : !b
-        ? ["the three machines didn't measure this page"]
-        : comparePage(a, b);
-    return { path, clean: problems.length === 0, problems };
-  });
-  return { clean: pages.length > 0 && pages.every((page) => page.clean), pages };
+  const compared = paths.map((path) =>
+    comparePage(
+      path,
+      one.find((report) => report.path === path),
+      three.find((report) => report.path === path),
+      allowances.pages[path] ?? allowances.pooled,
+    ),
+  );
+  const pages = compared.map((c) => c.page);
+  const both = pages.filter((page) => page.difference);
+  return {
+    clean: pages.length > 0 && pages.every((page) => page.clean),
+    reasons: pages.flatMap((page) => page.reasons.map((reason) => `${page.path}: ${reason}`)),
+    pages,
+    averages: {
+      busyMs: mean(both.map((page) => page.difference?.busyMs ?? 0)),
+      loadMs: mean(both.map((page) => page.difference?.loadMs ?? 0)),
+    },
+    flip: compared.some((c) => c.flip),
+  };
 }
 
 /**
- * The record each side-by-side comparison keeps for 30 days, which the tally
- * (`.github/scripts/side_by_side.py`) counts: `clean` only means something when `measured`.
+ * The record each side-by-side comparison keeps for 30 days (the `speed-comparison-clean` or
+ * `speed-comparison-not-clean` artifact), which the tally (`.github/scripts/side_by_side.py`)
+ * counts. The artifact's name carries the verdict, so the tally can read names alone until it needs
+ * the numbers.
  */
 export type ComparisonRecord = {
   kind: 'speed';
   commit: string;
   pr: number | null;
-  measured: boolean;
-  baseline: boolean;
+  measured: true;
   clean: boolean;
-  details: string[];
+  reasons: string[];
+  pages: {
+    path: string;
+    clean: boolean;
+    one?: Medians;
+    three?: Medians;
+    difference?: Medians;
+    allowance: Allowance;
+  }[];
+  averages: { busyMs: number; loadMs: number };
+  flip: boolean;
 };
+
+/** To the hundredth, for the record's averages. */
+const hundredth = (value: number) => Math.round(value * 100) / 100;
 
 export function comparisonRecord(
   comparison: Comparison,
@@ -594,30 +732,53 @@ export function comparisonRecord(
     commit,
     pr,
     measured: true,
-    baseline: true,
     clean: comparison.clean,
-    details: comparison.pages.flatMap((page) =>
-      page.problems.map((problem) => `${page.path}: ${problem}`),
-    ),
+    reasons: comparison.reasons,
+    pages: comparison.pages.map(({ path, clean, one, three, difference, allowance }) => ({
+      path,
+      clean,
+      one,
+      three,
+      difference,
+      allowance,
+    })),
+    averages: {
+      busyMs: hundredth(comparison.averages.busyMs),
+      loadMs: hundredth(comparison.averages.loadMs),
+    },
+    flip: comparison.flip,
   };
 }
 
-/** The comparison as the job's summary shows it: a verdict, then one row a page. */
+/** The comparison as the job's summary shows it: a verdict, the averages, then one row a page. */
 export function comparisonMarkdown(comparison: Comparison): string {
   const unclean = comparison.pages.filter((page) => !page.clean);
+  const cell = (page: PageComparison, key: keyof Medians, show: (v: number) => string) => {
+    const d = page.difference?.[key];
+    return d === undefined ? '-' : `${signed(show(d), d)} (of ${show(page.allowance[key])})`;
+  };
   return [
     comparison.clean
-      ? `**Clean:** all ${comparison.pages.length} pages measured the same way on one machine and on three.`
+      ? `**Clean:** all ${comparison.pages.length} pages measured within their allowances on one machine and on three.`
       : comparison.pages.length === 0
         ? '**Not clean:** no page was compared.'
         : `**Not clean:** ${unclean.length} of ${comparison.pages.length} pages differ.`,
+    ...(comparison.flip
+      ? ['', '**A budget passes on three machines that fails on one** (named below).']
+      : []),
     '',
-    '| Page | Verdict | What differs |',
-    '|---|---|---|',
+    `Average difference over the pages (three machines - one machine): busy ` +
+      `${signed(ms(comparison.averages.busyMs), comparison.averages.busyMs)}, load ` +
+      `${signed(ms(comparison.averages.loadMs), comparison.averages.loadMs)}.`,
+    '',
+    '| Page | Verdict | Busy | Load | Shift | Code | Total | What differs |',
+    '|---|---|---|---|---|---|---|---|',
     ...comparison.pages.map(
       (page) =>
         `| \`${page.path}\` | ${page.clean ? '✅ clean' : '❌ not clean'} | ` +
-        `${page.problems.join('<br>') || '-'} |`,
+        `${cell(page, 'busyMs', ms)} | ${cell(page, 'loadMs', ms)} | ` +
+        `${cell(page, 'shift', shiftText)} | ${cell(page, 'codeBytes', bytes)} | ` +
+        `${cell(page, 'totalBytes', bytes)} | ${page.reasons.join('<br>') || '-'} |`,
     ),
   ].join('\n');
 }

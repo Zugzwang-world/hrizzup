@@ -1,7 +1,9 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { budgets, pages, pagesIn } from './pages.ts';
 import {
-  comparePages,
+  type Allowance,
+  compareRuns,
   comparisonMarkdown,
   comparisonRecord,
   contrastOf,
@@ -17,6 +19,7 @@ import {
   overBudgetRuns,
   type PageReport,
   pagePasses,
+  parseAllowances,
   parsePart,
   partOf,
   type RunMetrics,
@@ -306,13 +309,8 @@ function pageReport(path: string, runs: RunMetrics[] = Array.from({ length: 5 },
   return report;
 }
 
-const slowRuns = (loadMs: number) => [
-  run({ loadMs: loadMs - 100 }),
-  run({ loadMs: loadMs - 50 }),
-  run({ loadMs }),
-  run({ loadMs: loadMs + 50 }),
-  run({ loadMs: loadMs + 100 }),
-];
+const ALLOWANCE_FILE = readFileSync(new URL('./speed-allowances.json', import.meta.url), 'utf8');
+const ALLOWANCES = parseAllowances(ALLOWANCE_FILE);
 
 describe('the pages one machine of the trial measures', () => {
   const list = pagesIn('staging');
@@ -449,7 +447,7 @@ describe("joining the trial's parts", () => {
     expect(joined.reports).toHaveLength(
       (parts[0] as WebsiteResult).reports.length + (parts[1] as WebsiteResult).reports.length,
     );
-    expect(comparePages(whole, joined.reports).clean).toBe(false);
+    expect(compareRuns(whole, joined.reports, ALLOWANCES).clean).toBe(false);
   });
 });
 
@@ -498,152 +496,292 @@ describe("today's report, written the same way after the lift out of the check",
   });
 });
 
-describe('comparing one machine with three', () => {
-  const same = () => [pageReport('/'), pageReport('/privacy'), pageReport('/terms')];
-
-  it('is clean when every page agrees, medians inside the one machine range', () => {
-    const one = [pageReport('/privacy', slowRuns(1500))];
-    // Three machines' runs sit inside the one machine's 1,400 to 1,600 ms, their median at 1,550.
-    const three = [pageReport('/privacy', slowRuns(1550))];
-    expect(comparePages(one, three)).toEqual({
-      clean: true,
-      pages: [{ path: '/privacy', clean: true, problems: [] }],
-    });
-    expect(comparePages(same(), same()).clean).toBe(true);
-  });
-
-  it('is not clean when a budget line passes one way and fails the other', () => {
-    const one = [pageReport('/privacy', slowRuns(2400))];
-    const three = [pageReport('/privacy', slowRuns(2800))]; // 2.8 s is over 2.5 s plus 0.25 s
-    const result = comparePages(one, three);
-    expect(result.clean).toBe(false);
-    const problems = result.pages[0]?.problems ?? [];
-    expect(
-      problems.some((p) => p.startsWith('Load (largest content): passes on one machine')),
-    ).toBe(true);
-    expect(problems.some((p) => p.includes('fails on three'))).toBe(true);
-  });
-
-  it("is not clean when a median falls outside the one machine's runs, naming both sides", () => {
-    const cases: [string, Partial<RunMetrics>, RegExp][] = [
-      [
-        'load',
-        { loadMs: 1700 },
-        /Load: the three machines' median 1700 ms is outside the one machine's runs \(1100 ms to 1300 ms\)/,
-      ],
-      [
-        'busy time',
-        { blockingMs: 90 },
-        /Busy time: .* median 90 ms is outside .*\(30 ms to 50 ms\)/,
-      ],
-      [
-        'layout shift',
-        { layoutShift: 0.05 },
-        /Layout shift: .* median 0\.0500 is outside .*\(0\.0100 to 0\.0300\)/,
-      ],
-      [
-        'code',
-        { codeBytes: 151 * 1024 },
-        /Code: .* median 154624 bytes is outside .*\(153600 bytes to 153600 bytes\)/,
-      ],
-      ['total', { totalBytes: 299 * 1024 }, /Total download: .* median 306176 bytes is outside/],
-    ];
-    const spread = [
-      run({ loadMs: 1100, blockingMs: 30, layoutShift: 0.01 }),
-      run({ loadMs: 1200, blockingMs: 40, layoutShift: 0.02 }),
-      run({ loadMs: 1200, blockingMs: 40, layoutShift: 0.02 }),
-      run({ loadMs: 1200, blockingMs: 40, layoutShift: 0.02 }),
-      run({ loadMs: 1300, blockingMs: 50, layoutShift: 0.03 }),
-    ];
-    for (const [what, change, message] of cases) {
-      const three = spread.map((r) => ({ ...r, ...change }));
-      const result = comparePages(
-        [pageReport('/privacy', spread)],
-        [pageReport('/privacy', three)],
-      );
-      expect(result.clean, what).toBe(false);
-      expect(result.pages[0]?.problems.join('\n'), what).toMatch(message);
+describe('the allowances file, worked out from real checks of the same code', () => {
+  it('parses, with a positive number for every page and every number', () => {
+    const parsed = parseAllowances(ALLOWANCE_FILE);
+    expect(Object.keys(parsed.pages).length).toBeGreaterThan(0);
+    for (const [path, allowance] of Object.entries({ pooled: parsed.pooled, ...parsed.pages })) {
+      for (const [key, value] of Object.entries(allowance)) {
+        expect(value, `${path}: ${key}`).toBeGreaterThan(0);
+      }
     }
+    expect(parsed.fiveComparisonAverage).toEqual({ busyMs: 33, loadMs: 22 });
   });
 
-  it('says a miss of one byte or one millisecond in numbers that differ, never as equal ones', () => {
-    const one = [pageReport('/', [run(), run(), run()])];
-    const bytes = comparePages(one, [pageReport('/', [run({ codeBytes: 150 * 1024 + 1 })])]);
-    expect(bytes.pages[0]?.problems).toEqual([
-      "Code: the three machines' median 153601 bytes is outside the one machine's runs (153600 bytes to 153600 bytes)",
-    ]);
-    const time = comparePages(one, [pageReport('/', [run({ loadMs: 1201 })])]);
-    expect(time.pages[0]?.problems).toEqual([
-      "Load: the three machines' median 1201 ms is outside the one machine's runs (1200 ms to 1200 ms)",
+  it('gives every page in pages.ts an entry, or the pooled ones', () => {
+    for (const page of pages) {
+      const allowance = ALLOWANCES.pages[page.path] ?? ALLOWANCES.pooled;
+      expect(allowance.busyMs, page.path).toBeGreaterThan(0);
+    }
+    // A page the file lists is the page's own: the file's keys are real pages' paths.
+    const known = new Set(pages.map((page) => page.path));
+    for (const path of Object.keys(ALLOWANCES.pages)) expect(known.has(path), path).toBe(true);
+  });
+
+  it('is refused when anything is missing, zero or not a number', () => {
+    type Loose = {
+      pooled: Record<string, unknown>;
+      fiveComparisonAverage: Record<string, unknown>;
+      pages?: Record<string, Record<string, unknown>>;
+    };
+    const file = JSON.parse(ALLOWANCE_FILE) as Loose;
+    const broken = (change: (copy: Loose) => void) => {
+      const copy = structuredClone(file);
+      change(copy);
+      return () => parseAllowances(JSON.stringify(copy));
+    };
+    expect(
+      broken((c) => {
+        c.pooled.busyMs = 0;
+      }),
+    ).toThrow(/pooled: busyMs/);
+    expect(
+      broken((c) => {
+        delete c.pooled.shift;
+      }),
+    ).toThrow(/pooled: shift/);
+    expect(
+      broken((c) => {
+        const home = c.pages?.['/'];
+        if (home) home.loadMs = '80';
+      }),
+    ).toThrow(/\/: loadMs/);
+    expect(
+      broken((c) => {
+        c.fiveComparisonAverage.busyMs = -1;
+      }),
+    ).toThrow(/fiveComparisonAverage/);
+    expect(
+      broken((c) => {
+        c.pages = undefined;
+      }),
+    ).toThrow(/no pages/);
+  });
+});
+
+describe('comparing one machine with three', () => {
+  const five = (change: Partial<RunMetrics> = {}) => Array.from({ length: 5 }, () => run(change));
+  /** A page measured five times the same way, so its medians are exactly these numbers. */
+  const page = (path: string, change: Partial<RunMetrics> = {}) => pageReport(path, five(change));
+  const home = ALLOWANCES.pages['/'] as Allowance;
+  const base = {
+    loadMs: 1200,
+    blockingMs: 40,
+    layoutShift: 0.02,
+    codeBytes: 150 * 1024,
+    totalBytes: 300 * 1024,
+  };
+
+  /** The same page on three machines, moved by these amounts from what one machine measured. */
+  const moved = (path: string, by: Partial<Record<keyof typeof base, number>>) =>
+    page(
+      path,
+      Object.fromEntries(
+        Object.entries(base).map(([key, value]) => [
+          key,
+          value + (by[key as keyof typeof base] ?? 0),
+        ]),
+      ) as Partial<RunMetrics>,
+    );
+
+  it("is clean when every number sits within its page's allowance, in either direction", () => {
+    // Noise: every page of the real file, each number 90% of the way to its allowance, signs mixed.
+    const one = pagesIn('staging').map((p) => page(p.path, base));
+    const three = pagesIn('staging').map((p, index) => {
+      const a = ALLOWANCES.pages[p.path] ?? ALLOWANCES.pooled;
+      const sign = index % 2 === 0 ? 1 : -1;
+      return moved(p.path, {
+        blockingMs: sign * 0.9 * a.busyMs,
+        loadMs: -sign * 0.9 * a.loadMs,
+        layoutShift: sign * 0.9 * a.shift,
+        codeBytes: -sign * 0.9 * a.codeBytes,
+        totalBytes: sign * 0.9 * a.totalBytes,
+      });
+    });
+    const result = compareRuns(one, three, ALLOWANCES);
+    expect(result.reasons).toEqual([]);
+    expect(result.clean).toBe(true);
+    expect(result.flip).toBe(false);
+    expect(result.pages).toHaveLength(one.length);
+  });
+
+  it('counts a difference of exactly the allowance as inside, and one more as outside', () => {
+    const edge = compareRuns(
+      [page('/')],
+      [moved('/', { blockingMs: home.busyMs, codeBytes: -home.codeBytes })],
+      ALLOWANCES,
+    );
+    expect(edge.clean).toBe(true);
+    const over = compareRuns(
+      [page('/')],
+      [moved('/', { blockingMs: home.busyMs + 1 })],
+      ALLOWANCES,
+    );
+    expect(over.clean).toBe(false);
+    expect(over.pages[0]?.reasons).toEqual([
+      'Busy time: three machines 219 ms, one machine 40 ms, difference +179 ms, allowance 178 ms',
     ]);
   });
 
-  it("counts the edges of the one machine's runs as inside", () => {
-    const spread = [run({ loadMs: 1100 }), run({ loadMs: 1200 }), run({ loadMs: 1300 })];
-    const lowest = spread.map(() => run({ loadMs: 1100 }));
-    const highest = spread.map(() => run({ loadMs: 1300 }));
-    expect(comparePages([pageReport('/', spread)], [pageReport('/', lowest)]).clean).toBe(true);
-    expect(comparePages([pageReport('/', spread)], [pageReport('/', highest)]).clean).toBe(true);
+  it('flags the shifts the research names on a page: large timings, any size beyond its allowance', () => {
+    const flagged = (by: Partial<Record<keyof typeof base, number>>) =>
+      !compareRuns([page('/')], [moved('/', by)], ALLOWANCES).clean;
+    expect(flagged({ blockingMs: 200 })).toBe(true); // busy +200 ms
+    expect(flagged({ loadMs: 100 })).toBe(true); // load +100 ms against 80
+    expect(flagged({ loadMs: 400 })).toBe(true);
+    expect(flagged({ codeBytes: 1024 })).toBe(true); // code +1 KB against 512 bytes
+    expect(flagged({ codeBytes: 512 })).toBe(false);
+    expect(flagged({ totalBytes: 2048 })).toBe(true); // total +2 KB against 1 KB
+    expect(flagged({ layoutShift: 0.01 })).toBe(true);
+    // Per page, only a large timing shows: this is as far as one check can be told from another.
+    expect(flagged({ blockingMs: 150 })).toBe(false);
+    expect(flagged({ loadMs: 60 })).toBe(false);
+  });
+
+  it("leaves a shift on every page to the five comparisons' average, which shows it", () => {
+    const names = pagesIn('staging').map((p) => p.path);
+    const one = names.map((path) => page(path));
+    const three = names.map((path) => moved(path, { blockingMs: 40, loadMs: 30 }));
+    const result = compareRuns(one, three, ALLOWANCES);
+    expect(result.clean).toBe(true); // every page is within its allowance
+    expect(result.averages).toEqual({ busyMs: 40, loadMs: 30 }); // and the average is past 33 and 22
+    expect(result.averages.busyMs).toBeGreaterThan(ALLOWANCES.fiveComparisonAverage.busyMs);
+    expect(result.averages.loadMs).toBeGreaterThan(ALLOWANCES.fiveComparisonAverage.loadMs);
+  });
+
+  it('takes the averages as signed means over the pages measured both ways', () => {
+    const one = [page('/'), page('/privacy'), page('/terms'), page('/only-on-one')];
+    const three = [
+      moved('/', { blockingMs: 10, loadMs: -20 }),
+      moved('/privacy', { blockingMs: -4, loadMs: 8 }),
+      moved('/terms', { blockingMs: 9, loadMs: 0 }),
+      moved('/only-on-three', { blockingMs: 999 }),
+    ];
+    const result = compareRuns(one, three, ALLOWANCES);
+    expect(result.averages.busyMs).toBeCloseTo(5, 10);
+    expect(result.averages.loadMs).toBeCloseTo(-4, 10);
+    expect(compareRuns([], [], ALLOWANCES).averages).toEqual({ busyMs: 0, loadMs: 0 });
+  });
+
+  it('is not clean when a verdict differs, naming both sides, even with every number inside its allowance', () => {
+    // 245 ms busy passes (200 plus the 50 ms tolerance); 255 ms fails.
+    const result = compareRuns(
+      [page('/', { blockingMs: 245 })],
+      [page('/', { blockingMs: 255 })],
+      ALLOWANCES,
+    );
+    expect(result.clean).toBe(false);
+    expect(result.pages[0]?.reasons).toEqual([
+      'Busy time (blocking): passes on one machine (245 ms), fails on three (255 ms)',
+    ]);
+  });
+
+  it('marks a flip only for a budget that passes on three machines and fails on one', () => {
+    const one = [page('/', { blockingMs: 255 })];
+    const three = [page('/', { blockingMs: 245 })];
+    const threePasses = compareRuns(one, three, ALLOWANCES);
+    expect(threePasses.flip).toBe(true);
+    expect(threePasses.clean).toBe(false);
+    const threeFails = compareRuns(three, one, ALLOWANCES);
+    expect(threeFails.flip).toBe(false);
+    expect(threeFails.clean).toBe(false);
+    expect(compareRuns(three, three, ALLOWANCES).flip).toBe(false);
   });
 
   it('is not clean when the contrast verdicts differ, in either scheme', () => {
     for (const scheme of ['light', 'dark'] as const) {
-      const three = [pageReport('/privacy')];
-      (three[0] as PageReport).contrast = { light: true, dark: true, problems: [] };
-      (three[0] as PageReport).contrast[scheme] = false;
-      const result = comparePages([pageReport('/privacy')], three);
+      const three = page('/');
+      three.contrast = { light: true, dark: true, problems: [] };
+      three.contrast[scheme] = false;
+      const result = compareRuns([page('/')], [three], ALLOWANCES);
       expect(result.clean).toBe(false);
-      expect(result.pages[0]?.problems).toEqual([
+      expect(result.pages[0]?.reasons).toEqual([
         `Text contrast in the ${scheme} scheme: passes on one machine, fails on three`,
       ]);
     }
   });
 
   it('is not clean when a page is missing from either side, naming which', () => {
-    const missingThree = comparePages(same(), same().slice(0, 2));
+    const missingThree = compareRuns([page('/'), page('/terms')], [page('/')], ALLOWANCES);
     expect(missingThree.clean).toBe(false);
-    expect(missingThree.pages.find((p) => p.path === '/terms')?.problems).toEqual([
-      "the three machines didn't measure this page",
+    expect(missingThree.pages.find((p) => p.path === '/terms')?.reasons).toEqual([
+      'the three machines measured nothing on this page',
     ]);
-    const missingOne = comparePages(same().slice(1), same());
+    const missingOne = compareRuns([page('/terms')], [page('/'), page('/terms')], ALLOWANCES);
     expect(missingOne.clean).toBe(false);
-    expect(missingOne.pages.find((p) => p.path === '/')?.problems).toEqual([
-      "the one-machine check didn't measure this page",
+    expect(missingOne.pages.find((p) => p.path === '/')?.reasons).toEqual([
+      'the one-machine check measured nothing on this page',
     ]);
-    expect(missingOne.pages.filter((p) => p.clean)).toHaveLength(2);
+    expect(compareRuns([page('/')], [{ ...page('/'), runs: [] }], ALLOWANCES).clean).toBe(false);
+    expect(compareRuns([], [], ALLOWANCES).clean).toBe(false);
   });
 
-  it('is not clean when there is nothing to compare', () => {
-    expect(comparePages([], []).clean).toBe(false);
+  it("uses the pooled allowances for a page the file doesn't list, and the page's own for one it does", () => {
+    const unlisted = '/a-page-added-after-the-file-was-worked-out';
+    expect(ALLOWANCES.pages[unlisted]).toBeUndefined();
+    const inside = compareRuns([page(unlisted)], [moved(unlisted, { loadMs: 1100 })], ALLOWANCES);
+    expect(inside.clean).toBe(true); // 1,100 ms of load is within the pooled 1,200
+    expect(inside.pages[0]?.allowance).toEqual(ALLOWANCES.pooled);
+    const outside = compareRuns([page(unlisted)], [moved(unlisted, { loadMs: 1300 })], ALLOWANCES);
+    expect(outside.clean).toBe(false);
+    // The same 1,100 ms on a page the file does list (80 ms) is far outside.
+    expect(compareRuns([page('/')], [moved('/', { loadMs: 1100 })], ALLOWANCES).clean).toBe(false);
   });
 
-  it('records the answer for the tally, and shows a verdict with a row a page', () => {
-    const three = same();
-    three[1] = pageReport('/privacy', slowRuns(2000));
-    const result = comparePages(same(), three);
+  it('records the answer for the tally: verdict, reasons, each page, the averages and the flip', () => {
+    const one = [page('/'), page('/privacy')];
+    const three = [moved('/', { blockingMs: 10 }), moved('/privacy', { loadMs: 500 })];
+    const result = compareRuns(one, three, ALLOWANCES);
     const record = comparisonRecord(result, 'abc1234', 160);
     expect(record).toMatchObject({
       kind: 'speed',
       commit: 'abc1234',
       pr: 160,
       measured: true,
-      baseline: true,
       clean: false,
+      flip: false,
+      averages: { busyMs: 5, loadMs: 250 },
     });
-    expect(record.details.every((line) => line.startsWith('/privacy: '))).toBe(true);
-    expect(record.details.length).toBeGreaterThan(0);
-    expect(comparisonRecord(comparePages(same(), same()), 'abc1234', null)).toMatchObject({
+    expect(record.reasons).toHaveLength(1);
+    expect(record.reasons[0]).toMatch(
+      /^\/privacy: Load: three machines 1700 ms, one machine 1200 ms, difference \+500 ms, allowance 60 ms$/,
+    );
+    expect(record.pages.map((p) => [p.path, p.clean])).toEqual([
+      ['/', true],
+      ['/privacy', false],
+    ]);
+    expect(record.pages[0]).toMatchObject({
+      one: { busyMs: 40, loadMs: 1200 },
+      three: { busyMs: 50 },
+      difference: { busyMs: 10, loadMs: 0 },
+      allowance: ALLOWANCES.pages['/'],
+    });
+    expect(JSON.parse(JSON.stringify(record))).toEqual(record);
+    expect(comparisonRecord(compareRuns(one, one, ALLOWANCES), 'abc1234', null)).toMatchObject({
       pr: null,
       clean: true,
-      details: [],
+      reasons: [],
     });
-    const markdown = comparisonMarkdown(result);
-    expect(markdown).toContain('**Not clean:** 1 of 3 pages differ.');
-    expect(markdown).toContain('| `/` | ✅ clean | - |');
-    expect(markdown).toContain('| `/privacy` | ❌ not clean | ');
-    expect(comparisonMarkdown(comparePages(same(), same()))).toContain(
-      '**Clean:** all 3 pages measured the same way on one machine and on three.',
+  });
+
+  it('shows a verdict, the averages and a row a page in the summary', () => {
+    const one = [page('/'), page('/privacy')];
+    const three = [moved('/', { blockingMs: 10 }), moved('/privacy', { loadMs: 500 })];
+    const markdown = comparisonMarkdown(compareRuns(one, three, ALLOWANCES));
+    expect(markdown).toContain('**Not clean:** 1 of 2 pages differ.');
+    expect(markdown).toContain(
+      'Average difference over the pages (three machines - one machine): busy +5 ms, load +250 ms.',
     );
-    expect(comparisonMarkdown(comparePages([], []))).toContain('no page was compared');
+    expect(markdown).toContain('| `/` | ✅ clean | +10 ms (of 178 ms) |');
+    expect(markdown).toContain('| `/privacy` | ❌ not clean | ');
+    expect(markdown).toContain('+500 ms (of 60 ms)');
+    expect(comparisonMarkdown(compareRuns(one, one, ALLOWANCES))).toContain(
+      '**Clean:** all 2 pages measured within their allowances on one machine and on three.',
+    );
+    expect(comparisonMarkdown(compareRuns([], [], ALLOWANCES))).toContain('no page was compared');
+    const flipped = comparisonMarkdown(
+      compareRuns([page('/', { blockingMs: 255 })], [page('/', { blockingMs: 245 })], ALLOWANCES),
+    );
+    expect(flipped).toContain('A budget passes on three machines that fails on one');
   });
 });
