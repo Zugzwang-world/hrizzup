@@ -75,8 +75,9 @@ weeks), the same tally and the same rules, and these of its own:
     too far apart. `flip` is true when two machines pass a flow, or the cold start's verdict, that one
     machine fails. A size the one-machine run never got to (it stops at its first failed flow) has
     nothing to compare. When nothing disagrees but a flow failed on BOTH ways (a broken pull request,
-    not evidence about splitting), or the tablet machine's cold start had no baseline from main
-    (`mainMedianMs` empty in its startup.json), the record is NOT RUN (`ran: false`): passed over by the
+    not evidence about splitting), or either side's cold start had no baseline from main (`mainMedianMs`
+    empty in its startup.json: its verdict then always says "passes", so the verdicts can't be
+    compared; flows and medians still are), the record is NOT RUN (`ran: false`): passed over by the
     tally, neither clean nor not clean. The record holds the signed `differenceMs` (two machines - one
     machine).
   - The five-comparison average is the average of the five pull requests' `differenceMs`, each pull
@@ -359,8 +360,9 @@ def compare_flows(size, one, two, stopped):
 def compare_app(one_folder, phone_folder, tablet_folder, allowance, commit="", pr=None):
     """(record, text) for the two ways of running App journeys: see the module's description. A record is not
     clean on any disagreement; with none, it is clean unless a flow failed on both ways (a broken pull request,
-    not evidence about splitting) or the tablet's cold start had no baseline from main: then it did not run
-    (`ran: false`), and the tally passes it over."""
+    not evidence about splitting) or a side's cold start had no baseline from main (its verdict is then
+    meaningless and isn't compared; flows and medians still are): then it did not run (`ran: false`), and the
+    tally passes it over."""
     reasons, flip, flows, shared, notes = [], False, {}, [], []
     sides = {"phone": phone_folder, "tablet": tablet_folder}
     stopped = False  # the one-machine run stops at its first failed flow or missing report, and so has no later size
@@ -385,7 +387,10 @@ def compare_app(one_folder, phone_folder, tablet_folder, allowance, commit="", p
         reasons.append("the two-machine side measured no cold start (its tablet machine left no startup.json)")
     if one_start is None and not stopped:
         reasons.append("the one-machine run left no cold start")
-    no_baseline = two_start is not None and two_start["mainMedianMs"] is None
+    # A cold start with no baseline from main (its entry evicted from GitHub's cache, say) always says "passes": its
+    # verdict is not evidence, on either side. Flows and medians are still judged; only the verdicts aren't compared.
+    no_baseline = [label for label, start in (("the one-machine run's", one_start), ("the tablet machine's", two_start))
+                   if start is not None and start["mainMedianMs"] is None]
     difference = None
     if one_start and two_start:
         difference = two_start["medianMs"] - one_start["medianMs"]
@@ -398,8 +403,8 @@ def compare_app(one_folder, phone_folder, tablet_folder, allowance, commit="", p
             reasons.append(f"the two-machine cold start's median differs by {difference:+g} ms from the one-machine "
                            f"run's, more than the allowance of {allowance:g} ms")
     if no_baseline:
-        notes.append("the tablet machine's cold start had no baseline from main (its mainMedianMs is empty), so its "
-                     "verdict can't be compared")
+        notes.append(" and ".join(no_baseline) + " cold start had no baseline from main (its mainMedianMs is empty), "
+                     "so the verdicts can't be compared")
     ran = bool(reasons) or not (shared or notes)
     if not ran:
         notes = [f"{text} (a broken pull request, not evidence about splitting)" for text in shared] + notes

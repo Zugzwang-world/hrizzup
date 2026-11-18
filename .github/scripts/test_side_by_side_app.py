@@ -330,7 +330,7 @@ class TheComparison(unittest.TestCase):
                 self.assertEqual(sbs.verdict_of(record), "not-run")
                 self.assertFalse(record["ran"])
                 self.assertEqual(record["reasons"], ["the tablet machine's cold start had no baseline from main (its "
-                                                     "mainMedianMs is empty), so its verdict can't be compared"])
+                                                     "mainMedianMs is empty), so the verdicts can't be compared"])
                 self.assertEqual(record["differenceMs"], 100)
                 self.assertTrue(text.startswith("**Not run, so passed over and not counted:**"))
 
@@ -349,11 +349,46 @@ class TheComparison(unittest.TestCase):
         record, _ = compared(tablet={"tablet": FLOWS})
         self.assertEqual(sbs.verdict_of(record), "not-clean")
 
-    def test_a_baseline_on_both_sides_changes_nothing_and_one_on_the_one_machine_run_is_not_asked_for(self):
-        record, _ = compared(one={**BOTH, "startup": (1200, True, None)})
-        self.assertEqual(sbs.verdict_of(record), "clean")
+    def test_a_baseline_on_both_sides_changes_nothing(self):
         record, _ = compared(one={**BOTH, "startup": (1200, True, 900)}, tablet={"tablet": FLOWS, "startup": (1300, True, 950)})
         self.assertEqual(sbs.verdict_of(record), "clean")
+        # Verdicts that agree or differ are judged as ever when both ran against a baseline.
+        record, _ = compared(one={**BOTH, "startup": (1200, True, 900)}, tablet={"tablet": FLOWS, "startup": (1300, False, 950)})
+        self.assertEqual(sbs.verdict_of(record), "not-clean")
+
+    def test_a_one_machine_cold_start_with_no_baseline_is_not_run_too_its_verdict_is_not_evidence(self):
+        # main's one-machine baseline was evicted from the cache: the one-machine verdict always says "passes", so a
+        # two-machine verdict that fails (against its own baseline) is no disagreement.
+        for passes in (True, False):
+            with self.subTest(two_passes=passes):
+                record, text = compared(one={**BOTH, "startup": (1200, True, None)},
+                                        tablet={"tablet": FLOWS, "startup": (1300, passes, 950)})
+                self.assertEqual(sbs.verdict_of(record), "not-run")
+                self.assertFalse(record["ran"])
+                self.assertFalse(record["flip"])
+                self.assertEqual(record["reasons"], ["the one-machine run's cold start had no baseline from main (its "
+                                                     "mainMedianMs is empty), so the verdicts can't be compared"])
+                self.assertTrue(text.startswith("**Not run, so passed over and not counted:**"))
+        # Without a baseline on the one-machine side a one-machine failure isn't a flip either.
+        record, _ = compared(one={**BOTH, "startup": (1200, False, None)}, tablet={"tablet": FLOWS, "startup": (1300, True, 950)})
+        self.assertEqual(sbs.verdict_of(record), "not-run")
+        self.assertFalse(record["flip"])
+
+    def test_a_missing_baseline_on_both_sides_is_one_note_naming_both(self):
+        record, _ = compared(one={**BOTH, "startup": (1200, True, None)}, tablet={"tablet": FLOWS, "startup": (1300, True, None)})
+        self.assertEqual(sbs.verdict_of(record), "not-run")
+        self.assertEqual(record["reasons"], ["the one-machine run's and the tablet machine's cold start had no baseline "
+                                             "from main (its mainMedianMs is empty), so the verdicts can't be compared"])
+
+    def test_a_missing_baseline_on_the_one_machine_side_still_leaves_flows_and_medians_judged(self):
+        one = {**BOTH, "startup": (1000, True, None)}
+        record, _ = compared(one=one, tablet={"tablet": FLOWS, "startup": (2000, True, 950)})  # medians 1,000 ms apart
+        self.assertEqual(sbs.verdict_of(record), "not-clean")
+        self.assertEqual(len(record["reasons"]), 1)
+        self.assertIn("more than the allowance", record["reasons"][0])
+        record, _ = compared(one=one, tablet={"tablet": {**FLOWS, "The app opens": False}, "startup": (1300, True, 950)})
+        self.assertEqual(sbs.verdict_of(record), "not-clean")
+        self.assertEqual(record["reasons"], ["at the tablet size, `The app opens` failed on two machines and passed on one"])
 
     def test_the_two_machine_cold_start_is_read_from_the_tablets_machine_and_the_phone_machine_has_none(self):
         with tempfile.TemporaryDirectory() as root:

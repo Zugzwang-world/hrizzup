@@ -584,7 +584,7 @@ jobs:
   # required check, so it never fails on "not clean": the record says so, its artifact's name
   # carries the verdict ("app-comparison-clean", "-not-clean", or "-not-run" for a comparison that
   # errored, that both ways failed the same flows (a broken pull request, not evidence about
-  # splitting) or whose tablet cold start had no baseline: the tally passes those over), and the
+  # splitting) or whose cold start had no baseline from main on either side: the tally passes those over), and the
   # tally counts it. There is no record until main holds a two-machine baseline (main's next run of
   # this workflow saves it), nor when the app wasn't touched or the required job left no journeys
   # report (its phone.xml; a run that stopped at a failed flow has one). Records are kept 90 days:
