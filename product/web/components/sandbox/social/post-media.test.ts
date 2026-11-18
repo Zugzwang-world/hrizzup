@@ -79,7 +79,7 @@ describe('a post’s media', () => {
     expect(html(media({ width: null, height: null }))).toBe('');
   });
 
-  it('shows a video as its still image and what it is, with no media address of the video in it', () => {
+  it('shows a video as its still image under a button, with no media address of the video, no player and no file in it', () => {
     const markup = html(
       media({
         kind: 'video',
@@ -91,8 +91,9 @@ describe('a post’s media', () => {
       }),
     );
     expect(markup).toContain('data-kind="video"');
+    expect(markup).toContain('data-testid="post-media-play"');
     expect(markup).toContain('social/a/still.png');
-    expect(markup).toContain('>Video, 0:58<');
+    expect(markup).toContain('>Play the video, 0:58<');
     expect(markup).not.toContain('clip.mp4');
     expect(markup).not.toContain('<video');
     expect(markup).not.toContain('<audio');
@@ -109,25 +110,64 @@ describe('a post’s media', () => {
       }),
     );
     expect(markup).toContain('data-kind="audio"');
+    expect(markup).toContain('data-testid="post-media-play"');
     expect(markup).toContain('No still image');
-    expect(markup).toContain('>Audio, 2:31<');
+    expect(markup).toContain('>Play the audio, 2:31<');
     expect(markup).not.toContain('<img');
     expect(markup).not.toContain('brief.mp3');
+    expect(markup).not.toContain('<audio');
   });
 
-  it('gives the transcript, wrapping, on the post’s own page, and none on a card without one', () => {
-    const clip = media({
-      kind: 'audio',
+  const clip = (kind: 'video' | 'audio') =>
+    media({
+      kind,
       durationSeconds: 5,
-      url: 'https://media.example.test/social/a/c.mp3',
+      url: `https://media.example.test/social/a/c.${kind === 'video' ? 'mp4' : 'mp3'}`,
+      width: kind === 'video' ? 320 : null,
+      height: kind === 'video' ? 180 : null,
+      still,
     });
-    const own = html({ ...clip, transcript: 'Every word spoken.\nIn two lines.' });
-    expect(own).toContain('data-testid="post-media-transcript"');
-    expect(own).toContain('<summary');
-    expect(own).toContain('Transcript');
-    expect(own).toContain('Every word spoken.\nIn two lines.');
-    expect(own).toContain('break-words');
-    expect(html(clip)).not.toContain('post-media-transcript');
-    expect(html({ ...clip, transcript: null })).not.toContain('post-media-transcript');
+
+  it('draws the transcript, wrapping, on the post’s own page, with no link to itself', () => {
+    for (const kind of ['video', 'audio'] as const) {
+      const own = html({ ...clip(kind), transcript: 'Every word spoken.\nIn two lines.' });
+      expect(own, kind).toContain('<details');
+      expect(own, kind).toContain('data-testid="post-media-transcript"');
+      expect(own, kind).toContain('<summary');
+      expect(own, kind).toContain('Every word spoken.\nIn two lines.');
+      expect(own, kind).toContain('break-words');
+      expect(own, kind).not.toContain('post-media-transcript-link');
+    }
+  });
+
+  it('links a card to the post’s own page, where the transcript is, since a card doesn’t carry it', () => {
+    for (const kind of ['video', 'audio'] as const) {
+      const card = html(clip(kind));
+      expect(card, kind).toContain('data-testid="post-media-transcript-link"');
+      // R7's address of a post's thread page, by the post's ID.
+      expect(card, kind).toContain(`href="/sandbox/social/posts/${ID}"`);
+      expect(card, kind).toContain('>Transcript<');
+      expect(card, kind).not.toContain('<details');
+    }
+  });
+
+  it('never shows a video or audio without its transcript or the link to it (the words that stand in for captions), and says so when a post has none', () => {
+    for (const kind of ['video', 'audio'] as const) {
+      // On a card: the link. On the post's own page: the transcript, or a line saying there is none.
+      const shown = [
+        html(clip(kind)),
+        html({ ...clip(kind), transcript: 'Words.' }),
+        html({ ...clip(kind), transcript: null }),
+      ];
+      for (const markup of shown) {
+        expect(markup, kind).toMatch(
+          /post-media-transcript-link|data-testid="post-media-transcript"|post-media-transcript-none/,
+        );
+      }
+      expect(shown[2], kind).toContain('No transcript was given.');
+      expect(shown[2], kind).not.toContain('post-media-transcript-link');
+    }
+    // An image needs no transcript.
+    expect(html(media({}))).not.toContain('Transcript');
   });
 });

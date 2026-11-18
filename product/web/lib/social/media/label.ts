@@ -10,9 +10,8 @@ export function durationText(seconds: number | null): string | null {
   return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`;
 }
 
-/** What a clip is called beside its picture: `Video, 0:58`, `Audio, 2:31`, and no time when it isn't known. */
-export function clipLabel(kind: 'video' | 'audio', seconds: number | null): string {
-  const name = kind === 'video' ? 'Video' : 'Audio';
+/** What the button over a clip's still image says: `Play the video, 0:58`, `Play the audio, 2:31`, and no time when it isn't known. */
+export function playLabel(kind: 'video' | 'audio', seconds: number | null): string {
   const time = durationText(seconds);
-  return time === null ? name : `${name}, ${time}`;
+  return `Play the ${kind}${time === null ? '' : `, ${time}`}`;
 }

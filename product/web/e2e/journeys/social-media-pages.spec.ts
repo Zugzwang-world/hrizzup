@@ -22,10 +22,16 @@ import { views } from '../viewports.ts';
  * - The story's picture, the hero, is the video's still image: loaded at once and first, offered on the media host's
  *   `/cdn-cgi/image/` at that one width, with the placeholder drawn behind it (a `data:image/png` background) and its size
  *   in the markup, so its box is the same before and after.
- * - The image post's picture is the same, lazily. A video and an audio post show their still image and say what they
- *   are and how long; the page holds no `<video>` and no `<audio>`, and no request is made for the video's or the
- *   audio's own address.
- * - The page fits at every size of the screen check: the 13 widths, sideways, and the phone widths at 200% text.
+ * - The image post's picture is the same, lazily. A video and an audio post show their still image under a button
+ *   that says what it plays and for how long; before a tap the page holds no `<video>` and no `<audio>`, and no request
+ *   is made for the video's or the audio's own address.
+ * - A tap on the video's button puts a `<video>` there with the file's address as its `src`, asks for exactly that
+ *   address and no other file, and plays; the same for the audio. (More than one request for the address is the
+ *   browser's own: WebKit reads a media file in ranges.)
+ * - A card carries no transcript, so each video and audio post links to the post's own page, which has it under the
+ *   player: the words that stand in for captions.
+ * - The page fits at every size of the screen check: the 13 widths, sideways, and the phone widths at 200% text,
+ *   before the taps, after them, and on the post's own page.
  * - Cloudflare's resize itself is proven once, on the fixture's kept picture (`fixtures/social/media.ts`): one `GET`
  *   with `Accept: image/avif` answers an AVIF. The same address every run, so after the first it is the edge's copy
  *   and costs no new transformation.
@@ -261,9 +267,11 @@ test.describe('pictures, video and audio on a story’s page', () => {
       const desk = (await read(`/api/v1/social/stories/${storyId}/posts?sort=latest&limit=20`))
         .posts as Card[];
       const imagePost = desk.find((card) => card.kind === 'image')?.media;
-      const videoPost = desk.find((card) => card.kind === 'video')?.media;
-      const audioPost = desk.find((card) => card.kind === 'audio')?.media;
-      if (!imagePost || !videoPost?.still || !audioPost) {
+      const videoCard = desk.find((card) => card.kind === 'video');
+      const videoPost = videoCard?.media;
+      const audioCard = desk.find((card) => card.kind === 'audio');
+      const audioPost = audioCard?.media;
+      if (!imagePost || !videoCard || !videoPost?.still || !audioCard || !audioPost) {
         throw new Error('The desk is missing a post this journey made');
       }
       const mediaOrigin = new URL(imagePost.url).origin;
@@ -290,6 +298,19 @@ test.describe('pictures, video and audio on a story’s page', () => {
           });
         }
       });
+
+      // Every call of a media element's `play()`, counted in the page: the player starts what it made, as well as
+      // asking for it by attribute (a WebKit element made after a tap can be left paused).
+      await page.addInitScript(() => {
+        const w = window as unknown as { __plays: number };
+        w.__plays = 0;
+        const play = HTMLMediaElement.prototype.play;
+        HTMLMediaElement.prototype.play = function (this: HTMLMediaElement) {
+          w.__plays += 1;
+          return play.call(this);
+        };
+      });
+      const plays = () => page.evaluate(() => (window as unknown as { __plays: number }).__plays);
 
       const response = await page.goto(`/sandbox/social/stories/${storyId}`);
       expect(response?.status(), "the story's page").toBe(200);
@@ -340,15 +361,20 @@ test.describe('pictures, video and audio on a story’s page', () => {
       );
       await expect(postImage).toHaveJSProperty('complete', true);
 
-      // The video and the audio: their still image and what they are, and no player and no file asked for.
+      // The video and the audio: their still image under a button that says what it plays, and a link to the
+      // post's own page for the transcript (a card has none); no player and no file asked for.
       const videoFigure = page.locator('[data-testid="post-media"][data-kind="video"]');
       const audioFigure = page.locator('[data-testid="post-media"][data-kind="audio"]');
-      for (const [figure, words] of [
-        [videoFigure, 'Video, 0:03'],
-        [audioFigure, 'Audio, 0:04'],
+      for (const [figure, words, card] of [
+        [videoFigure, 'Play the video, 0:03', videoCard],
+        [audioFigure, 'Play the audio, 0:04', audioCard],
       ] as const) {
         await expect(figure).toHaveCount(1);
-        await expect(figure.getByTestId('post-media-label')).toHaveText(words);
+        await expect(figure.getByTestId('post-media-play')).toHaveText(words);
+        await expect(figure.getByTestId('post-media-transcript-link')).toHaveAttribute(
+          'href',
+          `/sandbox/social/posts/${card.id}`,
+        );
         const stillImage = figure.locator('picture > img');
         await stillImage.scrollIntoViewIfNeeded();
         await expect(stillImage).toHaveAttribute('src', resized(videoPost.still.url));
@@ -367,6 +393,56 @@ test.describe('pictures, video and audio on a story’s page', () => {
 
       // The page fits at every size, with its pictures drawn.
       await fitsEverywhere(page, 'the story page, with an image, a video and an audio');
+
+      // A tap on the video: the `<video>` is there with exactly that file as its source, the file is asked for
+      // (and the audio's is not), and it is started.
+      const mediaRequests = (url: string) => requested.filter((asked) => asked === url).length;
+      expect(await plays(), 'nothing has played before a tap').toBe(0);
+      await videoFigure.getByTestId('post-media-play').click();
+      const video = videoFigure.getByTestId('post-media-video');
+      await expect(video).toHaveAttribute('src', videoPost.url);
+      await expect(video).toHaveAttribute('poster', resized(videoPost.still.url));
+      await expect(video).toHaveAttribute('controls', '');
+      await expect(videoFigure.getByTestId('post-media-play')).toHaveCount(0);
+      await expect
+        .poll(() => mediaRequests(videoPost.url), 'the video is asked for')
+        .toBeGreaterThan(0);
+      await expect.poll(plays, 'the video is started').toBeGreaterThan(0);
+      expect(mediaRequests(audioPost.url), "the audio's file is still not asked for").toBe(0);
+      await expect(page.locator('audio')).toHaveCount(0);
+
+      // A tap on the audio: the same, under its still image.
+      const playsBefore = await plays();
+      await audioFigure.getByTestId('post-media-play').click();
+      const audio = audioFigure.getByTestId('post-media-audio');
+      await expect(audio).toHaveAttribute('src', audioPost.url);
+      await expect(audio).toHaveAttribute('controls', '');
+      await expect(audioFigure.locator('picture > img')).toHaveCount(1);
+      await expect(audioFigure.getByTestId('post-media-play')).toHaveCount(0);
+      await expect
+        .poll(() => mediaRequests(audioPost.url), 'the audio is asked for')
+        .toBeGreaterThan(0);
+      await expect.poll(plays, 'the audio is started').toBeGreaterThan(playsBefore);
+      // No file was asked for but the two that were tapped, and each at its own address.
+      for (const asked of new Set(requested)) {
+        if (asked.includes('/cdn-cgi/image/')) continue;
+        expect([videoPost.url, audioPost.url], 'a file nobody tapped was asked for').toContain(
+          asked,
+        );
+      }
+      await fitsEverywhere(page, 'the story page, after a tap on the video and the audio');
+
+      // The transcript: a card links to the post's own page, which has it under the player.
+      await videoFigure.getByTestId('post-media-transcript-link').click();
+      await expect(page).toHaveURL(new RegExp(`/sandbox/social/posts/${videoCard.id}$`));
+      const transcript = page.getByTestId('post-media-transcript');
+      await expect(transcript).toHaveCount(1);
+      await transcript.getByText('Transcript', { exact: true }).click();
+      await expect(transcript).toContainText('Nothing is said in the test video.');
+      await expect(transcript.getByText('Nothing is said in the test video.')).toBeVisible();
+      await expect(page.getByTestId('post-media-transcript-link')).toHaveCount(0);
+      await expect(page.getByTestId('post-media-play')).toHaveText('Play the video, 0:03');
+      await fitsEverywhere(page, "the post's own page, with its transcript open");
 
       // Cloudflare's resize is proven once, on the fixture's kept picture (the same address every run).
       if (browserName === 'chromium') {

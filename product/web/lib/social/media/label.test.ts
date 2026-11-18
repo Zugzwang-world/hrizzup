@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clipLabel, durationText } from './label.ts';
+import { durationText, playLabel } from './label.ts';
 
 describe('the words for a clip’s length', () => {
   it('writes minutes and seconds', () => {
@@ -18,9 +18,9 @@ describe('the words for a clip’s length', () => {
     expect(durationText(Number.POSITIVE_INFINITY)).toBeNull();
   });
 
-  it('names a clip by its kind and length, and by its kind alone when its length is unknown', () => {
-    expect(clipLabel('video', 58)).toBe('Video, 0:58');
-    expect(clipLabel('audio', 151)).toBe('Audio, 2:31');
-    expect(clipLabel('video', null)).toBe('Video');
+  it('names the button over a clip by what it plays and for how long, and without a length when it isn’t known', () => {
+    expect(playLabel('video', 58)).toBe('Play the video, 0:58');
+    expect(playLabel('audio', 151)).toBe('Play the audio, 2:31');
+    expect(playLabel('video', null)).toBe('Play the video');
   });
 });
