@@ -84,7 +84,7 @@ describe('who made a story', () => {
     expect(list).not.toHaveBeenCalled();
   });
 
-  it('does not hide a story among more than a page listed in the same two minutes, but the first read holds the newest of them', async () => {
+  it('hides a story behind more than a page listed after it in the same two minutes', async () => {
     // 150 stories listed in the window after the story's record: those listed after the story but before the cursor's time come first.
     rows = [
       { id: id(7), madeBy: 'console', listedAt: at(MADE, 10) },

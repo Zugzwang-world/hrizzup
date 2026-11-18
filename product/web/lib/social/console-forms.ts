@@ -46,6 +46,15 @@ export function field(form: FormData, name: string): string {
   return typeof value === 'string' ? value.replace(/\r\n?/g, '\n').trim() : '';
 }
 
+/**
+ * An ID taken from a form: as `field`, in lower case, which is the one way the agreement writes an ID. Every ID is
+ * read through this before anything is checked or sent, so an ID typed or sent in capitals is the ID it names: the
+ * lists of kept stories and updates are in lower case, and the reads that follow lower-case what they are given.
+ */
+export function idField(form: FormData, name: string): string {
+  return field(form, name).toLowerCase();
+}
+
 /** Every field the form sent as text, to show again as it was typed. */
 export function typed(form: FormData): Record<string, string> {
   const values: Record<string, string> = {};
@@ -227,7 +236,7 @@ export function storyFrom(form: FormData, now: number): Built<{ record: Story; l
   const at = pastTime(now);
   const record = {
     format: 'story/1',
-    id: field(form, 'id'),
+    id: idField(form, 'id'),
     title: field(form, 'title'),
     summary: field(form, 'summary'),
     locations: chosen(form, 'place'),
@@ -260,15 +269,15 @@ export function keptUpdateRefusal(id: string): string | null {
 /**
  * Whether the console may change a story (withdraw it, or add an update): never one the checks keep on staging (the
  * fixtures' fixed IDs), and a story is withdrawn only if the console made it, never one the pipeline did. The line
- * saying why not, in plain words, or null when it may be. `madeBy` is null when it could not be found among the
- * console's newest stories, and then nothing is changed either: who made it isn't known.
+ * saying why not, in plain words, or null when it may be. `madeBy` is null when the console's list did not hold the
+ * story where it was listed, and then nothing is changed either: who made it isn't known.
  */
 export function changeRefusal(id: string, madeBy: 'console' | 'pipeline' | null): string | null {
   const kept = keptRefusal(id);
   if (kept) return kept;
   if (madeBy === 'pipeline') return 'Made by the pipeline: the console does not withdraw it.';
   if (madeBy === null) {
-    return 'Who made this story is not known here (it is not among the console’s newest): it is not offered.';
+    return 'Who made this story isn’t known here, so the console doesn’t withdraw it.';
   }
   return null;
 }
@@ -328,11 +337,11 @@ export function updateFrom(form: FormData, now: number): Built<Update> {
   const at = pastTime(now);
   const body = field(form, 'body');
   const sources = linesOf(field(form, 'sources'));
-  const corrects = field(form, 'corrects');
+  const corrects = idField(form, 'corrects');
   const record = {
     format: 'update/1',
-    id: field(form, 'id'),
-    story_id: field(form, 'storyId'),
+    id: idField(form, 'id'),
+    story_id: idField(form, 'storyId'),
     headline: field(form, 'headline'),
     ...(body ? { body } : {}),
     reported_at: at,

@@ -637,7 +637,7 @@ describe('withdrawing a story', () => {
       next: null,
     });
     const answer = await withdrawStoryAction(START, form({ id: STORY, reason: 'x' }));
-    expect(answer.error).toMatch(/not known here/);
+    expect(answer.error).toMatch(/isn’t known here/);
     expect(social.stories.list).toHaveBeenCalledTimes(1);
     const [{ limit, cursor }] = social.stories.list.mock.calls[0] as [
       { limit: number; cursor: string },
@@ -669,6 +669,39 @@ describe('withdrawing a story', () => {
     expect(storyGet).not.toHaveBeenCalled();
     expect(social.stories.list).not.toHaveBeenCalled();
     expect(social.stories.save).not.toHaveBeenCalled();
+  });
+
+  it('reads an ID in capitals as the ID it names: a kept story’s is refused with no read, list or save', async () => {
+    madeBy('console');
+    for (const kept of [BOARD_FIXTURE_STORY, BOARD_WITHDRAWN_STORY, BOARD_MERGED_STORY]) {
+      const answer = await withdrawStoryAction(
+        START,
+        form({ id: kept.toUpperCase(), reason: 'x' }),
+      );
+      expect(answer.error, kept).toBe(KEPT_LINE);
+    }
+    expect(storyGet).not.toHaveBeenCalled();
+    expect(social.stories.list).not.toHaveBeenCalled();
+    expect(social.stories.save).not.toHaveBeenCalled();
+  });
+
+  it('refuses the story the read answered when it is a kept one, even though the ID asked for was not (a merged address answers its survivor)', async () => {
+    madeBy('console');
+    storyGet.mockResolvedValue({ ...live, id: BOARD_FIXTURE_STORY });
+    const answer = await withdrawStoryAction(START, form({ id: STORY, reason: 'x' }));
+    expect(answer.error).toBe(KEPT_LINE);
+    expect(social.stories.list).not.toHaveBeenCalled();
+    expect(social.stories.save).not.toHaveBeenCalled();
+  });
+
+  it('reads an ID that is not a kept one in lower case, whatever case it was sent in', async () => {
+    madeBy('console');
+    storyGet.mockResolvedValue(live);
+    social.stories.save.mockResolvedValue({ id: STORY });
+    await expect(
+      withdrawStoryAction(START, form({ id: STORY.toUpperCase(), reason: 'x' })),
+    ).rejects.toThrow('REDIRECT');
+    expect(storyGet).toHaveBeenCalledWith({ id: STORY });
   });
 });
 
@@ -762,5 +795,80 @@ describe('a form sent again after a save, with a refused send between', () => {
     const sent = ids(social.invites.create, (arg: { requestId: string }) => arg.requestId);
     expect(sent).toEqual([REQUEST, secondId, secondId]);
     expect(new Set([sent[0], sent[2]]).size).toBe(2);
+  });
+});
+
+describe('an ID sent in capitals', () => {
+  it('is the ID it names in every form that takes one: a kept update or story is refused in capitals too, before anything is saved', async () => {
+    for (const kept of [
+      BOARD_FIXTURE_FIRST_UPDATE,
+      BOARD_FIXTURE_SECOND_UPDATE,
+      BOARD_FIXTURE_THIRD_UPDATE,
+    ]) {
+      const answer = await saveUpdateAction(
+        START,
+        form({
+          id: kept.toUpperCase(),
+          storyId: STORY,
+          headline: 'Overwritten',
+          sources: 'https://example.com/a',
+        }),
+      );
+      expect(answer.error, kept).toBe(KEPT_LINE);
+    }
+    for (const kept of [BOARD_FIXTURE_STORY, BOARD_WITHDRAWN_STORY, BOARD_MERGED_STORY]) {
+      const added = await saveUpdateAction(
+        START,
+        form({
+          id: UPDATE,
+          storyId: kept.toUpperCase(),
+          headline: 'Added',
+          sources: 'https://example.com/a',
+        }),
+      );
+      expect(added.error, kept).toBe(KEPT_LINE);
+      const made = await saveStoryAction(
+        START,
+        form({
+          id: kept.toUpperCase(),
+          title: 'A test story',
+          summary: 'A summary.',
+          category1: 'general',
+          place1: 'mumbai',
+          listed: 'unlisted',
+        }),
+      );
+      expect(made.error, kept).toBe(KEPT_LINE);
+    }
+    expect(storyGet).not.toHaveBeenCalled();
+    expect(social.updates.save).not.toHaveBeenCalled();
+    expect(social.stories.save).not.toHaveBeenCalled();
+  });
+
+  it('is sent on in lower case: an invite’s request, a revoked invite, an agent’s changes and keys', async () => {
+    social.invites.create.mockResolvedValue({
+      invite: { email: 'a@b.test' },
+      code: CODE,
+      message: 'm',
+    });
+    social.invites.revoke.mockResolvedValue({});
+    social.agents.set.mockResolvedValue({});
+    social.agents.revokeKeys.mockResolvedValue({});
+    await makeInviteAction(
+      START,
+      form({ requestId: REQUEST.toUpperCase(), email: 'a@b.test', listed: 'unlisted' }),
+    );
+    expect(social.invites.create).toHaveBeenCalledWith(
+      expect.objectContaining({ requestId: REQUEST }),
+    );
+    await revokeInviteAction(START, form({ id: INVITE.toUpperCase(), reason: 'x' }));
+    expect(social.invites.revoke).toHaveBeenCalledWith({ id: INVITE, reason: 'x' });
+    await setAgentAction(
+      START,
+      form({ id: INVITE.toUpperCase(), house: 'on', 'shown-house': 'false', reason: 'x' }),
+    );
+    expect(social.agents.set).toHaveBeenCalledWith(expect.objectContaining({ id: INVITE }));
+    await revokeAgentKeysAction(START, form({ id: INVITE.toUpperCase(), reason: 'x' }));
+    expect(social.agents.revokeKeys).toHaveBeenCalledWith(expect.objectContaining({ id: INVITE }));
   });
 });

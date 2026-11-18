@@ -13,6 +13,7 @@ import {
   FIELDS,
   field,
   fieldsWith,
+  idField,
   keptRefusal,
   keptUpdateRefusal,
   LISTED_MISSING,
@@ -102,7 +103,7 @@ export async function makeInviteAction(
   let made: social.CreatedInvite;
   try {
     made = await serverApi.admin.social.invites.create({
-      requestId: field(form, 'requestId'),
+      requestId: idField(form, 'requestId'),
       email,
       ...(note ? { note } : {}),
       house: field(form, 'house') === 'on',
@@ -134,7 +135,7 @@ export async function revokeInviteAction(
   const values = typed(form);
   try {
     await serverApi.admin.social.invites.revoke({
-      id: field(form, 'id'),
+      id: idField(form, 'id'),
       reason: field(form, 'reason'),
     });
   } catch (error) {
@@ -153,7 +154,7 @@ export async function saveStoryAction(
   await adminsOnly();
   // The form makes new stories only: never one the checks keep, and never an ID that already names a story (a
   // form sent by hand with another story's ID would save over it).
-  const kept = keptRefusal(field(form, 'id'));
+  const kept = keptRefusal(idField(form, 'id'));
   if (kept) return { error: kept, problems: {}, values: typed(form) };
   const built = storyFrom(form, Date.now());
   if (!built.ok) return built.state;
@@ -194,7 +195,7 @@ export async function withdrawStoryAction(
 ): Promise<SocialFormState> {
   await adminsOnly();
   const values = typed(form);
-  const id = field(form, 'id');
+  const id = idField(form, 'id');
   // Never a story the checks keep (refused before anything is read), and only one the console made.
   const kept = keptRefusal(id);
   if (kept) return { error: kept, problems: {}, values };
@@ -207,6 +208,9 @@ export async function withdrawStoryAction(
   if (story.state !== 'live' || story.requestedId !== null) {
     return { error: 'This story is not live: there is nothing to withdraw.', problems: {}, values };
   }
+  // The story the read answered, which is the one an address was merged into: never a kept one either.
+  const keptAnswer = keptRefusal(story.id);
+  if (keptAnswer) return { error: keptAnswer, problems: {}, values };
   // Who made it comes from one read of the console's list, started where the story was listed (its record's time).
   const refusal = changeRefusal(id, await madeByOf(story));
   if (refusal) return { error: refusal, problems: {}, values };
@@ -230,7 +234,7 @@ export async function saveUpdateAction(
   await adminsOnly();
   // A story the checks keep is never lengthened, and none of its updates is saved again: their pages and journeys
   // count them. Both the update's own ID and its story's are looked at, since a form can be sent by hand.
-  const kept = keptRefusal(field(form, 'storyId')) ?? keptUpdateRefusal(field(form, 'id'));
+  const kept = keptRefusal(idField(form, 'storyId')) ?? keptUpdateRefusal(idField(form, 'id'));
   if (kept) return { error: kept, problems: {}, values: typed(form) };
   const built = updateFrom(form, Date.now());
   if (!built.ok) return built.state;
@@ -302,7 +306,7 @@ export async function setAgentAction(
     return { error: NOTHING_TO_CHANGE, problems: {}, values };
   }
   try {
-    await serverApi.admin.social.agents.set({ id: field(form, 'id'), changes, reason });
+    await serverApi.admin.social.agents.set({ id: idField(form, 'id'), changes, reason });
   } catch (error) {
     revalidatePath('/console/social/agents');
     return refused(error, values, AGENT_FIELDS);
@@ -321,7 +325,7 @@ export async function revokeAgentKeysAction(
   const retire = field(form, 'retire') === 'on';
   try {
     await serverApi.admin.social.agents.revokeKeys({
-      id: field(form, 'id'),
+      id: idField(form, 'id'),
       reason: field(form, 'reason'),
       ...(retire ? { retire: true } : {}),
     });

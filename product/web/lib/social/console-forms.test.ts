@@ -11,6 +11,7 @@ import {
   field,
   fieldOfPath,
   fieldsWith,
+  idField,
   inviteState,
   KEPT_LINE,
   keptRefusal,
@@ -535,7 +536,7 @@ describe('which stories the console may change', () => {
     expect(changeRefusal(STORY_ID, 'pipeline')).toBe(
       'Made by the pipeline: the console does not withdraw it.',
     );
-    expect(changeRefusal(STORY_ID, null)).toMatch(/not known here/);
+    expect(changeRefusal(STORY_ID, null)).toMatch(/isn’t known here/);
   });
 });
 
@@ -617,5 +618,26 @@ describe('the ID a form sends next', () => {
     expect(sendId(refusedAfter, 'id', FIRST)).toBe(SAVED);
     expect(sendId(refusedAfter, 'requestId', FIRST)).toBe(SAVED);
     expect(sendId(refusedAfter, 'id', FIRST)).not.toBe(FIRST);
+  });
+});
+
+describe('an ID taken from a form', () => {
+  it('is in lower case, trimmed, whatever case it was sent in, and so are the records built from a form', () => {
+    expect(idField(form({ id: ` ${STORY_ID.toUpperCase()}\r\n` }), 'id')).toBe(STORY_ID);
+    expect(idField(form({}), 'id')).toBe('');
+    const story = storyFrom(form({ ...goodStory, id: STORY_ID.toUpperCase() }), NOW);
+    if (!story.ok) throw new Error(JSON.stringify(story.state));
+    expect(story.record.record.id).toBe(STORY_ID);
+    const update = updateFrom(
+      form({
+        ...goodUpdate,
+        id: UPDATE_ID.toUpperCase(),
+        storyId: STORY_ID.toUpperCase(),
+        corrects: STORY_ID.toUpperCase(),
+      }),
+      NOW,
+    );
+    if (!update.ok) throw new Error(JSON.stringify(update.state));
+    expect(update.record).toMatchObject({ id: UPDATE_ID, story_id: STORY_ID, corrects: STORY_ID });
   });
 });
