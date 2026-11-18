@@ -2,7 +2,7 @@
 
 **This brief replaces Claude Code's report:** read it after **Sync now** instead of asking the founder for one, and attach the files under "Read for detail" from GitHub for more.
 
-> Rewritten 18 November 2026 by Round 6's relay R5, Board, stories and the console, at its end ([#181](https://github.com/Zugzwang-world/hrizzup/pull/181)), keeping R6's and R16's updates. PLAN.md wins any disagreement.
+> Rewritten 18 November 2026 by the session that made the founder's second staging account an admin ([#191](https://github.com/Zugzwang-world/hrizzup/pull/191)), keeping R5's, R6's and R16's updates. PLAN.md wins any disagreement.
 
 **Hrizzup** is a news app built around creators, plus a website with play-money prediction markets. **Product builds** the website, the app, the markets, the public API for bots and AI tools, and social, where AI agents post takes on every story; it shows Sourcing's stories in the hand-over agreement's shapes (`agreement/README.md`, first half Agreed).
 
@@ -32,7 +32,7 @@
 
 ## What changed in the latest session
 
-**R16 finished, with your three additions:** a package's tests re-run whenever a package it uses changes ([#186](https://github.com/Zugzwang-world/hrizzup/pull/186)); the sandbox's keys page gets its sign-in button's real style, with a test that keeps any server page from reading a value out of a browser-only module ([#187](https://github.com/Zugzwang-world/hrizzup/pull/187), seen rendered); and every journey's requests go through one quiet wrapper, so a failing request prints only its method and path, never a key or cookie, with no test's assertion changed ([#189](https://github.com/Zugzwang-world/hrizzup/pull/189)). The release pipeline's new job step (4d) first runs at your next release.
+**The Google account you now use on staging is an admin** ([#191](https://github.com/Zugzwang-world/hrizzup/pull/191)): you sign in on staging with a second Google account, made on 9 November, after staging's admins were set, so the console answered "not found". One reviewed migration adds that account to the admins table by its ID only, where it exists, so production is unchanged; your 3 November account stays an admin too. Once staging has applied it, your sandbox header shows **Console** and `/console/social` opens; if not, sign out and sign in again. R5's and R16's last changes are in their lines above.
 
 **R5 finished:** its done-test walked your Review 1 path (R5's half) through the pages on staging itself and passed. In the console (`/console/social`) you can make an invite and copy its ready message; make a test story, add updates and withdraw it; change settings and agents' limits; revoke an invite or an agent's keys (a revoked key answered 401 at once). Anyone can read the board and every story through the API, MCP and the sandbox (`/sandbox/social`), at most a minute old (the minute job runs healthy on staging). Agents find the board's calls in `/skill.md`. As you decided, social's calls now print every time with three decimals, like every other call.
 
@@ -47,7 +47,7 @@ One line each; the detail, and the rest, are in the status file.
 ## For the founder
 
 - **How to do Review 1, R5's half** (the agent's half follows), on staging in your browser:
-  1. Open `https://staging.hrizzup.com/sign-in-test`, press **Continue with Google** and sign in with your own Google account (an admin on staging); then open `https://staging.hrizzup.com/console/social`.
+  1. Open `https://staging.hrizzup.com/sign-in-test`, press **Continue with Google** and sign in with your own Google account (both of yours are admins on staging); then open `https://staging.hrizzup.com/console/social`.
   2. **Invites:** fill **Email** (the owner's) and, if you like, **Note**; tick **Hrizzup's own agent** only for our own agents; choose **Listed** (or **Unlisted** for a test: it can't change later); press **Make the invite**. The code shows once: press **Copy the message** and send it to the owner. A lost code is a new invite: first **Revoke…** the old one (**Why**, then **Revoke this invite**).
   3. **Stories:** fill **Title**, **Summary**, **Main category** and **Main place**, choose **Listed: it shows on the board.**, press **Save the story**. On its page, under **Add an update**, fill **Headline** (and **Detail** and **Sources**, one https address per line, if you like) and press **Add the update**; two or three times.
   4. Open **The sandbox's board** (`/sandbox/social`): your story is there. Try **Top** and **Latest**, its category, its place, and a tier (global, national, local).
