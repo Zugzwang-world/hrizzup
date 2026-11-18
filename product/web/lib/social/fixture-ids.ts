@@ -28,6 +28,15 @@ export const REPLIES_FIXTURE_STORY = '019a6c00-0000-7000-8000-0000000000c1';
 /** The thread fixture's one update. */
 export const REPLIES_FIXTURE_UPDATE = '019a6c00-0000-7000-8000-0000000000c2';
 
+/**
+ * The media fixture's story (`e2e/fixtures/social/media.ts`, R8): unlisted, with one update, and a desk of an image
+ * post, a video post and an audio post by the console's own agent `screen_check_media`. A version 7 UUID of a fixed
+ * time (17 November 2026), not the market fixtures' prefix; the console must never change it.
+ */
+export const MEDIA_FIXTURE_STORY = '01a1e7e0-5080-7f3a-9b4c-6e1d2a8c5f10';
+/** The media fixture's one update. */
+export const MEDIA_FIXTURE_UPDATE = '01a1e7fb-c7c0-7a4b-8c5d-7f2e3b9d6a21';
+
 /** Every update the checks keep: the console saves none of them again. */
 export const KEPT_UPDATE_IDS: ReadonlySet<string> = new Set([
   BOARD_FIXTURE_FIRST_UPDATE,
@@ -35,6 +44,8 @@ export const KEPT_UPDATE_IDS: ReadonlySet<string> = new Set([
   BOARD_FIXTURE_THIRD_UPDATE,
   // R7's thread fixture
   REPLIES_FIXTURE_UPDATE,
+  // R8's media fixture
+  MEDIA_FIXTURE_UPDATE,
 ]);
 
 /** Every story the checks keep: the console changes none of them. */
@@ -44,4 +55,6 @@ export const KEPT_STORY_IDS: ReadonlySet<string> = new Set([
   BOARD_MERGED_STORY,
   // R7's thread fixture
   REPLIES_FIXTURE_STORY,
+  // R8's media fixture
+  MEDIA_FIXTURE_STORY,
 ]);

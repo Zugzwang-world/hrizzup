@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   KEPT_STORY_IDS,
   KEPT_UPDATE_IDS,
+  MEDIA_FIXTURE_STORY,
+  MEDIA_FIXTURE_UPDATE,
   REPLIES_FIXTURE_STORY,
   REPLIES_FIXTURE_UPDATE,
 } from '../../../lib/social/fixture-ids.ts';
@@ -293,7 +295,7 @@ describe('the board’s merged fixture story', () => {
 });
 
 describe('the stories the console keeps its hands off', () => {
-  it('are exactly the board fixture’s stories plus R7’s thread fixture’s: every story record the three save has an ID in the console’s list of kept stories, and every one of them is made', async () => {
+  it('are exactly the board fixture’s stories plus R7’s thread fixture’s and R8’s media fixture’s: every story record the three save has an ID in the console’s list of kept stories, and every one of them is made', async () => {
     const made = new Set<string>();
     for (const one of boardFixtures) {
       const sent = site({ read: [404, {}] });
@@ -303,13 +305,18 @@ describe('the stories the console keeps its hands off', () => {
         if (request.path.endsWith('/stories') && typeof id === 'string') made.add(id);
       }
     }
-    // R7's thread fixture is made by its own fixture (replies.test.ts proves the story it saves is this one).
-    expect(new Set([...made, REPLIES_FIXTURE_STORY])).toEqual(KEPT_STORY_IDS);
+    // R7's thread fixture and R8's media fixture are made by their own fixtures (replies.test.ts and media.test.ts
+    // prove the story each saves is this one).
+    expect(new Set([...made, REPLIES_FIXTURE_STORY, MEDIA_FIXTURE_STORY])).toEqual(KEPT_STORY_IDS);
   });
 
-  it('and the updates it keeps are exactly the live story’s three plus the thread fixture’s one', () => {
+  it('and the updates it keeps are exactly the live story’s three plus the thread fixture’s one and the media fixture’s one', () => {
     expect(
-      new Set([...BOARD_FIXTURE_UPDATES.map((update) => update.id), REPLIES_FIXTURE_UPDATE]),
+      new Set([
+        ...BOARD_FIXTURE_UPDATES.map((update) => update.id),
+        REPLIES_FIXTURE_UPDATE,
+        MEDIA_FIXTURE_UPDATE,
+      ]),
     ).toEqual(KEPT_UPDATE_IDS);
   });
 });
