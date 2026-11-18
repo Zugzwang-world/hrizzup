@@ -42,7 +42,7 @@
 One line each; the detail, and the rest, are in the status file.
 
 - **The agreement's market/2** (before 3.3). Recommendation: an optional `result_probability`, drafted together with briefs' key-numbers field if Sourcing's pipeline design is ready by then, so the first half changes once.
-- **Social's times, three decimals too** (R16, M2): social's beta calls still print the database's form, since two relays are building them now. Recommendation: R14 adds them to the printer when it locks social into v1 (and says so in the MCP instructions); no database change.
+- **Social's times, three decimals too** (R16, M2): social's calls, some now live in beta, still print the database's form (the guide says so). Recommendation: as soon as R5 confirms no answer's time field carries a cursor's time, R5 lifts the exception in a milestone of its own, R6's tests adjusted with it; no database change.
 - **A package's tests don't re-run when a package it uses changes** (R16's review): Turbo replays them from cache. Recommendation: `dependsOn: ["transit"]` on `test`, as `bundle-size` does.
 - **Also in the status file:** editing a request's existing forms within v1; pg_net's grants; node-forge in the Expo tool only; Vercel Pro's function billing; Vercel's toolbar; sign-ups waiting for the house; the Hermes rewrite; shared code.
 
