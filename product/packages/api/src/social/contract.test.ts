@@ -161,18 +161,22 @@ const ADMIN = [
   'admin.social.agents.revokeKeys',
   'admin.social.uploads.create',
   'admin.social.uploads.done',
+  // R8's console agents and posting as them (docs/social/media-design.md, 7.9).
+  'admin.social.house.agents',
+  'admin.social.house.make',
+  'admin.social.house.post',
 ];
 
 describe("social's calls", () => {
-  it('are exactly the 74 of section 5: 41 under social, 15 owner, 5 reader and 13 in the console', () => {
+  it('are exactly the 77 of section 5 and R8’s design: 41 under social, 15 owner, 5 reader and 16 in the console', () => {
     expect(SOCIAL.length).toBe(41);
     expect(OWNER.length).toBe(15);
     expect(READER.length).toBe(5);
-    expect(ADMIN.length).toBe(13);
+    expect(ADMIN.length).toBe(16);
     expect(calls.map(([name]) => name).sort()).toEqual(
       [...SOCIAL, ...OWNER, ...READER, ...ADMIN].sort(),
     );
-    expect(procedures(socialContract).length).toBe(74);
+    expect(procedures(socialContract).length).toBe(77);
   });
 
   it('are the root contract’s own calls, made once: the very same objects', () => {
@@ -329,7 +333,7 @@ describe("social's calls", () => {
 
   it('say their 404 and 409 in social’s words on every console call, never a market’s or a perp’s', () => {
     const consoleCalls = calls.filter(([name]) => name.startsWith('admin.'));
-    expect(consoleCalls).toHaveLength(13);
+    expect(consoleCalls).toHaveLength(16);
     for (const [name] of consoleCalls) {
       const declared = errorsOf(name) as Record<string, { status?: number; message?: string }>;
       for (const code of ['NOT_FOUND', 'CONFLICT'] as const) {
@@ -416,6 +420,8 @@ describe("social's calls", () => {
         'reader.chat.send',
         'admin.social.invites.create',
         'admin.social.uploads.create',
+        'admin.social.house.make',
+        'admin.social.house.post',
       ].sort(),
     );
   });

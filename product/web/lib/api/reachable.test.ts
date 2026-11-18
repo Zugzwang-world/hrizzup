@@ -60,7 +60,7 @@ describe('the router the route serves', () => {
   const social = all(contract).filter((name) => isSocialCall(name.split('.')));
 
   it('has a handler for every social call, so the pruning is what hides them', () => {
-    expect(social.length).toBe(74);
+    expect(social.length).toBe(77);
     expect(all(router)).toEqual(expect.arrayContaining(social));
   });
 
@@ -195,7 +195,7 @@ describe('the website’s own server code, which calls in process', () => {
 
   it('is told “No such call” by every social call not live yet, and every console call, before any input is read or any handler runs', async () => {
     const social = procedures(contract).filter(([name]) => isSocialCall(name.split('.')));
-    expect(social.length).toBe(74);
+    expect(social.length).toBe(77);
     // A call not live yet answers so whoever asks. A console call does whatever its mark, since this
     // client has no admin session. A live public read or agent call is tried in its area's own
     // handler tests (`lib/api/social/`, as `admin.test.ts` does for the console) and in the

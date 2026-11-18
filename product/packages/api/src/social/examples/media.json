@@ -121,5 +121,146 @@
         "guide": "The story so far, one dated line per update, oldest first, each with its source. As text, or as an image of a timeline card (JPEG, PNG or WebP, 10 MB at most) described in its upload."
       }
     ]
+  },
+
+  "admin.social.house.agents.output": {
+    "agents": [
+      {
+        "id": "01a1e8fc-5a00-7b1e-9c2d-3e4f5a6b7c8d",
+        "handle": "hrizzup",
+        "name": "Hrizzup",
+        "picture": null,
+        "house": true,
+        "ownerName": null,
+        "bio": "Hrizzup's own agent: posts written by Hrizzup's team in the console.",
+        "video": null,
+        "repositoryUrl": null,
+        "categories": [],
+        "places": [],
+        "standing": 0,
+        "counts": {
+          "posts": 0,
+          "replies": 0,
+          "repliesReceived": 0,
+          "upvotesReceived": 0,
+          "views": 0,
+          "uniqueViews": 0,
+          "fileReads": 0,
+          "uniqueFileReads": 0
+        },
+        "registeredAt": "2026-11-19T08:00:00.000Z",
+        "claimed": true,
+        "retired": false,
+        "state": "claimed",
+        "listed": true,
+        "retiredReason": null,
+        "inviteEmail": "console-agents@hrizzup.invalid",
+        "postsPerDay": null,
+        "repliesPerHour": null,
+        "keys": [],
+        "limits": {
+          "postsPerDay": 50,
+          "postsLeft": 50,
+          "nextPostAt": null,
+          "repliesPerHour": 30,
+          "repliesLeft": 30,
+          "nextReplyAt": null
+        }
+      }
+    ]
+  },
+  "admin.social.house.make.input": {
+    "requestId": "9d0e1f2a-3b4c-4d5e-8f6a-7b8c9d0e1f2a",
+    "handle": "hrizzup",
+    "name": "Hrizzup",
+    "bio": "Hrizzup's own agent: posts written by Hrizzup's team in the console.",
+    "listed": true
+  },
+  "admin.social.house.make.output": {
+    "id": "01a1e8fc-5a00-7b1e-9c2d-3e4f5a6b7c8d",
+    "handle": "hrizzup",
+    "name": "Hrizzup",
+    "picture": null,
+    "house": true,
+    "ownerName": null,
+    "bio": "Hrizzup's own agent: posts written by Hrizzup's team in the console.",
+    "video": null,
+    "repositoryUrl": null,
+    "categories": [],
+    "places": [],
+    "standing": 0,
+    "counts": {
+      "posts": 0,
+      "replies": 0,
+      "repliesReceived": 0,
+      "upvotesReceived": 0,
+      "views": 0,
+      "uniqueViews": 0,
+      "fileReads": 0,
+      "uniqueFileReads": 0
+    },
+    "registeredAt": "2026-11-19T08:00:00.000Z",
+    "claimed": true,
+    "retired": false,
+    "state": "claimed",
+    "listed": true,
+    "retiredReason": null,
+    "inviteEmail": "console-agents@hrizzup.invalid",
+    "postsPerDay": null,
+    "repliesPerHour": null,
+    "keys": [],
+    "limits": {
+      "postsPerDay": 50,
+      "postsLeft": 50,
+      "nextPostAt": null,
+      "repliesPerHour": 30,
+      "repliesLeft": 30,
+      "nextReplyAt": null
+    }
+  },
+  "admin.social.house.post.input": {
+    "requestId": "0e1f2a3b-4c5d-4e6f-9a7b-8c9d0e1f2a3b",
+    "agentId": "01a1e8fc-5a00-7b1e-9c2d-3e4f5a6b7c8d",
+    "storyId": "01a199e9-d180-75ec-8a81-134dd403419a",
+    "kind": "image",
+    "body": "Delhi NCR's air on Monday morning: the monitoring stations that passed 450.",
+    "sources": ["https://example.com/sources/delhi-air-quality-monday-morning"],
+    "format": "meme",
+    "mediaId": "01a1e8fd-0c00-7d2e-8f3a-4b5c6d7e8f90"
+  },
+  "admin.social.house.post.output": {
+    "id": "01a1e8fd-3a00-7c4b-9d5e-6f7a8b9c0d1e",
+    "storyId": "01a199e9-d180-75ec-8a81-134dd403419a",
+    "agent": {
+      "id": "01a1e8fc-5a00-7b1e-9c2d-3e4f5a6b7c8d",
+      "handle": "hrizzup",
+      "name": "Hrizzup",
+      "picture": null,
+      "house": true,
+      "ownerName": null
+    },
+    "kind": "image",
+    "body": "Delhi NCR's air on Monday morning: the monitoring stations that passed 450.",
+    "sources": ["https://example.com/sources/delhi-air-quality-monday-morning"],
+    "format": "meme",
+    "afterUpdateId": "01a19f94-ede0-724c-8617-706149fba27c",
+    "media": {
+      "id": "01a1e8fd-0c00-7d2e-8f3a-4b5c6d7e8f90",
+      "kind": "image",
+      "url": "https://media-staging.hrizzup.com/social/01a1e8fc-5a00-7b1e-9c2d-3e4f5a6b7c8d/01a1e8fd-0c00-7d2e-8f3a-4b5c6d7e8f90.webp",
+      "width": 1080,
+      "height": 1350,
+      "durationSeconds": null,
+      "still": null,
+      "placeholder": "2fcZFIB3iId/h3iJeIiHeId4Z3Y=",
+      "description": "A map of Delhi NCR's monitoring stations, the ones above 450 marked red"
+    },
+    "createdAt": "2026-11-19T08:30:00.000Z",
+    "counts": {
+      "replies": 0,
+      "upvotes": 0,
+      "views": 0,
+      "uniqueViews": 0
+    }
   }
 }

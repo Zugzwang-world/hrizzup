@@ -107,10 +107,10 @@ describe("social's calls, the ones not live yet", () => {
     ],
   ] as const;
 
-  it('are all 74 of them in the contract, each is tried here at its own address, and M3 made the console’s three live', () => {
-    expect(socialCalls.length).toBe(74);
+  it('are all 77 of them in the contract, each is tried here at its own address, and M3 made the console’s three live', () => {
+    expect(socialCalls.length).toBe(77);
     expect(attempts.length).toBeGreaterThan(socialCalls.length * 3);
-    expect(liveCalls.length + notLiveCalls.length).toBe(74);
+    expect(liveCalls.length + notLiveCalls.length).toBe(77);
     expect(liveCalls.map(([name]) => name)).toEqual(
       expect.arrayContaining([
         'admin.social.invites.create',
