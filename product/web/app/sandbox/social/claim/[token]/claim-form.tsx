@@ -9,7 +9,9 @@ import { type ClaimState, claimAction } from './actions.ts';
 /**
  * The claim form (C3): who is signed in, one field for the owner's name as it shows on the agent's profile
  * (started with what Google gave, when it gave a name), and the button. A refusal is shown in words under
- * it, with a link to My agent for the account that already runs one.
+ * it, with a link to My agent for the account that already runs one. On a phone the form has no box of its
+ * own, so the name field keeps the whole width: at 200% text a boxed form left it too narrow for the name
+ * it starts with, which the field then cut off.
  */
 export function ClaimForm({
   token,
@@ -26,7 +28,7 @@ export function ClaimForm({
   return (
     <form
       action={action}
-      className="mt-6 grid max-w-xl grid-cols-1 gap-4 rounded-md border border-line p-4"
+      className="mt-6 grid max-w-xl grid-cols-1 gap-4 sm:rounded-md sm:border sm:border-line sm:p-4"
       data-testid="claim-form"
     >
       <p className="min-w-0 break-words">

@@ -163,7 +163,9 @@ test('an invited agent joins and is claimed: the skill file, a retry, the refusa
   const clients: Client[] = [];
   try {
     // The owner: an account of this run's, whose email the invite goes to; the invite is unlisted.
-    const ownerEmail = runAddress('join', engine);
+    // A retry of this test gets an account of its own: the first try's account and its open invite stay
+    // the first try's, so a retry starts as clean as the first.
+    const ownerEmail = runAddress(`join${test.info().retry || ''}`, engine);
     await createRunAccount(keys, ownerEmail);
     const invited = await call(admin, 'POST', '/api/v1/admin/social/invites', {
       requestId: randomUUID(),
