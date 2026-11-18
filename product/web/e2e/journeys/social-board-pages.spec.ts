@@ -5,7 +5,11 @@ import {
   BOARD_FIXTURE_STORY,
   BOARD_FIXTURE_TITLE,
   BOARD_FIXTURE_UPDATES,
+  BOARD_MERGED_STORY,
+  BOARD_WITHDRAWN_REASON,
+  BOARD_WITHDRAWN_STORY,
 } from '../fixtures/social/board.ts';
+import { answerOf } from '../support/social-calls.ts';
 
 /**
  * Journey: the sandbox's board and story pages (docs/social/build.md, section 7.11; R5's M5), opened in
@@ -55,8 +59,8 @@ test.describe('the sandbox’s board and story pages', () => {
     );
     expect(hrefs.length).toBeGreaterThan(10);
     for (const href of hrefs) {
-      const answer = await page.request.get(href);
-      expect(answer.status(), href).toBe(200);
+      const answer = await answerOf('GET', href, () => page.request.get(href));
+      expect(answer.status, href).toBe(200);
     }
 
     // A click keeps what was chosen before it: Latest, then a category, then a place, then back to every place.
@@ -163,8 +167,12 @@ test.describe('the sandbox’s board and story pages', () => {
       );
     }
 
-    // Oldest first, then back.
-    await page.getByTestId('story-order').getByRole('link', { name: 'Oldest first' }).click();
+    // Oldest first (of this page), then back. The whole timeline is one page, so there is no note that only a page is shown.
+    await expect(page.getByTestId('timeline-page-note')).toHaveCount(0);
+    await page
+      .getByTestId('story-order')
+      .getByRole('link', { name: 'This page, oldest first' })
+      .click();
     await expect(page).toHaveURL(/[?&]order=oldest/);
     await expect(page.getByTestId('story-update').getByRole('heading', { level: 3 })).toHaveText(
       [...headlines].reverse(),
@@ -180,6 +188,8 @@ test.describe('the sandbox’s board and story pages', () => {
     await expect(page.getByTestId('story-update').getByRole('heading', { level: 3 })).toHaveText([
       first.headline,
     ]);
+    // A page of the timeline says that it is only a page: what it reorders, and what it marks.
+    await expect(page.getByTestId('timeline-page-note')).toContainText('Only one page');
     await page.getByRole('link', { name: 'Back to the newest updates' }).click();
     await expect(page.getByTestId('story-update')).toHaveCount(3);
 
@@ -201,8 +211,57 @@ test.describe('the sandbox’s board and story pages', () => {
     for (const href of await choices.evaluateAll((links) =>
       links.map((link) => link.getAttribute('href') ?? ''),
     )) {
-      expect((await page.request.get(href)).status(), href).toBe(200);
+      expect((await answerOf('GET', href, () => page.request.get(href))).status, href).toBe(200);
     }
+  });
+
+  test('a withdrawn story’s page gives its reason alone, with a way back to the board', async ({
+    page,
+  }) => {
+    const response = await page.goto(`/sandbox/social/stories/${BOARD_WITHDRAWN_STORY}`);
+    expect(response?.status()).toBe(200);
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'This story was withdrawn' }),
+    ).toBeVisible();
+    await expect(page.getByTestId('story-withdrawn')).toHaveText(BOARD_WITHDRAWN_REASON);
+    // Nothing of the story itself: no timeline, no desk, no brief.
+    await expect(page.getByTestId('story-updates')).toHaveCount(0);
+    await expect(page.getByTestId('story-brief')).toHaveCount(0);
+    await page.getByRole('link', { name: 'Back to the board' }).click();
+    await expect(page).toHaveURL(/\/sandbox\/social$/);
+    await expect(page.getByRole('heading', { level: 1, name: 'Board' })).toBeVisible();
+  });
+
+  test('a merged story’s address shows the story it went into, names it with a link, and keeps every link on the survivor’s address', async ({
+    page,
+  }) => {
+    const response = await page.goto(`/sandbox/social/stories/${BOARD_MERGED_STORY}`);
+    expect(response?.status()).toBe(200);
+    // The survivor's page, with its title and its three updates.
+    await expect(page.getByRole('heading', { level: 1, name: BOARD_FIXTURE_TITLE })).toBeVisible();
+    await expect(page.getByTestId('story-update')).toHaveCount(3);
+    const note = page.getByTestId('story-merged');
+    await expect(note).toContainText('has been merged into this one');
+    await expect(note.getByRole('link', { name: 'Open it at its own address' })).toHaveAttribute(
+      'href',
+      STORY,
+    );
+    // Every choice on the page is an address of the survivor's, never of the merged story.
+    const hrefs = await page
+      .locator('[data-testid="story-order"] a, [data-testid="desk-order"] a')
+      .evaluateAll((links) => links.map((link) => link.getAttribute('href') ?? ''));
+    expect(hrefs.length).toBeGreaterThan(0);
+    for (const href of hrefs) {
+      expect(href.startsWith(`${STORY}?`) || href === STORY, href).toBe(true);
+      expect(href.includes(BOARD_MERGED_STORY), href).toBe(false);
+    }
+    await page
+      .getByTestId('story-order')
+      .getByRole('link', { name: 'This page, oldest first' })
+      .click();
+    await expect(page).toHaveURL(new RegExp(`${STORY}\\?order=oldest`));
+    // The survivor's own address says nothing of a merge.
+    await expect(page.getByTestId('story-merged')).toHaveCount(0);
   });
 
   test('a value in a story page’s address that is not one of its lists is dropped with a line, and the page still answers', async ({

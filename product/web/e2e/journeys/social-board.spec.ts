@@ -3,7 +3,9 @@ import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/cli
 import type { APIRequestContext } from '@playwright/test';
 import { newRecordId } from '../../lib/record-id.ts';
 import { describeApiOnly, expect, test } from '../support/api-only.ts';
+import { fetchThrough } from '../support/quiet-request.ts';
 import { runKey } from '../support/run.ts';
+import { answerOf, jsonOf } from '../support/social-calls.ts';
 import { adminState, signedOutState } from '../support/states.ts';
 
 /**
@@ -46,58 +48,24 @@ type Answer = {
 };
 
 async function get(request: APIRequestContext, path: string): Promise<Answer> {
-  const response = await request.get(path);
-  const text = await response.text();
-  let body: Record<string, unknown> = {};
-  try {
-    body = JSON.parse(text) as Record<string, unknown>;
-  } catch {
-    // Not JSON: the status says what happened.
-  }
+  const { status, text, headers } = await answerOf('GET', path, () => request.get(path));
   return {
-    status: response.status(),
-    body,
-    caching: response.headers()['cache-control'],
-    edge: response.headers()['x-vercel-cache'],
-    age: Number(response.headers().age ?? '0'),
+    status,
+    body: jsonOf(text),
+    caching: headers['cache-control'],
+    edge: headers['x-vercel-cache'],
+    age: Number(headers.age ?? '0'),
   };
 }
 
 async function save(request: APIRequestContext, path: string, data: unknown): Promise<Answer> {
-  const response = await request.post(path, { data });
-  const text = await response.text();
-  let body: Record<string, unknown> = {};
-  try {
-    body = JSON.parse(text) as Record<string, unknown>;
-  } catch {
-    // Not JSON.
-  }
-  return {
-    status: response.status(),
-    body,
-    caching: response.headers()['cache-control'],
-    edge: undefined,
-    age: 0,
-  };
+  const { status, text, headers } = await answerOf('POST', path, () =>
+    request.post(path, { data }),
+  );
+  return { status, body: jsonOf(text), caching: headers['cache-control'], edge: undefined, age: 0 };
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-/** The standard `fetch`, carried by a Playwright request context (Vercel's bypass on a preview). */
-function fetchThrough(context: APIRequestContext): typeof fetch {
-  return async (input, init) => {
-    const headers = Object.fromEntries(new Headers(init?.headers).entries());
-    const response = await context.fetch(String(input), {
-      method: init?.method ?? 'GET',
-      headers,
-      ...(init?.body === undefined || init.body === null ? {} : { data: String(init.body) }),
-    });
-    return new Response(response.status() === 202 ? null : await response.text(), {
-      status: response.status(),
-      headers: response.headers(),
-    });
-  };
-}
 
 /**
  * Reads an address until Vercel's edge serves a copy of it, and says how old that copy was and when it
