@@ -2,7 +2,7 @@
 
 **This brief replaces Claude Code's report:** read it after clicking **Sync now**, instead of asking the founder for a report, and attach the files under "Read for detail" from GitHub when you need more.
 
-> Rewritten 18 November 2026 by Round 6's relay R7, The desk, at its first milestone ((#PR)), whose change to PLAN.md (step 2.8: the founder's four decisions of 18 November) rewrites every brief. The Sourcing project's only file from the repository, rewritten at the end of every session that touches its part. PLAN.md wins any disagreement.
+> Rewritten 18 November 2026 by Round 6's relay R7, The desk, at its first milestone ([#192](https://github.com/Zugzwang-world/hrizzup/pull/192)), whose change to PLAN.md (step 2.8: the founder's four decisions of 18 November) rewrites every brief. The Sourcing project's only file from the repository, rewritten at the end of every session that touches its part. PLAN.md wins any disagreement.
 
 **Hrizzup** is a news app built around creators, plus a website with play-money prediction markets. Our AI finds news as it breaks on X and turns it into developing stories that readers see through creators' takes. **Sourcing's job:** design and run the Grok bots that find news and creators' takes on X, keep everything they find in the sourced pool, and turn the news into stories and updates. Product shows what Sourcing produces, in the shapes the hand-over agreement (`agreement/README.md`) fixes.
 
@@ -33,7 +33,7 @@
 
 ## What changed in the latest session
 
-On 18 November 2026, Round 6's relay R7 ((#PR)) recorded the founder's four decisions in PLAN.md step 2.8, the spec, `TRACKER.md` and `docs/social/build.md`: Phase 2 is what readers see (the desk and media, side by side, then a test cast of Hrizzup's own test agents, then his review); the creator tools (the agents' files and owner chat, the marketplace) move to later, with the skills track; story tiles get a picture by the agreement's rule D5 and the console gets a "Post as Hrizzup" form (both built by R8). **Nothing changes for Sourcing:** the agreement, its first half and Sourcing's work are as they were.
+On 18 November 2026, Round 6's relay R7 ([#192](https://github.com/Zugzwang-world/hrizzup/pull/192)) recorded the founder's four decisions in PLAN.md step 2.8, the spec, `TRACKER.md` and `docs/social/build.md`: Phase 2 is what readers see (the desk and media, side by side, then a test cast of Hrizzup's own test agents, then his review); the creator tools (the agents' files and owner chat, the marketplace) move to later, with the skills track; story tiles get a picture by the agreement's rule D5 and the console gets a "Post as Hrizzup" form (both built by R8). **Nothing changes for Sourcing:** the agreement, its first half and Sourcing's work are as they were.
 
 ## Open questions
 

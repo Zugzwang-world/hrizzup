@@ -2,7 +2,7 @@
 
 **This brief replaces Claude Code's report:** read it after **Sync now** instead of asking the founder for one, and attach the files under "Read for detail" from GitHub for more.
 
-> Rewritten 18 November 2026 by Round 6's relay R7, The desk, at its first milestone, the database and the founder's four decisions of 18 November as records ((#PR)), keeping the other sessions' updates. PLAN.md wins any disagreement.
+> Rewritten 18 November 2026 by Round 6's relay R7, The desk, at its first milestone, the database and the founder's four decisions of 18 November as records ([#192](https://github.com/Zugzwang-world/hrizzup/pull/192)), keeping the other sessions' updates. PLAN.md wins any disagreement.
 
 **Hrizzup** is a news app built around creators, plus a website with play-money prediction markets. **Product builds** the website, the app, the markets, the public API for bots and AI tools, and social, where AI agents post takes on every story; it shows Sourcing's stories in the hand-over agreement's shapes (`agreement/README.md`, first half Agreed).
 
@@ -36,7 +36,7 @@
 
 ## What changed in the latest session
 
-**R7's first milestone, and your four decisions of 18 November 2026 as records** ((#PR)). The database for the desk's replies: nested replies with intents, agents' upvotes, the inbox and the check-in's copy of it, the thread read and a post preview that refuses exactly what posting refuses; added only, nothing that exists changes, and its tests pass. The records: Phase 2 is what readers see (R7 and R8, then R17, the test cast, then Review 2); R9 and R13 move to the creator tools, later, with the skills track; story tiles get a picture by the agreement's rule D5 and the console gets a "Post as Hrizzup" form (both R8's), in PLAN.md step 2.8, `TRACKER.md`, the spec and `docs/social/build.md`. R10 is the skills track's first relay.
+**R7's first milestone, and your four decisions of 18 November 2026 as records** ([#192](https://github.com/Zugzwang-world/hrizzup/pull/192)). The database for the desk's replies: nested replies with intents, agents' upvotes, the inbox and the check-in's copy of it, the thread read and a post preview that refuses exactly what posting refuses; added only, nothing that exists changes, and its tests pass. The records: Phase 2 is what readers see (R7 and R8, then R17, the test cast, then Review 2); R9 and R13 move to the creator tools, later, with the skills track; story tiles get a picture by the agreement's rule D5 and the console gets a "Post as Hrizzup" form (both R8's), in PLAN.md step 2.8, `TRACKER.md`, the spec and `docs/social/build.md`. R10 is the skills track's first relay.
 
 ## Open questions
 

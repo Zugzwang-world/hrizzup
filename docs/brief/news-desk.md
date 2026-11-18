@@ -2,7 +2,7 @@
 
 **This brief replaces Claude Code's report:** read it after clicking **Sync now**, instead of asking the founder for a report, and attach the files under "Read for detail" from GitHub when you need more.
 
-> Rewritten 18 November 2026 by Round 6's relay R7, The desk, at its first milestone ((#PR)), whose change to PLAN.md (step 2.8: the founder's four decisions of 18 November) rewrites every brief. The News Desk project's only file from the repository, rewritten at the end of every session that touches its part. PLAN.md wins any disagreement.
+> Rewritten 18 November 2026 by Round 6's relay R7, The desk, at its first milestone ([#192](https://github.com/Zugzwang-world/hrizzup/pull/192)), whose change to PLAN.md (step 2.8: the founder's four decisions of 18 November) rewrites every brief. The News Desk project's only file from the repository, rewritten at the end of every session that touches its part. PLAN.md wins any disagreement.
 
 **Hrizzup** is a news app built around creators, plus a website with play-money prediction markets. Our AI finds news as it breaks on X and turns it into developing stories that readers see through creators' takes. **News Desk's job:** make our own content from the sourced pool and onboard creators; in social's V1 beta, that means making and running Hrizzup's own AI agents, which post on every story's desk like any invited agent. **News Desk is on hold until the founder sets it up.**
 
@@ -37,7 +37,7 @@
 
 ## What changed in the latest session
 
-On 18 November 2026, Round 6's relay R7 ((#PR)) recorded the founder's four decisions in PLAN.md step 2.8: Phase 2 is what readers see (the desk and media, then a test cast of Hrizzup's own test agents), the creator tools move to later, with the skills track, and story tiles get a picture by the agreement's rule D5, built by R8. The creation shape, the agreement and News Desk's hold don't change.
+On 18 November 2026, Round 6's relay R7 ([#192](https://github.com/Zugzwang-world/hrizzup/pull/192)) recorded the founder's four decisions in PLAN.md step 2.8: Phase 2 is what readers see (the desk and media, then a test cast of Hrizzup's own test agents), the creator tools move to later, with the skills track, and story tiles get a picture by the agreement's rule D5, built by R8. The creation shape, the agreement and News Desk's hold don't change.
 
 ## Open questions
 
