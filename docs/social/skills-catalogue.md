@@ -24,7 +24,7 @@ Items are sorted by `kind` (`skill` before `starter-agent`), then by `slug`. Eac
 | `format` | one of `social.formats`' eight codes, or `null` | skills: `metadata.hrizzup-format` (left out, so `null`, for a general creator tool). Starter agents: `null` |
 | `path` | `skills/<slug>` or `agents/<slug>` | the folder |
 | `contentHash` | 64 lower-case hex characters, which R13 decodes into the 32 bytes of `content_hash` | below |
-| `body` | 1 to 20,000 characters (code points, as `char_length` counts them) and at most 500 lines; new lines are LF only; no final new line; only printable ASCII and a short list of typographic marks (the repository's `docs/design.md`, 4.2), so it passes `passes_code_checks` and the API's `longText` | skills: the whole `SKILL.md`, frontmatter included, without its final new line, so an attached copy is a working `SKILL.md`. Starter agents: `AGENT.md` from its `# <name>` line on (after the frontmatter), without its final new line |
+| `body` | 1 to 20,000 characters (code points, as `char_length` counts them) and at most 500 lines; new lines are LF only; no final new line; only printable ASCII and a short list of typographic marks (the repository's `docs/design.md`, 4.2), so it passes `passes_code_checks` and the API's `longText` | skills: the whole `SKILL.md`, frontmatter included, without its final new line, so an attached copy is a working `SKILL.md`. Starter agents: `AGENT.md` from its `# <name>` line on (after the frontmatter), without its final new line (a starter agent's at most 6,000) |
 | `meta` | an object | below |
 
 The 20,000-character cap leaves an owner 30,000 characters for their own edits within an attached file's 50,000 (`file_versions.body`). Every one-line field holds only printable ASCII and the same typographic marks, never a leading or trailing space.
@@ -33,14 +33,14 @@ The 20,000-character cap leaves an owner 30,000 characters for their own edits w
 
 **A skill:**
 
-- `kit`: the paths, relative to the skill's folder, of every file an agent fetches besides `SKILL.md` (scripts, templates, fonts with their licences, references), sorted by their UTF-8 bytes; `[]` when there are none. Samples (the folder's `examples/`) are never in the kit.
+- `kit`: the paths, relative to the skill's folder, of every file an agent fetches besides `SKILL.md` (scripts with each one's `.py.lock` and `.requirements.txt`, templates, the chart style, fonts with their licences, references), sorted by their UTF-8 bytes; `[]` when there are none. Samples (the folder's `examples/`) are never in the kit.
 - `kitSha256`: `{ "<path>": "<lower-case hex SHA-256 of the file's bytes>" }` for every path in `kit`, so an agent that downloads a file can check it.
 
 **A starter agent:**
 
-- `skills`: the slugs of the skills it starts with, in its own order (one to five, no repeats), each a `skill` item in the same file.
+- `skills`: the slugs of the skills it starts with, in its own order (one to five, no repeats), each a `skill` item in the same file, from `metadata.hrizzup-skills` (slugs, single spaces, at most 400 characters). `AGENT.md`'s frontmatter is `name` (the folder's), then `metadata:` with `hrizzup-name`, `hrizzup-summary` and `hrizzup-skills`, each double-quoted, and is never in the body.
 
-A starter agent's `body` is `# <name>`, an introduction, then these `## ` sections in this order: Purpose, Voice, Makes, Never, Cadence, Style, Skills. The first six are the agent's permanent files of the same name in lower case (`purpose`, `voice`, `makes`, `never`, `cadence`, `style`: build.md 7.6). A file's text is `# <Heading>`, a blank line, then the section's lines up to the next heading, with no blank line at either end. `## Skills` lists `meta.skills`, one `- <slug>` a line. Categories and places are left empty (every one) for the owner to choose, since their lists are the agreement's.
+A starter agent's `body` is `# <name>`, an introduction, then these `## ` sections in this order: Purpose, Voice, Makes, Never, Cadence, Style, Skills. The introduction is the same in every starter agent (the repository's `shared/agent-intro.md`): when its owner asks, the agent saves each of the first six sections as its file of that name in lower case (`purpose`, `voice`, `makes`, `never`, `cadence`, `style`: build.md 7.6), leaves its categories and places as they are (empty means all) until its owner chooses them, and asks its owner to attach the skills. Hrizzup's file calls fix no shape for a file's text, so nothing may rely on a `# <Heading>` line; the kits read a style file from its first fenced `json` block. Each section holds 1 to 1,500 characters. `## Style` is a line of text, then one fenced `json` block with every key of the default style (`ink`, `paper` and `accent` as `#RRGGBB`, `display_font`, `text_font`, and `signature` set to `@handle`). `## Skills` lists `meta.skills`, one `- <slug>` a line.
 
 ## The content hash
 
@@ -70,23 +70,25 @@ Its `contentHash` is `f8df1f487b6e8bf444e5599db7fc262a774ff629267e3ea36004948d0c
 1. `version` is `1`. A file with any other version is refused like any invalid file: the last catalogue stays.
 2. Every item meets the rules above, which are the database's or stricter, so an upsert can fail only through a bug. Every `format` is one of the eight codes (an unknown one would break `social.catalogue`'s foreign key). The repository adds a new code only after `social.formats` holds it.
 3. Slugs are unique across the file, and each starter agent's `meta.skills` names skills in the same file.
-4. Every item is one of Hrizzup's own, so `starter` is `true` for each.
+4. Every item in version 1 is Hrizzup's own (only collaborators can open pull requests there; the file doesn't say so), so `starter` is `true` for each; an item that isn't would be version 2.
 5. The folder's address: `folderUrl` = `https://github.com/<owner>/hrizzup-skills/tree/main/<path>`, with the same owner the job fetches from. A kit file is at `https://raw.githubusercontent.com/<owner>/hrizzup-skills/main/<path>/<kit path>`.
-6. `commit` isn't in the file: a file can't name the commit that holds it. R13 may leave it `null`. Or R13 may ask GitHub's API for `main`'s commit (`GET /repos/<owner>/hrizzup-skills/commits/main` with `Accept: application/vnd.github.sha` and `If-None-Match`, where a 304 doesn't count against the rate limit) and then read `catalogue.json` at that commit. That records the commit and keeps the file and the kit from different moments.
+6. `commit` isn't in the file: a file can't name the commit that holds it. R13 may leave it `null`. Or R13 may ask GitHub's API for `main`'s commit (`GET /repos/<owner>/hrizzup-skills/commits/main` with `Accept: application/vnd.github.sha` and `If-None-Match`, ) and then read `catalogue.json` at that commit. That records the commit the file came from (agents still fetch kit files from `main`). Check GitHub's own rules on whether a 304 counts against the rate limit for the way the job asks.
 7. The hash is deterministic. R13 may recompute it to check what it fetched, and should skip an item whose hash doesn't match, keeping its last version.
-8. Nothing disappears silently. An item missing from a newer file was retired: R13 sets `retired_at`, the showcase hides it, and attached copies stay. A retired slug is never reused, and a kit path is never renamed or removed while its skill is in the file. The repository's check holds both against `main`'s previous file, with every retirement listed in its `retired.txt`.
+8. Nothing disappears silently. An item missing from a newer file was retired: R13 sets `retired_at`, the showcase hides it, and attached copies stay. A retired slug never returns, and `retired.txt` only grows; a kit path leaves its skill's kit only when `retired.txt` lists it as `skills/<slug>/<kit path>`. The check compares against the pull request's base commit (on a push, the commit before) by slug, so a starter agent's slug turning into a skill's isn't caught: R13 should refuse a change of `kind`.
 
 ## Versioning
 
-- **Within version 1, only additions:** a new key inside `meta`. R13's zod keeps `meta` open (unknown keys pass through) and holds each item's ten keys strictly.
-- **Anything else is version 2:** a field renamed, removed or given a new meaning, or a new hash rule. The repository then writes `catalogue.v2.json` beside `catalogue.json` until R13 reads version 2, and stops writing version 1 in a later pull request.
+- **Within version 1, only additions:** a new key inside `meta`, a new format code once `social.formats` holds it, or a new typographic mark. R13's zod keeps `meta` open (unknown keys pass through) and holds each item's ten keys strictly.
+- **Agents read the file too:** every skill's `## Get the kit` tells an agent to compare its kit files with `meta.kitSha256` of the item whose `slug` is the skill's, at `https://raw.githubusercontent.com/Zugzwang-world/hrizzup-skills/main/catalogue.json`, and owners' edited copies keep that text. So in every version `catalogue.json` stays there, with `items[].slug` and `meta.kitSha256` unchanged.
+- **Anything else is version 2:** a field renamed, removed or given a new meaning, or a new hash rule. The repository then writes `catalogue.v2.json` beside `catalogue.json`, and never stops writing version 1.
 
 ## The example in `skills.json`
 
-The `catalogue.json` example in `product/packages/api/src/social/examples/skills.json` predates this note. It already matches on `meta.kit` (paths), `needs: null` for Timeline, and the starter agent `analyst` at `agents/analyst` with a body that has no frontmatter. Three things for R13 to bring in when it builds the sync:
+The `catalogue.json` example in `product/packages/api/src/social/examples/skills.json` predates this note. It matches on `meta.kit` being a list of paths (its two are made up and not in byte order), `needs: null` for Timeline, and the starter agent `analyst` at `agents/analyst` with a body that has no frontmatter. Four things for R13 to bring in when it builds the sync:
 
 - `meta.kitSha256` joins `meta.kit`;
 - the example skill bodies' frontmatter quotes every value (`description: A one-minute explainer: script, …` isn't valid YAML: its second `: ` breaks it);
+- the starter agent's body becomes the real form: `# Analyst`, the introduction, the seven sections;
 - the hashes are placeholders, and the repository's own file is the real example.
 
 The skill `audio-brief` and the starter agent "Audio brief" would share a slug. The rule: when a starter agent's natural slug is already a skill's, it adds `-agent`, so that agent is `audio-brief-agent`, still named "Audio brief".
