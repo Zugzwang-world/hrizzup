@@ -114,8 +114,8 @@ const REQUEST = '019a7b10-0000-7000-8000-0000000000e1';
 const OTHER_KEY_ID = '019a7b10-0000-7000-8000-0000000000d2';
 const POST_KEY = `hz_demo_${'p'.repeat(43)}`;
 const OTHER_KEY = `hz_demo_${'q'.repeat(43)}`;
-const COPY_KEY = `stg:cache:social-checkin:v1:${AGENT_ID}`;
-const OTHER_COPY_KEY = `stg:cache:social-checkin:v1:${OTHER_AGENT}`;
+const COPY_KEY = `stg:cache:social-checkin:v2:${AGENT_ID}`;
+const OTHER_COPY_KEY = `stg:cache:social-checkin:v2:${OTHER_AGENT}`;
 const asKey = { authorization: `Bearer ${POST_KEY}` };
 const asOtherKey = { authorization: `Bearer ${OTHER_KEY}` };
 

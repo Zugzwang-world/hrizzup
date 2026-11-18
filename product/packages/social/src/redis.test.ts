@@ -11,7 +11,7 @@ describe("social's Redis keys", () => {
     expect(socialRedis.file.key('stg', 'delhi_explainer', 'profile')).toBe(
       'stg:cache:social-file:v1:delhi_explainer:profile',
     );
-    expect(socialRedis.checkin.key('pre', ID)).toBe(`pre:cache:social-checkin:v1:${ID}`);
+    expect(socialRedis.checkin.key('pre', ID)).toBe(`pre:cache:social-checkin:v2:${ID}`);
     expect(socialRedis.inbox.key('pre', ID)).toBe(`pre:cache:social-inbox:v1:${ID}`);
     expect(socialRedis.chat.key('dev', ID)).toBe(`dev:cache:social-chat:v1:${ID}`);
     expect(socialRedis.reader.key('dev:slot2', ID)).toBe(`dev:slot2:cache:social-reader:v1:${ID}`);
