@@ -200,16 +200,39 @@ const published = all.filter(([name, procedure]) => {
   return isSocialCall(path) && isPublished(path, procedure);
 });
 const agentsArea = new Set(procedures(social.agentsCalls).map(([name]) => name));
-/** What S5 wants a row and a command for: the agents area's calls, an agent's own, and anyone's that are personal. */
+const repliesArea = new Set(procedures(social.repliesCalls).map(([name]) => name));
+/**
+ * What S5 wants a row and a command for: the agents area's calls and the replies area's (its public read of a
+ * thread too), an agent's own, and anyone's that are personal.
+ */
 const listed = published.filter(([name, procedure]) => {
   const meta = procedure['~orpc'].meta;
   return (
     meta.mcp !== false &&
     (agentsArea.has(name) ||
+      repliesArea.has(name) ||
       meta.who === 'agent' ||
       (meta.who === 'anyone' && meta.caching.kind === 'personal'))
   );
 });
+
+/** Whether a call's input takes a request ID: the write that makes something does, the preview and the reads don't. */
+const takesRequestId = (procedure: Procedure): boolean => {
+  const input = procedure['~orpc'].inputSchema as unknown as { shape?: Record<string, unknown> };
+  return input.shape?.requestId !== undefined;
+};
+
+/**
+ * What is wrong with a POST command's request ID, or null: it holds `"requestId"` exactly when its call's input
+ * takes one (a command without one would be refused, and a command with one for a call that takes none would be
+ * refused as an input it does not take).
+ */
+function requestIdProblem(command: string, takes: boolean): string | null {
+  const holds = command.includes('"requestId"');
+  if (takes && !holds) return 'a request ID is missing: this call takes one';
+  if (!takes && holds) return 'a request ID is sent: this call takes none';
+  return null;
+}
 
 const routeOf = (procedure: Procedure) => procedure['~orpc'].route;
 /** The call's address as a pattern: each {part} is any one part. */
@@ -278,7 +301,10 @@ describe('the calls the file names (S5)', () => {
       // A write says it is one and holds its request ID; the key goes on exactly an agent's calls.
       if (method === 'POST') {
         expect(line, `${name}: -X POST`).toMatch(/-X POST/);
-        expect(line, `${name}: a request ID`).toContain('"requestId"');
+        expect(
+          requestIdProblem(line, takesRequestId(procedure)),
+          `${name}: its request ID`,
+        ).toBeNull();
       }
       expect(line.includes('-H "Authorization: Bearer $HRIZZUP_POSTING_KEY"'), `${name}: key`).toBe(
         agent,
@@ -286,6 +312,42 @@ describe('the calls the file names (S5)', () => {
       // The key is only ever a variable, never a value.
       expect(line).not.toMatch(/hz_(demo|live)_/);
     }
+  });
+
+  it('hold a request ID in a POST exactly when the call’s input takes one, both ways (R7)', () => {
+    const post = (body: string) =>
+      `curl -sS -X POST ${ORIGIN}/api/v1/social/me/x -H "Content-Type: application/json" -d '${body}'`;
+    // A write that takes one needs it; a command that leaves it out would be refused.
+    expect(requestIdProblem(post('{"requestId":"0","postId":"1"}'), true)).toBeNull();
+    expect(requestIdProblem(post('{"postId":"1"}'), true)).toMatch(/missing/);
+    // A call that takes none (the preview) must not be sent one: its strict input would refuse it.
+    expect(requestIdProblem(post('{"storyId":"1"}'), false)).toBeNull();
+    expect(requestIdProblem(post('{"requestId":"0","storyId":"1"}'), false)).toMatch(/takes none/);
+    // The contract's own: the preview takes none and every other POST of the replies area takes one.
+    const byName = new Map(published.map(([name, procedure]) => [name, procedure]));
+    const takes = (name: string) => takesRequestId(byName.get(name) as Procedure);
+    expect(takes('social.me.preview')).toBe(false);
+    for (const name of ['social.me.reply', 'social.me.upvote', 'social.me.post']) {
+      expect(takes(name), name).toBe(true);
+    }
+  });
+
+  it('are listed for the replies area as well: its five calls, each with its row and command', () => {
+    const names = listed.map(([name]) => name);
+    expect(names).toEqual(
+      expect.arrayContaining([
+        'social.posts.replies',
+        'social.me.reply',
+        'social.me.upvote',
+        'social.me.inbox',
+        'social.me.preview',
+      ]),
+    );
+    expect([...repliesArea].every((name) => names.includes(name))).toBe(true);
+    // The thread is a public read: it names no key, and its command sends none.
+    const thread = table.find((cells) => cells[1] === '`GET /api/v1/social/posts/{id}/replies`');
+    expect(thread?.[2]).toBe('`social_posts_replies`');
+    expect(thread?.[3]).toBe('none');
   });
 
   it('are the only calls it names, and every one is live and published', () => {
