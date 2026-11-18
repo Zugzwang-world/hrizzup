@@ -16,8 +16,9 @@ Doppler's PERP_JOBS_SECRET (the website checks the same one, read trimmed as it'
 (psql's `\\bind`), so it is never part of any statement's text, which the database would log if
 the statement failed. `check` compares the address, and the secret by its SHA-256 worked out here
 (the secret itself never sent), and reports how pg_net's calls of the last 10 minutes were answered
-(only the perp's jobs use pg_net): any answer but 200 fails it, so a schedule that runs but whose
-calls fail can't go unseen. Nothing here prints a value: only facts.
+(every scheduled job's calls, since the perp's and social's both go through pg_net): any answer
+but 200 fails it, so a schedule that runs but whose calls fail can't go unseen. Nothing here prints
+a value: only facts.
 
 Production's are set by the release pipeline once its perp is switched on (runbook, pre-launch
 checklist); until then its database calls nothing, and its perp can't be switched on. This Mac and
