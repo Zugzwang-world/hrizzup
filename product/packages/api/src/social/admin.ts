@@ -144,7 +144,11 @@ const settingFields = {
   standingWUpvotes: z.number().min(0).max(1000),
   standingWReads: z.number().min(0).max(1000),
   readerAiProvider: z.string().regex(/^[a-z0-9-]{1,40}$/),
-  readerAiModel: z.string().min(1).max(100).regex(/^\S+$/, 'No spaces'),
+  readerAiModel: z
+    .string()
+    .min(1)
+    .max(100)
+    .regex(/^[^\s\p{Cc}]+$/u, 'No spaces or control characters'),
   readerAiInNeuronsPerM: z.number().gt(0),
   readerAiOutNeuronsPerM: z.number().gt(0),
   /** At most 10,000: Cloudflare's free allowance. */

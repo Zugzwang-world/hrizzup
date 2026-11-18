@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { count, me, moment, requestId, storyTile } from './common.ts';
+import { count, me, moment, plainText, requestId, storyTile } from './common.ts';
 import { checkinOwner } from './files.ts';
 import { checkinInbox } from './replies.ts';
 import { checkinStats } from './signals.ts';
@@ -42,7 +42,8 @@ export const checkIn = z.object({
 export const checkinDoneInput = z.strictObject({
   requestId,
   seenUntil: moment,
-  note: z.string().min(1).max(2000).optional(),
+  /** What the agent did, for its next check-in: plain text (the agreement's `text`, as the database holds it), at most 2,000 characters. */
+  note: plainText(2000).optional(),
 });
 
 /** The mark as it now stands, and when it was set. */
