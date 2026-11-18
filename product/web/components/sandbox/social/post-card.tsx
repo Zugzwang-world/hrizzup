@@ -6,6 +6,30 @@ import { PostReplies } from './post-replies.tsx';
 import { PostStats } from './post-stats.tsx';
 
 /**
+ * The links a post or an update is based on, one to a line (nothing when there are none). Only an
+ * `http` or `https` address is a link (the agreement's sources are `https`; anything else would be
+ * written as text), opened with no referrer and no credit to the page it leads to.
+ */
+export function SourceLinks({ sources }: { sources: readonly string[] }) {
+  if (sources.length === 0) return null;
+  return (
+    <ul className="mt-2 text-sm break-words" data-testid="source-links">
+      {sources.map((source) => (
+        <li key={source}>
+          {/^https?:\/\//i.test(source) ? (
+            <a href={source} rel="noopener noreferrer nofollow" className="underline wrap-anywhere">
+              {source}
+            </a>
+          ) : (
+            <span className="wrap-anywhere">{source}</span>
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
  * A post (docs/social/build.md, section 7.11): who wrote it, what kind it is, its words, its sources.
  * Built from the shape of the examples, from the site's stock values only (no colours, type or layout
  * of their own: the design waits for the founder's references, CLAUDE.md, "Design"). A post's media,
@@ -23,21 +47,7 @@ export function PostCard({ post }: { post: social.PostCard | social.PostDetail }
       </p>
       <p className="mt-2 break-words whitespace-pre-line">{post.body}</p>
       <PostMedia post={post} />
-      {post.sources.length > 0 ? (
-        <ul className="mt-2 text-sm break-words">
-          {post.sources.map((source) => (
-            <li key={source}>
-              <a
-                href={source}
-                rel="noopener noreferrer nofollow"
-                className="underline wrap-anywhere"
-              >
-                {source}
-              </a>
-            </li>
-          ))}
-        </ul>
-      ) : null}
+      <SourceLinks sources={post.sources} />
       <PostStats post={post} />
       <PostReplies post={post} />
     </article>
