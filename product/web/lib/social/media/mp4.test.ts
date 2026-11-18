@@ -247,7 +247,7 @@ describe('a file that is not a regular MP4', () => {
     }
 
     /** The file with a box put straight after its first `type` box, each parent's size grown to hold it. */
-    function after(type: string, parents: string[], added: Buffer, file = one): Buffer {
+    function putAfter(type: string, parents: string[], added: Buffer, file = one): Buffer {
       const at = startOf(file, type);
       const end = at + file.readUInt32BE(at);
       const made = Buffer.concat([file.subarray(0, end), added, file.subarray(end)]);
@@ -343,23 +343,25 @@ describe('a file that is not a regular MP4', () => {
       expect(await read(swapped('stsz', stbl, stz2(2, 16, Buffer.from([0, 9, 0, 9]))))).toBe(
         'unreadable',
       );
-      expect(await read(after('stsz', stbl, stz2(1, 16, Buffer.from([0, 9]))))).toBe('unreadable');
+      expect(await read(putAfter('stsz', stbl, stz2(1, 16, Buffer.from([0, 9]))))).toBe(
+        'unreadable',
+      );
     });
 
     it('refuses a box that decides a length where it does not belong: an stts in edts is the one FFmpeg reads', async () => {
       const long = box('stts', Buffer.alloc(4), u32(1), u32(1800), u32(1000));
-      const inEdts = after('tkhd', ['moov', 'trak'], box('edts', long));
+      const inEdts = putAfter('tkhd', ['moov', 'trak'], box('edts', long));
       expect(await read(inEdts)).toBe('unreadable');
       const mdhd = box('mdhd', Buffer.alloc(4), u32(0), u32(0), u32(1000), u32(1_800_000), u32(0));
-      expect(await read(after('tkhd', ['moov', 'trak'], box('edts', mdhd)))).toBe('unreadable');
+      expect(await read(putAfter('tkhd', ['moov', 'trak'], box('edts', mdhd)))).toBe('unreadable');
       expect(
-        await read(after('tkhd', ['moov', 'trak'], box('edts', box('stsz', Buffer.alloc(12))))),
+        await read(putAfter('tkhd', ['moov', 'trak'], box('edts', box('stsz', Buffer.alloc(12))))),
       ).toBe('unreadable');
       expect(
-        await read(after('tkhd', ['moov', 'trak'], box('edts', box('mvhd', Buffer.alloc(100))))),
+        await read(putAfter('tkhd', ['moov', 'trak'], box('edts', box('mvhd', Buffer.alloc(100))))),
       ).toBe('unreadable');
       // An empty edts, and a hdlr in a udta (a real file has both), are not.
-      expect(await read(after('tkhd', ['moov', 'trak'], box('edts')))).toMatchObject({
+      expect(await read(putAfter('tkhd', ['moov', 'trak'], box('edts')))).toMatchObject({
         durationMs: 30_000,
       });
     });
@@ -379,21 +381,21 @@ describe('a file that is not a regular MP4', () => {
         );
       const parents = ['moov', 'trak'];
       // An empty edit (media time -1) of 30 minutes before the 30 seconds: the player waits it out.
-      expect(await read(after('tkhd', parents, elst([1_800_000, 0xffffffff], [30_000, 0])))).toBe(
-        'too_long',
-      );
-      expect(await read(after('tkhd', parents, elst([30_000, 0])))).toMatchObject({
+      expect(
+        await read(putAfter('tkhd', parents, elst([1_800_000, 0xffffffff], [30_000, 0]))),
+      ).toBe('too_long');
+      expect(await read(putAfter('tkhd', parents, elst([30_000, 0])))).toMatchObject({
         durationMs: 30_000,
       });
       // Several segments are added up.
-      expect(await read(after('tkhd', parents, elst([25_000, 0], [25_000, 0], [25_000, 0])))).toBe(
-        'too_long',
-      );
-      expect(await read(after('tkhd', parents, elst([25_000, 0], [25_000, 0])))).toMatchObject({
+      expect(
+        await read(putAfter('tkhd', parents, elst([25_000, 0], [25_000, 0], [25_000, 0]))),
+      ).toBe('too_long');
+      expect(await read(putAfter('tkhd', parents, elst([25_000, 0], [25_000, 0])))).toMatchObject({
         durationMs: 30_000,
       });
       // A list that claims more entries than it holds, and a second one.
-      const cut = after('tkhd', parents, elst([30_000, 0]));
+      const cut = putAfter('tkhd', parents, elst([30_000, 0]));
       cut.writeUInt32BE(9, startOf(cut, 'elst') + 12);
       expect(await read(cut)).toBe('unreadable');
     });

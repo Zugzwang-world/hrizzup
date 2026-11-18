@@ -350,6 +350,9 @@ function walk(
   }
 }
 
+const larger = (a: bigint, b: bigint) => (a > b ? a : b);
+const smaller = (a: bigint, b: bigint) => (a < b ? a : b);
+
 /** `ceil(units * 1000 / timescale)`, in milliseconds. */
 function millis(units: bigint, timescale: bigint): bigint {
   if (timescale <= 0n) throw unreadable('a timescale of zero');
@@ -410,7 +413,7 @@ export async function readMp4(
     let trackMs = 0n;
     for (const track of tracks) {
       if (track.timescale === null || track.duration === null || track.sampled === null) continue;
-      const longest = track.sampled > track.duration ? track.sampled : track.duration;
+      const longest = larger(track.sampled, track.duration);
       const ms = millis(longest, track.timescale);
       if (ms > trackMs) trackMs = ms;
       // An edit list can show a track for longer than it holds (an empty edit, a slowed one).
@@ -428,7 +431,7 @@ export async function readMp4(
       if ((w ?? 0) > MOST_PIXELS || (h ?? 0) > MOST_PIXELS) throw new FileProblem('dimensions');
       if (w !== null && h !== null && w > 0 && h > 0) [width, height] = [w, h];
     }
-    return { durationMs: Number(movieMs < limit ? movieMs : limit), width, height };
+    return { durationMs: Number(smaller(movieMs, limit)), width, height };
   } catch (error) {
     if (error instanceof RangeError) throw unreadable('a read past the data');
     throw error;
