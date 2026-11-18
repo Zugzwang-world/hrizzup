@@ -53,6 +53,8 @@ describe('a story’s picture', () => {
     expect(markup).toContain('loading="lazy"');
     expect(markup).toContain('w-32');
     expect(markup).toContain('max-w-full');
+    // Beside a tile's text it keeps its own shape, never stretched to the text's height.
+    expect(markup).toContain('self-start');
     expect(markup).not.toContain('fetchPriority="high"');
   });
 

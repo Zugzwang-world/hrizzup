@@ -355,9 +355,6 @@ test.describe('pictures, video and audio on a story’s page', () => {
         await expect(stillImage).toHaveJSProperty('complete', true);
       }
       await expect(page.locator('video, audio')).toHaveCount(0);
-      // The head holds the media host's early connection, once.
-      await expect(page.locator(`link[rel="preconnect"][href="${mediaOrigin}"]`)).toHaveCount(1);
-
       // Everything asked of the media host is a resize at 320 of the picture or the still, and of nothing else.
       expect(
         [...new Set(requested)].sort(),

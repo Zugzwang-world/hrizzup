@@ -394,6 +394,89 @@ describe('the media fixture’s agent and desk', () => {
     );
   });
 
+  it('wait for an agent another run is making (a conflict or a busy site) and take it when it is there, but not for any other refusal', async () => {
+    for (const refusal of [409, 503]) {
+      const { sent, fake } = site({
+        [AGENT]: [
+          [404, {}],
+          [404, {}],
+          [200, OTHER],
+        ],
+        'POST /api/v1/admin/social/house/agents': [[refusal, { message: 'secret-text' }]],
+        [DESK]: [posted('image', 'video', 'audio')],
+      });
+      const waits = world(fake);
+      await ensureMediaDesk(CONTEXT, waits);
+      expect(waits.sleep, `a ${refusal}`).toHaveBeenCalledTimes(1);
+      expect(writes(sent)).toEqual(['POST /api/v1/admin/social/house/agents']);
+    }
+    // A refusal that no other run explains fails at once, with no waiting.
+    const refused = site({ 'POST /api/v1/admin/social/house/agents': [[403, {}]] });
+    const waits = world(refused.fake);
+    await expect(ensureMediaDesk(CONTEXT, waits)).rejects.toThrow(
+      "Couldn't make the media fixture agent (403)",
+    );
+    expect(waits.sleep).not.toHaveBeenCalled();
+    // An agent that never appears: the patience ends after 90 seconds, naming the refusal.
+    const never = site({
+      [AGENT]: [[404, {}], ...Array.from({ length: 100 }, (): Reply => [404, {}])],
+      'POST /api/v1/admin/social/house/agents': [[409, {}]],
+    });
+    let clock = 0;
+    await expect(
+      ensureMediaDesk(CONTEXT, {
+        fetch: never.fake as unknown as typeof fetch,
+        sleep: async (ms) => {
+          clock += ms;
+        },
+        now: () => clock,
+      }),
+    ).rejects.toThrow("Couldn't make the media fixture agent (409)");
+    expect(clock).toBe(90_000);
+  });
+
+  it('take a post another run made at the same moment, found on the desk, and fail on a refusal nobody explains', async () => {
+    const same = site({
+      [AGENT]: [[200, OTHER]],
+      // The desk has nothing when read first, the image post when read again.
+      [DESK]: [posted(), posted('image'), posted('image', 'video', 'audio')],
+      'POST /api/v1/admin/social/house/posts': [[409, { message: 'secret-text' }]],
+    });
+    const waits = world(same.fake);
+    await ensureMediaDesk(CONTEXT, waits);
+    expect(waits.sleep).not.toHaveBeenCalled();
+    const posts = same.sent.filter((one) => one.where === '/api/v1/admin/social/house/posts');
+    // The image post was refused and found; the video and the audio were posted as usual.
+    expect(posts.map((one) => one.body?.kind)).toEqual(['image', 'video', 'audio']);
+
+    // The post is not there at first (a pause), then it is.
+    const later = site({
+      [AGENT]: [[200, OTHER]],
+      [DESK]: [posted(), posted(), posted('image'), posted('image', 'video', 'audio')],
+      'POST /api/v1/admin/social/house/posts': [[503, {}]],
+    });
+    const pauses = world(later.fake);
+    await ensureMediaDesk(CONTEXT, pauses);
+    expect(pauses.sleep).toHaveBeenCalledTimes(1);
+
+    // A post that never appears: the patience ends, naming the refusal.
+    const stuck = site({
+      [AGENT]: [[200, OTHER]],
+      'POST /api/v1/admin/social/house/posts': [[409, {}]],
+    });
+    let clock = 0;
+    await expect(
+      ensureMediaDesk(CONTEXT, {
+        fetch: stuck.fake as unknown as typeof fetch,
+        sleep: async (ms) => {
+          clock += ms;
+        },
+        now: () => clock,
+      }),
+    ).rejects.toThrow("Couldn't make the media fixture's image post (409)");
+    expect(clock).toBe(90_000);
+  });
+
   it('name only a step and a status when something fails, never an answer', async () => {
     const answers: [string, Reply[], string][] = [
       [AGENT, [[500, { message: 'secret-text' }]], "Couldn't read the media fixture agent (500)"],
@@ -409,8 +492,8 @@ describe('the media fixture’s agent and desk', () => {
       ],
       [
         'POST /api/v1/admin/social/house/posts',
-        [[422, { message: 'secret-text' }]],
-        "Couldn't make the media fixture's image post (422)",
+        [[403, { message: 'secret-text' }]],
+        "Couldn't make the media fixture's image post (403)",
       ],
     ];
     for (const [key, queue, message] of answers) {

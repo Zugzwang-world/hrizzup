@@ -18,7 +18,7 @@ export function StoryPicture({ story, size }: { story: social.StoryTile; size: '
   // A hero is as wide as the page's text may be; a thumbnail is a few text-sized units wide, never wider than its tile.
   const box = hero
     ? 'w-full max-w-xl aspect-video'
-    : 'w-32 max-w-full shrink-0 @md:w-40 aspect-video';
+    : 'w-32 max-w-full shrink-0 self-start @md:w-40 aspect-video';
   const { picture } = story;
   if (picture === null) {
     const code = story.categories[0];

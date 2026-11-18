@@ -184,8 +184,18 @@ const story: SocialFixture = {
 /** What a post of the desk needs: its kind, its words and its request ID. */
 type Step = { kind: 'image' | 'video' | 'audio'; body: string; post: string };
 
+/** Whether a refusal may be another run's doing at the same moment (a conflict, a record already used, or a busy site): worth looking again. */
+const maybeAnotherRun = (status: number) => status === 409 || status === 422 || status >= 500;
+
+/** Asks `look` again every few seconds while it answers null, until the patience is spent: its answer, or null. */
+type Patiently = <T>(look: () => Promise<T | null>) => Promise<T | null>;
+
 /** The agent's ID: found by its public profile, or made through the console and read back from its own answer. */
-async function agentOf(context: SocialFixtureContext, send: typeof fetch): Promise<string> {
+async function agentOf(
+  context: SocialFixtureContext,
+  send: typeof fetch,
+  patiently: Patiently,
+): Promise<string> {
   const path = `/api/v1/social/agents/${MEDIA_FIXTURE_AGENT}`;
   /** An agent that is there must be an agent of the console's own, still posting (never a person's, never retired). */
   const there = (answer: Answer): string => {
@@ -215,10 +225,13 @@ async function agentOf(context: SocialFixtureContext, send: typeof fetch): Promi
     }
     return id;
   }
-  // Another run made it at the same moment (or the handle is taken): read it again, and it must be ours.
-  if (made.status === 409) {
-    const again = await call(context, send, 'GET', path);
-    if (again.status === 200) return there(again);
+  // Another run is making it at the same moment (or made it first): read it again until it is there, and it must be ours.
+  if (maybeAnotherRun(made.status)) {
+    const again = await patiently(async () => {
+      const read = await call(context, send, 'GET', path);
+      return read.status === 200 ? there(read) : null;
+    });
+    if (again !== null) return again;
   }
   throw new Error(`Couldn't make the media fixture agent (${made.status})`);
 }
@@ -245,21 +258,36 @@ export async function ensureMediaDesk(
     world.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   const now = world.now ?? Date.now;
 
-  const agentId = await agentOf(context, send);
-  const read = await call(
-    context,
-    send,
-    'GET',
-    `/api/v1/social/stories/${MEDIA_FIXTURE_STORY}/posts?sort=latest&limit=20`,
-  );
-  if (read.status !== 200 || !Array.isArray(read.body.posts)) {
-    throw new Error(`Couldn't read the media fixture story's desk (${read.status})`);
+  async function patiently<T>(look: () => Promise<T | null>): Promise<T | null> {
+    const started = now();
+    for (;;) {
+      const found = await look();
+      if (found !== null) return found;
+      if (now() - started >= GIVE_UP_MS) return null;
+      await sleep(WAIT_MS);
+    }
   }
-  const have = new Set(
-    (read.body.posts as { kind?: unknown; agent?: { handle?: unknown } }[])
-      .filter((post) => post.agent?.handle === MEDIA_FIXTURE_AGENT)
-      .map((post) => post.kind),
-  );
+
+  /** The kinds of post the fixture agent has on the desk. */
+  async function deskKinds(): Promise<Set<unknown>> {
+    const read = await call(
+      context,
+      send,
+      'GET',
+      `/api/v1/social/stories/${MEDIA_FIXTURE_STORY}/posts?sort=latest&limit=20`,
+    );
+    if (read.status !== 200 || !Array.isArray(read.body.posts)) {
+      throw new Error(`Couldn't read the media fixture story's desk (${read.status})`);
+    }
+    return new Set(
+      (read.body.posts as { kind?: unknown; agent?: { handle?: unknown } }[])
+        .filter((post) => post.agent?.handle === MEDIA_FIXTURE_AGENT)
+        .map((post) => post.kind),
+    );
+  }
+
+  const agentId = await agentOf(context, send, patiently);
+  const have = await deskKinds();
 
   /**
    * One file made ready: asked for, sent to its link and said done; its media's ID. A media that is already ready
@@ -411,7 +439,13 @@ export async function ensureMediaDesk(
       mediaId,
     });
     if (posted.status !== 200 && posted.status !== 201) {
-      throw new Error(`Couldn't make the media fixture's ${step.kind} post (${posted.status})`);
+      // Another run may have posted it at the same moment: look at the desk again, and take it when it is there.
+      const another =
+        maybeAnotherRun(posted.status) &&
+        (await patiently(async () => ((await deskKinds()).has(step.kind) ? true : null))) === true;
+      if (!another) {
+        throw new Error(`Couldn't make the media fixture's ${step.kind} post (${posted.status})`);
+      }
     }
   }
 }
