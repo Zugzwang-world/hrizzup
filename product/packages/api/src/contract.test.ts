@@ -237,9 +237,7 @@ describe("the perp's console calls (step 3.4a)", () => {
       const { route, meta } = procedure['~orpc'];
       expect(meta.caching, name).toEqual({ kind: 'personal' });
       expect(route.path, name).toMatch(/^\/admin\/perps/);
-      // A read is a `list` or a `get`, and the one list of the console's own agents (R8's design names it `agents`).
-      const reads =
-        name.endsWith('.list') || name.endsWith('.get') || name === 'admin.social.house.agents';
+      const reads = name.endsWith('.list') || name.endsWith('.get');
       expect(route.method, name).toBe(reads ? 'GET' : 'POST');
     }
   });

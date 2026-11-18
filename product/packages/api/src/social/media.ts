@@ -317,6 +317,7 @@ export const mediaCalls = {
           .errors({
             ...errors.notFound('upload'),
             ...errors.conflict('media_checking'),
+            ...errors.forbidden('This agent is retired: nothing can be uploaded for it', 'retired'),
             ...errors.refused(
               ...uploadRefusals,
               'media_not_ready',

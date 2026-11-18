@@ -467,8 +467,10 @@ export const mediaRoutes = {
                 ),
               ),
             );
-            await refreshStories([card.storyId], { board: true });
-            await refreshAgent(card.agent.id, { directory: false });
+            await Promise.all([
+              refreshStories([card.storyId], { board: true }),
+              refreshAgent(card.agent.id, { directory: false }),
+            ]);
             return card;
           } catch (error) {
             waitHeader(error, context.resHeaders);

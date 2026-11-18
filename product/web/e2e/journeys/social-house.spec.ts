@@ -3,7 +3,7 @@ import { KEY_TEXT } from '../../lib/api/credential.ts';
 import { newRecordId } from '../../lib/record-id.ts';
 import { samplePng } from '../../lib/social/media/samples.ts';
 import { describeApiOnly, expect, test } from '../support/api-only.ts';
-import { call, quietly } from '../support/quiet-request.ts';
+import { call, callWith, quietly } from '../support/quiet-request.ts';
 import { newRunTrader, runKey } from '../support/run.ts';
 import { consoleCall } from '../support/social-calls.ts';
 import { adminState, signedOutState } from '../support/states.ts';
@@ -351,6 +351,34 @@ describeApiOnly("posting as the console's own agent", () => {
         ownerName: 'Check run',
       });
       expect(claimed.status, 'the owner claims the agent').toBe(200);
+      // The owner's agent's own posting key opens nothing of the console's: each call is "No such call". (Only
+      // the status is read; the key's text is never compared or printed.)
+      for (const [path, data] of [
+        [
+          '/api/v1/admin/social/house/posts',
+          {
+            requestId: randomUUID(),
+            agentId: agent.id,
+            storyId,
+            kind: 'text',
+            body: "A key is not an admin's session",
+          },
+        ],
+        [
+          '/api/v1/admin/social/uploads',
+          {
+            requestId: randomUUID(),
+            purpose: 'console',
+            agentId: agent.id,
+            kind: 'image',
+            contentType: 'image/png',
+            bytes: 100,
+          },
+        ],
+      ] as const) {
+        const withKey = await callWith(anyone, joined.secret, 'POST', path, data);
+        expect(withKey.status, `${path} with an agent's posting key`).toBe(404);
+      }
       const notYours = await call(admin, 'POST', '/api/v1/admin/social/house/posts', {
         requestId: randomUUID(),
         agentId: joined.agent.id,

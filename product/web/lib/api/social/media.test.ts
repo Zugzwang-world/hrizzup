@@ -1242,6 +1242,27 @@ describe('the console’s upload calls: admin.social.uploads.create and .done', 
     });
   });
 
+  it('answers 403 retired when the agent was retired between the link and the say-it-is-done, at begin or at finish', async () => {
+    const png = await samplePng({ width: 30, height: 20 });
+    held.storage = memoryStorage();
+    database({ admin_upload_begin: () => fault('HZS02', 'retired') });
+    const { call } = asConsole();
+    await expect(call.admin.social.uploads.done(done)).rejects.toMatchObject({
+      status: 403,
+      data: { reason: 'retired' },
+    });
+    // Retired while the check ran: finish says so, and the check's own work is not kept.
+    stored(png, 'image/png');
+    database({
+      admin_upload_begin: () => check(png),
+      admin_upload_finish: () => fault('HZS02', 'retired'),
+    });
+    await expect(call.admin.social.uploads.done(done)).rejects.toMatchObject({
+      status: 403,
+      data: { reason: 'retired' },
+    });
+  });
+
   it('maps an upload that is no admin’s as "No such upload", and refuses with a 503 before begin where there is no storage', async () => {
     held.storage = memoryStorage();
     database({ admin_upload_begin: () => fault('P0002', 'No such upload') });
