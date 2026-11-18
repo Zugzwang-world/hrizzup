@@ -18,8 +18,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * with the database stood in for by answers in the forms the database and the packages write times
  * in (`…30Z`, `….3Z`, `….123456Z`). The printer itself, and every call that prints a time, are
  * tested with no website in product/packages/api/src/times.test.ts; real answers in the packages'
- * *.db.test.ts. Social's calls, left as they are until social adopts the printer, are in
- * times-social.test.ts.
+ * *.db.test.ts. Social's calls are printed the same way (since 18 November 2026, R5's M7); the
+ * live ones are in times-social.test.ts.
  */
 
 const signedIn = vi.fn();
@@ -240,6 +240,8 @@ describe('the real database covers every published call that prints a time', () 
     const published = procedures(contract)
       .filter(
         ([name, call]) =>
+          // The markets' and perps' packages' tests: social's real answers are the journeys' (they
+          // are printed like these, but no package's *.db.test.ts here runs them).
           !isSocialCall(name.split('.')) &&
           isPublished(name.split('.'), call) &&
           timePlan(call['~orpc'].outputSchema).paths.length > 0,

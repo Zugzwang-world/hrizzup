@@ -311,7 +311,7 @@ describe('one story', () => {
     expect(resHeaders.get('Vercel-CDN-Cache-Control')).toBeNull();
   });
 
-  it('leaves its times exactly as the database wrote them: the printer of the market API’s times is not social’s', async () => {
+  it('prints its times with three decimals, whatever form the database wrote them in: the market API’s printer is social’s too', async () => {
     const written = {
       created_at: '2026-11-03T10:15:00.123456Z',
       latest_at: '2026-11-04T05:20:00Z',
@@ -325,9 +325,10 @@ describe('one story', () => {
     const { api: called } = api();
     const story = await called.social.stories.get({ id: SURVIVOR });
     if (story.state !== 'live') throw new Error('The story is live');
-    expect(story.createdAt).toBe('2026-11-03T10:15:00.123456Z');
-    expect(story.latestAt).toBe('2026-11-04T05:20:00Z');
-    expect(story.updates[0]?.reportedAt).toBe('2026-11-03T03:50:00.5Z');
+    // Cut at the third decimal, never rounded; padded when there are fewer.
+    expect(story.createdAt).toBe('2026-11-03T10:15:00.123Z');
+    expect(story.latestAt).toBe('2026-11-04T05:20:00.000Z');
+    expect(story.updates[0]?.reportedAt).toBe('2026-11-03T03:50:00.500Z');
   });
 
   it('stays a 500 for a state the database never answers (a story is never answered as merged)', async () => {

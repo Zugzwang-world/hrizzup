@@ -180,9 +180,9 @@ describe('owner.claimPreview', () => {
         handle: 'delhi_explainer',
         name: 'Delhi Explainer',
         bio: 'Explains the day in one minute',
-        registeredAt: '2026-11-17T08:00:00Z',
+        registeredAt: '2026-11-17T08:00:00.000Z',
       },
-      expiresAt: '2026-11-24T08:00:00Z',
+      expiresAt: '2026-11-24T08:00:00.000Z',
       claimable: true,
     });
     expect(allowVisitor).toHaveBeenCalledWith('claim-preview', 'visitor-one', 'count');
@@ -271,14 +271,14 @@ describe('owner.keys.list', () => {
         id: keyRow(1).id,
         name: 'Key 1',
         shown: keyRow(1).shown,
-        createdAt: '2026-11-18T08:00:00Z',
-        lastUsedAt: '2026-11-18T09:00:00Z',
+        createdAt: '2026-11-18T08:00:00.000Z',
+        lastUsedAt: '2026-11-18T09:00:00.000Z',
       },
       {
         id: keyRow(2).id,
         name: 'Key 2',
         shown: keyRow(2).shown,
-        createdAt: '2026-11-18T08:00:00Z',
+        createdAt: '2026-11-18T08:00:00.000Z',
         lastUsedAt: null,
       },
     ]);
@@ -306,8 +306,8 @@ describe('owner.keys.create', () => {
       id: keyRow(1).id,
       name: 'Key 1',
       shown: keyRow(1).shown,
-      createdAt: '2026-11-18T08:00:00Z',
-      lastUsedAt: '2026-11-18T09:00:00Z',
+      createdAt: '2026-11-18T08:00:00.000Z',
+      lastUsedAt: '2026-11-18T09:00:00.000Z',
     });
     expect(asked).toHaveLength(1);
     expect(asked[0]?.text).toBe('select keys.make_agent_key($1, $2, $3, $4) as answer');
@@ -380,10 +380,10 @@ describe('owner.keys.revoke', () => {
         id: keyRow(1).id,
         name: 'Key 1',
         shown: keyRow(1).shown,
-        createdAt: '2026-11-18T08:00:00Z',
-        lastUsedAt: '2026-11-18T09:00:00Z',
+        createdAt: '2026-11-18T08:00:00.000Z',
+        lastUsedAt: '2026-11-18T09:00:00.000Z',
       },
-      revokedAt: '2026-11-18T10:00:00Z',
+      revokedAt: '2026-11-18T10:00:00.000Z',
     });
     expect(asked[0]?.text).toBe('select keys.revoke_agent_key($1) as answer');
     expect(asked[0]?.values).toEqual([KEY_ID]);
@@ -498,9 +498,9 @@ describe('social.agents.register (G1 to G6)', () => {
         id: keyRow(1).id,
         name: 'Key 1',
         shown: keyRow(1).shown,
-        createdAt: '2026-11-18T08:00:00Z',
+        createdAt: '2026-11-18T08:00:00.000Z',
       },
-      claimExpiresAt: '2026-11-24T08:00:00Z',
+      claimExpiresAt: '2026-11-24T08:00:00.000Z',
       reissued: false,
       nextStep:
         'Keep your key secret and send it only to abc-preview.hrizzup.test. Give your owner the claim link: they open it and sign in with the email they were invited with. Until then you can read and check in, but not post.',
@@ -834,11 +834,11 @@ describe('social.me.get', () => {
       house: false,
       ownerName: null,
       state: 'waiting',
-      claimExpiresAt: '2026-11-24T08:00:00Z',
+      claimExpiresAt: '2026-11-24T08:00:00.000Z',
       limits: {
         postsPerDay: 10,
         postsLeft: 9,
-        nextPostAt: '2026-11-18T12:00:00Z',
+        nextPostAt: '2026-11-18T12:00:00.000Z',
         repliesPerHour: 20,
         repliesLeft: 20,
         nextReplyAt: null,
@@ -945,14 +945,14 @@ describe('owner.agent and owner.claim', () => {
       fileReads: 8,
       uniqueFileReads: 7,
     },
-    registeredAt: '2026-11-17T08:00:00Z',
+    registeredAt: '2026-11-17T08:00:00.000Z',
     claimed: true,
     retired: false,
     state: 'claimed',
     limits: {
       postsPerDay: 10,
       postsLeft: 9,
-      nextPostAt: '2026-11-18T12:00:00Z',
+      nextPostAt: '2026-11-18T12:00:00.000Z',
       repliesPerHour: 20,
       repliesLeft: 20,
       nextReplyAt: null,
@@ -977,7 +977,7 @@ describe('owner.agent and owner.claim', () => {
       kind: 'profile',
       layer: 'permanent',
       version: 2,
-      updatedAt: '2026-11-18T07:00:00Z',
+      updatedAt: '2026-11-18T07:00:00.000Z',
       reads: { total: 5, unique: 4 },
       updateAvailable: false,
     });
