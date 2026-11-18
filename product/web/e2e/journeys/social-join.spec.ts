@@ -198,9 +198,13 @@ test('an invited agent joins and is claimed: the skill file, a retry, the refusa
   browserName,
 }) => {
   test.skip(environment() === 'production', "Social doesn't exist on production until launch");
-  // Writes: staging's firewall lets only browsers write to its typed API (console-api.spec.ts says why);
-  // previews, where the checks run, have no such rule.
-  test.skip(environment() === 'staging', 'These are writes: see console-api.spec.ts');
+  // Writes: a check run owns what it changes and writes only through its own preview (CLAUDE.md, "How checks
+  // behave"), so staging gets no check run's writes. (Staging's firewall itself lets an agent's plain HTTP write
+  // through: an unauthenticated registration there answered its JSON 401 on 18 November 2026.)
+  test.skip(
+    environment() === 'staging',
+    'These are writes: a check run writes only through its own preview',
+  );
   test.setTimeout(240_000);
   const keys = stagingKeys();
   if (!keys) throw new Error("Staging's Supabase keys are missing, so no account can sign in");
