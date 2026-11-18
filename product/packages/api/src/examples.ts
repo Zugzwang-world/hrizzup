@@ -25,13 +25,15 @@ import type {
   PerpTradeResult,
   RuleChange,
 } from './perps.ts';
-import type {
-  CancelOrderResult,
-  MarketList,
-  MyTradesPage,
-  OrdersPage,
-  PositionsPage,
-  TradeResult,
+import { printedTime, printTimes } from './times.ts';
+import {
+  type CancelOrderResult,
+  type MarketList,
+  type MyTradesPage,
+  marketRecord,
+  type OrdersPage,
+  type PositionsPage,
+  type TradeResult,
 } from './trading.ts';
 
 /**
@@ -39,6 +41,10 @@ import type {
  * 4b) and for the stand-in implementation (stand-in.ts). Content always comes from the
  * hand-over agreement's own examples (agreement/examples), typed by the agreement's generated
  * types; the tests check every one of them against the agreement's validators.
+ *
+ * Every example answer of a call but social's has its times as the API prints them, with three
+ * decimals (times.ts): the examples are what the API answers. The agreement's records are printed
+ * in code below (`content` and agreement/examples keep the agreement's own form).
  */
 
 export const health: Health = {
@@ -46,7 +52,7 @@ export const health: Health = {
   environment: 'staging',
   region: 'bom1',
   commit: '0000000000000000000000000000000000000000',
-  checkedAt: '2026-11-08T09:30:00Z',
+  checkedAt: '2026-11-08T09:30:00.000Z',
   services: { database: 'ok', redis: 'ok', storage: 'ok', auth: 'ok' },
 };
 
@@ -69,7 +75,7 @@ export const apiKey: ApiKey = {
   name: 'My trading bot',
   scope: 'trade',
   shown: 'hz_demo_Exam',
-  createdAt: '2026-11-11T09:30:00Z',
+  createdAt: '2026-11-11T09:30:00.000Z',
   lastUsedAt: null,
 };
 
@@ -80,7 +86,7 @@ export const createdKey: CreatedKey = {
   secret: `hz_demo_Exam${'0'.repeat(39)}`,
 };
 
-export const revokedKey: RevokedKey = { key: apiKey, revokedAt: '2026-11-11T09:45:00Z' };
+export const revokedKey: RevokedKey = { key: apiKey, revokedAt: '2026-11-11T09:45:00.000Z' };
 
 export const me: Me = {
   id: '0196f1c8-7a2b-7c3d-8e4f-5a6b7c8d9e0f',
@@ -104,6 +110,9 @@ export const content: { [F in Format]: readonly Shapes[F][] } = {
 const [market] = markets as unknown as Market[];
 if (!market) throw new Error("The agreement's examples hold no market");
 
+/** An agreement record as the API prints it: its times with three decimals. */
+const printed = (record: Market): Market => printTimes(marketRecord, record);
+
 /**
  * A market as the market console shows it: the agreement's first example market (a test market
  * with a placeholder question, open, settled by hand), with the trading state and the log the
@@ -117,12 +126,12 @@ export const consoleMarketWithLog: ConsoleMarketWithLog = {
   rules: market.rules,
   source: market.source,
   settlement: market.settlement,
-  opensAt: market.opens_at,
-  closesAt: market.closes_at,
+  opensAt: printedTime(market.opens_at),
+  closesAt: printedTime(market.closes_at),
   state: market.state,
   result: null,
-  createdAt: market.created_at,
-  updatedAt: market.updated_at,
+  createdAt: printedTime(market.created_at),
+  updatedAt: printedTime(market.updated_at),
   createdBy: { id: me.id, email: me.email },
   startingProbability: '0.50000000',
   seed: '1000.000000',
@@ -135,14 +144,14 @@ export const consoleMarketWithLog: ConsoleMarketWithLog = {
     {
       id: 1,
       action: 'create',
-      at: market.created_at,
+      at: printedTime(market.created_at),
       by: { id: me.id, email: me.email },
       settlement: null,
     },
     {
       id: 2,
       action: 'open',
-      at: market.opens_at,
+      at: printedTime(market.opens_at),
       by: { id: me.id, email: me.email },
       settlement: null,
     },
@@ -175,7 +184,7 @@ export const tradeResult: TradeResult = {
   probAfter: '0.51234380',
   balance: '975.000000',
   position: { yes: '49.390243', no: '0.000000' },
-  at: '2026-11-09T07:15:00Z',
+  at: '2026-11-09T07:15:00.000Z',
 };
 
 /** Their limit order: Ṁ10 more of Yes, only while the market is at 40% or lower. It rests. */
@@ -193,7 +202,7 @@ export const restingOrder: TradeResult = {
   probAfter: '0.51234380',
   balance: '975.000000',
   position: { yes: '49.390243', no: '0.000000' },
-  at: '2026-11-09T07:20:00Z',
+  at: '2026-11-09T07:20:00.000Z',
 };
 
 /** And their cancel of it. */
@@ -213,7 +222,7 @@ export const marketList: MarketList = {
     .filter((record) => record.state !== 'draft')
     .sort((a, b) => (a.id < b.id ? 1 : a.id > b.id ? -1 : 0))
     .map((record) => ({
-      market: record,
+      market: printed(record),
       probability:
         record.kind !== 'yes_no' || (record.state !== 'open' && record.state !== 'closed')
           ? null
@@ -244,16 +253,16 @@ export const marketQuote: MarketQuote = {
   probBefore: tradeResult.probBefore,
   probAfter: tradeResult.probAfter,
   payout: tradeResult.shares,
-  at: '2026-11-09T07:14:55Z',
+  at: '2026-11-09T07:14:55.000Z',
 };
 
 /** The example market's history: its starting chance, then the trade, then the resting order. */
 export const marketHistory: MarketHistory = {
   marketId: market.id,
   range: 'all',
-  from: market.opens_at,
+  from: printedTime(market.opens_at),
   points: [
-    { at: market.opens_at, probability: '0.50000000' },
+    { at: printedTime(market.opens_at), probability: '0.50000000' },
     { at: tradeResult.at, probability: tradeResult.probAfter },
     { at: restingOrder.at, probability: restingOrder.probAfter },
   ],
@@ -337,7 +346,7 @@ export const myTradesPage: MyTradesPage = {
 export const dryRunResult: TradeResult = {
   ...tradeResult,
   tradeId: '00000000-0000-0000-0000-000000000000',
-  at: '2026-11-09T07:14:58Z',
+  at: '2026-11-09T07:14:58.000Z',
   dryRun: true,
 };
 
@@ -349,7 +358,7 @@ export const positionsPage: PositionsPage = {
       marketId: market.id,
       question: market.question,
       state: market.state,
-      closesAt: market.closes_at,
+      closesAt: printedTime(market.closes_at),
       yes: tradeResult.position.yes,
       no: tradeResult.position.no,
       probability: tradeResult.probAfter,
@@ -384,6 +393,8 @@ export const ordersPage: OrdersPage = {
  * no price applied yet, and its first rules in the rule-change log, from the migration.
  */
 const perpMadeAt = '2026-11-10T10:30:00Z';
+// `perpMadeAt` stays as the database writes it, since the log's `funding_from` line is the database's
+// own text (free text, never printed over); the time fields below take it printed.
 const firstRules: [RuleChange['rule'], string][] = [
   ['created', 'Bitcoin price (US dollars)'],
   [
@@ -423,17 +434,17 @@ export const consolePerpWithLog: ConsolePerpWithLog = {
   },
   price: null,
   priceAt: null,
-  fundingFrom: perpMadeAt,
+  fundingFrom: printedTime(perpMadeAt),
   lastFundingAt: null,
   pausedReason: null,
   pools: { long: '25000.000000', short: '25000.000000' },
   openInterest: { long: '0', short: '0' },
   openPositions: 0,
-  createdAt: perpMadeAt,
-  updatedAt: perpMadeAt,
+  createdAt: printedTime(perpMadeAt),
+  updatedAt: printedTime(perpMadeAt),
   createdBy: null,
   standIn: {
-    origin: '2026-01-01T00:00:00Z',
+    origin: '2026-01-01T00:00:00.000Z',
     startPrice: '100000',
     volatility: '0.55',
     ownSeed: false,
@@ -442,7 +453,7 @@ export const consolePerpWithLog: ConsolePerpWithLog = {
   retiredAt: null,
   log: firstRules.map(([rule, newValue], index) => ({
     id: index + 1,
-    at: perpMadeAt,
+    at: printedTime(perpMadeAt),
     by: null,
     rule,
     oldValue: null,
@@ -469,7 +480,7 @@ export const perpOpened: PerpTradeResult = {
   placedAt: '2026-11-10T10:59:57.512Z',
   at: '2026-11-10T11:00:00.120Z',
   price: '101234.56',
-  priceAt: '2026-11-10T11:00:00Z',
+  priceAt: '2026-11-10T11:00:00.000Z',
   margin: '100.000000',
   fee: '1.000000',
   payout: '0.000000',
@@ -483,8 +494,8 @@ export const perpOpened: PerpTradeResult = {
     leverage: '10',
     liquidationPrice: '91111.104',
     feesPaid: '1',
-    openedAt: '2026-11-10T11:00:00.12Z',
-    updatedAt: '2026-11-10T11:00:00.12Z',
+    openedAt: '2026-11-10T11:00:00.120Z',
+    updatedAt: '2026-11-10T11:00:00.120Z',
   },
   balance: '899.000000',
 };
@@ -496,7 +507,7 @@ export const perpClosed: PerpTradeResult = {
   placedAt: '2026-11-10T10:59:59.003Z',
   at: '2026-11-10T11:01:00.150Z',
   price: '102000',
-  priceAt: '2026-11-10T11:01:00Z',
+  priceAt: '2026-11-10T11:01:00.000Z',
   margin: '0.000000',
   fee: '0.000000',
   payout: '107.561054',
@@ -514,17 +525,17 @@ export const perpDetails: PerpDetails = {
   feed: consolePerpWithLog.feed,
   settings: consolePerpWithLog.settings,
   price: '101500',
-  priceAt: '2026-11-10T11:00:30Z',
-  nextPriceAt: '2026-11-10T11:00:35Z',
+  priceAt: '2026-11-10T11:00:30.000Z',
+  nextPriceAt: '2026-11-10T11:00:35.000Z',
   bookPrice: '101500',
-  bookPriceAt: '2026-11-10T11:00:30Z',
+  bookPriceAt: '2026-11-10T11:00:30.000Z',
   pausedReason: null,
   pools: { long: '25101.000000', short: '25000.000000' },
   openInterest: { long: '1000', short: '0' },
   openPositions: 1,
   fundingRate: '0',
   lastFundingAt: null,
-  nextFundingAt: '2026-11-10T11:30:00Z',
+  nextFundingAt: '2026-11-10T11:30:00.000Z',
 };
 
 /** The quote the example person saw before opening: at $101,200, a moment before the next price. */
@@ -537,7 +548,7 @@ export const perpQuote: PerpQuote = {
   fee: '1.000000',
   cost: '101.000000',
   price: '101200',
-  priceAt: '2026-11-10T10:59:55Z',
+  priceAt: '2026-11-10T10:59:55.000Z',
   liquidationPrice: '91080',
   at: '2026-11-10T10:59:57.000Z',
 };
@@ -546,7 +557,7 @@ export const perpQuote: PerpQuote = {
 export const price: Price = {
   feed: 'btc-usd',
   price: '101200.00',
-  at: '2026-11-10T10:59:55Z',
+  at: '2026-11-10T10:59:55.000Z',
   sources: 3,
   publishedAt: '2026-11-10T10:59:55.412Z',
 };
@@ -555,10 +566,10 @@ export const price: Price = {
 export const priceHistory: PriceHistory = {
   feed: 'btc-usd',
   range: '1h',
-  from: '2026-11-10T09:59:57Z',
+  from: '2026-11-10T09:59:57.000Z',
   points: [
-    { at: '2026-11-10T10:59:45Z', price: '101180.50' },
-    { at: '2026-11-10T10:59:50Z', price: '101192.25' },
+    { at: '2026-11-10T10:59:45.000Z', price: '101180.50' },
+    { at: '2026-11-10T10:59:50.000Z', price: '101192.25' },
     { at: price.at, price: price.price },
   ],
 };

@@ -105,6 +105,17 @@ export { isPublished, isSocialCall, procedures } from './procedures.ts';
 // Social's shapes, types and areas (docs/social/build.md): `social.StoryTile`, `social.joinAreas`…
 export * as social from './social/index.ts';
 export {
+  FREE_TEXT_PATHS,
+  mapTimes,
+  PRINTED_TIME,
+  printedTime,
+  printingProblems,
+  printTimes,
+  type TimePlan,
+  timePlan,
+  timesIn,
+} from './times.ts';
+export {
   type CancelOrderInput,
   type CancelOrderResult,
   DRY_RUN_TRADE_ID,

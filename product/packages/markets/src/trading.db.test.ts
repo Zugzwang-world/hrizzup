@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { CreateMarketInput, TradeInput } from '@hrizzup/api';
-import { contract } from '@hrizzup/api';
+import { contract, printingProblems, printTimes } from '@hrizzup/api';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { closeMarket, createMarket, openMarket, settleMarket } from './console.ts';
@@ -112,13 +112,21 @@ async function balanceOf(userId: string): Promise<string> {
   return (await positions(app, userId)).balance;
 }
 
-/** The contract's own check of a call's answer. */
+/**
+ * The contract's own check of a call's answer, and of the answer as the API prints it: every time
+ * with three decimals, the one it was cut from, nothing else touched, and still a valid answer.
+ */
 async function passes(
   schema: { '~standard': { validate: (value: unknown) => unknown } },
   value: unknown,
 ) {
   const result = (await schema['~standard'].validate(value)) as { issues?: unknown[] };
   expect(result.issues, JSON.stringify(result.issues)).toBeUndefined();
+  expect(printingProblems(schema, value)).toEqual([]);
+  const printed = (await schema['~standard'].validate(printTimes(schema, value))) as {
+    issues?: unknown[];
+  };
+  expect(printed.issues, JSON.stringify(printed.issues)).toBeUndefined();
 }
 
 const outputOf = (procedure: { '~orpc': { outputSchema?: unknown } }) =>
@@ -162,6 +170,35 @@ describe('the list anyone may see', () => {
     const after = await marketList(app, { after: newer });
     expect(after.markets.map((item) => item.market.id)).toContain(older);
     expect(after.markets.map((item) => item.market.id)).not.toContain(newer);
+  });
+
+  it('prints a closing time given to the second, and one given to a tenth of a second, with three decimals', async () => {
+    const second = Math.floor(Date.now() / 1000) * 1000 + 172_800_000;
+    const whole = await createMarket(
+      app,
+      ADMIN,
+      draft({ closesAt: new Date(second).toISOString().replace('.000Z', 'Z') }),
+    );
+    const tenth = await createMarket(
+      app,
+      ADMIN,
+      draft({ closesAt: new Date(second + 300).toISOString().replace('00Z', 'Z') }),
+    );
+    await openMarket(app, ADMIN, whole.id);
+    await openMarket(app, ADMIN, tenth.id);
+    const page = await marketList(app);
+    await passes(outputOf(contract.markets.list), page);
+    const printed = printTimes(outputOf(contract.markets.list), page);
+    for (const [id, closes] of [
+      [whole.id, second],
+      [tenth.id, second + 300],
+    ] as const) {
+      const listed = page.markets.find((item) => item.market.id === id);
+      expect(Date.parse(listed?.market.closes_at ?? '')).toBe(closes);
+      expect(printed.markets.find((item) => item.market.id === id)?.market.closes_at).toBe(
+        new Date(closes).toISOString(),
+      );
+    }
   });
 
   it("shows a trade's new probability, and a settled market's result with none", async () => {
@@ -223,8 +260,12 @@ describe('trading', () => {
     expect(Number(bought.shares)).toBeGreaterThan(25);
     expect(bought.position.yes).toBe(bought.shares);
 
-    // The same request again: the first answer, and no second trade.
-    await expect(placeTrade(app, trader, request)).resolves.toEqual(bought);
+    // The same request again: the first answer, and no second trade; the API prints it exactly as the first.
+    const retried = await placeTrade(app, trader, request);
+    expect(retried).toEqual(bought);
+    expect(printTimes(outputOf(contract.markets.trade), retried)).toEqual(
+      printTimes(outputOf(contract.markets.trade), bought),
+    );
     expect(await balanceOf(trader)).toBe('75.000000');
 
     const sold = await placeTrade(app, trader, {

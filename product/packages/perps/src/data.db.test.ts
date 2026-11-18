@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { contract } from '@hrizzup/api';
+import { contract, printingProblems, printTimes } from '@hrizzup/api';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createTestPerp, setPerpMode } from './console.ts';
@@ -105,6 +105,12 @@ async function passes(
 ) {
   const result = (await schema['~standard'].validate(value)) as { issues?: unknown[] };
   expect(result.issues, JSON.stringify(result.issues)).toBeUndefined();
+  // As the API prints it: every time with three decimals, the one it was cut from, nothing else touched.
+  expect(printingProblems(schema, value)).toEqual([]);
+  const printed = (await schema['~standard'].validate(printTimes(schema, value))) as {
+    issues?: unknown[];
+  };
+  expect(printed.issues, JSON.stringify(printed.issues)).toBeUndefined();
 }
 
 const outputOf = (procedure: { '~orpc': { outputSchema?: unknown } }) =>

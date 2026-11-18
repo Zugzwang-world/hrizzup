@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { CreateMarketInput, MarketQuoteInput, TradeInput } from '@hrizzup/api';
-import { contract } from '@hrizzup/api';
+import { contract, printingProblems, printTimes } from '@hrizzup/api';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { closeMarket, createMarket, openMarket } from './console.ts';
@@ -80,13 +80,21 @@ async function person(starting: string): Promise<string> {
   return userId;
 }
 
-/** The contract's own check of a call's answer. */
+/**
+ * The contract's own check of a call's answer, and of the answer as the API prints it: every time
+ * with three decimals, the one it was cut from, nothing else touched, and still a valid answer.
+ */
 async function passes(procedure: { '~orpc': { outputSchema?: unknown } }, value: unknown) {
   const schema = procedure['~orpc'].outputSchema as {
     '~standard': { validate: (value: unknown) => unknown };
   };
   const result = (await schema['~standard'].validate(value)) as { issues?: unknown[] };
   expect(result.issues, JSON.stringify(result.issues)).toBeUndefined();
+  expect(printingProblems(schema, value)).toEqual([]);
+  const printed = (await schema['~standard'].validate(printTimes(schema, value))) as {
+    issues?: unknown[];
+  };
+  expect(printed.issues, JSON.stringify(printed.issues)).toBeUndefined();
 }
 
 async function heldShares(userId: string, marketId: string) {
@@ -138,6 +146,11 @@ describe('the market reads', () => {
       no: [{ limitProb: '0.80000000', amount: '10.000000', orders: 1 }],
     });
 
+    // A quote for Ṁ5 more of Yes, written nothing, with its time printed like the others'.
+    const quoted = await marketQuote(app, { id, outcome: 'yes', amount: '5' });
+    await passes(contract.markets.quote, quoted);
+    expect(quoted).toMatchObject({ marketId: id, outcome: 'yes' });
+
     const trades = await marketTrades(app, id);
     await passes(contract.markets.trades, trades);
     expect(trades.trades).toEqual([
@@ -168,6 +181,26 @@ describe('the market reads', () => {
       requestId: randomUUID(),
     });
     expect((await marketBook(app, id)).no).toEqual([]);
+  });
+
+  it('print a closing time given to the second, and one given to a tenth of a second, with three decimals', async () => {
+    const second = Math.floor(Date.now() / 1000) * 1000 + 172_800_000;
+    const to = {
+      whole: new Date(second).toISOString().replace('.000Z', 'Z'),
+      tenth: new Date(second + 300).toISOString().replace('00Z', 'Z'),
+    };
+    expect(to.whole).toMatch(/:\d\dZ$/);
+    expect(to.tenth).toMatch(/\.\dZ$/);
+    const schema = contract.markets.get['~orpc'].outputSchema;
+    for (const [closesAt, printed] of [
+      [to.whole, new Date(second).toISOString()],
+      [to.tenth, new Date(second + 300).toISOString()],
+    ] as const) {
+      const shown = await oneMarket(app, await openedMarket({ closesAt }));
+      await passes(contract.markets.get, shown);
+      expect(Date.parse(shown.market.closes_at)).toBe(Date.parse(closesAt));
+      expect(printTimes(schema, shown).market.closes_at).toBe(printed);
+    }
   });
 
   it('page through the latest trades, newest first, with the cursor each page gives', async () => {
