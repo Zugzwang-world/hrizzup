@@ -319,7 +319,7 @@ const ALLOWANCES = parseAllowances(ALLOWANCE_FILE);
  * the numbers' sizes are the file's: a page's own, and the pooled ones for a page it doesn't list.
  */
 const FIXED: Allowances = {
-  fiveComparisonAverage: { busyMs: 33, loadMs: 22 },
+  fiveComparisonAverage: { busyMs: 36, loadMs: 24 },
   pooled: { busyMs: 184, loadMs: 1200, shift: 0.005, codeBytes: 819, totalBytes: 15974 },
   pages: {
     '/': { busyMs: 178, loadMs: 80, shift: 0.005, codeBytes: 512, totalBytes: 1024 },
@@ -664,7 +664,7 @@ describe('comparing one machine with three', () => {
     const three = names.map((path) => moved(path, { blockingMs: 40, loadMs: 30 }));
     const result = compareRuns(one, three, FIXED);
     expect(result.clean).toBe(true); // every page is within its allowance
-    expect(result.averages).toEqual({ busyMs: 40, loadMs: 30 }); // and the average is past 33 and 22
+    expect(result.averages).toEqual({ busyMs: 40, loadMs: 30 }); // and the average is past 36 and 24
     expect(result.averages.busyMs).toBeGreaterThan(FIXED.fiveComparisonAverage.busyMs);
     expect(result.averages.loadMs).toBeGreaterThan(FIXED.fiveComparisonAverage.loadMs);
   });

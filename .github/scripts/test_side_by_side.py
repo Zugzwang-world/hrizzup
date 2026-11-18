@@ -34,7 +34,7 @@ import side_by_side as sbs
 from test_screen_parts import REQUIRED, job_name, jobs, read, steps
 
 CLEAN, NOT_CLEAN = sbs.NAMES["speed"]
-LIMITS = {"busyMs": 33, "loadMs": 22}
+LIMITS = {"busyMs": 36, "loadMs": 24}
 
 
 def zipped(record, name="comparison.json"):
@@ -269,13 +269,13 @@ class TheRow(unittest.TestCase):
 
     def test_the_five_comparison_average_is_each_pull_requests_own_mean_then_the_mean_of_the_five(self):
         # One pull request has three records (busy +45, +45, +45), the other four have one each (busy 0):
-        # weighted by pull request the mean is 9 ms; by record it would be 19.3 ms (outside 33? no: inside).
+        # weighted by pull request the mean is 9 ms; by record it would be 19.3 ms (inside 36 either way).
         items = [item("pr-a", rec(1, busy=45.0, load=10.0), 20), item("pr-a", rec(1, busy=45.0, load=10.0), 19),
                  item("pr-a", rec(1, busy=45.0, load=10.0), 18)]
         items += [item(f"pr-{n}", rec(10 + n, busy=0.0, load=0.0), 10 + n) for n in range(4)]
         text, count, _ = self.tally(FakeGitHub(items))
         self.assertEqual(count, 5)
-        self.assertIn("busy +9.0 ms (limit +/-33 ms), load +2.0 ms (limit +/-22 ms): **within its limits**", text)
+        self.assertIn("busy +9.0 ms (limit +/-36 ms), load +2.0 ms (limit +/-24 ms): **within its limits**", text)
 
     def test_an_average_outside_the_limits_says_so_and_names_the_numbers(self):
         for field, value in (("busy", 40.0), ("load", -25.0)):
@@ -288,7 +288,7 @@ class TheRow(unittest.TestCase):
         self.assertIn("**outside its limits:** busy time and load.", self.tally(FakeGitHub(both))[0])
 
     def test_a_limit_is_inside_at_exactly_the_limit_and_the_sign_doesnt_matter(self):
-        items = [item(f"pr-{n}", rec(10 + n, busy=-33.0, load=22.0), 10 + n) for n in range(5)]
+        items = [item(f"pr-{n}", rec(10 + n, busy=-36.0, load=24.0), 10 + n) for n in range(5)]
         self.assertIn("**within its limits**", self.tally(FakeGitHub(items))[0])
 
     def test_a_branch_whose_records_carry_two_pull_request_numbers_is_reported_and_the_average_isnt_checked(self):
@@ -604,7 +604,7 @@ class TheGitHubClient(unittest.TestCase):
     def test_the_limits_file_must_have_the_five_comparison_limits(self):
         with tempfile.TemporaryDirectory() as folder:
             path = os.path.join(folder, "allowances.json")
-            for content in (None, "[]", {"fiveComparisonAverage": {"busyMs": 33}}, {"fiveComparisonAverage": []}):
+            for content in (None, "[]", {"fiveComparisonAverage": {"busyMs": 36}}, {"fiveComparisonAverage": []}):
                 if content is not None:
                     with open(path, "w") as f:
                         json.dump(content, f)
