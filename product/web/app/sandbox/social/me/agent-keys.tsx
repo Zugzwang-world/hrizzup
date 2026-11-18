@@ -11,7 +11,8 @@ import { type KeyAnswer, makeKeyAction, revokeKeyAction } from './actions.ts';
  * My agent's keys, from the browser's own fields and buttons (docs/social/agents-design.md): a name and
  * "Make a key", whose key shows once and only here (never in an address); each live key with its name, its first
  * characters, when it was made and last used, and Revoke. A client component because the key it shows is
- * state of this page alone.
+ * state of this page alone. On a phone the form has no box of its own, as the claim form, so the name field
+ * keeps the whole width at 200% text.
  */
 export function AgentKeys({ keys }: { keys: readonly social.AgentKey[] }) {
   const [name, setName] = useState('');
@@ -73,7 +74,7 @@ export function AgentKeys({ keys }: { keys: readonly social.AgentKey[] }) {
 
       <form
         onSubmit={make}
-        className="mt-6 grid max-w-xl grid-cols-1 gap-4 rounded-md border border-line p-4"
+        className="mt-6 grid max-w-xl grid-cols-1 gap-4 sm:rounded-md sm:border sm:border-line sm:p-4"
         data-testid="agent-key-form"
       >
         <h2 className="text-xl font-semibold">Make a key</h2>
