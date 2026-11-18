@@ -29,7 +29,8 @@ describe('the name the claim starts with (C3)', () => {
     expect(prefilledName('   ')).toBe('');
     expect(prefilledName('x'.repeat(61))).toBe('');
     expect(prefilledName('Two\nlines')).toBe('');
-    expect(prefilledName('Hidden​character')).toBe('');
+    // A zero-width space, built here: no invisible character sits in this file.
+    expect(prefilledName(`Hidden${String.fromCodePoint(0x200b)}character`)).toBe('');
     expect(prefilledName('Control\u0007character')).toBe('');
   });
 });
