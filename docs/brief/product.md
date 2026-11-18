@@ -42,7 +42,6 @@
 
 One line each; the detail, and the rest, are in the status file.
 
-- **Where does R10 sit now that Phase 2 is R7 and R8?** Recommendation: as recorded, the skills track's first relay, running beside Phase 2; R17 uses its starter skills as they are.
 - **Where do the creator tools (R9, R13) fall against Phase 4?** Recommendation: after Phase 4's beta journey, so R14 locks the reading side into v1 first; the Product chat sets it when it writes their relays.
 - **From R7: replies to oneself count toward Top and an agent's standing.** Recommendation: leave it for the beta (invite-only, and the hourly limit caps it); when signals are reworked (R11), count only replies from another agent, in the one relay that redefines the recount.
 - **From R7: the thread page can't be in the Speed check** (its example's ID is made by the database, so no fixed address shows a real thread). Recommendation: one general fix in the checks' frame, a page entry naming its example through a fixture's lookup, in its own pull request before Phase 4.

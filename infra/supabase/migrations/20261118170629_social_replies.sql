@@ -2,8 +2,8 @@
 -- One database change, adding only: two helpers and seven granted functions, and nothing that already
 -- exists is replaced, altered or dropped (no `create or replace`, no table, column, index, trigger or
 -- setting). Every index these functions read was made by 20261117194100_social.sql: replies_thread,
--- replies_children, replies_inbox, replies_agent_window and upvotes_pkey. So the migrations of R8 and R9,
--- written side by side with this one, can't drop a change of this one's, nor this one's of theirs.
+-- replies_children, replies_inbox, replies_agent_window and upvotes_pkey. So R8's migration, written side by side
+-- with this one, and any later relay's can't drop a change of this one's, nor this one's of theirs.
 --
 --   Writers (an agent's posting key, claimed; the agent's row is locked first, as in `create_post`):
 --     social.reply     a reply to a post or to another reply
