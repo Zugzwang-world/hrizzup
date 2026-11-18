@@ -1,6 +1,7 @@
 import { social as examples } from '@hrizzup/api/examples';
 import { createRouterClient } from '@orpc/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { resetSocialCache } from '@/lib/social/cache.ts';
 
 /**
  * The console's three live social calls (docs/social/build.md, D4, D13, sections 7.9 and 7.10, and 9.2's
@@ -13,11 +14,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const signedIn = vi.fn();
 const isAdmin = vi.fn();
 const testStories = vi.fn(() => true);
+/** Vercel's purge, stood in for: every tag the saves ask the edge to refresh, one call at a time. */
+const invalidate = vi.fn(async (_tags: string[]) => {});
 
 vi.mock('@/lib/api/context.ts', () => ({ signedIn: (headers: Headers) => signedIn(headers) }));
 vi.mock('@hrizzup/markets', async (original) => ({
   ...(await original<typeof import('@hrizzup/markets')>()),
   isAdmin: (...args: unknown[]) => isAdmin(...args),
+}));
+vi.mock('@vercel/functions', async (original) => ({
+  ...(await original<typeof import('@vercel/functions')>()),
+  invalidateByTag: (tags: string[]) => invalidate(tags),
 }));
 vi.mock('@/lib/env.ts', async (original) => ({
   ...(await original<typeof import('@/lib/env.ts')>()),
@@ -98,6 +105,10 @@ beforeEach(() => {
   signedIn.mockResolvedValue(ADMIN);
   isAdmin.mockResolvedValue(true);
   testStories.mockReturnValue(true);
+  invalidate.mockReset();
+  invalidate.mockResolvedValue(undefined);
+  // No Redis: a save's purge forgets the brief's copy there, and this test has none.
+  resetSocialCache(null);
   answer = () => ({});
   atCommit = null;
 });
@@ -107,6 +118,7 @@ afterEach(() => {
   vi.clearAllMocks();
   asked.length = 0;
   setUp.length = 0;
+  resetSocialCache();
 });
 
 describe('saving a test story', () => {
@@ -235,6 +247,79 @@ describe('saving an update', () => {
       code: 'CONFLICT',
       data: { reason: 'stale_record' },
     });
+  });
+});
+
+describe("the saves' purges", () => {
+  const storyId = examples.admin.savedStory.id;
+  const updateStoryId = examples.admin.savedUpdate.storyId;
+
+  /** The tags purged, in order, over every call. */
+  const purged = () => invalidate.mock.calls.flatMap(([tags]) => tags);
+
+  it('clear a story saved as new or changed: its story and desk tags, and the board when it is listed', async () => {
+    for (const saved of ['new', 'changed'] as const) {
+      invalidate.mockClear();
+      answer = () => snake({ ...examples.admin.savedStory, saved, listed: true });
+      await api().admin.social.stories.save(story);
+      expect(purged(), saved).toEqual([
+        `social:story:${storyId}`,
+        `social:desk:${storyId}`,
+        'social:board',
+      ]);
+    }
+  });
+
+  it('leave the board alone for an unlisted story, which is never on it', async () => {
+    answer = () => snake({ ...examples.admin.savedStory, saved: 'new', listed: false });
+    await api().admin.social.stories.save(story);
+    expect(purged()).toEqual([`social:story:${storyId}`, `social:desk:${storyId}`]);
+  });
+
+  it('clear nothing for a story saved as same', async () => {
+    answer = () => snake({ ...examples.admin.savedStory, saved: 'same' });
+    await api().admin.social.stories.save(story);
+    expect(invalidate).not.toHaveBeenCalled();
+  });
+
+  it("clear an update's story and the board, for new or changed, and nothing for same", async () => {
+    for (const saved of ['new', 'changed'] as const) {
+      invalidate.mockClear();
+      answer = () => snake({ ...examples.admin.savedUpdate, saved });
+      await api().admin.social.updates.save(update);
+      expect(purged(), saved).toEqual([
+        `social:story:${updateStoryId}`,
+        `social:desk:${updateStoryId}`,
+        'social:board',
+      ]);
+    }
+    invalidate.mockClear();
+    answer = () => snake({ ...examples.admin.savedUpdate, saved: 'same' });
+    await api().admin.social.updates.save(update);
+    expect(invalidate).not.toHaveBeenCalled();
+  });
+
+  it('come after the save, and a save that fails purges nothing', async () => {
+    answer = () => fault('HZS19', 'stale');
+    await expect(api().admin.social.stories.save(story)).rejects.toMatchObject({ status: 409 });
+    answer = () => fault('42501', 'not an admin');
+    await expect(api().admin.social.updates.save(update)).rejects.toMatchObject(noSuchCall);
+    atCommit = fault('23503', 'a foreign key', { constraint: 'updates_story_id_story' });
+    answer = () => snake(examples.admin.savedUpdate);
+    await expect(api().admin.social.updates.save(update)).rejects.toMatchObject({ status: 400 });
+    expect(invalidate).not.toHaveBeenCalled();
+  });
+
+  it('never fail the save, whether the edge refuses the purge or throws before it starts', async () => {
+    answer = () => snake({ ...examples.admin.savedStory, saved: 'new' });
+    invalidate.mockRejectedValue(new Error('the edge refused'));
+    await expect(api().admin.social.stories.save(story)).resolves.toMatchObject({ saved: 'new' });
+    invalidate.mockImplementation(() => {
+      throw new Error('no purge here');
+    });
+    await expect(api().admin.social.stories.save(story)).resolves.toMatchObject({ saved: 'new' });
+    answer = () => snake({ ...examples.admin.savedUpdate, saved: 'new' });
+    await expect(api().admin.social.updates.save(update)).resolves.toMatchObject({ saved: 'new' });
   });
 });
 
