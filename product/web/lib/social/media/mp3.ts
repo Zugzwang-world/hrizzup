@@ -5,7 +5,9 @@ import { FileProblem } from './refusals.ts';
  * frame, so the length is the sound's own, never a header's claim (a lying Xing header can't hide a long
  * file). Only layer III, MPEG-1, MPEG-2 and MPEG-2.5, and every frame has the version, layer and sample rate of
  * the first (as FFmpeg's own parser requires): a header that disagrees is junk, so a fake header's span can't hide
- * frames of another rate that a player would still decode. Skips an ID3v2 tag at the start (at most 10 MiB, looked
+ * frames of another rate that a player would still decode. Junk is not ignored, though: every MPEG audio header met
+ * in it (any layer, version or rate) is counted at its own samples and rate, and the walk moves on one byte, never
+ * by the header's length (a header a player rejects would then hide what follows). That can only overcount. Skips an ID3v2 tag at the start (at most 10 MiB, looked
  * through for audio hidden in it) and the ID3v1 tag at the end (`trailerLength`); nothing else is skipped, so an
  * APE tag's bytes are walked like any junk, and any frames in them count. Junk between frames is scanned past, at
  * most 64 KiB of it in the whole file; at most 1,000,000 frames. A leading Xing, Info or VBRI frame is not sound
@@ -71,6 +73,25 @@ function headerOf(
     // What every frame of a file must share: its version, its layer and its sample rate.
     kind: ((b1 & 0x1e) << 8) | rateAt,
   };
+}
+
+/**
+ * Any MPEG audio frame header, of any layer, version or rate: how many samples it plays and at what rate. For the
+ * junk the walker scans past, where a player might still find a frame it takes. Layer I plays 384 samples, layer
+ * II 1,152, layer III 1,152 (MPEG-1) or 576 (MPEG-2 and 2.5); free-format and reserved values are no header.
+ */
+function strayHeaderOf(bytes: Uint8Array): { samples: number; rate: number } | null {
+  const [b0, b1, b2] = [bytes[0], bytes[1], bytes[2]];
+  if (b0 !== 0xff || b1 === undefined || b2 === undefined || (b1 & 0xe0) !== 0xe0) return null;
+  const version = (b1 >> 3) & 3;
+  const layer = (b1 >> 1) & 3;
+  if (version === 1 || layer === 0) return null;
+  const [bitrate, rateAt] = [b2 >> 4, (b2 >> 2) & 3];
+  if (bitrate === 0 || bitrate === 15 || rateAt === 3) return null;
+  const rate = RATES[version]?.[rateAt];
+  if (rate === undefined) return null;
+  const samples = layer === 3 ? 384 : layer === 2 ? 1152 : version === 3 ? 1152 : 576;
+  return { samples, rate };
 }
 
 /** Whether a whole frame is the Xing, Info or VBRI header that encoders put first: it describes the sound and holds none. */
@@ -237,6 +258,15 @@ export async function readMp3(
       if (frames < 2) throw unreadable('the first frames are not back to back');
       skipped += 1;
       if (skipped > MOST_SKIPPED_BYTES) throw unreadable('too much junk between frames');
+      // A header here is a frame some player decodes (FFmpeg takes any layer, version or rate): count it as the
+      // sound it would play, and move on by one byte, never by its length.
+      const stray = next.length === 4 ? strayHeaderOf(next) : null;
+      if (stray !== null) {
+        samplesByRate.set(
+          stray.rate,
+          (samplesByRate.get(stray.rate) ?? 0n) + BigInt(stray.samples),
+        );
+      }
       if (!(await window.discard(1))) throw unreadable('a file cut short');
     }
     if (frames < 2 || sound < 1) throw unreadable('fewer than two frames');

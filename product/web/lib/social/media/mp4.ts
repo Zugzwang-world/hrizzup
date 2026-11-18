@@ -25,7 +25,9 @@ const MOST_MOOV_BYTES = 16 * 1024 * 1024;
 const MOST_MOOV_BOXES = 50_000;
 const MOST_DEPTH = 8;
 const MOST_PIXELS = 10_000;
+/** What a track's own length may pass the limit by (an encoder's start padding), and what the movie header's may: under a second. */
 const SLACK_MS = 1_000n;
+const MOVIE_SLACK_MS = 500n;
 
 /** The longest each kind of file may be, in milliseconds. */
 const LIMIT_MS = { 'video/mp4': 60_000n, 'audio/mp4': 300_000n } as const;
@@ -299,6 +301,13 @@ function walk(
     const here = path.join('/');
     const only = ONLY_IN[type];
     if (only !== undefined && here !== only) throw unreadable(`a ${type} where it doesn't belong`);
+    // A handler of video or sound anywhere but a track's own `mdia` is one a player might take as the track's (other
+    // handlers elsewhere, `mdir` in `meta` or `alis` and `url ` in `minf`, are what a real file has).
+    if (type === 'hdlr' && here !== 'moov/trak/mdia' && outer - inner >= 12) {
+      const handler = view.text(inner + 8, 4);
+      if (handler === 'vide' || handler === 'soun')
+        throw unreadable('a handler where it does not belong');
+    }
     if (type === 'mvhd' && found.movie === null) {
       found.movie = timing(view, inner, outer);
     } else if (type === 'mvex' && here === 'moov') {
@@ -422,7 +431,11 @@ export async function readMp4(
     }
     // The second measure covers an encoder's start padding, so a true 60-second video passes, and catches a
     // header that hides a longer file.
-    if (movieMs > limit || trackMs > limit + SLACK_MS) throw new FileProblem('too_long');
+    // The movie header gets half a second: real exports of exactly the limit write a little over it (Apple's
+    // encoders: 300,001.8 and 300,048.3 ms for 5:00), and what is stored never passes the limit.
+    if (movieMs > limit + MOVIE_SLACK_MS || trackMs > limit + SLACK_MS) {
+      throw new FileProblem('too_long');
+    }
 
     let width: number | null = null;
     let height: number | null = null;

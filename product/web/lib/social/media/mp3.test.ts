@@ -56,19 +56,49 @@ describe('an MP3', () => {
     expect(await read(frames)).toBe(Math.ceil((50 * 576 * 1000) / 22_050));
   });
 
-  it('holds every frame to the first one’s version, layer and sample rate: a header that disagrees is junk, and never counts', async () => {
+  it('holds the walk to the first frame’s version, layer and sample rate, but counts what a player would decode in the junk, at its own rate', async () => {
     const first = sampleMp3({ frames: 10 });
-    // 50 frames of another version (13 KB) after 10 of the first: skipped as junk, and none of their time is counted.
+    // 50 frames of another version (13 KB) after 10 of the first: junk to the walk, but each is sound a player
+    // plays, so each is counted at its own samples and rate (50 × 576 samples at 22.05 kHz).
     const other = Buffer.concat(Array.from({ length: 50 }, mpeg2));
-    expect(await read(Buffer.concat([first, other]))).toBe(ms(10));
+    expect(await read(Buffer.concat([first, other]))).toBe(
+      Math.ceil((10 * 1152 * 1000) / 44_100 + (50 * 576 * 1000) / 22_050),
+    );
     // Enough of them to pass the junk bound (64 KiB) is refused, not read as a file of two kinds.
     const much = Buffer.concat(Array.from({ length: 400 }, mpeg2));
     expect(await read(Buffer.concat([first, much]))).toBe('unreadable');
     // Another sample rate of the same version is another kind too.
     const rate48 = Buffer.concat([Buffer.from([0xff, 0xfb, 0x94, 0x00]), Buffer.alloc(380)]);
     expect(await read(Buffer.concat([first, ...Array.from({ length: 5 }, () => rate48)]))).toBe(
-      ms(10),
+      Math.ceil((10 * 1152 * 1000) / 44_100 + (5 * 1152 * 1000) / 48_000),
     );
+  });
+
+  it('counts frames of another rate or layer hidden among a file’s own, at least as long as a player plays them', async () => {
+    // The reviewer's shapes. 100 frames of 44.1 kHz layer III, then 900 other frames (64,800 bytes, inside the
+    // 64 KiB junk bound), then 100 more. FFmpeg plays the whole 70 s; it was read as 5.2 s.
+    const f44 = sampleMp3({ frames: 1 });
+    const f8 = Buffer.concat([Buffer.from([0xff, 0xe3, 0x18, 0x00]), Buffer.alloc(68)]); // MPEG-2.5 layer III, 8 kHz: 72 ms
+    const layer2 = Buffer.concat([Buffer.from([0xff, 0xf5, 0x18, 0x00]), Buffer.alloc(68)]); // MPEG-2 layer II, 16 kHz: 72 ms
+    const layer1 = Buffer.concat([Buffer.from([0xff, 0xff, 0x18, 0x00]), Buffer.alloc(8)]); // MPEG-1 layer I, 32 kbit/s, 32 kHz: 384 samples
+    const among = (frame: Buffer, count: number) =>
+      Buffer.concat([
+        ...Array.from({ length: 100 }, () => f44),
+        ...Array.from({ length: count }, () => frame),
+        ...Array.from({ length: 100 }, () => f44),
+      ]);
+    const own = (200 * 1152 * 1000) / 44_100;
+    expect(await read(among(f8, 900))).toBe(Math.ceil(own + 900 * 72));
+    expect(await read(among(layer2, 900))).toBe(Math.ceil(own + 900 * 72));
+    expect(await read(among(layer2, 900))).toBeGreaterThanOrEqual(70_024);
+    // Layer I plays 384 samples a frame; a header with no bitrate (free format) or a reserved rate is none.
+    expect(await read(among(layer1, 20))).toBe(Math.ceil(own + (20 * 384 * 1000) / 32_000));
+    const free = Buffer.concat([Buffer.from([0xff, 0xe3, 0x08, 0x00]), Buffer.alloc(68)]);
+    const reserved = Buffer.concat([Buffer.from([0xff, 0xe3, 0x1c, 0x00]), Buffer.alloc(68)]);
+    expect(await read(among(free, 20))).toBe(Math.ceil(own));
+    expect(await read(among(reserved, 20))).toBe(Math.ceil(own));
+    // One more than the bound's worth is refused.
+    expect(await read(among(f8, 920))).toBe('unreadable');
   });
 
   it('skips the ID3v1 tag at the end, and walks an APE tag like junk: any frames in it count', async () => {
@@ -216,8 +246,26 @@ describe('audio hidden where the file says there is a tag', () => {
       Buffer.concat([real, real, ...Array.from({ length: units }, () => unit)]);
     // 2,000 of them (73 junk bytes each) pass the junk bound: refused.
     expect(await read(make(2000))).toBe('unreadable');
-    // A few are read as the real frames they hold, and the fake headers' own 36 ms are never counted.
-    expect(await read(make(100))).toBe(Math.ceil(((2 + 19 * 100) * 576 * 1000) / 8000));
+    // A few are read as the real frames they hold, and each fake header is counted at its own rate (36 ms),
+    // so the total is at least what a player that takes the fake headers and one that skips them plays.
+    const sound = Math.ceil(((2 + 19 * 100) * 72 + 100 * 36) * 1);
+    expect(await read(make(100))).toBe(sound);
+    // 800 of them are inside the bound and well over 5 minutes: 1,100 seconds.
+    expect(await read(make(800))).toBe('too_long');
+  });
+
+  it('reads a fake header of the first frame’s own kind as the frame it claims to be, as a player does', async () => {
+    // A fake 8 kHz 160 kbit/s header (1,440 bytes) whose span holds 19 real 8 kHz frames: FFmpeg and CoreAudio
+    // both play each unit as the one frame it says, 72 ms.
+    const real = Buffer.concat([Buffer.from([0xff, 0xe3, 0x18, 0x00]), Buffer.alloc(68)]);
+    const unit = Buffer.concat([
+      Buffer.from([0xff, 0xe3, 0xe8, 0x00]),
+      Buffer.alloc(68),
+      ...Array.from({ length: 19 }, () => real),
+    ]);
+    expect(unit.length).toBe(1440);
+    const file = Buffer.concat([real, real, ...Array.from({ length: 100 }, () => unit)]);
+    expect(await read(file)).toBe((2 + 100) * 72);
   });
 
   it('finds frames that straddle the blocks it looks through', async () => {

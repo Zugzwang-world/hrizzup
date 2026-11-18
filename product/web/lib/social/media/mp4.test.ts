@@ -66,13 +66,16 @@ describe('a video', () => {
     expect(await read(video({ width: 10_001, height: 100, rotate: true }))).toBe('dimensions');
   });
 
-  it('may be 60.0 seconds, with 40 ms of audio priming, and not a second more', async () => {
+  it('may be 60.0 seconds, with 40 ms of audio priming and half a second of slack in the movie header, and not a second more', async () => {
     expect(await read(video({ seconds: 60 }))).toMatchObject({ durationMs: 60_000 });
     expect(
       await read(video({ seconds: 60, tracks: ['video', { kind: 'audio', seconds: 60.04 }] })),
     ).toMatchObject({ durationMs: 60_000 });
     expect(await read(video({ seconds: 61 }))).toBe('too_long');
-    expect(await read(video({ seconds: 60.001 }))).toBe('too_long');
+    // The movie header's slack is under a second: 60,499 is taken (and stored as 60,000), 60,501 is not.
+    expect(await read(video({ seconds: 60.499 }))).toMatchObject({ durationMs: 60_000 });
+    expect(await read(video({ seconds: 60.5 }))).toMatchObject({ durationMs: 60_000 });
+    expect(await read(video({ seconds: 60.501 }))).toBe('too_long');
   });
 
   it('is refused when a header hides a longer file: the movie says 30 s, its samples 90', async () => {
@@ -109,6 +112,14 @@ describe('an M4A', () => {
       durationMs: 300_000,
     });
     expect(await read(sampleM4a({ seconds: 301 }), 'audio/mp4')).toBe('too_long');
+    // Real exports of exactly 5:00 write a little over it in the movie header (Apple's: 300,001.8 and 300,048.3 ms).
+    expect(await read(sampleM4a({ seconds: 300.048 }), 'audio/mp4')).toMatchObject({
+      durationMs: 300_000,
+    });
+    expect(await read(sampleM4a({ seconds: 300.499 }), 'audio/mp4')).toMatchObject({
+      durationMs: 300_000,
+    });
+    expect(await read(sampleM4a({ seconds: 300.501 }), 'audio/mp4')).toBe('too_long');
   });
 
   it('is wrong_tracks with a video track, or with no sound', async () => {
@@ -408,12 +419,48 @@ describe('a file that is not a regular MP4', () => {
       expect(await read(video(61, 60))).toMatchObject({ durationMs: 60_000 });
       expect(await read(video(61.001, 60))).toBe('too_long');
       expect(await read(video(60, 60))).toMatchObject({ durationMs: 60_000 });
-      expect(await read(video(60.001, 60.001))).toBe('too_long');
+      expect(await read(video(60.499, 60.499))).toMatchObject({ durationMs: 60_000 });
+      expect(await read(video(60.501, 60.501))).toBe('too_long');
+      // A track a second over passes with a movie within its half second; the movie alone decides what is stored.
+      expect(await read(video(60.999, 60.499))).toMatchObject({ durationMs: 60_000 });
       const sound = (track: number, movie: number) =>
         sampleM4a({ seconds: track, movieSeconds: movie });
       expect(await read(sound(300.999, 300), 'audio/mp4')).toMatchObject({ durationMs: 300_000 });
       expect(await read(sound(301.001, 300), 'audio/mp4')).toBe('too_long');
       expect(await read(sound(300, 300), 'audio/mp4')).toMatchObject({ durationMs: 300_000 });
+      expect(await read(sound(300.499, 300.499), 'audio/mp4')).toMatchObject({
+        durationMs: 300_000,
+      });
+      expect(await read(sound(300.501, 300.501), 'audio/mp4')).toBe('too_long');
+    });
+
+    it('refuses a handler of video or sound anywhere but a track’s mdia, and takes the other handlers a real file has elsewhere', async () => {
+      const hdlr = (type: string) =>
+        box(
+          'hdlr',
+          Buffer.alloc(4),
+          Buffer.alloc(4),
+          Buffer.from(type, 'latin1'),
+          Buffer.alloc(13),
+        );
+      const parents = ['moov', 'trak'];
+      // In the track itself, its edts or its minf, or beside the tracks in a udta: a player may take it as the track's.
+      expect(await read(putAfter('tkhd', parents, hdlr('vide')))).toBe('unreadable');
+      expect(await read(putAfter('tkhd', parents, hdlr('soun')))).toBe('unreadable');
+      expect(await read(putAfter('tkhd', parents, box('edts', hdlr('vide'))))).toBe('unreadable');
+      const inMinf = ['moov', 'trak', 'mdia', 'minf'];
+      expect(await read(putAfter('stbl', inMinf, hdlr('soun')))).toBe('unreadable');
+      expect(await read(putAfter('mvhd', ['moov'], box('udta', hdlr('vide'))))).toBe('unreadable');
+      // What a real file has: `mdir` in a `meta` (full box), `alis` and `url ` in a `minf`, beside the track's own.
+      const meta = box('meta', Buffer.alloc(4), hdlr('mdir'));
+      expect(await read(putAfter('mvhd', ['moov'], box('udta', meta)))).toMatchObject({
+        durationMs: 30_000,
+      });
+      for (const kind of ['alis', 'url ', 'dhlr']) {
+        expect(await read(putAfter('stbl', inMinf, hdlr(kind))), kind).toMatchObject({
+          durationMs: 30_000,
+        });
+      }
     });
   });
 
