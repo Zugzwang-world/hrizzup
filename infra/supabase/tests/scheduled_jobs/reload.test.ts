@@ -9,12 +9,22 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
  * cache messages goes through is never run, the check names it, and `reload` makes the scheduler
  * run it, as the Staging workflow's step 2c and the release pipeline's 4d do after a push.
  *
- * How the miss is made on purpose, and why it never depends on luck: the scheduler is parked on a
- * lock (`cron.job_run_details`, which it writes whenever a job starts), and a parked scheduler
- * can't read PostgreSQL's invalidation queue (4,096 messages). While it's parked, the test
- * schedules a job and then commits far more messages than the queue holds, so the scheduler is
- * reset and, once it's released, never learns of the job (pg_cron 1.6.4). If the scheduler loads
- * the job anyway, the test says so, instead of passing without having proved anything.
+ * How the miss is made on purpose: the scheduler is parked on a lock (`cron.job_run_details`,
+ * which it writes whenever a job starts), and a parked scheduler can't read PostgreSQL's
+ * invalidation queue (4,096 messages). While it's parked, the test schedules two jobs and then
+ * commits far more messages than the queue holds, so the scheduler is reset and, once it's
+ * released, never learns of the jobs (pg_cron 1.6.4).
+ *
+ * That setup can be spoiled from outside, so it isn't taken on trust. Autovacuum of `cron.job`
+ * (a long-lived database reaches it after about 50 job changes; a fresh one stays well under, with
+ * 27 dead rows after a whole run) sends the scheduler an ordinary message about `cron.job`, which
+ * it reads and answers by loading every job, the lost ones too: then the jobs ran without any
+ * reload, and nothing is proved. So an attempt counts only if both jobs still have no run four
+ * seconds on, and none when the check has finished; otherwise the two jobs are taken away and the
+ * setup is made again, up to three times, and after three the test fails ("precondition: ...").
+ * Only the setup is ever made again. The check's and the reload's own assertions are made once,
+ * on the attempt that counts, and the test itself is never retried (`retry: 0`): a check that
+ * passes while the jobs have no run, or a reload that doesn't make them run, fails the test.
  *
  * It runs inside `@hrizzup/database#test:db`, which the markets', perps' and ledger's database
  * tests wait for (`dependsOn: ["^test:db"]`), and files run one after another (vitest.config.ts),
