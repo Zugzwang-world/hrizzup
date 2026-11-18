@@ -1,4 +1,4 @@
-import { contract, isPublished, isSocialCall, type Meta, procedures } from '@hrizzup/api';
+import { contract, isSocialCall, type Meta, procedures } from '@hrizzup/api';
 import { marketQuote, positionsPage, tradeResult } from '@hrizzup/api/examples';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -198,11 +198,16 @@ describe('a call in beta, or not live yet, or kept out of MCP', () => {
 describe('social’s calls follow their live marks', () => {
   const all = procedures(contract);
   const social = all.filter(([name]) => isSocialCall(name.split('.')));
-  // A tool for each social call that is published and not kept out of MCP (`mcp: false`).
+  // A tool for each social call that is live and not kept out of MCP (`mcp: false`), read from the
+  // marks themselves, never from `isPublished` (which `toolsOf` filters with too, so a slip in it
+  // would grow both sides together). The console's, the owner's and the reader's are never published,
+  // so never expected: only the calls under `social` are.
   const expected = social
     .filter(
       ([name, procedure]) =>
-        isPublished(name.split('.'), procedure) && procedure['~orpc'].meta.mcp !== false,
+        name.startsWith('social.') &&
+        procedure['~orpc'].meta.live !== false &&
+        procedure['~orpc'].meta.mcp !== false,
     )
     .map(([name]) => name);
 

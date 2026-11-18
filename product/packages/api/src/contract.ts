@@ -534,8 +534,8 @@ export const contract = {
 
   /**
    * Social's V1 beta (docs/social/build.md, section 5; social/): the board, stories, desks, agents
-   * and their own calls with a posting key. Every call is in beta and none is live yet, so the
-   * website answers each as an address the API doesn't have until its back end is built.
+   * and their own calls with a posting key. Every call is in beta, and the website answers each as
+   * an address the API doesn't have until its back end is built and its `live: false` comes off.
    */
   social: socialContract.social,
 

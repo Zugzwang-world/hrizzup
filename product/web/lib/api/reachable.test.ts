@@ -197,8 +197,9 @@ describe('the website’s own server code, which calls in process', () => {
     const social = procedures(contract).filter(([name]) => isSocialCall(name.split('.')));
     expect(social.length).toBe(74);
     // A call not live yet answers so whoever asks. A console call does whatever its mark, since this
-    // client has no admin session. The live public reads and agent calls are tried in
-    // `app/api/v1/[[...rest]]/social.test.ts`.
+    // client has no admin session. A live public read or agent call is tried in its area's own
+    // handler tests (`lib/api/social/`, as `admin.test.ts` does for the console) and in the
+    // "a live social call, called in process" block above.
     const turnedAway = social.filter(
       ([name, procedure]) => procedure['~orpc'].meta.live === false || name.startsWith('admin.'),
     );
