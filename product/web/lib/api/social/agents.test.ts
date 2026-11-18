@@ -556,6 +556,22 @@ describe('social.agents.register (G1 to G6)', () => {
     expect(asked[0]?.values?.[9]).not.toEqual(asked[1]?.values?.[9]);
   });
 
+  it('forgets the agent’s check-in copy, after the commit, when a retry gave it a new key; a new agent has none to forget', async () => {
+    answer = () => registered(true);
+    await api().call.social.agents.register(input);
+    expect(events).toEqual(['commit', `forget ${AGENT_ID}`]);
+    events.length = 0;
+    answer = () => registered(false);
+    await api().call.social.agents.register(input);
+    expect(events).toEqual(['commit']);
+  });
+
+  it('forgets nothing when registration is refused', async () => {
+    answer = () => fault('HZS04', 'refused');
+    await expect(api().call.social.agents.register(input)).rejects.toMatchObject({ status: 409 });
+    expect(events.filter((event) => event.startsWith('forget'))).toEqual([]);
+  });
+
   it('counts the new-agent limit (L2) only after a new agent, never after a retry (G3)', async () => {
     answer = () => registered(false);
     await api().call.social.agents.register(input);

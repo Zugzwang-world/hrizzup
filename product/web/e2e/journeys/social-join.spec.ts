@@ -38,6 +38,18 @@ import { views } from '../viewports.ts';
  * 9. Both signed-in pages (the claim form, and My agent with its keys, one of them named as long as a name may
  *    be) fit at every size of the screen check: the 13 widths, sideways, and the phone widths at 200% text.
  *
+ * M6.3 (J1, with an unlisted story the console saves just before the agent's first check-in):
+ * - Before the claim a post is 403 `not_claimed`, and a check-in works.
+ * - After the claim the check-in lists the story (not yet pinned, with its one new update), the skill file's own
+ *   routine and next step; a repeat within 30 seconds is the same answer (`asOf` kept), and one after a pin is a
+ *   new one (the agent's own write dropped the copy).
+ * - The pin answers its brief; the pins list it; an unpin releases it (and 404s the next); a sourced text post
+ *   is 201, safe to retry, and 409 for another body under the same request; `posts.get` and `agents.posts` show it.
+ * - A changed bio shows on the profile (`agents.get`, `hrizzup-basics` first) and on its page; finishing the
+ *   check-in moves `since` to the `asOf` it gave and keeps the note.
+ * - The agent is never in the directory, which is read last of all; the profile page and the directory fit at every
+ *   size, the profile with a post and a bio each as long as one may be and with no break to wrap at.
+ *
  * Every account, invite, handle and key is this run's own (support/run.ts); the invite is unlisted, so the
  * agent stays off the directory. A secret (a key's text, a claim link, an invite code) is only ever tested as
  * a shape (`KEY_TEXT.test(…)` being true) and never compared, logged or put in a message, so no failure
@@ -133,6 +145,51 @@ async function openWithSecret(page: Page, path: string, what: string): Promise<v
 const sha16 = (text: string) =>
   createHash('sha256').update(text, 'utf8').digest('hex').slice(0, 16);
 
+/** A story/1 record of the run's: an unlisted test story, made a minute ago. */
+function storyRecord(id: string, label: string, at: Date) {
+  const now = at.toISOString();
+  return {
+    format: 'story/1',
+    id,
+    title: `Journey test (${label}): a test story of the join`,
+    summary: `A test story of a check run (${label}), made by the join journey. Unlisted: it never shows on the board.`,
+    locations: ['mumbai'],
+    categories: ['general'],
+    state: 'live',
+    created_at: now,
+    updated_at: now,
+  };
+}
+
+/** An update/1 record of the story, reported a minute ago. */
+function updateRecord(id: string, storyId: string, label: string, at: Date) {
+  const now = at.toISOString();
+  return {
+    format: 'update/1',
+    id,
+    story_id: storyId,
+    headline: `Journey test (${label}): the first update of the join's test story`,
+    reported_at: now,
+    sources: ['https://example.com/sources/social-join-journey'],
+    state: 'live',
+    created_at: now,
+    updated_at: now,
+  };
+}
+
+/** The skill file's own routine (the seven numbered steps under its heading) and the line that ends a check-in. */
+function routineOf(skill: string): { routine: string[]; nextStep: string } {
+  const lines = skill.split('\n');
+  const at = lines.indexOf('## Your routine, at every check-in');
+  const routine: string[] = [];
+  for (const line of lines.slice(at + 1)) {
+    if (line.startsWith('#')) break;
+    const step = /^([1-7])\. (.+)$/.exec(line);
+    if (step) routine.push(step[2] ?? '');
+  }
+  return { routine, nextStep: lines.find((line) => line.startsWith("When you're done")) ?? '' };
+}
+
 test('an invited agent joins and is claimed: the skill file, a retry, the refusals, the claim page, My agent and its keys', async ({
   page,
   context,
@@ -141,9 +198,13 @@ test('an invited agent joins and is claimed: the skill file, a retry, the refusa
   browserName,
 }) => {
   test.skip(environment() === 'production', "Social doesn't exist on production until launch");
-  // Writes: staging's firewall lets only browsers write to its typed API (console-api.spec.ts says why);
-  // previews, where the checks run, have no such rule.
-  test.skip(environment() === 'staging', 'These are writes: see console-api.spec.ts');
+  // Writes: a check run owns what it changes and writes only through its own preview (CLAUDE.md, "How checks
+  // behave"), so staging gets no check run's writes. (Staging's firewall itself lets an agent's plain HTTP write
+  // through: an unauthenticated registration there answered its JSON 401 on 18 November 2026.)
+  test.skip(
+    environment() === 'staging',
+    'These are writes: a check run writes only through its own preview',
+  );
   test.setTimeout(240_000);
   const keys = stagingKeys();
   if (!keys) throw new Error("Staging's Supabase keys are missing, so no account can sign in");
@@ -295,7 +356,19 @@ test('an invited agent joins and is claimed: the skill file, a retry, the refusa
     expect(trade.status).toBe(403);
     // Over MCP, the same key lists the agent's own tool and no tool of a person's market.
     const agentTools = (await (await connect(key2)).listTools()).tools.map((tool) => tool.name);
-    expect(agentTools).toEqual(expect.arrayContaining(['social_basics', 'social_me_get']));
+    expect(agentTools).toEqual(
+      expect.arrayContaining([
+        'social_basics',
+        'social_me_get',
+        'social_me_checkin',
+        'social_me_checkinDone',
+        'social_me_pins',
+        'social_me_pin',
+        'social_me_unpin',
+        'social_me_post',
+        'social_me_profile',
+      ]),
+    );
     for (const personal of ['portfolio_positions', 'markets_trade', 'perps_open', 'me']) {
       expect(agentTools, `a posting key has no ${personal}`).not.toContain(personal);
     }
@@ -304,6 +377,24 @@ test('an invited agent joins and is claimed: the skill file, a retry, the refusa
     );
     expect(readerTools).not.toContain('social_me_get');
     expect(readerTools).toContain('portfolio_positions');
+
+    // M6.3, 1. Before the claim an agent reads and checks in, but never posts: the story named is nobody's, and
+    // the refusal comes before it is looked at.
+    const early = await callWith(anyone, key2, 'POST', '/api/v1/social/me/posts', {
+      requestId: randomUUID(),
+      storyId: newRecordId(),
+      kind: 'text',
+      body: 'Too early: my owner has not claimed me.',
+    });
+    expect(early.status, 'an unclaimed agent cannot post').toBe(403);
+    expect(early.body).toMatchObject({ data: { reason: 'not_claimed' } });
+    const beforeClaim = await callWith(anyone, key2, 'GET', '/api/v1/social/me/checkin');
+    expect(beforeClaim.status, 'an unclaimed agent checks in').toBe(200);
+    expect(beforeClaim.body).toMatchObject({ agent: { handle, state: 'waiting' } });
+    expect((await call(anyone, 'GET', '/api/v1/social/me/checkin')).status).toBe(401);
+    expect((await callWith(anyone, readSecret, 'GET', '/api/v1/social/me/checkin')).status).toBe(
+      403,
+    );
 
     // 6. The claim page: signed out it shows who is waiting, and a way to sign in that comes back here.
     const claimPath = new URL(link2).pathname;
@@ -395,6 +486,238 @@ test('an invited agent joins and is claimed: the skill file, a retry, the refusa
       'no key in the refusal',
     ).toBe(false);
 
+    // M6.3, 2. The story, saved just before the first check-in (an unlisted agent sees every run's unlisted
+    // stories, the newest 20: this one is the newest), then the check-in after the claim.
+    const storyId = newRecordId();
+    const updateId = newRecordId();
+    const savedAt = new Date(Date.now() - 60_000);
+    const story = storyRecord(storyId, label, savedAt);
+    const storySaved = await call(admin, 'POST', '/api/v1/admin/social/stories', {
+      record: story,
+      listed: false,
+    });
+    expect(storySaved.status, 'the console saves the story').toBe(200);
+    const updateSaved = await call(admin, 'POST', '/api/v1/admin/social/updates', {
+      record: updateRecord(updateId, storyId, label, new Date(savedAt.getTime() + 1_000)),
+    });
+    expect(updateSaved.status, 'the console saves its update').toBe(200);
+    const skillSays = routineOf(skillText);
+    expect(skillSays.routine).toHaveLength(7);
+    type Checkin = {
+      asOf: string;
+      since: string;
+      routine: string[];
+      nextStep: string;
+      agent: { handle: string; state: string };
+      stories: { items: { id: string; pinned: boolean; newUpdates: number }[]; more: boolean };
+      lastNote: { note: string } | null;
+    };
+    const checkin = async () => {
+      const answer = await callWith(anyone, key2, 'GET', '/api/v1/social/me/checkin');
+      expect(answer.status, 'the check-in').toBe(200);
+      return answer.body as unknown as Checkin;
+    };
+    const firstCheckin = await checkin();
+    expect(firstCheckin.agent).toMatchObject({ handle, state: 'claimed' });
+    expect(firstCheckin.routine, "the skill file's own routine").toEqual(skillSays.routine);
+    expect(firstCheckin.nextStep, "the skill file's own next step").toBe(skillSays.nextStep);
+    const listed = firstCheckin.stories.items.find((item) => item.id === storyId);
+    expect(listed, "the check-in lists the run's story").toMatchObject({
+      pinned: false,
+      newUpdates: 1,
+    });
+    // A repeat within 30 seconds is the same answer, kept in Redis; the agent's own write drops the copy.
+    expect((await checkin()).asOf, 'a repeat keeps asOf').toBe(firstCheckin.asOf);
+    // The same check-in over MCP, as the agent's own tool: the posting key sees it, and nothing else of the agent.
+    const viaMcp = await (await connect(key2)).callTool({
+      name: 'social_me_checkin',
+      arguments: {},
+    });
+    expect(viaMcp.isError).toBeFalsy();
+    expect(viaMcp.structuredContent).toMatchObject({
+      agent: { handle },
+      routine: skillSays.routine,
+    });
+
+    // M6.3, 3. Pin the story: its brief comes back with the pin, and the pins list it.
+    const pinRequest = randomUUID();
+    const pinned = await callWith(anyone, key2, 'POST', '/api/v1/social/me/pins', {
+      requestId: pinRequest,
+      storyId,
+    });
+    expect(pinned.status, 'the pin').toBe(200);
+    expect(pinned.body).toMatchObject({ pin: { storyId, live: true }, brief: { storyId } });
+    const brief = pinned.body.brief as { version: string; markdown: string };
+    expect(brief.version).toMatch(/^[0-9a-f]{16}$/);
+    expect(brief.markdown).toContain(story.title);
+    // The same request is the same pin (and the brief as it is then).
+    const retried = await callWith(anyone, key2, 'POST', '/api/v1/social/me/pins', {
+      requestId: pinRequest,
+      storyId,
+    });
+    expect(retried.status).toBe(200);
+    expect(retried.body).toMatchObject({ pin: { storyId, live: true } });
+    const afterPin = await checkin();
+    expect(afterPin.asOf, 'a write of the agent drops the copy: a new check-in').not.toBe(
+      firstCheckin.asOf,
+    );
+    expect(afterPin.stories.items.find((item) => item.id === storyId)).toMatchObject({
+      pinned: true,
+    });
+    const pinsNow = await callWith(anyone, key2, 'GET', '/api/v1/social/me/pins');
+    expect(pinsNow.status).toBe(200);
+    expect((pinsNow.body.pins as { storyId: string }[]).map((pin) => pin.storyId)).toContain(
+      storyId,
+    );
+    // Release it: the pin says it is no longer live, the list loses it, and releasing again is 404.
+    const unpinRequest = randomUUID();
+    const released = await callWith(
+      anyone,
+      key2,
+      'POST',
+      `/api/v1/social/me/pins/${storyId}/unpin`,
+      { requestId: unpinRequest },
+    );
+    expect(released.status, 'the unpin').toBe(200);
+    expect(released.body).toMatchObject({ pin: { storyId, live: false } });
+    const pinsAfter = await callWith(anyone, key2, 'GET', '/api/v1/social/me/pins');
+    expect(
+      (pinsAfter.body.pins as { storyId: string }[]).map((pin) => pin.storyId),
+      'the unpinned story leaves the list',
+    ).not.toContain(storyId);
+    const unpinAgain = await callWith(
+      anyone,
+      key2,
+      'POST',
+      `/api/v1/social/me/pins/${storyId}/unpin`,
+      { requestId: randomUUID() },
+    );
+    expect(unpinAgain.status, 'a pin that is not live cannot be released').toBe(404);
+
+    // M6.3, 3. A sourced text post: 201, safe to retry, 409 for another body under the same request. The body
+    // holds a word as long as one may be with no break in it: it must wrap, never push a page sideways.
+    const postRequest = randomUUID();
+    const postBody = `Journey take (${label}): ${'w'.repeat(200)}`;
+    const postInput = {
+      requestId: postRequest,
+      storyId,
+      kind: 'text',
+      body: postBody,
+      sources: ['https://example.com/sources/social-join-journey-take'],
+      afterUpdateId: updateId,
+    };
+    const posted = await callWith(anyone, key2, 'POST', '/api/v1/social/me/posts', postInput);
+    expect(posted.status, 'the post').toBe(201);
+    expect(posted.body).toMatchObject({
+      storyId,
+      kind: 'text',
+      body: postBody,
+      sources: postInput.sources,
+      afterUpdateId: updateId,
+      agent: { handle },
+    });
+    const postId = posted.body.id as string;
+    const postedAgain = await callWith(anyone, key2, 'POST', '/api/v1/social/me/posts', postInput);
+    expect(postedAgain.status, 'a retry of the same post').toBe(201);
+    expect(postedAgain.body.id, 'a retry makes no second post').toBe(postId);
+    const reused = await callWith(anyone, key2, 'POST', '/api/v1/social/me/posts', {
+      ...postInput,
+      body: 'Another body, the same request.',
+    });
+    expect(reused.status).toBe(409);
+    expect(reused.body).toMatchObject({ data: { reason: 'request_reused' } });
+    // The post shows through `posts.get` and on the agent's posts: both read for the first time after it.
+    const detail = await call(anyone, 'GET', `/api/v1/social/posts/${postId}`);
+    expect(detail.status, 'posts.get').toBe(200);
+    expect(detail.body).toMatchObject({
+      id: postId,
+      storyId,
+      body: postBody,
+      replies: [],
+      moreReplies: false,
+      agent: { handle },
+    });
+    const mine = await call(anyone, 'GET', `/api/v1/social/agents/${handle}/posts`);
+    expect(mine.status, 'agents.posts').toBe(200);
+    expect((mine.body.posts as { id: string }[]).map((post) => post.id)).toEqual([postId]);
+    // A story that is no story's: 404, and the daily limit is the database's own (its refusal, 429 with
+    // Retry-After, is the unit tests': a run posts once).
+    const nowhere = await callWith(anyone, key2, 'POST', '/api/v1/social/me/posts', {
+      requestId: randomUUID(),
+      storyId: newRecordId(),
+      kind: 'text',
+      body: 'On a story that is not there.',
+    });
+    expect(nowhere.status).toBe(404);
+
+    // M6.3, 4. A changed bio shows on the profile, read for the first time after the change (the first read
+    // would be kept at the edge for a minute, and the purge that follows a change is the unit tests'). It is
+    // as long as a bio may be, with no break in it. The answer to the change is the profile itself.
+    const bio = 'b'.repeat(150);
+    // Its name too: 60 characters with no space to wrap at, the longest a name may be, shown as the page's heading.
+    const longName = `Name${'n'.repeat(56)}`;
+    const repository = 'https://github.com/example-owner/join-journey-agent';
+    const changed = await callWith(anyone, key2, 'POST', '/api/v1/social/me/profile', {
+      requestId: randomUUID(),
+      bio,
+      name: longName,
+      repositoryUrl: repository,
+    });
+    expect(changed.status, 'the profile change').toBe(200);
+    expect(changed.body).toMatchObject({
+      handle,
+      bio,
+      name: longName,
+      repositoryUrl: repository,
+      claimed: true,
+    });
+    const profile = await call(anyone, 'GET', `/api/v1/social/agents/${handle}`);
+    expect(profile.status, 'agents.get').toBe(200);
+    expect(profile.body).toMatchObject({
+      handle,
+      bio,
+      name: longName,
+      claimed: true,
+      retired: false,
+    });
+    const files = profile.body.files as { name: string; layer: string }[];
+    expect(files[0], 'the locked file leads').toMatchObject({
+      name: 'hrizzup-basics',
+      layer: 'locked',
+    });
+    expect(files.map((file) => file.name)).toContain('profile');
+    // Its counts are the minute job's (the board's journey proves the job), so they are not asked here.
+    // Nothing of an agent's is public until it is claimed, and a handle that isn't one is not found.
+    expect((await call(anyone, 'GET', '/api/v1/social/agents/nobody_here_xx')).status).toBe(404);
+
+    // Finishing the check-in moves `since` to the `asOf` it gave, and keeps the note for the next one.
+    const done = await checkin();
+    const finished = await callWith(anyone, key2, 'POST', '/api/v1/social/me/checkin', {
+      requestId: randomUUID(),
+      seenUntil: done.asOf,
+      note: 'Pinned one story and posted a sourced take.',
+    });
+    expect(finished.status, 'the check-in is marked done').toBe(200);
+    expect(finished.body.seenUntil).toBe(done.asOf);
+    const next = await checkin();
+    expect(next.since, 'the mark moved to asOf').toBe(done.asOf);
+    expect(next.lastNote?.note).toBe('Pinned one story and posted a sourced take.');
+    expect(next.asOf).not.toBe(done.asOf);
+    // A time that has not come is refused.
+    const future = await callWith(anyone, key2, 'POST', '/api/v1/social/me/checkin', {
+      requestId: randomUUID(),
+      seenUntil: new Date(Date.now() + 3_600_000).toISOString(),
+    });
+    expect(future.status).toBe(400);
+
+    // M6.3, 5. The agent's invite is unlisted, so it is never in the directory.
+    const directory = await call(anyone, 'GET', '/api/v1/social/agents?limit=100');
+    expect(directory.status).toBe(200);
+    expect(
+      (directory.body.agents as { handle: string }[]).map((agent) => agent.handle),
+      'an unlisted agent is not in the directory',
+    ).not.toContain(handle);
+
     // 8. My agent's keys: one made there works; a third is refused; a revoked one answers 401 at once.
     await expect(page.getByTestId('agent-key-list')).toContainText('first key');
     // A name as long as a key's may be, with no break in it: it must wrap, never push the page sideways.
@@ -433,6 +756,29 @@ test('an invited agent joins and is claimed: the skill file, a retry, the refusa
       'a revoked key answers 401 at once',
     ).toBe(401);
     expect((await callWith(anyone, key2, 'GET', '/api/v1/social/me')).status).toBe(200);
+
+    // M6.3, 9. The agent's page and the directory: the profile with its bio and its one post, each as long as
+    // one may be, and the directory (which has no room for this agent, so its handle is not in it) fit at every
+    // size. The profile page is read in the browser, not through the edge, so it shows the new bio at once.
+    await page.goto(`/sandbox/social/agents/${handle}`);
+    const profilePage = page.getByTestId('agent-profile');
+    await expect(profilePage).toContainText(`@${handle}`);
+    await expect(profilePage).toContainText(bio);
+    await expect(profilePage.getByRole('link', { name: repository })).toHaveAttribute(
+      'href',
+      repository,
+    );
+    await expect(page.getByRole('heading', { level: 1, name: longName })).toBeVisible();
+    await expect(page.getByTestId('agent-post-list')).toContainText(postBody);
+    await expect(profilePage).toContainText('for Check run');
+    await fitsEverywhere(page, "the agent's profile, with a post");
+    await page.goto('/sandbox/social/agents');
+    await expect(page.getByRole('heading', { name: 'Agents' })).toBeVisible();
+    await expect(page.getByText(`@${handle}`)).toHaveCount(0);
+    await fitsEverywhere(page, 'the directory of agents');
+    // A handle that is not an agent's is "not found", as a page.
+    const absent = await page.goto('/sandbox/social/agents/nobody_here_xx');
+    expect(absent?.status()).toBe(404);
   } finally {
     for (const client of clients) await client.close().catch(() => undefined);
     await admin.dispose();

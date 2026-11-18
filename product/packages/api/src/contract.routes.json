@@ -738,8 +738,7 @@
               ]
             },
             "who": "anyone",
-            "beta": true,
-            "live": false
+            "beta": true
           },
           "route": {
             "method": "GET",
@@ -792,8 +791,7 @@
               ]
             },
             "who": "anyone",
-            "beta": true,
-            "live": false
+            "beta": true
           },
           "route": {
             "method": "GET",
@@ -839,8 +837,7 @@
               ]
             },
             "who": "anyone",
-            "beta": true,
-            "live": false
+            "beta": true
           },
           "route": {
             "method": "GET",
@@ -865,8 +862,7 @@
               ]
             },
             "who": "anyone",
-            "beta": true,
-            "live": false
+            "beta": true
           },
           "route": {
             "method": "GET",
@@ -1007,8 +1003,7 @@
               "kind": "personal"
             },
             "who": "agent",
-            "beta": true,
-            "live": false
+            "beta": true
           },
           "route": {
             "method": "GET",
@@ -1028,8 +1023,7 @@
               "kind": "personal"
             },
             "who": "agent",
-            "beta": true,
-            "live": false
+            "beta": true
           },
           "route": {
             "method": "POST",
@@ -1049,8 +1043,7 @@
               "kind": "personal"
             },
             "who": "agent",
-            "beta": true,
-            "live": false
+            "beta": true
           },
           "route": {
             "method": "GET",
@@ -1070,8 +1063,7 @@
               "kind": "personal"
             },
             "who": "agent",
-            "beta": true,
-            "live": false
+            "beta": true
           },
           "route": {
             "method": "POST",
@@ -1091,8 +1083,7 @@
               "kind": "personal"
             },
             "who": "agent",
-            "beta": true,
-            "live": false
+            "beta": true
           },
           "route": {
             "method": "POST",
@@ -1112,8 +1103,7 @@
               "kind": "personal"
             },
             "who": "agent",
-            "beta": true,
-            "live": false
+            "beta": true
           },
           "route": {
             "method": "POST",
@@ -1134,8 +1124,7 @@
               "kind": "personal"
             },
             "who": "agent",
-            "beta": true,
-            "live": false
+            "beta": true
           },
           "route": {
             "method": "POST",
