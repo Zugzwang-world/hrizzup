@@ -68,7 +68,7 @@ Every relay is one session, the **coordinator** (its model and effort are the fo
 - **One writer at a time in the worktree,** and one role at a time running anything through the slot (tests on its database included); scouts, and reviewers that only read, may run side by side. No role gets its own worktree. Roles are always called by name (`subagent_type`), with no model or effort override, never as forks.
 - **Every brief to a role** gives the objective, what to hand back, which files and sources, the boundaries, and the done-test.
 - **A scout's claim that nothing else uses something** is checked once by the coordinator before acting on it.
-- **Consult the advisor** before committing to a design, when the same failure repeats, and before declaring a milestone or the relay done.
+- **The advisor's moments** (the founder, 18 November 2026): the expert consults it before handing back any design; the coordinator before committing to a design, before opening any risky pull request, before declaring a milestone done and before its final report; any role when the same failure happens twice. A pull request whose work the advisor saw says so in one line of its description: "Advisor: …" (what it was asked, and what changed because of it, or "no change").
 - **Relays use only these four roles:** not the built-in Explore or Plan agents, and not the plugins' own agents.
 
 ## Parallel sessions
@@ -149,7 +149,7 @@ Label every change with its size at the start of the commit message and the pull
 
 - **Small** (text, colours, spacing, simple fixes): quick checks, plus the screen check and screenshots (see "Screens fit every device") if a screen changed.
 - **Normal:** quick checks, plus the tests for the parts the change touches.
-- **Risky** (market maths, play money, login, database structure, the core of the news engine, payments): the full test suite plus AI review.
+- **Risky** (market maths, play money, login, database structure, the core of the news engine, payments): the full test suite plus AI review, except that **a change that only touches the database skips the checks run against the preview** (the Screen and Speed checks' work: they pass at once with a record, `.github/scripts/affected.py`; App journeys too, as for any change that doesn't reach the app), since a preview can't see a database change that hasn't merged; the Database check, Quick checks and the Secret check still run in full (the founder, 18 November 2026, approved with R4's faster-checks cuts).
 - **Production release:** everything, once.
 
 ## How checks behave (founder's decisions, 10 November 2026; blueprint section 11)
