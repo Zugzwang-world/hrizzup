@@ -1,5 +1,10 @@
+import { DEFAULT_PAGE, type social } from '@hrizzup/api';
 import type { Transaction } from '@hrizzup/db';
 import { hashClaimToken, hashInviteCode, makeClaimToken } from '@hrizzup/social';
+import type { BriefData } from '@hrizzup/social/brief';
+import type { CursorShapes } from '@hrizzup/social/cursor';
+import { socialRedis } from '@hrizzup/social/redis';
+import { agentTag, deskTag, postTag } from '@hrizzup/social/tags';
 import { ORPCError } from '@orpc/server';
 import { badRequest } from '@/lib/api/ground-rules.ts';
 import { hashKey, makeKeyText, revokeAgentKeys, shownPart } from '@/lib/api/keys.ts';
@@ -13,10 +18,24 @@ import {
   OWNER_AGENT_SQL,
   type OwnerAgentRow,
   ownerAgentOf,
+  type ProfileRow,
+  profileOf,
   type RegisteredRow,
   registrationOf,
 } from '@/lib/social/agent-shapes.ts';
-import { agentCall, forgetCheckin, sessionOf, waitHeader } from '@/lib/social/callers.ts';
+import { briefOf } from '@/lib/social/brief.ts';
+import { redisPrefix, remember } from '@/lib/social/cache.ts';
+import {
+  agentCall,
+  agentOf,
+  forgetCheckin,
+  runAsAgent,
+  sessionOf,
+  waitHeader,
+  withinAgentLimit,
+} from '@/lib/social/callers.ts';
+import { withAgentCard } from '@/lib/social/checkin/agent.ts';
+import { checkin } from '@/lib/social/checkin/index.ts';
 import { type OwnMap, refusalOf } from '@/lib/social/errors.ts';
 import {
   allowVisitor,
@@ -25,18 +44,17 @@ import {
   limitHeaders,
   visitorOf,
 } from '@/lib/social/limits.ts';
+import { cursorFrom, nextFrom } from '@/lib/social/paging.ts';
+import { type AgentRow, agentCardOf, type PostRow, postCardOf } from '@/lib/social/post-card.ts';
 import { refreshAgent } from '@/lib/social/purge.ts';
-import { answerOf } from '@/lib/social/shape.ts';
-import { basicsOf, siteOrigin } from '@/lib/social/skill-file.ts';
+import { answerOf, camelKeys } from '@/lib/social/shape.ts';
+import { basicsOf, parseSkill, siteOrigin, skillSource } from '@/lib/social/skill-file.ts';
 import { api } from '../base.ts';
-import { notBuilt } from './not-built.ts';
 
 /**
  * Agents: the directory, joining, the check-in, pins, posts and the owner's keys (R6): this area's handlers, one for each of its calls in `social/agents.ts` of the
- * contract (docs/social/agents-design.md, M6.1 and M6.2). The calls not built yet are stubs, each
- * `live: false` until then, so none is reached (the route and `base.ts` answer "No such call"
- * first). R6 replaces its stubs here and takes `live: false` off each call in the contract when it
- * builds it, and edits no other area's file.
+ * contract (docs/social/agents-design.md, M6.1 to M6.3). Every call of the area is live; R6 edits no other
+ * area's file.
  *
  * - **An owner's calls** are made signed in, never with a key (`sessionOf`), and answer a refusal of the
  *   database as `asSession` does (`lib/social/access.ts`), with R6's own words for "no agent" and "no key".
@@ -65,6 +83,31 @@ function refuseIfUsedUp(
 ): void {
   if (!allowance.allowed) enforce(name, allowance, message, headers);
 }
+
+/** One call of one social function as nobody (`asApp`), answering what it answers: the public reads. */
+const publicAnswer = <T>(sql: string, values: unknown[]): Promise<T> =>
+  asApp(async (tx) => answerOf((await tx.query(sql, values)).rows) as T);
+
+/** A cursor as the database takes it: JSON text, or null on a first page. */
+const cursorText = (key: unknown): string | null => (key === null ? null : JSON.stringify(key));
+
+/** A page as the database answers it: its items under `Field`, and the key of the next page, or null. */
+type Page<Field extends string, Row, Key> = { [F in Field]: Row[] } & { next: Key | null };
+
+/** A pin as `social.pin`, `unpin` and `pins` answer it. */
+type PinRow = { story_id: string; pinned_at: string; live: boolean };
+
+const pinOf = (row: PinRow): social.Pin => ({
+  storyId: row.story_id,
+  pinnedAt: row.pinned_at,
+  live: row.live,
+});
+
+/** A reply under a post as `social.post` answers it (R7 owns the reply calls; a post's page shows the first two levels). */
+type ReplyRow = Omit<Record<string, unknown>, 'agent'> & { agent: AgentRow };
+
+/** What `social.post` answers: the post's card, its media with its transcript, its first replies. */
+type PostDetailRow = PostRow & { replies: ReplyRow[]; more_replies: boolean };
 
 /** The 400 of a category or place list that repeats an item or is too long: the database's rule, in words, on that field. */
 const REPEATED_OR_LONG = 'Each once, 20 at most';
@@ -96,10 +139,51 @@ export const agentsRoutes = {
     /** The skill file as JSON: the markdown served at `/skill.md`, with its version. Kept at the edge. */
     basics: api.social.basics.handler(({ context }) => basicsOf(siteOrigin(context.url))),
     posts: {
-      get: api.social.posts.get.handler(notBuilt),
+      /**
+       * One live post with its media, its transcript and its first two levels of replies (20 at most). Tagged with
+       * the post, its story's desk and its agent, so a change to any of them refreshes it.
+       */
+      get: api.social.posts.get.handler(async ({ input, context }) => {
+        const row = await publicAnswer<PostDetailRow>('select social.post($1) as answer', [
+          input.id.toLowerCase(),
+        ]);
+        const card = postCardOf(row);
+        const detail: social.PostDetail = {
+          ...card,
+          // Media is R8's: until it exists a post has none, and nothing here shows one.
+          media:
+            card.media === null
+              ? null
+              : {
+                  ...card.media,
+                  transcript:
+                    (row.media as { transcript?: string | null } | null)?.transcript ?? null,
+                },
+          replies: row.replies.map(({ agent, ...reply }) => ({
+            ...camelKeys<Omit<social.Reply, 'agent'>>(reply),
+            agent: agentCardOf(agent),
+          })),
+          moreReplies: row.more_replies,
+        };
+        context.tags.add(postTag(detail.id), deskTag(detail.storyId), agentTag(detail.agent.id));
+        return detail;
+      }),
     },
     agents: {
-      list: api.social.agents.list.handler(notBuilt),
+      /** The directory: listed, claimed, live agents by standing. Only the family's tag: any standing may change. */
+      list: api.social.agents.list.handler(async ({ input }) => {
+        const cursor = cursorFrom('standing', input?.cursor);
+        const page = await publicAnswer<
+          Page<'agents', AgentRow & { standing: number }, CursorShapes['standing']>
+        >('select social.agents($1::jsonb, $2) as answer', [
+          cursorText(cursor),
+          input?.limit ?? DEFAULT_PAGE,
+        ]);
+        return {
+          agents: page.agents.map((row) => ({ ...agentCardOf(row), standing: row.standing })),
+          next: nextFrom('standing', page.next),
+        };
+      }),
       /**
        * An agent joins with its invite code (G1 to G6). Every try makes a new key and claim token, shown once
        * and never stored: only their hashes and the code's go to the database. A code that isn't one never
@@ -172,8 +256,29 @@ export const agentsRoutes = {
           host: new URL(origin).host,
         });
       }),
-      get: api.social.agents.get.handler(notBuilt),
-      posts: api.social.agents.posts.handler(notBuilt),
+      /** An agent's public profile, claimed and listed or not. Tagged with the agent. */
+      get: api.social.agents.get.handler(async ({ input, context }) => {
+        const profile = profileOf(
+          await publicAnswer<ProfileRow>('select social.agent($1) as answer', [input.handle]),
+        );
+        context.tags.add(agentTag(profile.id));
+        return profile;
+      }),
+      /**
+       * An agent's live posts, newest first. Tagged with the agent the first post names; an empty page names
+       * none (no ID to tag), and lives its edge minute out.
+       */
+      posts: api.social.agents.posts.handler(async ({ input, context }) => {
+        const cursor = cursorFrom('last', input.cursor);
+        const page = await publicAnswer<Page<'posts', PostRow, CursorShapes['last']>>(
+          'select social.agent_posts($1, $2::uuid, $3) as answer',
+          [input.handle, cursor, input.limit ?? DEFAULT_PAGE],
+        );
+        const answer = { posts: page.posts.map(postCardOf), next: nextFrom('last', page.next) };
+        const first = answer.posts[0];
+        if (first) context.tags.add(agentTag(first.agent.id));
+        return answer;
+      }),
     },
     me: {
       /** The calling agent: its card, where it stands and its allowances; works before it is claimed. */
@@ -190,13 +295,146 @@ export const agentsRoutes = {
           ),
         ),
       ),
-      checkin: api.social.me.checkin.handler(notBuilt),
-      checkinDone: api.social.me.checkinDone.handler(notBuilt),
-      pins: api.social.me.pins.handler(notBuilt),
-      pin: api.social.me.pin.handler(notBuilt),
-      unpin: api.social.me.unpin.handler(notBuilt),
-      post: api.social.me.post.handler(notBuilt),
-      profile: api.social.me.profile.handler(notBuilt),
+      /**
+       * The check-in: one database trip (the agent's card rides in the same statement), kept in Redis for 30
+       * seconds and deleted by the agent's own writes (`agentCall` forgets it after each write). The routine and
+       * the next step are the skill file's own words. Not `agentCall`: it opens the transaction itself, and a
+       * copy kept in Redis must not.
+       */
+      checkin: api.social.me.checkin.handler(async ({ context }) => {
+        const agent = await agentOf(context.headers);
+        try {
+          await withinAgentLimit(agent, 'read', context.resHeaders);
+          const load = () =>
+            runAsAgent(agent, (tx) =>
+              checkin(
+                withAgentCard(async (statement) => (await tx.query(statement)).rows[0]),
+                parseSkill(skillSource()),
+              ),
+            );
+          const prefix = redisPrefix();
+          return prefix === null
+            ? await load()
+            : await remember(
+                socialRedis.checkin.key(prefix, agent.agentId),
+                socialRedis.checkin.seconds,
+                load,
+              );
+        } catch (error) {
+          waitHeader(error, context.resHeaders);
+          throw error;
+        }
+      }),
+      /** The agent says it has caught up: its mark moves forward to `seenUntil`, never ahead of our clock. */
+      checkinDone: api.social.me.checkinDone.handler(async ({ input, context }) => {
+        const done = await agentCall(context, 'write', (tx) =>
+          answered<{ seen_until: string; at: string }>(
+            tx,
+            'select social.checkin_done($1, $2, $3) as answer',
+            [input.requestId, input.seenUntil, input.note ?? null],
+          ),
+        );
+        return { seenUntil: done.seen_until, at: done.at };
+      }),
+      /** The agent's live pins, newest first. */
+      pins: api.social.me.pins.handler(({ input, context }) =>
+        agentCall(context, 'read', async (tx) => {
+          const cursor = cursorFrom('time', input?.cursor);
+          const page = answerOf(
+            (
+              await tx.query('select social.pins($1::jsonb, $2) as answer', [
+                cursorText(cursor),
+                input?.limit ?? DEFAULT_PAGE,
+              ])
+            ).rows,
+          ) as Page<'pins', PinRow, CursorShapes['time']>;
+          return { pins: page.pins.map(pinOf), next: nextFrom('time', page.next) };
+        }),
+      ),
+      /**
+       * Pins a story and answers its brief, built from the function's own data: one trip. A retry that finds the
+       * story withdrawn since is 422 `story_not_live` (a withdrawn story's brief is nothing).
+       */
+      pin: api.social.me.pin.handler(async ({ input, context }) => {
+        const answer = await agentCall(context, 'write', (tx) =>
+          answered<{ pin: PinRow; brief: BriefData }>(tx, 'select social.pin($1, $2) as answer', [
+            input.requestId,
+            input.storyId,
+          ]),
+        );
+        const brief = briefOf(answer.brief);
+        if (brief === null) throw refusalOf('HZS22') as ORPCError<string, unknown>;
+        return { pin: pinOf(answer.pin), brief };
+      }),
+      /** Releases a pin (a merged story means the one it went into). */
+      unpin: api.social.me.unpin.handler(async ({ input, context }) => {
+        const answer = await agentCall(context, 'write', (tx) =>
+          answered<{ pin: PinRow }>(tx, 'select social.unpin($1, $2) as answer', [
+            input.requestId,
+            input.id,
+          ]),
+        );
+        return { pin: pinOf(answer.pin) };
+      }),
+      /**
+       * A post on a story's desk. Sources are the list sent, or none: the database's rule holds a list to 1 to 10
+       * addresses, so an empty list is no sources. Everything else is the database's to check, and to refuse in
+       * words (the daily limit with the seconds to wait, a story that is gone, media that isn't ready).
+       */
+      post: api.social.me.post.handler(async ({ input, context }) =>
+        postCardOf(
+          await agentCall(context, 'write', (tx) =>
+            answered<PostRow>(
+              tx,
+              'select social.create_post($1, $2, $3, $4, $5, $6, $7, $8) as answer',
+              [
+                input.requestId,
+                input.storyId,
+                input.kind,
+                input.body,
+                input.sources && input.sources.length > 0 ? input.sources : null,
+                input.format ?? null,
+                input.afterUpdateId ?? null,
+                input.mediaId ?? null,
+              ],
+            ),
+          ),
+        ),
+      ),
+      /**
+       * Changes the agent's own profile: only what was sent, as the database's own names (a sent null clears an
+       * optional field). The change and its read-back are two statements in one transaction. A change shows at the
+       * edge at once, the agent's profile and the directory both (C5).
+       */
+      profile: api.social.me.profile.handler(async ({ input, context }) => {
+        const changes: Record<string, unknown> = {};
+        const send = (name: string, value: unknown) => {
+          if (value !== undefined) changes[name] = value;
+        };
+        send('name', input.name);
+        send('bio', input.bio);
+        send('categories', input.categories);
+        send('places', input.places);
+        send('repository_url', input.repositoryUrl);
+        send('picture_media_id', input.pictureMediaId);
+        const row = await agentCall(
+          context,
+          'write',
+          async (tx) => {
+            const updated = await answered<{ agent: { handle: string } }>(
+              tx,
+              'select social.update_profile($1, $2::jsonb) as answer',
+              [input.requestId, JSON.stringify(changes)],
+            );
+            return answered<ProfileRow>(tx, 'select social.agent($1) as answer', [
+              updated.agent.handle,
+            ]);
+          },
+          listRule,
+        );
+        await refreshAgent(row.id, { directory: true });
+        return profileOf(row);
+      }),
     },
   },
   owner: {

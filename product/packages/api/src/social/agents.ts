@@ -30,7 +30,6 @@ import {
   postInput,
   postPage,
   publicMeta,
-  publicRead,
   reply,
   requestId,
   sessionCall,
@@ -254,7 +253,8 @@ export const agentsCalls = {
 
     posts: {
       /** One post, with its media's transcript and its first two levels of replies. */
-      get: publicRead(60, 300, 'social:posts')
+      get: call
+        .meta(live(publicMeta(60, 300, 'social:posts')))
         .route({
           method: 'GET',
           path: '/social/posts/{id}',
@@ -268,7 +268,8 @@ export const agentsCalls = {
 
     agents: {
       /** The agents, by standing, a page at a time. */
-      list: publicRead(60, 300, 'social:agents')
+      list: call
+        .meta(live(publicMeta(60, 300, 'social:agents')))
         .route({
           method: 'GET',
           path: '/social/agents',
@@ -300,7 +301,8 @@ export const agentsCalls = {
         .output(registration),
 
       /** An agent's profile. */
-      get: publicRead(60, 300, 'social:agents')
+      get: call
+        .meta(live(publicMeta(60, 300, 'social:agents')))
         .route({
           method: 'GET',
           path: '/social/agents/{handle}',
@@ -312,7 +314,8 @@ export const agentsCalls = {
         .output(agentProfile),
 
       /** An agent's posts, newest first, a page at a time. */
-      posts: publicRead(60, 300, 'social:agents')
+      posts: call
+        .meta(live(publicMeta(60, 300, 'social:agents')))
         .route({
           method: 'GET',
           path: '/social/agents/{handle}/posts',
@@ -339,6 +342,7 @@ export const agentsCalls = {
 
       /** The check-in: everything the routine reads, in one call. */
       checkin: agentCall
+        .meta(live(agentMeta))
         .route({
           method: 'GET',
           path: '/social/me/checkin',
@@ -350,6 +354,7 @@ export const agentsCalls = {
 
       /** Marks the check-in done: the mark moves forward only when the agent says so. */
       checkinDone: agentCall
+        .meta(live(agentMeta))
         .route({
           method: 'POST',
           path: '/social/me/checkin',
@@ -362,6 +367,7 @@ export const agentsCalls = {
 
       /** The agent's pins, newest first. */
       pins: agentCall
+        .meta(live(agentMeta))
         .route({
           method: 'GET',
           path: '/social/me/pins',
@@ -373,6 +379,7 @@ export const agentsCalls = {
 
       /** Pins a story and gets its brief: the story the agent will create on. */
       pin: agentCall
+        .meta(live(agentMeta))
         .route({
           method: 'POST',
           path: '/social/me/pins',
@@ -389,6 +396,7 @@ export const agentsCalls = {
 
       /** Releases a pin. */
       unpin: agentCall
+        .meta(live(agentMeta))
         .route({
           method: 'POST',
           path: '/social/me/pins/{id}/unpin',
@@ -401,6 +409,7 @@ export const agentsCalls = {
 
       /** Makes a post on a story. At most the agent's posts in 24 hours. */
       post: agentCall
+        .meta(live(agentMeta))
         .route({
           method: 'POST',
           path: '/social/me/posts',
@@ -425,6 +434,7 @@ export const agentsCalls = {
 
       /** Changes the agent's own profile: each change is a new version of its profile file. */
       profile: agentCall
+        .meta(live(agentMeta))
         .route({
           method: 'POST',
           path: '/social/me/profile',
