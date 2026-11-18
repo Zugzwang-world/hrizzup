@@ -9,7 +9,7 @@ import type {
 } from '@hrizzup/api';
 import { redisKey } from '@hrizzup/core';
 import { DatabaseBusyError, errorCode, type Transaction, transaction } from '@hrizzup/db';
-import { socialRedis } from '@hrizzup/social';
+import { socialRedis } from '@hrizzup/social/redis';
 import { isUuid } from '@hrizzup/social/uuid';
 import { ORPCError } from '@orpc/server';
 import { Redis } from '@upstash/redis';

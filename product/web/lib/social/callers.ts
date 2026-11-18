@@ -1,5 +1,5 @@
 import type { Transaction } from '@hrizzup/db';
-import { socialRedis } from '@hrizzup/social';
+import { socialRedis } from '@hrizzup/social/redis';
 import { ORPCError } from '@orpc/server';
 import { type ApiContext, type SignedIn, signedIn } from '@/lib/api/context.ts';
 import { carriesKey, credentialOf } from '@/lib/api/credential.ts';
