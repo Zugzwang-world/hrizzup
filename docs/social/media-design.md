@@ -600,3 +600,16 @@ Nothing changes in `checks.yml`, `app-keys.txt`, `dev-overrides.txt`, `firewall.
 ---
 
 Advisor (Fable 5.2, asked to review the finished design; its first call timed out): it found the lease CHECK would have made the unchanged `_tidy` fail every day once a check died mid-way (fixed: the guard clears the lease as a row leaves `waiting`, with a test); it had the video and audio location refusal moved out of the build into an open question (the founder's rule covers images, and "Product first" bars new privacy work); and it asked for checks that confirmed `<picture>` passes Biome, sharp 0.35.5's call names, and WebKit routing's safety, and for R9's likely overlap in `agent-shapes.ts` and `social.agent` to be named.
+
+---
+
+## 15. As built in M2a (19 November 2026, [#196](https://github.com/Zugzwang-world/hrizzup/pull/196); read before building M2b to M4)
+
+The review built files that lie about their length and decoded them with FFmpeg (Chrome's decoder) and CoreAudio (Safari's and the iPhone's), in three rounds; these rules now hold beyond section 7.5:
+- **MP4/M4A:** a box held twice in its parent is refused; every track needs `mdhd`, `hdlr`, `stts` and `stsz` or `stz2` (not both), and the `stts` counts must sum to exactly the sample count; the boxes that decide a length (`mvhd`, `tkhd`, `mdhd`, `stts`, `stsz`, `stz2`, `elst`) are refused anywhere but their own parent, and a `vide` or `soun` handler anywhere but `moov/trak/mdia`; an edit list longer than the limit plus a second is `too_long`; any top-level `moof` is refused as `fragmented`.
+- **MP3:** frames hold the first frame's version, layer and sample rate; every MPEG audio header met while scanning past junk (any layer, version or rate) is counted at its own samples and rate, moving one byte on, within the 64 KiB junk budget (so the count can only be too long, never too short); an APE tag is walked as junk (one over 64 KiB is refused; cover art belongs in the leading ID3v2 tag, which is skipped by its size as every decoder does); a leading Xing, Info or VBRI frame isn't counted as sound.
+- **Slack:** tracks and MP3 frames get 1,000 ms over the limit, a video's or audio's movie header (`mvhd`) 500 ms (so a phone's or Apple's export of exactly 1:00 or 5:00 passes and a 61-second file is still refused); the stored `duration_ms` is at most the limit (the table's CHECKs).
+- **The copy:** a copy answered with no ETag counts as changed (the copy is removed and the upload refused).
+- **Storage:** requests go through `fetch(url, init)` (a `Request` object let Next's patched fetch send a PUT chunked, which R2 refuses with 411); R2 writes the copy's ETag quoted (`&quot;…&quot;`), decoded before comparing; `sharp` is imported lazily on first use.
+- **Proven on the preview:** `sharp` 0.35.5 loads in Vercel's functions in Mumbai; the presigned PUT and the bucket-to-bucket copy with `x-amz-copy-source-if-match` work from GitHub's runners (the API journey, 25 s).
+

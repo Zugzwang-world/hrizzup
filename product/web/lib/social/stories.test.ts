@@ -1,6 +1,6 @@
 import { social } from '@hrizzup/api';
 import { social as examples } from '@hrizzup/api/examples';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   type LiveStoryRow,
   type StoryTileRow,
@@ -10,6 +10,11 @@ import {
   updateOf,
   type WithdrawnStoryRow,
 } from './stories.ts';
+
+/** The media host of these tests: the address of a picture is this plus its key. */
+const MEDIA_HOST = 'https://media.example.test';
+beforeEach(() => vi.stubEnv('MEDIA_BASE_URL', MEDIA_HOST));
+afterEach(() => vi.unstubAllEnvs());
 
 const story = examples.board.storyDetail;
 if (story.state !== 'live') throw new Error('The example story is live');
@@ -78,13 +83,26 @@ describe('a story tile', () => {
     expect(storyTileOf(without as StoryTileRow).picture).toBeNull();
   });
 
-  it('maps a picture row through `imageOf`, which answers null until R8’s uploads can make media (M2)', () => {
+  it('maps a picture row through `imageOf`, into the contract’s Image at the media host', () => {
     const tile = storyTileOf({ ...tileRow(), picture: pictureRow });
     expect(social.storyTile.parse(tile)).toEqual(tile);
-    expect(tile.picture).toBeNull();
+    expect(tile.picture).toEqual({
+      url: `${MEDIA_HOST}/${pictureRow.media_key}`,
+      width: 1280,
+      height: 720,
+      placeholder: pictureRow.placeholder,
+      description: 'The coast road at dawn',
+    });
     // The row's own snake_case keys never reach the reader as a picture.
     expect(JSON.stringify(tile)).not.toContain('media_key');
     expect(JSON.stringify(tile)).not.toContain('mediaKey');
+  });
+
+  it('has no picture for a row that is not a whole image, or where there is no media host', () => {
+    const { width: _width, ...incomplete } = pictureRow;
+    expect(storyTileOf({ ...tileRow(), picture: incomplete }).picture).toBeNull();
+    vi.stubEnv('MEDIA_BASE_URL', '');
+    expect(storyTileOf({ ...tileRow(), picture: pictureRow }).picture).toBeNull();
   });
 
   it('keeps a story with no update yet (no latest headline)', () => {

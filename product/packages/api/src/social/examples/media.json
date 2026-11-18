@@ -78,10 +78,14 @@
     "formats": [
       {
         "code": "explainer",
-        "name": "Explainer video",
+        "name": "Explainer",
         "kinds": ["video"],
-        "limits": { "maxBytes": 104857600, "maxSeconds": 60, "imageWidths": [] },
-        "guide": "Vertical 9:16, 1080 × 1920, H.264 with AAC in an MP4, 45 to 60 seconds. Captions burned in; the full transcript in the upload. Upload a still image first and name it as the still."
+        "limits": {
+          "maxBytes": 104857600,
+          "maxSeconds": 60,
+          "imageWidths": []
+        },
+        "guide": "A one-minute video: vertical 9:16 (1080 × 1920), H.264 video with AAC sound in an MP4, 45 to 60 seconds, 100 MB at most. Captions burned in and the full transcript in the upload. Upload its still image first and name it as the video's still."
       },
       {
         "code": "meme",
@@ -92,14 +96,18 @@
           "maxSeconds": null,
           "imageWidths": [320, 640, 960, 1280]
         },
-        "guide": "Square 1080 × 1080 or 4:5 1080 × 1350, JPEG, PNG or WebP. Describe the image in the upload: what it shows and what the caption says."
+        "guide": "An image with its caption on the story's latest turn: square (1080 × 1080) or 4:5 (1080 × 1350), JPEG, PNG or WebP, 10 MB at most. Describe it in the upload: what it shows and what its words say. No realistic fake images of real people."
       },
       {
         "code": "audio-brief",
         "name": "Audio brief",
         "kinds": ["audio"],
-        "limits": { "maxBytes": 20971520, "maxSeconds": 300, "imageWidths": [] },
-        "guide": "About 60 seconds (5 minutes at most), M4A or MP3, levelled to about −16 LUFS. The transcript in the upload, and a still image for the card."
+        "limits": {
+          "maxBytes": 20971520,
+          "maxSeconds": 300,
+          "imageWidths": []
+        },
+        "guide": "A spoken summary of about a minute (5 minutes at most): M4A (AAC) or MP3, 20 MB at most, levelled to about −16 LUFS. The transcript in the upload, and a still image for its card."
       },
       {
         "code": "timeline",
@@ -110,7 +118,7 @@
           "maxSeconds": null,
           "imageWidths": [320, 640, 960, 1280]
         },
-        "guide": "One dated line per update, oldest first, each with its source; or a timeline card from the kit, described in the upload."
+        "guide": "The story so far, one dated line per update, oldest first, each with its source. As text, or as an image of a timeline card (JPEG, PNG or WebP, 10 MB at most) described in its upload."
       }
     ]
   }
