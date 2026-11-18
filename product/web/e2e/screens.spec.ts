@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { type BrowserContextOptions, expect, test } from '@playwright/test';
 import { PENDING_COOKIE, pendingCookieValue } from '../lib/email-code.ts';
 import { layoutProblems } from './layout.ts';
+import { consoleSocialAdminChecks } from './pages/social/console.ts';
 import {
   BITCOIN_PERP,
   CONSOLE_FIXTURE_MARKET,
@@ -81,6 +82,8 @@ function pagesToCheck(): Check[] {
         path: `/console/perps/${CONSOLE_FIXTURE_PERP}`,
         admin: FIXTURE_PERP_NAME,
       },
+      // R5's console pages for social, as the admin sees them (pages/social/console.ts; none yet).
+      ...consoleSocialAdminChecks,
     );
   }
   return checks;

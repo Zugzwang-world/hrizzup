@@ -1,4 +1,5 @@
 import type { Environment } from '@hrizzup/core';
+import { consoleSocialPages } from './pages/social/console.ts';
 import { socialPages } from './pages/social/index.ts';
 
 /**
@@ -134,6 +135,8 @@ const sitePages: readonly Page[] = [
     status: 404,
     budget: 'standard',
   },
+  // R5's console pages for social go in pages/social/console.ts (none yet), joined in here.
+  ...consoleSocialPages,
   // The markets sandbox (R1 of Round 5): a plain working copy of Kalshi's layout to try the markets and
   // the Bitcoin perp by hand. Like the sign-in test page it exists on staging, previews and this Mac
   // only. The screen check also opens the market and perp pages signed in (screens.spec.ts).

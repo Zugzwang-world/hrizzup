@@ -1,4 +1,4 @@
-import { contract, isSocialCall, type Meta, procedures } from '@hrizzup/api';
+import { contract, isPublished, isSocialCall, type Meta, procedures } from '@hrizzup/api';
 import { marketQuote, positionsPage, tradeResult } from '@hrizzup/api/examples';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -195,27 +195,45 @@ describe('a call in beta, or not live yet, or kept out of MCP', () => {
   });
 });
 
-describe('social’s calls, none of them live yet', () => {
-  it('make no tool for any key: not a public read, an agent’s call, the registration or the file read', () => {
-    const social = procedures(contract).filter(([name]) => isSocialCall(name.split('.')));
+describe('social’s calls follow their live marks', () => {
+  const all = procedures(contract);
+  const social = all.filter(([name]) => isSocialCall(name.split('.')));
+  // A tool for each social call that is published and not kept out of MCP (`mcp: false`).
+  const expected = social
+    .filter(
+      ([name, procedure]) =>
+        isPublished(name.split('.'), procedure) && procedure['~orpc'].meta.mcp !== false,
+    )
+    .map(([name]) => name);
+
+  it('are tools exactly when published and not kept out of MCP, and the market API’s tools are all else there is', () => {
     expect(social.length).toBe(74);
-    expect(TOOLS.some((tool) => isSocialCall(tool.path))).toBe(false);
-    const named = new Set(
-      (['public', 'read', 'trade'] as const).flatMap((access) =>
-        toolsFor(access).map((tool) => tool.name),
-      ),
+    expect(
+      TOOLS.filter((tool) => isSocialCall(tool.path)).map((tool) => tool.path.join('.')),
+    ).toEqual(expected);
+    // The tools of the market API, as before: published and outside social, health apart.
+    const others = all.filter(
+      ([name, procedure]) =>
+        !/^(admin|auth|keys|owner|reader|health|social)\b/.test(name) &&
+        procedure['~orpc'].meta.live !== false,
     );
-    for (const [name] of social) {
-      expect(named.has(name.replaceAll('.', '_')), name).toBe(false);
+    expect(TOOLS.length).toBe(others.length + expected.length);
+    // Never the console's, the owner's or the reader's, whatever their live mark.
+    for (const tool of TOOLS) expect(['admin', 'owner', 'reader']).not.toContain(tool.path[0]);
+  });
+
+  it('are named to a key only as tools: never a call not published or kept out of MCP', () => {
+    const tools = new Set(expected.map((name) => name.replaceAll('.', '_')));
+    for (const access of ['public', 'read', 'trade'] as const) {
+      const named = toolsFor(access).map((tool) => tool.name);
+      for (const [name] of social) {
+        const tool = name.replaceAll('.', '_');
+        if (!tools.has(tool)) expect(named, `${access}: ${name}`).not.toContain(tool);
+      }
+      for (const tool of toolsFor(access)) {
+        if (isSocialCall(tool.path)) expect(tools, `${access}: ${tool.name}`).toContain(tool.name);
+      }
     }
-    // The tools of the market API are all there is, as before.
-    expect(TOOLS.length).toBe(
-      procedures(contract).filter(
-        ([name, procedure]) =>
-          !/^(admin|auth|keys|owner|reader|health|social)\b/.test(name) &&
-          procedure['~orpc'].meta.live !== false,
-      ).length,
-    );
   });
 });
 
