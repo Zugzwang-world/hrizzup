@@ -609,19 +609,19 @@ describe('the calls for everyone', () => {
     const { id: perp } = await testPerp();
     const ola = await person('1000');
     const people = new Map([[ola, '1000']]);
-    const opening = {
+    const openRequest = {
       perpId: perp,
       requestId: randomUUID(),
       direction: 'long' as const,
       margin: '10',
       leverage: '2',
     };
-    const opened = await openPerp(app, ola, opening, SOURCE);
+    const opened = await openPerp(app, ola, openRequest, SOURCE);
     await passes(outputOf(contract.perps.open), opened);
     expect(opened).toMatchObject({ status: 'opened', margin: '10.000000', fee: '0.020000' });
     expect(Date.parse(opened.priceAt)).toBeGreaterThan(Date.parse(opened.placedAt));
     // A retry of the open: the first answer, and the API prints it exactly as it printed the first.
-    const reopened = await openPerp(app, ola, opening, SOURCE);
+    const reopened = await openPerp(app, ola, openRequest, SOURCE);
     expect(reopened).toEqual(opened);
     expect(printTimes(outputOf(contract.perps.open), reopened)).toEqual(
       printTimes(outputOf(contract.perps.open), opened),

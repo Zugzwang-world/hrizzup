@@ -48,9 +48,12 @@ describe('printedTime', () => {
 
   it("says what `new Date(x).toISOString()` does, for 0 to 9 decimals and the second's edges", () => {
     for (const head of ['2026-11-09T06:30:12', '2026-12-31T23:59:59', '2028-02-29T00:00:00']) {
-      for (const digits of ['', '9', '99', '999', '9999', '5', '0007', '123456', '999999999']) {
-        const time = `${head}${digits ? `.${digits}` : ''}Z`;
-        expect(printedTime(time), time).toBe(new Date(time).toISOString());
+      for (let length = 0; length <= 9; length++) {
+        for (const fraction of ['123456789', '999999999', '000000007', '500000000']) {
+          const digits = fraction.slice(0, length);
+          const time = `${head}${digits ? `.${digits}` : ''}Z`;
+          expect(printedTime(time), time).toBe(new Date(time).toISOString());
+        }
       }
     }
   });
