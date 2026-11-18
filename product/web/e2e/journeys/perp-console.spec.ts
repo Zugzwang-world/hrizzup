@@ -1,6 +1,7 @@
 import { type APIRequestContext, type Browser, expect, type Page, test } from '@playwright/test';
 import { newRecordId } from '../../lib/record-id.ts';
 import { BITCOIN_PERP } from '../pages.ts';
+import { quiet } from '../support/quiet-request.ts';
 import { runKey } from '../support/run.ts';
 import { adminState, signedInState } from '../support/states.ts';
 import { ADMIN_TEST_ACCOUNT } from '../support/test-accounts.ts';
@@ -86,7 +87,7 @@ async function call(
   data?: unknown,
   headers: Record<string, string> = {},
 ) {
-  const response = await request.fetch(path, { method, headers, ...(data ? { data } : {}) });
+  const response = await quiet(request).fetch(path, { method, headers, ...(data ? { data } : {}) });
   return {
     status: response.status(),
     text: await response.text(),

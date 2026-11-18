@@ -4,6 +4,7 @@ import { BITCOIN_PERP } from '../pages.ts';
 import { describeApiOnly, expect, test } from '../support/api-only.ts';
 import { call, decimal, micros } from '../support/books.ts';
 import { runPerp, SUBSIDY } from '../support/perps.ts';
+import { quiet } from '../support/quiet-request.ts';
 import { newRunTrader, runKey } from '../support/run.ts';
 import { adminState } from '../support/states.ts';
 import { type Engine, stagingKeys } from '../support/test-accounts.ts';
@@ -207,7 +208,7 @@ describeApiOnly('the perp for everyone', () => {
         leverage: '1',
       });
       expect(signedOut.status, 'signed out').toBe(401);
-      const forged = await trader.fetch('/api/v1/perps/open', {
+      const forged = await quiet(trader).fetch('/api/v1/perps/open', {
         method: 'POST',
         data: {
           perpId: perp,

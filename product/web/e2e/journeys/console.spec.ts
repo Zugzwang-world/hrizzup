@@ -1,5 +1,6 @@
 import { type APIRequestContext, type Browser, expect, type Page, test } from '@playwright/test';
 import { BITCOIN_PERP, CONSOLE_FIXTURE_MARKET } from '../pages.ts';
+import { quiet } from '../support/quiet-request.ts';
 import { runKey } from '../support/run.ts';
 import { adminState, signedInState } from '../support/states.ts';
 import { ADMIN_TEST_ACCOUNT } from '../support/test-accounts.ts';
@@ -97,7 +98,7 @@ async function answer(
     },
     data: '[]',
   };
-  const response = await as.fetch(path, {
+  const response = await quiet(as).fetch(path, {
     method,
     maxRedirects: 0,
     ...(method === 'POST' ? form : {}),
