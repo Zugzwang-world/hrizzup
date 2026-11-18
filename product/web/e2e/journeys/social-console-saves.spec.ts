@@ -282,19 +282,21 @@ test('an admin saves an unlisted test story and an update, and makes an invite: 
   const created = await call(request, 'POST', '/api/v1/admin/social/invites', invite);
   expect(created.status).toBe(201);
   const first = created.body as { invite: Record<string, unknown>; code: string; message: string };
-  expect(first.code).toMatch(CODE);
+  // The code is a secret, shown once: everything about it is compared as booleans, so a failure never
+  // prints it (nor the message that holds it) into a public log.
+  expect(CODE.test(first.code), 'the invite code has its shape').toBe(true);
   expect(first.invite).toMatchObject({
     email,
     listed: false,
     house: false,
-    codeShown: first.code.slice(0, 7),
     usedAt: null,
     revokedAt: null,
     agent: null,
   });
-  expect(first.message).toContain(first.code);
-  expect(first.message).toContain(email);
-  expect(first.message).toContain('/skill.md');
+  expect(first.invite.codeShown === first.code.slice(0, 7), 'the first group is shown').toBe(true);
+  expect(first.message.includes(first.code), 'the ready message holds the code').toBe(true);
+  expect(first.message.includes(email), 'the ready message names the address').toBe(true);
+  expect(first.message.includes('/skill.md'), 'the ready message names /skill.md').toBe(true);
   expect(created.caching).toBe('private, no-store');
   // A retry of the same request reaches the same invite and answers a fresh code (the first, which
   // nobody saw, is replaced); another request for the same address finds an invite already open.
@@ -302,8 +304,8 @@ test('an admin saves an unlisted test story and an update, and makes an invite: 
   expect(retried.status).toBe(201);
   const second = retried.body as { invite: { id: string }; code: string };
   expect(second.invite.id).toBe((first.invite as { id: string }).id);
-  expect(second.code).toMatch(CODE);
-  expect(second.code).not.toBe(first.code);
+  expect(CODE.test(second.code), 'the retry answers a code with its shape').toBe(true);
+  expect(second.code !== first.code, 'the retry answers a fresh code').toBe(true);
   const open = await call(request, 'POST', '/api/v1/admin/social/invites', {
     ...invite,
     requestId: crypto.randomUUID(),

@@ -1,3 +1,4 @@
+import { brand } from '@hrizzup/core';
 import { categories, places, tiers } from '@hrizzup/social/lists';
 import type { Metadata } from 'next';
 import Link from 'next/link';
@@ -16,7 +17,8 @@ import {
   refusedWith,
 } from '@/lib/social/page-params.ts';
 
-export const metadata: Metadata = { title: 'Board' };
+// The sandbox's layout sets its own title, which leaves a page's without the site's template: spelt out.
+export const metadata: Metadata = { title: { absolute: `Board · ${brand.name}` } };
 
 type Props = { searchParams: Promise<Query> };
 

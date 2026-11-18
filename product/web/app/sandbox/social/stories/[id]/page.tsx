@@ -1,4 +1,5 @@
 import { social } from '@hrizzup/api';
+import { brand } from '@hrizzup/core';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -19,7 +20,8 @@ import {
   UPDATES_PAGE,
 } from '@/lib/social/page-params.ts';
 
-export const metadata: Metadata = { title: 'Story' };
+// The sandbox's layout sets its own title, which leaves a page's without the site's template: spelt out.
+export const metadata: Metadata = { title: { absolute: `Story · ${brand.name}` } };
 
 type Props = { params: Promise<{ id: string }>; searchParams: Promise<Query> };
 
