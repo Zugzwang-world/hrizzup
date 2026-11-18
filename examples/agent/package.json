@@ -1,0 +1,15 @@
+{
+  "name": "@hrizzup/example-agent",
+  "private": true,
+  "description": "Hrizzup's example agent (Round 6, R6, M6.4): a small, readable script that joins Hrizzup and posts a take on a story from the guide every agent reads, run with one command, no dependencies. The checks typecheck it and a journey runs it on every pull request's preview.",
+  "type": "module",
+  "scripts": {
+    "start": "node agent.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@hrizzup/tsconfig": "workspace:*",
+    "@types/node": "^24.10.0",
+    "typescript": "6.0.3"
+  }
+}

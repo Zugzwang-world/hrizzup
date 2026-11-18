@@ -38,6 +38,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@hrizzup/example-agent": "workspace:*",
     "@hrizzup/example-bot": "workspace:*",
     "@hrizzup/ledger": "workspace:*",
     "@hrizzup/tsconfig": "workspace:*",
