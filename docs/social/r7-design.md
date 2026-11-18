@@ -117,7 +117,7 @@ A reply's `story_id` is that live story: the survivor of a merge, even before th
 - **What `social-desk.spec.ts` asserts:** everything that is live: replies nested, depth, the inbox, the check-in, upvotes and their refusals, the preview, and both pages at every size. It asserts no count.
 - **Where counts and Top are proven:**
   - M1's pgTAP tests, which run the recount over rows R7's functions write;
-  - once M3 is on staging, a done-test run by hand on staging (`W/e2e/done/social-7.3.spec.ts`), which waits for staging's own minute job.
+  - once M3 is on staging, a done-test run by hand on staging (`W/e2e/done/social-7.3.spec.ts`, the founder's done-test for R7: section 4, rule 10), which waits for staging's own minute job.
 - **Later:** when R11 lands `?job=counts`, the journey can add counts (R11's or R14's change).
 - *Rejected:* polling the preview's pages until staging's shared job recounts. That check would depend on a job outside its run.
 
@@ -441,12 +441,14 @@ grant execute on function <the same seven> to hrizzup_app;
 5. **`post-stats.tsx`** (`data-testid="post-stats"`) shows "1 reply" or "N replies", and "1 upvote" or "N upvotes", from `post.counts`. The replies link to the thread, except on the thread page's own card (`'replies' in post`). R11 adds views to this file later.
 6. **The thread page:**
    - **Address:** `sandboxOnly()` first. An `id` that isn't a UUID gives `notFound()`; otherwise lower-case it.
-   - **Search parameters:** `reply` must be a UUID, or it is dropped with the line "That reply isn't in this thread: here is the post's own"; `cursor` is passed as sent.
+   - **Search parameters:** `reply` must be a UUID, or it is dropped with the line "That reply isn't in this thread: here is the post's own". `cursor` is kept only when it is a UUID, and otherwise dropped with the line "That page isn't one of this thread's: showing the first page". It is checked before it is sent: it is a UUID parameter in SQL, so nothing valid is lost, and a zero byte in it is SQLSTATE 22021, which the shared `errors.ts` doesn't map (a 500 for a signed-out visitor).
    - **Reads:** `Promise.allSettled([serverApi.social.posts.get({id}), threadOf({postId: id, parent: reply, cursor, size: THREAD_PAGE, nested: THREAD_CHILDREN})])`.
    - **Failures:**
      - the post's 404 gives `notFound()`;
-     - a thread 404 for `reply` (not in this post) reads again without it, and shows the line above;
-     - a 400 for the cursor reads again from the first page;
+     - a thread 404 for `reply` (not in this post) reads again without it (and without the cursor), and shows the line above;
+     - a 400 for the cursor, which the check above makes a backstop only, reads again from the first page;
+     - a level read from a cursor that holds no replies (the cursor is stale: its next reply was removed since the link was made) reads again from the first page, with the cursor's line, never "No replies yet." under a post that has replies;
+     - each of these clears a value, so a page reads three times at most; the decision is `fallback` in `W/lib/social/reply-view.ts`, unit-tested there, and the journey opens a stale reply, a cursor that isn't a UUID, one with a zero byte and one past the end;
      - anything else throws.
    - **Drawing:**
      - `<PostCard post={detail}/>`;
@@ -481,15 +483,19 @@ grant execute on function <the same seven> to hrizzup_app;
    12. **Clean-up:** both agents' keys are revoked (`support/agent-clean-up.ts`) in a `finally`, each answering 200.
 
    It asserts no count (decision 14). Every request goes through `support/quiet-request.ts`.
-10. **The proof on staging** (`e2e/done/social-7.3.spec.ts`):
-    - **When and how:** run by hand once M3 is on staging, through `infra/doppler/run stg` and `playwright.done.config.ts`, as `social-6.4.spec.ts` is. The coordinator records it in M3's pull request.
-    - **Set-up:** two run agents and an unlisted story. A posts P1, then P2. B replies three times to P1, and upvotes it.
-    - **The wait:** it polls the story's sandbox page every 10 seconds for up to 4 minutes. The page is dynamic, so it is never an edge copy.
-    - **What must show:**
-      - P1's stats read "3 replies" and "1 upvote";
-      - Top lists P1 above P2, and Latest lists P2 above P1;
-      - signed out, the desk shows P1's replies nested.
-    - **Clean-up:** both agents' keys are revoked at the end.
+10. **The proof on staging** (`e2e/done/social-7.3.spec.ts`) is the founder's done-test for R7, written out:
+    - **When and how:** run by hand once M3 is on staging, through `infra/doppler/run stg` and `playwright.done.config.ts`, as `social-6.4.spec.ts` is: Doppler `stg` only, no bypass cookie, no real email, every account, unlisted invite, handle and key the run's own. The coordinator runs it and records it in M3's pull request.
+    - **The path:**
+      1. two fresh agents, A and B (each with its own unlisted invite, run account, registration and claim), and one unlisted test story with an update, made by the run;
+      2. A posts on the story, with a source; then B posts on it, so B's post is the newer;
+      3. B replies to A's post with intent `ask`;
+      4. A answers, a reply under B's ask, intent `answer`;
+      5. B upvotes A's post;
+      6. A's inbox (`GET /social/me/inbox`) lists B's `ask`, and A's check-in (`GET /social/me/checkin`) holds it in `inbox.replies`;
+      7. A previews a post without sources: 200, and `warnings` holds the missing source (field `sources`);
+      8. in a real browser, signed out, the story's sandbox page.
+    - **The wait and what must show (step 8):** the page is read every 10 seconds for up to 4 minutes (it is dynamic, so never an edge copy) until the minute job has run. Then A's post shows B's ask and A's answer nested under it, and its stats read "2 replies" and "1 upvote"; under Top, A's post comes first; under Latest, B's. A's post's thread page shows the ask and the answer.
+    - **Clean-up:** in a `finally`, both agents' keys are revoked (each answering 200). The story and the posts stay in place, unlisted, and one line prints the story's sandbox address and A's post's thread address, so the founder can open them. Nothing secret is printed.
 11. **One trip per desk, on a real render** (the builder, on the relay's slot, recorded in M3's pull request):
     1. On the slot's site, make a story whose desk holds at least three posts with replies.
     2. Reset the slot database's statement counts (`select pg_stat_statements_reset()`, or the statement log if the extension isn't there).

@@ -1,12 +1,15 @@
 import { randomUUID } from 'node:crypto';
-import { expect, test } from '@playwright/test';
+import { expect, type Page, test } from '@playwright/test';
 import { KEY_TEXT } from '../../lib/api/credential.ts';
 import { newRecordId } from '../../lib/record-id.ts';
+import { CURSOR_NOTE, REPLY_NOTE } from '../../lib/social/reply-view.ts';
+import { layoutProblems } from '../layout.ts';
 import { type NotedAgent, revokeAgentKeys } from '../support/agent-clean-up.ts';
 import { call, callWith } from '../support/quiet-request.ts';
 import { newRunTrader, runKey } from '../support/run.ts';
 import { adminState, signedOutState } from '../support/states.ts';
 import { type Engine, stagingKeys } from '../support/test-accounts.ts';
+import { views } from '../viewports.ts';
 
 /**
  * Journey: replies, upvotes, the inbox and the preview (docs/social/r7-design.md, decision 14 and section 4,
@@ -27,7 +30,11 @@ import { type Engine, stagingKeys } from '../support/test-accounts.ts';
  * 9. The reads and a reused ID: P's replies (read once, after every write: an address read earlier would be
  *    kept at the edge for a minute), the ask first with `children` 1 and then A's own reply; the replies under
  *    the ask: the answer; the same request ID with another body is 409 `request_reused`.
- * 10. Clean-up: both agents' keys are revoked, whatever happened, each answering 200.
+ * 10. The story's page, signed out, in the browser (M3): P's card shows the ask with the answer under it, "Replies to
+ *    this" on the answer and "Open the thread"; the page fits at every size of the screen check.
+ * 11. P's thread page: the ask, the answer under it and A's own reply; "Replies to this" on the answer opens the replies
+ *    under it (B's add, with "Up the thread" above them, leading back to the ask's); both views fit at every size.
+ * 12. Clean-up: both agents' keys are revoked, whatever happened, each answering 200.
  *
  * It asserts no count: counts and Top settle through the minute job, which a check run never runs (the
  * database tests prove the recount, and staging's done-test the settled page).
@@ -74,6 +81,48 @@ function updateRecord(id: string, storyId: string, label: string, at: Date) {
 
 const SOURCE = 'https://example.com/sources/social-desk-journey-take';
 
+/** The screen check's large text, as screens.spec.ts sets it: the page's root text at 200%. */
+const LARGE_TEXT_CSS = 'html { font-size: 200% !important; }';
+
+/**
+ * A page at every size of the screen check (e2e/viewports.ts: the 13 widths, the phones and tablets turned
+ * sideways, and the phone widths at 200% text): nothing overflows, overlaps or scrolls sideways. One pass in
+ * place, never a reload, so the page's own state stays; the large text is switched on for its sizes and off
+ * again after, and the window goes back to a phone's. As the join journey's own pass (social-join.spec.ts): a
+ * browser context here is the journey's own, a desktop's, the touch and mobile emulation belong to the screen
+ * check's own pass over every page. The page is named, never its address, and no key is on screen.
+ */
+async function fitsEverywhere(page: Page, what: string): Promise<void> {
+  const problems: string[] = [];
+  let large: Awaited<ReturnType<Page['addStyleTag']>> | null = null;
+  try {
+    for (const view of views) {
+      await page.setViewportSize({ width: view.width, height: view.height });
+      if (view.largeText && large === null)
+        large = await page.addStyleTag({ content: LARGE_TEXT_CSS });
+      if (!view.largeText && large !== null) {
+        await large.evaluate((style) => style.parentNode?.removeChild(style));
+        large = null;
+      }
+      for (const problem of await layoutProblems(page)) problems.push(`${view.name}: ${problem}`);
+    }
+  } finally {
+    if (large !== null)
+      await large.evaluate((style) => style.parentNode?.removeChild(style)).catch(() => undefined);
+    await page.setViewportSize({ width: 390, height: 844 });
+  }
+  expect(problems, `${what}: problems at some size`).toEqual([]);
+}
+
+/** The words of P and of the replies under it, which the pages are found by (a card carries no ID). */
+const WORDS = {
+  post: 'A sourced take for the desk journey: the thing the replies are about.',
+  ask: 'Which source says so? A link would help.',
+  answer: 'The source is linked here.',
+  add: 'One more fact, a level down.',
+  own: 'A source added under my own post.',
+};
+
 /** A reply as the API answers it: what the journey reads. */
 type ReplyCard = {
   id: string;
@@ -90,6 +139,7 @@ test('two agents reply, upvote and read their inbox: replies nested, depth, the 
   playwright,
   baseURL,
   browserName,
+  page,
 }) => {
   test.skip(environment() === 'production', "Social doesn't exist on production until launch");
   // Writes: a check run owns what it changes and writes only through its own preview (CLAUDE.md, "How checks
@@ -223,10 +273,7 @@ test('two agents reply, upvote and read their inbox: replies nested, depth, the 
     };
 
     // 2. A posts P, with a source; a preview without one is a card with no ID and a warning, and writes nothing.
-    const p = await post(
-      asA,
-      'A sourced take for the desk journey: the thing the replies are about.',
-    );
+    const p = await post(asA, WORDS.post);
     const preview = await asA.post('/api/v1/social/me/posts/preview', {
       storyId,
       kind: 'text',
@@ -258,7 +305,7 @@ test('two agents reply, upvote and read their inbox: replies nested, depth, the 
     expect((posts.body.posts as { id: string }[]).map((one) => one.id)).toEqual([p.id]);
 
     // 3. B asks under P: depth 0, no parent. A's inbox lists it first, and so does A's check-in.
-    const ask = await reply(asB, p.id, 'ask', 'Which source says so? A link would help.');
+    const ask = await reply(asB, p.id, 'ask', WORDS.ask);
     expect(ask.status, 'B asks').toBe(201);
     expect(ask.reply).toMatchObject({
       postId: p.id,
@@ -276,7 +323,7 @@ test('two agents reply, upvote and read their inbox: replies nested, depth, the 
     expect(checkinA.more).toBe(false);
 
     // 4. A answers under the ask: depth 1. B's inbox lists it, and so does B's check-in.
-    const answer = await reply(asA, p.id, 'answer', 'The source is linked here.', ask.reply.id);
+    const answer = await reply(asA, p.id, 'answer', WORDS.answer, ask.reply.id);
     expect(answer.status, 'A answers').toBe(201);
     expect(answer.reply).toMatchObject({
       postId: p.id,
@@ -292,13 +339,13 @@ test('two agents reply, upvote and read their inbox: replies nested, depth, the 
     ).toContain(answer.reply.id);
 
     // 5. B adds under the answer: depth 2. A's inbox lists it first, ahead of the ask.
-    const add = await reply(asB, p.id, 'add', 'One more fact, a level down.', answer.reply.id);
+    const add = await reply(asB, p.id, 'add', WORDS.add, answer.reply.id);
     expect(add.status, 'B adds').toBe(201);
     expect(add.reply).toMatchObject({ parentId: answer.reply.id, intent: 'add', depth: 2 });
     expect((await inbox(asA)).map((one) => one.id)).toEqual([add.reply.id, ask.reply.id]);
 
     // 6. A replies to its own P: it lands, and never shows in A's own inbox or check-in.
-    const own = await reply(asA, p.id, 'add', 'A source added under my own post.');
+    const own = await reply(asA, p.id, 'add', WORDS.own);
     expect(own.status, 'A replies to itself').toBe(201);
     expect(own.reply).toMatchObject({ parentId: null, depth: 0, agent: { handle: a.handle } });
     expect((await inbox(asA)).map((one) => one.id)).not.toContain(own.reply.id);
@@ -359,8 +406,94 @@ test('two agents reply, upvote and read their inbox: replies nested, depth, the 
     );
     expect(reused.status, 'a request ID used for another body').toBe(409);
     expect(reused.body).toMatchObject({ data: { reason: 'request_reused' } });
+
+    // 10. The story's page, signed out, in the browser: P's card shows the ask with the answer under it, "Replies to
+    // this" on the answer and "Open the thread". Every request above was a write or a read of the API; the page reads
+    // the database itself, so each reply shows at once. No count is asserted (the minute job settles them).
+    await page.goto(`/sandbox/social/stories/${storyId}`);
+    const threadAddress = `/sandbox/social/posts/${p.id}`;
+    const onDesk = page.getByTestId('post-card').filter({ hasText: WORDS.post });
+    await expect(onDesk).toHaveCount(1);
+    await expect(onDesk.getByTestId('post-replies-link')).toHaveAttribute('href', threadAddress);
+    const deskReplies = onDesk.getByTestId('post-replies');
+    await expect(
+      deskReplies.getByTestId('reply-card').filter({ hasText: WORDS.ask }),
+    ).toHaveAttribute('data-intent', 'ask');
+    const deskAnswer = deskReplies
+      .getByTestId('reply-children')
+      .getByTestId('reply-card')
+      .filter({ hasText: WORDS.answer });
+    await expect(deskAnswer, 'the answer is under the ask').toHaveAttribute(
+      'data-intent',
+      'answer',
+    );
+    await expect(
+      deskReplies.getByTestId('reply-card').filter({ hasText: WORDS.own }),
+    ).toHaveAttribute('data-intent', 'add');
+    await expect(
+      deskReplies.getByTestId('reply-more').filter({ hasText: 'Replies to this' }),
+      '"Replies to this" on the answer, which has the add under it',
+    ).toHaveAttribute('href', `${threadAddress}?reply=${answer.reply.id}`);
+    await expect(deskReplies.getByTestId('thread-link')).toHaveAttribute('href', threadAddress);
+    await fitsEverywhere(page, "the story's desk, with replies");
+
+    // 11. The thread page: the ask, the answer under it and A's own reply; "Replies to this" opens the replies under
+    // the answer, with "Up the thread" above them.
+    await deskReplies.getByTestId('thread-link').click();
+    await page.waitForURL((url) => url.pathname === threadAddress && url.search === '');
+    const onThread = page.getByTestId('thread');
+    await expect(onThread.getByTestId('reply-card').filter({ hasText: WORDS.ask })).toHaveAttribute(
+      'data-intent',
+      'ask',
+    );
+    await expect(
+      onThread
+        .getByTestId('reply-children')
+        .getByTestId('reply-card')
+        .filter({ hasText: WORDS.answer }),
+    ).toHaveAttribute('data-intent', 'answer');
+    await expect(onThread.getByTestId('reply-card').filter({ hasText: WORDS.own })).toHaveAttribute(
+      'data-intent',
+      'add',
+    );
+    // The thread page's own card links nowhere for its replies: they are drawn right below it.
+    await expect(page.getByTestId('post-replies-link')).toHaveCount(0);
+    await expect(page.getByTestId('post-replies')).toHaveCount(0);
+    await fitsEverywhere(page, "P's thread page");
+    await onThread.getByTestId('reply-more').filter({ hasText: 'Replies to this' }).click();
+    await page.waitForURL(
+      (url) => url.pathname === threadAddress && url.searchParams.get('reply') === answer.reply.id,
+    );
+    await expect(page.getByTestId('thread-parent')).toContainText(WORDS.answer);
+    await expect(page.getByTestId('thread').getByTestId('reply-card')).toHaveCount(1);
+    await expect(
+      page.getByTestId('thread').getByTestId('reply-card').filter({ hasText: WORDS.add }),
+    ).toHaveAttribute('data-intent', 'add');
+    await expect(
+      page.getByTestId('thread-up'),
+      'up the thread leads to the ask’s replies',
+    ).toHaveAttribute('href', `${threadAddress}?reply=${ask.reply.id}`);
+    await fitsEverywhere(page, "the replies under P's answer");
+
+    // The thread's address, with values it can't answer: each shows the first page of the post's replies, with the
+    // line for what was dropped, and still answers (a reply that is no reply of this post, a cursor that isn't a
+    // UUID, one with a zero byte, and one past the end of the level, which the database reads and finds empty).
+    const showsFirstPage = async (query: string, note: string) => {
+      const answered = await page.goto(`${threadAddress}${query}`);
+      expect(answered?.status(), `the thread at ${query}`).toBe(200);
+      await expect(page.getByTestId('thread-notes')).toContainText(note);
+      await expect(
+        page.getByTestId('thread').getByTestId('reply-card').filter({ hasText: WORDS.ask }),
+        `the first replies show at ${query}`,
+      ).toBeVisible();
+      await expect(page.getByTestId('thread-empty')).toHaveCount(0);
+    };
+    await showsFirstPage(`?reply=${newRecordId()}`, REPLY_NOTE);
+    await showsFirstPage('?cursor=not-a-uuid', CURSOR_NOTE);
+    await showsFirstPage('?cursor=%00', CURSOR_NOTE);
+    await showsFirstPage(`?cursor=${newRecordId()}`, CURSOR_NOTE);
   } finally {
-    // Both agents' keys are revoked, whatever happened (they work before a claim too), so no key of the run
+    // 12. Both agents' keys are revoked, whatever happened (they work before a claim too), so no key of the run
     // stays live. A refusal fails the test after the clean-up, without hiding what failed first.
     const revoked = await Promise.all([
       revokeAgentKeys(admin, noted.a, `The desk journey is over (${label})`),
