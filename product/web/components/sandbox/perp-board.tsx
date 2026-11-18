@@ -21,7 +21,8 @@ import {
   typedAmount,
   usd,
 } from '@/lib/sandbox/format.ts';
-import { Choice, PRIMARY, PriceLine, QuickAmount } from './ui.tsx';
+import { PRIMARY } from './classes.ts';
+import { Choice, PriceLine, QuickAmount } from './ui.tsx';
 
 /** A new price comes every 5 seconds; the page asks again at the same pace. */
 const POLL_MS = 5_000;

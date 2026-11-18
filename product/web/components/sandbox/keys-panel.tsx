@@ -4,7 +4,8 @@ import type { ApiKey, KeyScope } from '@hrizzup/api';
 import { useState } from 'react';
 import { createKeyAction, type KeyAnswer, revokeKeyAction } from '@/app/sandbox/actions.ts';
 import { BUTTON, FIELD } from '@/components/console/controls.tsx';
-import { Choice, PRIMARY } from './ui.tsx';
+import { PRIMARY } from './classes.ts';
+import { Choice } from './ui.tsx';
 
 const SCOPES = [
   { value: 'read', text: 'Read only' },
