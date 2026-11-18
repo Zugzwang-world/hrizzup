@@ -2,7 +2,7 @@
   "about": "How far the cold start on two machines may differ from the one-machine App journeys on the same pull request and still count as clean (docs/research/faster-checks.md, proposal 4; Round 6, R4, M7.6). Recompute with .github/scripts/cold_start_allowances.py; never edit a value by hand.",
   "method": {
     "runs": "App journeys jobs (pull requests and main) whose journeys step ran and logged seven cold starts; each run's median is the 4th of its 7, as startup.sh takes it",
-    "noisePairs": "every pair of runs of the same app: the same inputs as app-journeys.yml's built-app key (the tracked files of product/app, product/packages, pnpm-lock.yaml and .node-version, without product/app/journeys/, product/app/scripts/, product/app/bundle-limit.json and product/app/vitest.config.ts)",
+    "noisePairs": "every pair of runs of the same app: the same inputs as app-journeys.yml's built-app key (the tracked files of product/app, product/packages, pnpm-lock.yaml and .node-version, without product/app/journeys/, product/app/scripts/, product/app/bundle-limit.json and product/app/vitest.config.ts); a pull request's job builds the merge of its head into its base (its log's \"Merge <head> into <base>\" line), so a pull request run's key is the inputs at its head and at its base, and a main run's the inputs at its own commit twice; a pull request run with no such line is left out",
     "allowance": "max(floor, margin x the largest |difference of the two runs' medians| over the noise pairs)",
     "margin": 1.0,
     "floorMs": 100,
@@ -15,9 +15,10 @@
     "runs": 107,
     "pullRequestRuns": 69,
     "mainRuns": 38,
-    "noisePairs": 131,
-    "noiseRuns": 94,
-    "groups": 30,
+    "ungroupedRuns": 0,
+    "noisePairs": 85,
+    "noiseRuns": 62,
+    "groups": 20,
     "jobs": [
       129454839918, 129455116623, 129455945593, 129466793829, 129476769948, 129482628287,
       129487620429, 129684789985, 129686750086, 129692032083, 129697005744, 129697234047,
@@ -40,17 +41,17 @@
     ]
   },
   "proof": {
-    "leaveBothRunsOut": "130 of 131 noise pairs clean (99.2%), each judged with the allowance from pairs sharing neither run; five in a row 96%; two of the first five not clean by noise alone 0.1%",
-    "leaveTheGroupOut": "130 of 131 (99.2%)",
-    "marginsCompared": "1.1, 1.25, 1.5 and 2.0 were all clean on 131 of 131 but blunter (a +1,000 ms shift flagged 69%, 57%, 32% and 2% of the time); 1.0 is the tightest that passes nearly always",
-    "oldRule": "the median inside the other run's lowest-to-highest of seven: 86 of 131 (66%); five in a row 12%",
+    "leaveBothRunsOut": "84 of 85 noise pairs clean (98.8%), each judged with the allowance from pairs sharing neither run; five in a row 94%; two of the first five not clean by noise alone 0.1%",
+    "leaveTheGroupOut": "84 of 85 (98.8%)",
+    "marginsCompared": "1.1, 1.25, 1.5 and 2.0 were all clean on 85 of 85 but blunter (a +1,000 ms shift flagged 74%, 60%, 33% and 1% of the time); 1.0 is the tightest that passes nearly always",
+    "oldRule": "the median inside the other run's lowest-to-highest of seven: 58 of 85 (68%); five in a row 15%",
     "failures": "of all 148 jobs whose journeys ran, 4 failed: 2 a change in progress (the sign-in test screen being built), 1 the cold-start step itself (9 November: couldn't read the start or the first content from Android's log), 1 with no log; in the 108 runs that reached the cold start it failed once, and no flow failed by itself",
     "coldStartVerdicts": "all 107 passed against main; no data on how often noise flips one",
-    "noiseSpread": "|difference of two same-app medians|: median 187 ms, 90th percentile 450 ms, largest 761 ms; medians across all runs from 773 to 1842 ms",
-    "injectedShiftOneComparison": "+500 ms flagged 19%, +800 ms 57%, +1000 ms 81%",
-    "injectedShiftFiveComparisons": "+400 ms 36%, +500 ms 62%, +600 ms 84%, +800 ms 99%",
+    "noiseSpread": "|difference of two same-app medians|: median 180 ms, 90th percentile 421 ms, largest 761 ms; medians across all runs from 773 to 1842 ms",
+    "injectedShiftOneComparison": "+500 ms flagged 19%, +800 ms 60%, +1000 ms 86%",
+    "injectedShiftFiveComparisons": "+400 ms 29%, +500 ms 51%, +600 ms 72%, +800 ms 96%",
     "duplicates": "none: no two runs share a start time or the same seven cold starts"
   },
   "allowanceMs": 761,
-  "fiveComparisonAverageMs": 454
+  "fiveComparisonAverageMs": 499
 }

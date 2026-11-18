@@ -55,6 +55,15 @@ class TheLogs(unittest.TestCase):
         self.assertEqual(found["verdict"], GREEN)
         self.assertFalse(found["cold_failed"])
 
+    def test_a_pull_requests_checkout_line_gives_the_head_and_base_it_merged(self):
+        head, base = "a" * 40, "b" * 40
+        text = (f"{STAMP}HEAD is now at cd3f37c Merge {head} into {base}\n" + log(seven(1000)))
+        self.assertEqual(csa.parse(text)["merge"], (head, base))
+        self.assertIsNone(csa.parse(log(seven(1000)))["merge"])
+        self.assertIsNone(csa.parse(f"{STAMP}HEAD is now at cd3f37c Merge {head[:39]} into {base}\n")["merge"])  # not a commit
+        first = csa.parse(f"{STAMP}Merge {head} into {base}\n{STAMP}Merge {base} into {head}\n")["merge"]
+        self.assertEqual(first, (head, base))  # the checkout's line is the first
+
     def test_the_seven_are_taken_by_their_number_not_their_order_in_the_log(self):
         lines = [f"{STAMP}Cold start {n} of 7: first content after {ms} ms"
                  for n, ms in ((3, 30), (1, 10), (2, 20), (7, 70), (4, 40), (6, 60), (5, 50))]
@@ -163,9 +172,44 @@ class TheGroups(unittest.TestCase):
         one, two = tree(*APP), tree(*APP[:3], (".node-version", "other"))
         run = stub_git({"a": one, "b": one, "c": one, "d": two, "e": two, "f": tree(*APP[:2])})
         runs = [{"sha": sha} for sha in ("a", "d", "b", "f", "e", "c", "gone")]
-        groups = csa.groups_of(runs, "repo", run)
+        groups, unkeyed = csa.groups_of(runs, "repo", run)
         self.assertEqual(sorted(sorted(found) for found in groups.values()), [[0, 2, 5], [1, 4]])
         self.assertEqual(sorted(csa.noise_pairs(groups)), [(0, 2), (0, 5), (1, 4), (2, 5)])
+        self.assertEqual(unkeyed, 1)  # the commit that isn't in the clone
+
+    def test_a_pull_requests_run_is_keyed_by_the_app_at_its_head_and_at_its_base_a_main_run_by_its_own_commit(self):
+        # Heads h1 and h2 change the app the same way from the same base b1: the same merge. Head h3 is the same
+        # change from another base b2 (main moved): another merge, so another group. A main run at b1 and a pull
+        # request that changed none of the app's files (head and base the same inputs) built the same app.
+        base1 = tree(*APP)
+        base2 = tree(*APP[:1], ("product/packages/core/index.ts", "MOVED"), *APP[2:])
+        changed1 = tree(("product/app/src/home.ts", "NEW"), *APP[1:])
+        run = stub_git({"h1": changed1, "h2": changed1 + tree(*EXCLUDED), "h3": changed1, "b1": base1, "b2": base2,
+                        "m1": base1, "h4": base1 + tree(("product/app/journeys/new.yaml", "e9"))})
+        pr = lambda head, base: {"event": "pull_request", "sha": head, "merge": (head, base)}
+        runs = [pr("h1", "b1"), pr("h2", "b1"), pr("h3", "b2"), {"event": "push", "sha": "m1"}, pr("h4", "b1"),
+                {"event": "push", "sha": "b2"}]
+        groups, unkeyed = csa.groups_of(runs, "repo", run)
+        self.assertEqual(sorted(sorted(found) for found in groups.values()), [[0, 1], [3, 4]])
+        self.assertEqual(unkeyed, 0)
+        self.assertEqual(csa.group_key(runs[2], "repo", run)[0], csa.group_key(runs[0], "repo", run)[0])  # same head
+        self.assertNotEqual(csa.group_key(runs[2], "repo", run), csa.group_key(runs[0], "repo", run))      # not same base
+        pair = csa.group_key(runs[3], "repo", run)
+        self.assertEqual(pair[0], pair[1])  # a main run's key is its own inputs twice
+
+    def test_a_pull_request_run_with_no_merge_line_or_a_base_that_isnt_there_is_left_out_of_every_group(self):
+        base = tree(*APP)
+        run = stub_git({"h": base, "b": base, "m": base})
+        runs = [{"event": "pull_request", "sha": "h"},                              # no merge line in its log
+                {"event": "pull_request", "sha": "h", "merge": ("h", "gone")},      # a base the clone doesn't have
+                {"event": "pull_request", "sha": "h", "merge": ("h", "b")},
+                {"event": "push", "sha": "m"}]
+        groups, unkeyed = csa.groups_of(runs, "repo", run)
+        self.assertEqual(unkeyed, 2)
+        self.assertEqual(sorted(sorted(found) for found in groups.values()), [[2, 3]])
+        # A job file with no events keys a run by its log: a merge line means a pull request, none a main run.
+        groups, unkeyed = csa.groups_of([{"sha": "h", "merge": ("h", "b")}, {"sha": "m"}], "repo", run)
+        self.assertEqual((sorted(sorted(found) for found in groups.values()), unkeyed), ([[0, 1]], 0))
 
 
 def runs_of(*medians):
@@ -237,20 +281,28 @@ def run_log(median, verdict=GREEN):
     return log(seven(median), verdict=verdict)
 
 
-def write_run(folder, job, median, **kw):
+def hexed(n, k):
+    return f"{n:02x}{k:x}".ljust(40, "0")
+
+
+def write_run(folder, job, median, merge=None, **kw):
+    prefix = f"{STAMP}HEAD is now at cd3f37c Merge {merge[0]} into {merge[1]}\n" if merge else ""
     with open(os.path.join(folder, f"{job}.log"), "w", encoding="utf-8") as f:
-        f.write(run_log(median, **kw) * 10)
+        f.write(prefix + run_log(median, **kw) * 10)
 
 
 def six_groups(spreads):
-    """(jobs, trees): six groups of two runs each, the pair's medians `spread` apart: jobs 100+2n and 101+2n."""
+    """(jobs, trees): six groups of two runs each, the pair's medians `spread` apart: a main run (job 100+2n) and a
+    pull request's (101+2n) that changed none of the app's files, so they built the same app. The pull request's
+    merge is its head and base, which have the same inputs as the main run's commit."""
     jobs, trees = [], {}
     for n, spread in enumerate(spreads):
-        for k, median in enumerate((1000 + 50 * n, 1000 + 50 * n + spread)):
-            sha = f"sha{n}-{k}"
-            jobs.append({"job": 100 + 2 * n + k, "sha": sha, "event": "pull_request" if k else "push",
-                         "started": f"2026-11-{n + 1:02d}T0{k}:00:00Z", "median": median})
-            trees[sha] = tree(*APP[:1], (f"product/app/src/group{n}.ts", "x"), *APP[1:])
+        inputs = tree(*APP[:1], (f"product/app/src/group{n}.ts", "x"), *APP[1:])
+        main, head, base = hexed(n, 0), hexed(n, 1), hexed(n, 2)
+        trees.update({main: inputs, head: inputs, base: inputs})
+        for k, (sha, event) in enumerate(((main, "push"), (head, "pull_request"))):
+            jobs.append({"job": 100 + 2 * n + k, "sha": sha, "event": event, "started": f"2026-11-{n + 1:02d}T0{k}:00:00Z",
+                         "median": 1000 + 50 * n + (spread if k else 0), "merge": (head, base) if k else None})
     return jobs, trees
 
 
@@ -259,10 +311,11 @@ class TheFile(unittest.TestCase):
         jobs, trees = six_groups(spreads)
         with tempfile.TemporaryDirectory() as folder:
             for job in jobs:
-                write_run(folder, job["job"], job["median"])
-            runs, dropped, parsed = csa.read_logs(folder, [{k: v for k, v in j.items() if k != "median"} for j in jobs])
-        groups = csa.groups_of(runs, "repo", stub_git(trees))
-        return csa.build(runs, groups, jobs, parsed, today="2026-11-18", dropped=dropped, **kw)
+                write_run(folder, job["job"], job["median"], job["merge"])
+            runs, dropped, parsed = csa.read_logs(folder, [{k: v for k, v in j.items() if k not in ("median", "merge")}
+                                                           for j in jobs])
+        groups, unkeyed = csa.groups_of(runs, "repo", stub_git(trees))
+        return csa.build(runs, groups, jobs, parsed, today="2026-11-18", dropped=dropped, unkeyed=unkeyed, **kw)
 
     def test_runs_that_differ_by_the_same_amount_give_a_file_with_that_allowance_and_limit(self):
         content, lines = self.built([300] * 6)
@@ -273,12 +326,27 @@ class TheFile(unittest.TestCase):
         self.assertEqual((content["source"]["noisePairs"], content["source"]["noiseRuns"], content["source"]["groups"]),
                          (6, 12, 6))
         self.assertEqual((content["source"]["pullRequestRuns"], content["source"]["mainRuns"]), (6, 6))
+        self.assertEqual(content["source"]["ungroupedRuns"], 0)
         self.assertEqual(content["source"]["jobs"], sorted(content["source"]["jobs"]))
         self.assertIn("6 of 6 noise pairs clean (100.0%)", content["proof"]["leaveBothRunsOut"])
         self.assertEqual(content["proof"]["leaveTheGroupOut"], "6 of 6 (100.0%)")
         self.assertEqual(content["proof"]["coldStartVerdicts"], "all 12 passed against main; no data on how often noise flips one")
         self.assertEqual(content["proof"]["duplicates"], "none: no two runs share a start time or the same seven cold starts")
         self.assertTrue(any("Leave both runs out: 6 of 6" in line for line in lines))
+
+    def test_a_pull_request_run_whose_log_has_no_merge_line_is_left_out_and_counted_as_left_out(self):
+        jobs, trees = six_groups([300] * 6)
+        jobs[1]["merge"] = None  # group 0's pull request run: no line, so no key
+        with tempfile.TemporaryDirectory() as folder:
+            for job in jobs:
+                write_run(folder, job["job"], job["median"], job["merge"])
+            runs, dropped, parsed = csa.read_logs(folder, [{k: v for k, v in j.items() if k not in ("median", "merge")}
+                                                           for j in jobs])
+        groups, unkeyed = csa.groups_of(runs, "repo", stub_git(trees))
+        content, lines = csa.build(runs, groups, jobs, parsed, today="2026-11-18", unkeyed=unkeyed)
+        self.assertEqual(content["source"]["ungroupedRuns"], 1)
+        self.assertEqual((content["source"]["noisePairs"], content["source"]["groups"]), (5, 5))
+        self.assertIn("1 left out of every group", lines[0])
 
     def test_the_file_is_not_written_when_fewer_than_95_percent_of_the_noise_pairs_are_clean(self):
         # Five groups 100 ms apart and one 1,000 ms apart: the wide one is not clean (the others allow 100) and the
@@ -349,10 +417,10 @@ class TheCommand(unittest.TestCase):
             logs = os.path.join(folder, "logs")
             os.makedirs(logs)
             for job in jobs:
-                write_run(logs, job["job"], job["median"])
+                write_run(logs, job["job"], job["median"], job["merge"])
             jobs_file = os.path.join(folder, "jobs.json")
             with open(jobs_file, "w") as f:
-                json.dump([{k: v for k, v in j.items() if k != "median"} for j in jobs], f)
+                json.dump([{k: v for k, v in j.items() if k not in ("median", "merge")} for j in jobs], f)
             out = os.path.join(folder, "allowances.json")
             with contextlib.redirect_stderr(io.StringIO()) as said:
                 code = csa.main([logs, jobs_file, "repo", out], run=stub_git(trees))

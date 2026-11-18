@@ -25,7 +25,11 @@ The method is written into the output's `method` and is the whole of it:
   - runs are grouped by the inputs of App journeys' own built-app key (the tracked files of product/app,
     product/packages, pnpm-lock.yaml and .node-version, without product/app/journeys/, product/app/scripts/,
     product/app/bundle-limit.json and product/app/vitest.config.ts): two runs of a group built the same
-    app, so any difference between their medians is noise; a pair of runs of one group is a noise pair;
+    app, so any difference between their medians is noise; a pair of runs of one group is a noise pair.
+    A pull request's job builds the merge of its head into its base (its log says "Merge <head> into
+    <base>"), so a pull request run's key is the pair of the inputs at its head and at its base, and a
+    main run's the inputs at its own commit twice (the same key as a pull request that changes none of
+    them); a pull request run whose log has no such line is left out of every group;
   - the allowance is max(100 ms, 1.0 x the largest difference of two runs' medians over the noise pairs);
   - the proof: each noise pair judged with the allowance from the pairs that share neither of its runs.
     The file is written only when at least 95% of the noise pairs are clean that way, and its limit for
@@ -62,6 +66,7 @@ EXCLUDED = ("product/app/journeys/", "product/app/scripts/", "product/app/bundle
             "product/app/vitest.config.ts")
 COLOURS = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 COLD = re.compile(r"Cold start (\d) of 7: first content after (\d+) ms")
+MERGE = re.compile(r"\bMerge ([0-9a-f]{40}) into ([0-9a-f]{40})\b")
 COLD_FAILED = re.compile(r"Run \d: couldn't read the start or the first content from Android's log")
 VERDICT = re.compile(r"\| App, cold start to first content .*\| (✅|❌) ")
 FLOW_FAILED = re.compile(r"\[Failed\] ")
@@ -76,13 +81,17 @@ def say(text=""):
 def parse(text):
     """{"cold": the seven cold starts in ms (empty unless all seven are there), "median": the 4th of the
     seven or None, "verdict": the cold-start row's mark or None, "cold_failed": whether the cold start step
-    couldn't read Android's log, "flows_failed": how many flows the log marks failed}."""
-    seen, verdict, cold_failed, flows_failed = {}, None, False, 0
+    couldn't read Android's log, "flows_failed": how many flows the log marks failed, "merge": the (head, base)
+    commits of the merge a pull request's job built, from its checkout's "Merge <head> into <base>" line, or None}."""
+    seen, verdict, cold_failed, flows_failed, merge = {}, None, False, 0, None
     for line in COLOURS.sub("", text).splitlines():
         found = COLD.search(line)
         if found:
             seen[int(found.group(1))] = int(found.group(2))
             continue
+        found = merge is None and MERGE.search(line)
+        if found:
+            merge = (found.group(1), found.group(2))
         found = VERDICT.search(line)
         if found:
             verdict = found.group(1)
@@ -90,7 +99,7 @@ def parse(text):
         flows_failed += bool(FLOW_FAILED.search(line))
     cold = [seen[n] for n in range(1, RUNS + 1)] if sorted(seen) == list(range(1, RUNS + 1)) else []
     return {"cold": cold, "median": sorted(cold)[3] if cold else None, "verdict": verdict,
-            "cold_failed": cold_failed, "flows_failed": flows_failed}
+            "cold_failed": cold_failed, "flows_failed": flows_failed, "merge": merge}
 
 
 def read_logs(logs, jobs):
@@ -130,15 +139,30 @@ def fingerprint(repository, sha, run=subprocess.run):
     return hashlib.sha256("\n".join(kept).encode()).hexdigest()[:16]
 
 
+def group_key(one, repository, run=subprocess.run):
+    """What two runs must share to have built the same app: the inputs at the commits a pull request's job merged
+    (its head and its base, from its log), or at a main run's own commit (twice). None when it can't be told: a
+    pull request run whose log has no merge line, or a commit that isn't in the clone."""
+    pair = one.get("merge")
+    if one.get("event") == "pull_request" and pair is None:
+        return None
+    head, base = pair if pair else (one["sha"], one["sha"])
+    heads = fingerprint(repository, head, run)
+    bases = heads if base == head else fingerprint(repository, base, run)
+    return (heads, bases) if heads is not None and bases is not None else None
+
+
 def groups_of(runs, repository, run=subprocess.run):
-    """{fingerprint: [index of each run]} for the groups of two or more runs of the same app, in the order
-    their first run started."""
-    groups = defaultdict(list)
+    """({key: [index of each run]} for the groups of two or more runs that built the same app, in the order their
+    first run started, how many runs have no key)."""
+    groups, unkeyed = defaultdict(list), 0
     for index, one in enumerate(runs):
-        key = fingerprint(repository, one["sha"], run)
-        if key is not None:
+        key = group_key(one, repository, run)
+        if key is None:
+            unkeyed += 1
+        else:
             groups[key].append(index)
-    return {key: found for key, found in groups.items() if len(found) >= 2}
+    return {key: found for key, found in groups.items() if len(found) >= 2}, unkeyed
 
 
 def noise_pairs(groups):
@@ -246,11 +270,11 @@ def failures(jobs, parsed, runs):
     return text
 
 
-def build(runs, groups, jobs, parsed, needed=NEEDED, today=None, dropped=0):
+def build(runs, groups, jobs, parsed, needed=NEEDED, today=None, dropped=0, unkeyed=0):
     """(file content, report lines), or (None, report lines) when the proof is under `needed`."""
     pairs = noise_pairs(groups)
-    lines = [f"{len(runs)} runs ({dropped} repeats dropped); {len(pairs)} noise pairs from "
-             f"{len({i for p in pairs for i in p})} runs in {len(groups)} groups"]
+    lines = [f"{len(runs)} runs ({dropped} repeats dropped, {unkeyed} left out of every group); {len(pairs)} noise "
+             f"pairs from {len({i for p in pairs for i in p})} runs in {len(groups)} groups"]
     if not pairs:
         return None, lines + ["No two runs built the same app, so there is no noise to measure."]
     lbo = leave_both_runs_out(runs, pairs)
@@ -280,8 +304,8 @@ def build(runs, groups, jobs, parsed, needed=NEEDED, today=None, dropped=0):
     if with_event:
         source["pullRequestRuns"] = sum(r["event"] == "pull_request" for r in runs)
         source["mainRuns"] = sum(r["event"] == "push" for r in runs)
-    source.update({"noisePairs": len(pairs), "noiseRuns": len({i for p in pairs for i in p}), "groups": len(groups),
-                   "jobs": [r["job"] for r in runs]})
+    source.update({"ungroupedRuns": unkeyed, "noisePairs": len(pairs), "noiseRuns": len({i for p in pairs for i in p}),
+                   "groups": len(groups), "jobs": [r["job"] for r in runs]})
     proof = {
         "leaveBothRunsOut": f"{lbo} of {len(pairs)} noise pairs clean ({share:.1%}), each judged with the allowance "
                             f"from pairs sharing neither run; five in a row {share ** 5:.0%}; two of the first five "
@@ -324,7 +348,10 @@ def build(runs, groups, jobs, parsed, needed=NEEDED, today=None, dropped=0):
             "noisePairs": "every pair of runs of the same app: the same inputs as app-journeys.yml's built-app key "
                           "(the tracked files of product/app, product/packages, pnpm-lock.yaml and .node-version, "
                           "without product/app/journeys/, product/app/scripts/, product/app/bundle-limit.json and "
-                          "product/app/vitest.config.ts)",
+                          "product/app/vitest.config.ts); a pull request's job builds the merge of its head into "
+                          "its base (its log's \"Merge <head> into <base>\" line), so a pull request run's key is "
+                          "the inputs at its head and at its base, and a main run's the inputs at its own commit "
+                          "twice; a pull request run with no such line is left out",
             "allowance": "max(floor, margin x the largest |difference of the two runs' medians| over the noise pairs)",
             "margin": MARGIN,
             "floorMs": FLOOR_MS,
@@ -357,7 +384,8 @@ def main(argv=None, run=subprocess.run):
     if not runs:
         say("No job's log with seven cold starts was found in the logs folder.")
         return 1
-    content, lines = build(runs, groups_of(runs, repository, run), jobs, parsed, dropped=dropped)
+    groups, unkeyed = groups_of(runs, repository, run)
+    content, lines = build(runs, groups, jobs, parsed, dropped=dropped, unkeyed=unkeyed)
     for line in lines:
         say(line)
     if content is None:
