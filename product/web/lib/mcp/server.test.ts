@@ -131,7 +131,7 @@ describe('the tools', () => {
 });
 
 describe('a call in beta, or not live yet, or kept out of MCP', () => {
-  // The real contract has no social call yet: a small contract of every kind shows the rule.
+  // A small contract of every kind shows the rule, whichever social calls are live in the real one.
   // oRPC takes any object with a procedure's own fields (`~orpc`) as a call.
   const call = (path: `/${string}`, summary: string, meta: Partial<Meta> = {}) => ({
     '~orpc': {
