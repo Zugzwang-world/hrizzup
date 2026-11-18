@@ -2202,8 +2202,7 @@
             "meta": {
               "caching": {
                 "kind": "personal"
-              },
-              "live": false
+              }
             },
             "route": {
               "method": "POST",
@@ -2355,8 +2354,7 @@
             "meta": {
               "caching": {
                 "kind": "personal"
-              },
-              "live": false
+              }
             },
             "route": {
               "method": "POST",
