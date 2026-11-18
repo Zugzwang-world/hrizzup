@@ -3,7 +3,9 @@ import type { APIRequestContext } from '@playwright/test';
 import { KEY_TEXT } from '../../lib/api/credential.ts';
 import { newRecordId } from '../../lib/record-id.ts';
 import { describeApiOnly, expect, test } from '../support/api-only.ts';
+import { callWith } from '../support/quiet-request.ts';
 import { runKey } from '../support/run.ts';
+import { consoleCall as call } from '../support/social-calls.ts';
 import { adminState, signedInState, signedOutState } from '../support/states.ts';
 
 /**
@@ -36,49 +38,6 @@ const environment = () => process.env.SCREEN_CHECK_ENVIRONMENT;
 
 /** The pages a list may take to show the run's own row: it is the newest, so the first, but runs overlap. */
 const MOST_PAGES = 10;
-
-/** Headers that differ from one answer to the next by their nature (the time, the request's ID). */
-const PER_ANSWER = new Set([
-  'date',
-  'age',
-  'x-vercel-id',
-  'x-vercel-cache',
-  'connection',
-  'keep-alive',
-]);
-
-type Answer = {
-  status: number;
-  text: string;
-  body: Record<string, unknown>;
-  caching: string | undefined;
-  headers: Record<string, string>;
-};
-
-async function call(
-  request: APIRequestContext,
-  method: string,
-  path: string,
-  data?: unknown,
-): Promise<Answer> {
-  const response = await request.fetch(path, { method, ...(data === undefined ? {} : { data }) });
-  const text = await response.text();
-  let body: Record<string, unknown> = {};
-  try {
-    body = JSON.parse(text) as Record<string, unknown>;
-  } catch {
-    // Not JSON: the text is what is compared.
-  }
-  return {
-    status: response.status(),
-    text,
-    body,
-    caching: response.headers()['cache-control'],
-    headers: Object.fromEntries(
-      Object.entries(response.headers()).filter(([name]) => !PER_ANSWER.has(name)),
-    ),
-  };
-}
 
 /** A story/1 record of the run's: an unlisted test story, made a minute ago. */
 function storyRecord(id: string, label: string, at: Date) {
@@ -440,13 +399,8 @@ describeApiOnly("the console's lists, settings and agents", () => {
       const key = (joined.body as { secret: string }).secret;
       // Booleans, so a failure never prints a key or a code into a public log.
       expect(KEY_TEXT.test(key), 'the posting key has its shape').toBe(true);
-      const asAgent = async () => {
-        const response = await anyone.fetch('/api/v1/social/me', {
-          headers: { authorization: `Bearer ${key}` },
-        });
-        const text = await response.text();
-        return { status: response.status(), body: text ? JSON.parse(text) : {} };
-      };
+      // The key goes only through the quiet call: a request that throws names its method and path, never the key.
+      const asAgent = () => callWith(anyone, key, 'GET', '/api/v1/social/me');
       const before = await asAgent();
       expect(before.status, 'the key reads its agent before the revocation').toBe(200);
       expect(before.body).toMatchObject({ handle, state: 'waiting' });

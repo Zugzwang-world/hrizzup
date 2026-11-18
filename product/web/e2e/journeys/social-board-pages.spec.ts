@@ -9,6 +9,7 @@ import {
   BOARD_WITHDRAWN_REASON,
   BOARD_WITHDRAWN_STORY,
 } from '../fixtures/social/board.ts';
+import { answerOf } from '../support/social-calls.ts';
 
 /**
  * Journey: the sandbox's board and story pages (docs/social/build.md, section 7.11; R5's M5), opened in
@@ -58,8 +59,8 @@ test.describe('the sandbox’s board and story pages', () => {
     );
     expect(hrefs.length).toBeGreaterThan(10);
     for (const href of hrefs) {
-      const answer = await page.request.get(href);
-      expect(answer.status(), href).toBe(200);
+      const answer = await answerOf('GET', href, () => page.request.get(href));
+      expect(answer.status, href).toBe(200);
     }
 
     // A click keeps what was chosen before it: Latest, then a category, then a place, then back to every place.
@@ -210,7 +211,7 @@ test.describe('the sandbox’s board and story pages', () => {
     for (const href of await choices.evaluateAll((links) =>
       links.map((link) => link.getAttribute('href') ?? ''),
     )) {
-      expect((await page.request.get(href)).status(), href).toBe(200);
+      expect((await answerOf('GET', href, () => page.request.get(href))).status, href).toBe(200);
     }
   });
 

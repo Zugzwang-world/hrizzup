@@ -6,6 +6,7 @@ import {
   BOARD_MERGED_STORY,
   BOARD_WITHDRAWN_STORY,
 } from '../../../lib/social/fixture-ids.ts';
+import { quietly } from '../../support/quiet-request.ts';
 import type { SocialFixture, SocialFixtureContext } from './fixture.ts';
 
 /**
@@ -114,14 +115,17 @@ async function call(
   path: string,
   body?: unknown,
 ): Promise<Answer> {
-  const response = await fetch(new URL(path, baseURL), {
-    method,
-    headers: {
-      ...headers,
-      ...(body === undefined ? {} : { 'content-type': 'application/json' }),
-    },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-  });
+  // The request carries the admin's session as cookies: one that throws names its method and path only.
+  const response = await quietly(method, path, () =>
+    fetch(new URL(path, baseURL), {
+      method,
+      headers: {
+        ...headers,
+        ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+      },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    }),
+  );
   let parsed: Record<string, unknown> = {};
   try {
     parsed = (await response.json()) as Record<string, unknown>;

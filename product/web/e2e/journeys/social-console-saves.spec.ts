@@ -1,6 +1,7 @@
 import { type APIRequestContext, expect, test } from '@playwright/test';
 import { newRecordId } from '../../lib/record-id.ts';
 import { runKey } from '../support/run.ts';
+import { consoleCall as call } from '../support/social-calls.ts';
 import { adminState, signedInState } from '../support/states.ts';
 
 /**
@@ -20,49 +21,6 @@ import { adminState, signedInState } from '../support/states.ts';
  */
 
 const environment = () => process.env.SCREEN_CHECK_ENVIRONMENT;
-
-/** Headers that differ from one answer to the next by their nature (the time, the request's ID). */
-const PER_ANSWER = new Set([
-  'date',
-  'age',
-  'x-vercel-id',
-  'x-vercel-cache',
-  'connection',
-  'keep-alive',
-]);
-
-type Answer = {
-  status: number;
-  text: string;
-  body: Record<string, unknown>;
-  caching: string | undefined;
-  headers: Record<string, string>;
-};
-
-async function call(
-  request: APIRequestContext,
-  method: string,
-  path: string,
-  data?: unknown,
-): Promise<Answer> {
-  const response = await request.fetch(path, { method, ...(data === undefined ? {} : { data }) });
-  const text = await response.text();
-  let body: Record<string, unknown> = {};
-  try {
-    body = JSON.parse(text) as Record<string, unknown>;
-  } catch {
-    // Not JSON: the text is what is compared.
-  }
-  return {
-    status: response.status(),
-    text,
-    body,
-    caching: response.headers()['cache-control'],
-    headers: Object.fromEntries(
-      Object.entries(response.headers()).filter(([name]) => !PER_ANSWER.has(name)),
-    ),
-  };
-}
 
 /** A story/1 record of the run's: an unlisted test story, made now. */
 function storyRecord(id: string, label: string, at: Date) {

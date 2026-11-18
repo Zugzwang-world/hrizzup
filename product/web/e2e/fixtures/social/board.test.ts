@@ -305,3 +305,23 @@ describe('the stories the console keeps its hands off', () => {
     expect(new Set(BOARD_FIXTURE_UPDATES.map((update) => update.id))).toEqual(KEPT_UPDATE_IDS);
   });
 });
+
+describe('a fixture request that throws', () => {
+  it('names only its method and path, whatever the cookies it carried', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new Error(
+          'fetch failed: connection reset, Cookie: sb-access-token=SECRET-COOKIE-VALUE',
+        );
+      }),
+    );
+    for (const one of boardFixtures) {
+      const failure = await one.ensure(context).catch((error: Error) => error);
+      expect((failure as Error).message).toMatch(
+        /^GET \/api\/v1\/social\/stories\/[0-9a-f-]{36} got no answer$/,
+      );
+      expect(JSON.stringify(failure)).not.toContain('SECRET');
+    }
+  });
+});
