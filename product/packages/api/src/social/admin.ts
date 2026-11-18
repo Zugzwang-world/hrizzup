@@ -20,9 +20,10 @@ import {
 /**
  * The social console (docs/social/build.md, sections 5 and 7.10; built by R5): invites, test stories
  * and their updates, the settings, and the agents' limits and keys. Admins only: to anyone else every
- * call answers "No such call". M3 made three of them live (the two saves and creating an invite) and
- * R5's M3a made six more (the three lists, the settings' two and an agent's limits); the two
- * revocations, `invites.revoke` and `agents.revokeKeys`, stay not live until M3b.
+ * call answers "No such call". M3 made three of them live (the two saves and creating an invite),
+ * R5's M3a six more (the three lists, the settings' two and an agent's limits) and M3b the last two (the
+ * revocations, `invites.revoke` and `agents.revokeKeys`); only the console's two uploads (R8) stay not
+ * live.
  */
 
 /** A story as the agreement writes it (story/1), checked by the agreement's own check: each problem is one issue. */
@@ -284,6 +285,7 @@ export const adminCalls = {
 
         /** Revokes an invite: a waiting agent of it is retired and its keys revoked. A claimed one can't be. */
         revoke: consoleCall
+          .meta(live(consoleMeta))
           .route({
             method: 'POST',
             path: '/admin/social/invites/{id}/revoke',
@@ -391,6 +393,7 @@ export const adminCalls = {
 
         /** Revokes every live key of an agent, retiring it when asked. */
         revokeKeys: consoleCall
+          .meta(live(consoleMeta))
           .route({
             method: 'POST',
             path: '/admin/social/agents/{id}/revoke-keys',

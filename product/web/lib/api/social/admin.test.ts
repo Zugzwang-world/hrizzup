@@ -7,9 +7,10 @@ import { resetSocialCache } from '@/lib/social/cache.ts';
 import { SETTING_COLUMNS } from '@/lib/social/console.ts';
 
 /**
- * The console's nine live social calls (docs/social/build.md, D4, D13, sections 7.9, 7.10 and 9.2's
- * `admin.test.ts`; R5's design note, M3a): saving a test story, saving an update, making an invite (M3),
- * and the three lists, the settings' two calls and an agent's limits (M3a). Who is signed in, whether
+ * The console's eleven live social calls (docs/social/build.md, D4, D13, sections 7.9, 7.10, 7.14, 9.2's
+ * `admin.test.ts` and 9.3; R5's design note, M3a, M3b and R9): saving a test story, saving an update, making
+ * an invite (M3), the three lists, the settings' two calls and an agent's limits (M3a), and the two
+ * revocations (M3b). Who is signed in, whether
  * they're an admin and the database are stood in for: the database by a recording stand-in that
  * answers like the functions of migrations/*_social.sql (their snake_case answers, their SQLSTATEs).
  * The database's own rules are proven by the pgTAP tests (`social_console`, `intake`).
@@ -29,6 +30,12 @@ vi.mock('@hrizzup/markets', async (original) => ({
 vi.mock('@vercel/functions', async (original) => ({
   ...(await original<typeof import('@vercel/functions')>()),
   invalidateByTag: (tags: string[]) => invalidate(tags),
+}));
+/** R6's `revokeAgentKeys` ("none" over a key's two copies in Redis), stood in for: the hashes it is given, in order. */
+const revokeKeys = vi.fn(async (_hashes: string[]) => {});
+vi.mock('@/lib/api/keys.ts', async (original) => ({
+  ...(await original<typeof import('@/lib/api/keys.ts')>()),
+  revokeAgentKeys: (hashes: string[]) => revokeKeys(hashes),
 }));
 vi.mock('@/lib/env.ts', async (original) => ({
   ...(await original<typeof import('@/lib/env.ts')>()),
@@ -103,6 +110,8 @@ function snake(value: unknown): unknown {
 const story = examples.admin.saveStoryInput;
 const update = examples.admin.saveUpdateInput;
 const invite = examples.admin.createInviteInput;
+const revokeInvite = examples.admin.revokeInviteInput;
+const revokeAgent = examples.admin.revokeKeysInput;
 
 beforeEach(() => {
   vi.stubEnv('VERCEL', '1');
@@ -112,6 +121,8 @@ beforeEach(() => {
   testStories.mockReturnValue(true);
   invalidate.mockReset();
   invalidate.mockResolvedValue(undefined);
+  revokeKeys.mockReset();
+  revokeKeys.mockResolvedValue(undefined);
   // No Redis: a save's purge forgets the brief's copy there, and this test has none.
   resetSocialCache(null);
   answer = () => ({});
@@ -432,14 +443,26 @@ describe('making an invite', () => {
 });
 
 describe('what the live calls say when they refuse', () => {
-  it('uses social’s words for every 404 and 409 of the three calls, never a market’s or a perp’s', async () => {
+  it('uses social’s words for every 404 and 409 of the five calls that write and refuse, never a market’s or a perp’s', async () => {
     const calls = [
       () => api().admin.social.stories.save(story),
       () => api().admin.social.updates.save(update),
       () => api().admin.social.invites.create(invite),
+      () => api().admin.social.invites.revoke(revokeInvite),
+      () => api().admin.social.agents.revokeKeys(revokeAgent),
     ];
     // Every refusal the database can make of them that answers a 404 or a 409.
-    for (const code of ['HZS18', '42501', 'P0002', 'HZS19', 'HZS23', 'HZS25', 'HZS27', 'HZS28']) {
+    for (const code of [
+      'HZS18',
+      '42501',
+      'P0002',
+      'HZS19',
+      'HZS23',
+      'HZS24',
+      'HZS25',
+      'HZS27',
+      'HZS28',
+    ]) {
       answer = () => fault(code, 'raised by the database');
       for (const call of calls) {
         const error = (await call().catch((caught: unknown) => caught)) as {
@@ -490,38 +513,42 @@ describe('who may make these calls', () => {
     const consoleCalls = procedures(contract).filter(([name]) => name.startsWith('admin.social.'));
     const notLive = consoleCalls
       .filter(([, procedure]) => procedure['~orpc'].meta.live === false)
-      .map(([name]) => name);
+      .map(([name]) => name)
+      .sort();
     const live = consoleCalls
       .filter(([, procedure]) => procedure['~orpc'].meta.live !== false)
-      .map(([name]) => name);
-    // M3b's two revocations are among those not yet live (with R8's two uploads); M3 and M3a's nine are live.
-    expect(notLive).toEqual(
-      expect.arrayContaining(['admin.social.invites.revoke', 'admin.social.agents.revokeKeys']),
-    );
-    expect(live.sort()).toEqual(
-      expect.arrayContaining([
-        'admin.social.agents.list',
-        'admin.social.agents.set',
-        'admin.social.invites.create',
-        'admin.social.invites.list',
-        'admin.social.settings.get',
-        'admin.social.settings.set',
-        'admin.social.stories.list',
-        'admin.social.stories.save',
-        'admin.social.updates.save',
-      ]),
-    );
-    const input: Record<string, unknown> = {
-      'admin.social.invites.revoke': { id: examples.admin.revokeInviteInput.id, reason: 'x' },
-      'admin.social.agents.revokeKeys': { id: examples.admin.revokeKeysInput.id, reason: 'x' },
-    };
+      .map(([name]) => name)
+      .sort();
+    // M3, M3a and M3b made these eleven live. The console's two uploads (R8) are the only calls that may
+    // still be not live (they stop being so in R8's own pull request, which then changes nothing here), so
+    // none of the eleven is left in the not-live list, and no other call is.
+    const eleven = [
+      'admin.social.agents.list',
+      'admin.social.agents.revokeKeys',
+      'admin.social.agents.set',
+      'admin.social.invites.create',
+      'admin.social.invites.list',
+      'admin.social.invites.revoke',
+      'admin.social.settings.get',
+      'admin.social.settings.set',
+      'admin.social.stories.list',
+      'admin.social.stories.save',
+      'admin.social.updates.save',
+    ];
+    expect(live).toEqual(expect.arrayContaining(eleven));
+    const uploads = ['admin.social.uploads.create', 'admin.social.uploads.done'];
+    expect(
+      notLive.filter((name) => !uploads.includes(name)),
+      'only R8’s uploads may be not live',
+    ).toEqual([]);
+    // The rule: every console call that is not live answers "No such call", an admin or not.
     for (const name of notLive) {
       const call = name
         .split('.')
         .reduce<unknown>((tree, part) => (tree as Record<string, unknown>)[part], api()) as (
         input: unknown,
       ) => Promise<unknown>;
-      await expect(call(input[name] ?? {}), name).rejects.toMatchObject(noSuchCall);
+      await expect(call({}), name).rejects.toMatchObject(noSuchCall);
     }
     expect(client.query).not.toHaveBeenCalled();
   });
@@ -986,5 +1013,319 @@ describe('who may make the six calls of M3a', () => {
   it('turn away what the database refuses as not an admin as "No such call" too (the database checks again inside)', async () => {
     answer = () => fault('42501', 'not an admin');
     for (const call of calls) await expect(call()).rejects.toMatchObject(noSuchCall);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// M3b: the two revocations (R5's design note, R9 and section 5)
+// ---------------------------------------------------------------------------------------------
+
+describe('the two revocations', () => {
+  /** Two keys' hashes as the database answers them: 64 lower-case hex characters each. */
+  const HASHES = ['0f'.repeat(32), 'a1'.repeat(32)];
+  const INVITE = revokeInvite.id;
+  const revokedInvite = () => ({
+    invite: snake(examples.admin.revokedInvite),
+    revoked_key_hashes: HASHES,
+  });
+  const retiredAgent = (hashes: string[] = HASHES) => ({
+    agent: agentRow(examples.admin.retiredAgent),
+    revoked_key_hashes: hashes,
+  });
+  const revokeInviteCall = () =>
+    api().admin.social.invites.revoke({ id: INVITE, reason: revokeInvite.reason });
+  const revokeKeysCall = (retire?: boolean) =>
+    api().admin.social.agents.revokeKeys({
+      id: AGENT,
+      reason: revokeAgent.reason,
+      ...(retire === undefined ? {} : { retire }),
+    });
+  const calls = [revokeInviteCall, () => revokeKeysCall(true)];
+  /** The invocation order of the call's first use of a stand-in (every stand-in shares one counter). */
+  const orderOf = (stand: { mock: { invocationCallOrder: number[] } }) =>
+    stand.mock.invocationCallOrder[0] ?? Number.NaN;
+  const commitOrder = () => {
+    const at = client.query.mock.calls.findIndex(([text]) => text === 'commit');
+    return client.query.mock.invocationCallOrder[at] ?? Number.NaN;
+  };
+
+  describe('who may make them', () => {
+    it('is an admin only: anyone else, signed in or not, gets "No such call", whatever they send, and neither the database, Redis nor the edge is asked', async () => {
+      for (const call of calls) {
+        signedIn.mockResolvedValue(null);
+        await expect(call()).rejects.toMatchObject(noSuchCall);
+        signedIn.mockResolvedValue({ ...ADMIN, id: '00000000-0000-4000-8000-0000000000c2' });
+        isAdmin.mockResolvedValue(false);
+        await expect(call()).rejects.toMatchObject(noSuchCall);
+      }
+      // The admin check comes before the input is read, so a bad input gives nothing away.
+      await expect(api().admin.social.invites.revoke({} as never)).rejects.toMatchObject(
+        noSuchCall,
+      );
+      await expect(api().admin.social.agents.revokeKeys({} as never)).rejects.toMatchObject(
+        noSuchCall,
+      );
+      expect(client.query).not.toHaveBeenCalled();
+      expect(revokeKeys).not.toHaveBeenCalled();
+      expect(invalidate).not.toHaveBeenCalled();
+    });
+
+    it("don't exist on production, until launch, for anyone: admins included", async () => {
+      vi.stubEnv('VERCEL_TARGET_ENV', 'production');
+      for (const call of calls) await expect(call()).rejects.toMatchObject(noSuchCall);
+      expect(isAdmin).not.toHaveBeenCalled();
+      expect(client.query).not.toHaveBeenCalled();
+      expect(revokeKeys).not.toHaveBeenCalled();
+    });
+
+    it('turn away what the database refuses as not an admin as "No such call" too, and clear nothing', async () => {
+      answer = () => fault('42501', 'not an admin');
+      for (const call of calls) await expect(call()).rejects.toMatchObject(noSuchCall);
+      expect(revokeKeys).not.toHaveBeenCalled();
+      expect(invalidate).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('revoking an invite', () => {
+    beforeEach(() => {
+      answer = revokedInvite;
+    });
+
+    it("runs social.admin_revoke_invite with the invite's ID in lower case and the reason, and answers the invite as revoked", async () => {
+      await expect(
+        api().admin.social.invites.revoke({
+          id: INVITE.toUpperCase(),
+          reason: 'Sent to the wrong person',
+        }),
+      ).resolves.toEqual(examples.admin.revokedInvite);
+      expect(asked).toHaveLength(1);
+      expect(asked[0]?.text).toBe('select social.admin_revoke_invite($1, $2) as answer');
+      expect(asked[0]?.values).toEqual([INVITE, 'Sent to the wrong person']);
+      expect(setUp[0]?.[0]).toBe('hrizzup_app');
+      expect(setUp[0]?.[2]).toBe(ADMIN.id);
+    });
+
+    it('goes in the order of R9: the database commits, then Redis forgets the keys (and is waited for), and the invite is answered', async () => {
+      const events: string[] = [];
+      revokeKeys.mockImplementation(async () => {
+        events.push(`redis starts, committed: ${commitOrder() < orderOf(revokeKeys)}`);
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        events.push('redis ends');
+      });
+      const answered = revokeInviteCall().then((invite) => {
+        events.push('answered');
+        return invite;
+      });
+      await answered;
+      expect(events).toEqual(['redis starts, committed: true', 'redis ends', 'answered']);
+      expect(client.query.mock.calls.map(([text]) => text)).toContain('commit');
+    });
+
+    it("passes the database's hashes to Redis exactly as they came, in one call", async () => {
+      await revokeInviteCall();
+      expect(revokeKeys).toHaveBeenCalledTimes(1);
+      expect(revokeKeys.mock.calls[0]?.[0]).toEqual(HASHES);
+    });
+
+    it('clears nothing at the edge: a waiting agent is on no public read', async () => {
+      await revokeInviteCall();
+      expect(invalidate).not.toHaveBeenCalled();
+    });
+
+    it('answers a repeat as it is, with no hashes, and asks Redis for nothing', async () => {
+      answer = () => ({ ...revokedInvite(), revoked_key_hashes: [] });
+      await expect(revokeInviteCall()).resolves.toEqual(examples.admin.revokedInvite);
+      expect(revokeKeys).not.toHaveBeenCalled();
+      expect(invalidate).not.toHaveBeenCalled();
+    });
+
+    it('answers a claimed agent’s invite as a 409 `invite_claimed`, and an unknown invite as a 404, and clears nothing for either', async () => {
+      answer = () => fault('HZS24', "This invite's agent has been claimed");
+      await expect(revokeInviteCall()).rejects.toMatchObject({
+        code: 'CONFLICT',
+        status: 409,
+        data: { reason: 'invite_claimed' },
+      });
+      answer = () => fault('P0002', 'No such invite');
+      await expect(revokeInviteCall()).rejects.toMatchObject({
+        code: 'NOT_FOUND',
+        status: 404,
+        message: 'No such invite',
+      });
+      expect(revokeKeys).not.toHaveBeenCalled();
+      expect(invalidate).not.toHaveBeenCalled();
+    });
+
+    it("clears nothing when the transaction can't commit: the database is the truth, and Redis is never ahead of it", async () => {
+      atCommit = fault('40001', 'could not serialize access');
+      await expect(revokeInviteCall()).rejects.toBeDefined();
+      expect(revokeKeys).not.toHaveBeenCalled();
+    });
+
+    it('refuses an input that is not a revocation, before the database: no reason, a reason of two lines, a made-up field', async () => {
+      for (const input of [
+        { id: INVITE },
+        { id: INVITE, reason: 'two\nlines' },
+        { id: INVITE, reason: 'x'.repeat(201) },
+        { id: 'not-an-id', reason: 'x' },
+        { id: INVITE, reason: 'x', retire: true },
+      ]) {
+        await expect(
+          api().admin.social.invites.revoke(input as never),
+          JSON.stringify(input),
+        ).rejects.toMatchObject({ code: 'BAD_REQUEST', status: 400 });
+      }
+      expect(client.query).not.toHaveBeenCalled();
+      expect(revokeKeys).not.toHaveBeenCalled();
+    });
+
+    it('still answers when Redis fails, throws, or is given something it refuses, and says only the error’s name in the log', async () => {
+      const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+      for (const failure of [
+        () => Promise.reject(new Error('Redis is down')),
+        () => {
+          throw new TypeError('A key is named by its hash: 64 hex characters');
+        },
+      ]) {
+        revokeKeys.mockImplementation(failure);
+        await expect(revokeInviteCall()).resolves.toEqual(examples.admin.revokedInvite);
+      }
+      expect(log).toHaveBeenCalledTimes(2);
+      expect(log.mock.calls.map(([, detail]) => detail)).toEqual([
+        { name: 'Error' },
+        { name: 'TypeError' },
+      ]);
+      const printed = JSON.stringify(log.mock.calls);
+      expect(printed).not.toContain(HASHES[0]);
+      expect(printed).not.toContain('Redis is down');
+      log.mockRestore();
+    });
+  });
+
+  describe("revoking an agent's keys", () => {
+    beforeEach(() => {
+      answer = () => retiredAgent();
+    });
+
+    it("runs social.admin_revoke_agent_keys with the agent's ID in lower case, the reason and whether to retire (false when it isn't said), and answers the agent as the console shows it", async () => {
+      await expect(
+        api().admin.social.agents.revokeKeys({
+          id: AGENT.toUpperCase(),
+          reason: 'Its key was posted in public',
+          retire: true,
+        }),
+      ).resolves.toEqual(examples.admin.retiredAgent);
+      expect(asked[0]?.text).toBe('select social.admin_revoke_agent_keys($1, $2, $3) as answer');
+      expect(asked[0]?.values).toEqual([AGENT, 'Its key was posted in public', true]);
+      await revokeKeysCall();
+      expect(asked[1]?.values).toEqual([AGENT, revokeAgent.reason, false]);
+      await revokeKeysCall(false);
+      expect(asked[2]?.values).toEqual([AGENT, revokeAgent.reason, false]);
+      expect(setUp[0]?.[2]).toBe(ADMIN.id);
+    });
+
+    it('goes in the order of R9: the database commits, then Redis forgets the keys, then the edge, and the agent is answered after all three', async () => {
+      const events: string[] = [];
+      revokeKeys.mockImplementation(async () => {
+        events.push(`redis starts, committed: ${commitOrder() < orderOf(revokeKeys)}`);
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        events.push('redis ends');
+      });
+      invalidate.mockImplementation(async () => {
+        events.push('edge');
+      });
+      await revokeKeysCall(true);
+      events.push('answered');
+      expect(events).toEqual(['redis starts, committed: true', 'redis ends', 'edge', 'answered']);
+      expect(commitOrder()).toBeLessThan(orderOf(revokeKeys));
+      expect(orderOf(revokeKeys)).toBeLessThan(orderOf(invalidate));
+    });
+
+    it("passes the database's hashes to Redis exactly as they came, in one call", async () => {
+      await revokeKeysCall(true);
+      expect(revokeKeys).toHaveBeenCalledTimes(1);
+      expect(revokeKeys.mock.calls[0]?.[0]).toEqual(HASHES);
+    });
+
+    it("clears the agent's edge copies and the directory's when it is retired, and nothing at the edge when only its keys are revoked", async () => {
+      await revokeKeysCall(true);
+      expect(invalidate).toHaveBeenCalledTimes(1);
+      expect(invalidate).toHaveBeenCalledWith([`social:agent:${AGENT}`, 'social:agents']);
+      invalidate.mockClear();
+      await revokeKeysCall(false);
+      await revokeKeysCall();
+      expect(invalidate).not.toHaveBeenCalled();
+      // The keys are forgotten in Redis every time, retired or not.
+      expect(revokeKeys).toHaveBeenCalledTimes(3);
+    });
+
+    it('answers a repeat as it is, with no hashes, and asks Redis for nothing', async () => {
+      answer = () => retiredAgent([]);
+      await expect(revokeKeysCall(true)).resolves.toEqual(examples.admin.retiredAgent);
+      expect(revokeKeys).not.toHaveBeenCalled();
+    });
+
+    it('answers an agent that isn\'t there as 404 "No such agent", and clears nothing', async () => {
+      answer = () => fault('P0002', 'No such agent');
+      await expect(revokeKeysCall(true)).rejects.toMatchObject({
+        code: 'NOT_FOUND',
+        status: 404,
+        message: 'No such agent',
+      });
+      expect(revokeKeys).not.toHaveBeenCalled();
+      expect(invalidate).not.toHaveBeenCalled();
+    });
+
+    it("clears nothing when the transaction can't commit", async () => {
+      atCommit = fault('40001', 'could not serialize access');
+      await expect(revokeKeysCall(true)).rejects.toBeDefined();
+      expect(revokeKeys).not.toHaveBeenCalled();
+      expect(invalidate).not.toHaveBeenCalled();
+    });
+
+    it('refuses an input that is not a revocation, before the database: no reason, a made-up field, a retire that is not true or false', async () => {
+      for (const input of [
+        { id: AGENT },
+        { id: AGENT, reason: 'two\nlines' },
+        { id: AGENT, reason: 'x', retire: 'yes' },
+        { id: AGENT, reason: 'x', hashes: [] },
+        { id: 'not-an-id', reason: 'x' },
+      ]) {
+        await expect(
+          api().admin.social.agents.revokeKeys(input as never),
+          JSON.stringify(input),
+        ).rejects.toMatchObject({ code: 'BAD_REQUEST', status: 400 });
+      }
+      expect(client.query).not.toHaveBeenCalled();
+    });
+
+    it('still answers, and still clears the edge, when Redis fails, throws, or is given something it refuses', async () => {
+      const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+      for (const failure of [
+        () => Promise.reject(new Error('Redis is down')),
+        () => {
+          throw new TypeError('A key is named by its hash: 64 hex characters');
+        },
+      ]) {
+        revokeKeys.mockImplementation(failure);
+        invalidate.mockClear();
+        await expect(revokeKeysCall(true)).resolves.toEqual(examples.admin.retiredAgent);
+        expect(invalidate).toHaveBeenCalledTimes(1);
+      }
+      expect(log.mock.calls.map(([, detail]) => detail)).toEqual([
+        { name: 'Error' },
+        { name: 'TypeError' },
+      ]);
+      expect(JSON.stringify(log.mock.calls)).not.toContain(HASHES[0]);
+      log.mockRestore();
+    });
+
+    it('still answers when the edge fails after Redis has been told', async () => {
+      const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+      invalidate.mockRejectedValue(new Error('the edge refused'));
+      await expect(revokeKeysCall(true)).resolves.toEqual(examples.admin.retiredAgent);
+      expect(revokeKeys).toHaveBeenCalledTimes(1);
+      log.mockRestore();
+    });
   });
 });

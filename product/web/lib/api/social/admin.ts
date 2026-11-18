@@ -2,6 +2,7 @@ import { DEFAULT_PAGE, type social } from '@hrizzup/api';
 import { type SaveResult, saveStory, saveUpdate } from '@hrizzup/content';
 import { makeInvite } from '@hrizzup/social';
 import { ORPCError } from '@orpc/server';
+import { revokeAgentKeys } from '@/lib/api/keys.ts';
 import { STAGING_ORIGIN } from '@/lib/auth-relay.ts';
 import { testStoriesEnabled } from '@/lib/env.ts';
 import { asAdmin, mapped, runner } from '@/lib/social/access.ts';
@@ -23,18 +24,18 @@ import { refreshAgent, refreshStories } from '@/lib/social/purge.ts';
 import { answerOf, camelKeys } from '@/lib/social/shape.ts';
 import { admin } from '../base.ts';
 import { type ConsoleAdmin, noSuchCall } from '../console.ts';
-import { notBuilt } from './not-built.ts';
 
 /**
- * The console's invites, stories, settings and agents (R5): this area's handlers, one for each of its calls in `social/admin.ts` of the
- * contract. Nine are live: M3's three (the two saves and creating an invite: D4, D13, sections 7.9 and
- * 7.10) and M3a's six (the three lists, the two settings calls and an agent's limits), each thin, one
- * database function through `asAdmin`, mapped by `lib/social/console.ts`. The two revocations
- * (`invites.revoke`, `agents.revokeKeys`) are stubs until M3b: each is `live: false` until then, so none
- * is reached (the route and `base.ts` answer "No such call" first). The two saves purge what they
- * changed once the save has answered (`refreshStories`: the story's and its desk's tags, the board's
- * when the story is listed, and the story's brief in Redis), and a purge that fails never fails the
- * save.
+ * The console's invites, stories, settings and agents (R5): this area's handlers, one for each of its calls in
+ * `social/admin.ts` of the contract, all eleven live. M3's three (the two saves and creating an invite: D4, D13,
+ * sections 7.9 and 7.10), M3a's six (the three lists, the two settings calls and an agent's limits) and
+ * M3b's two (the revocations) are each thin, one database function through `asAdmin`, mapped by
+ * `lib/social/console.ts`. The two saves purge what they changed once the save has answered
+ * (`refreshStories`: the story's and its desk's tags, the board's when the story is listed, and the
+ * story's brief in Redis), and a purge that fails never fails the save. A revocation runs in R9's order:
+ * the database (which refuses a revoked key at once, on every call), then Redis's copies of the revoked
+ * keys (`revokeAgentKeys`), then, for an agent retired with its keys, the edge; nothing after the
+ * database's commit can fail the call.
  *
  * Every call here is an admin's: the route and `base.ts`'s `admin` middleware have already turned
  * anyone else away as an address the API doesn't have, before any input is read (the six layers: the
@@ -78,6 +79,26 @@ const answered = <T>(
   own?: OwnMap,
 ): Promise<T> =>
   asAdmin(context, async (tx) => answerOf((await tx.query(sql, values)).rows) as T, own);
+
+/** What a revocation answers: the thing as the console shows it, and the hashes of the keys it revoked (none when it changed nothing). */
+type Revocation<Thing> = { revoked_key_hashes: string[] } & Thing;
+
+/**
+ * Forgets the revoked keys' copies in Redis (R6's `revokeAgentKeys`: "none" over `key:v1` and `key:v2`),
+ * once the revocation has committed. The database's hashes go through as they are, and nothing at all is
+ * asked of Redis for none. Never throws: the database already refuses the keys, and a copy that stays
+ * expires within a minute, so a failure only logs the error's name (its text may quote data, and a hash
+ * is never printed).
+ */
+async function forgetRevokedKeys(hashes: string[]): Promise<void> {
+  try {
+    if (hashes.length === 0) return;
+    await revokeAgentKeys(hashes);
+  } catch (error) {
+    const { name } = (error ?? {}) as { name?: unknown };
+    console.error("social console: a revoked key's copies were not cleared in Redis", { name });
+  }
+}
 
 export const adminRoutes = {
   admin: {
@@ -151,7 +172,22 @@ export const adminRoutes = {
             message: readyMessage(STAGING_ORIGIN, made.code, invite.email),
           };
         }),
-        revoke: admin.social.invites.revoke.handler(notBuilt),
+        /**
+         * Revokes an invite (`social.admin_revoke_invite`): a waiting agent of it is retired and its keys
+         * revoked in the same transaction (a claimed agent's invite is refused, 409 `invite_claimed`; an
+         * unknown one is a 404). Once that has committed, the revoked keys' copies are cleared in Redis
+         * and the invite is answered. No edge copy is cleared: a waiting agent is on no public read. An
+         * invite already revoked answers as it is, with no hashes.
+         */
+        revoke: admin.social.invites.revoke.handler(async ({ context, input }) => {
+          const answer = await answered<Revocation<{ invite: unknown }>>(
+            context,
+            'select social.admin_revoke_invite($1, $2) as answer',
+            [input.id.toLowerCase(), input.reason],
+          );
+          await forgetRevokedKeys(answer.revoked_key_hashes);
+          return inviteOf(answer.invite);
+        }),
       },
       stories: {
         /**
@@ -275,7 +311,25 @@ export const adminRoutes = {
           }
           return agent;
         }),
-        revokeKeys: admin.social.agents.revokeKeys.handler(notBuilt),
+        /**
+         * Revokes every live key of an agent, and retires it when asked (`social.admin_revoke_agent_keys`;
+         * an unknown agent is a 404). Once that has committed, the revoked keys' copies are cleared in
+         * Redis; then, for a retirement, the agent's edge copies and the directory's (it leaves the
+         * directory). Keys revoked alone change nothing at the edge. A repeated revocation answers as it
+         * is, with no hashes. The answer is built last, so nothing that can fail comes between the
+         * commit and the clearing.
+         */
+        revokeKeys: admin.social.agents.revokeKeys.handler(async ({ context, input }) => {
+          const id = input.id.toLowerCase();
+          const answer = await answered<Revocation<{ agent: AdminAgentRow }>>(
+            context,
+            'select social.admin_revoke_agent_keys($1, $2, $3) as answer',
+            [id, input.reason, input.retire ?? false],
+          );
+          await forgetRevokedKeys(answer.revoked_key_hashes);
+          if (input.retire) await refreshAgent(id, { directory: true });
+          return adminAgentOf(answer.agent);
+        }),
       },
     },
   },
