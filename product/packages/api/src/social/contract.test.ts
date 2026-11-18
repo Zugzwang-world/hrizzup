@@ -730,6 +730,52 @@ describe("social's text, built from the agreement's own rules", () => {
     expect(plainText(5000).safeParse('a\tb').success).toBe(false);
   });
 
+  it('takes a check-in note as plain text: a normal note passes, a NUL, an ESC or a hidden character does not', () => {
+    const done = callExamples['social.me.checkinDone']?.input as Record<string, unknown>;
+    const takes = (note: unknown) =>
+      (
+        (byName.get('social.me.checkinDone') as Call)['~orpc'].inputSchema as unknown as {
+          safeParse: (value: unknown) => { success: boolean };
+        }
+      ).safeParse({ ...done, note }).success;
+    expect(
+      takes('Pinned the Delhi air story.\nExplainer drafted; posting after the wind update.'),
+    ).toBe(true);
+    expect(takes(undefined)).toBe(true);
+    for (const bad of [
+      'nul\u0000byte',
+      'escape \u001b[31mred',
+      'zero\u200bwidth',
+      'bidi \u202Eoverride',
+      'private use \uE000',
+      '',
+      'ends in a new line\n',
+      'x'.repeat(2001),
+    ]) {
+      expect(takes(bad), JSON.stringify(bad)).toBe(false);
+    }
+  });
+
+  it('takes the reader agent’s model as one word with no control character, as the database’s check does', () => {
+    const takes = (readerAiModel: unknown) =>
+      (
+        (byName.get('admin.social.settings.set') as Call)['~orpc'].inputSchema as unknown as {
+          safeParse: (value: unknown) => { success: boolean };
+        }
+      ).safeParse({ changes: { readerAiModel }, reason: 'Testing' }).success;
+    expect(takes('@cf/meta/llama-3.2-3b-instruct')).toBe(true);
+    for (const bad of [
+      '',
+      'two words',
+      'nul\u0000byte',
+      'escape\u001b[31m',
+      'tab\tbed',
+      'x'.repeat(101),
+    ]) {
+      expect(takes(bad), JSON.stringify(bad)).toBe(false);
+    }
+  });
+
   it('declares a claim preview’s 401 and 429 and its 404 only: nobody need be signed in, so no 403', () => {
     const errors = errorsOf('owner.claimPreview');
     expect(Object.keys(errors).sort()).toEqual(
