@@ -8,7 +8,8 @@ import { servedText, skillSource } from '../lib/social/skill-file.ts';
  * Quick checks, with no network, of the example agent (examples/agent/agent.ts; Round 6, R6, M6.4): what it
  * sends, in the shapes the API's contract takes; that its key goes only in `Authorization: Bearer` and is never
  * logged; that its reads go without the key; that a write the network lost is sent again with the same request
- * ID and nothing else is retried; and that every call it makes is one the guide every agent reads names. The
+ * ID and nothing else is retried; that it posts nothing, and says so, when there is nothing new; and that every
+ * call it makes is one the guide every agent reads names, and every answer field it reads is named there too. The
  * run itself against a real API is the journey's (journeys/example-agent.spec.ts) and the done-test's.
  */
 
@@ -142,11 +143,8 @@ describe('joining', () => {
       categories: ['general'],
       places: ['delhi-ncr'],
     });
-    expect(await run).toEqual({
-      handle: registration.agent.handle,
-      claimUrl: registration.claimUrl,
-      key: KEY,
-    });
+    // The handle is the one it asked for: the guide's answer has no handle for it to read.
+    expect(await run).toEqual({ handle: 'test_agent', claimUrl: registration.claimUrl, key: KEY });
     const [only] = stub.sent;
     expect(stub.sent).toHaveLength(1);
     expect(only?.method).toBe('POST');
@@ -202,7 +200,7 @@ describe('joining', () => {
           : new Response(JSON.stringify(registration), { status: 201 }),
     });
     const joined = await join(stub).run;
-    expect(joined.handle).toBe(registration.agent.handle);
+    expect(joined.handle).toBe('test_agent');
     expect(stub.sent).toHaveLength(2);
     expect(stub.sent[1]?.body).toEqual(stub.sent[0]?.body);
     expect(stub.sent[0]?.body?.requestId).toMatch(uuid);
@@ -299,24 +297,37 @@ describe('checking in', () => {
     expect(writes(told.sent)[0]?.body?.storyId).toBe(older.id);
   });
 
-  it("takes the board's newest story when the check-in lists none, and stops, writing nothing, when there is none at all", async () => {
-    const board = api({}, {}, []);
-    await checkin(board).run;
-    expect(board.sent.map((one) => `${one.method} ${one.path}`).slice(0, 3)).toEqual([
+  it('posts nothing when the check-in lists no story and none is named: it finishes the check-in with a note, answers no post, and reads no board', async () => {
+    const stub = api({}, {}, []);
+    const { lines, run } = checkin(stub);
+    expect(await run).toEqual({
+      postId: null,
+      seenUntil: examples.agents.checkinDone.seenUntil,
+    });
+    // The routine's step 4: post only when you add something, never repeat. Two calls, one of them a write.
+    expect(stub.sent.map((one) => `${one.method} ${one.path}`)).toEqual([
       'GET /social/me/checkin',
-      'GET /social/board',
-      'GET /social/stories/{id}',
+      'POST /social/me/checkin',
     ]);
-    expect(board.sent[1]?.url).toBe(`${API}/social/board?sort=latest`);
-    expect(board.sent[1]?.headers.authorization, 'the board is a public read').toBeUndefined();
-    expect(board.sent[2]?.url.endsWith('/stories/the-board-story')).toBe(true);
-    const nothing = api(
-      { 'GET /social/board': () => new Response(JSON.stringify({ stories: [] })) },
-      {},
-      [],
-    );
-    await expect(checkin(nothing).run).rejects.toThrow('No story to post on');
-    expect(writes(nothing.sent)).toEqual([]);
+    expect(writes(stub.sent)).toHaveLength(1);
+    const finished = social.checkinDoneInput.parse(stub.sent[1]?.body);
+    expect(finished.seenUntil).toBe(examples.agents.checkIn.asOf);
+    expect(finished.note).toContain('Nothing new');
+    expect(finished.note).toContain('2026-11-18T10:00:00.000Z');
+    expect(lines.some((text) => text.includes('nothing posted'))).toBe(true);
+    expect(lines.some((text) => text.includes(KEY))).toBe(false);
+  });
+
+  it('posts on the story it was told, even when the check-in lists none', async () => {
+    const stub = api({}, {}, []);
+    const ran = await checkin(stub, { story: tile.id }).run;
+    expect(ran.postId).toBe(examples.agents.postCard.id);
+    expect(writes(stub.sent).map((one) => one.path)).toEqual([
+      '/social/me/pins',
+      '/social/me/posts',
+      '/social/me/checkin',
+    ]);
+    expect(stub.sent.some((one) => one.path === '/social/board')).toBe(false);
   });
 
   it('writes nothing for a story that was withdrawn', async () => {
@@ -414,10 +425,12 @@ describe('the guide every agent reads', () => {
       fetch: joining.fetchStub,
       log: () => {},
     });
-    const checking = api({}, {}, []);
+    const checking = api({}, {}, [tile]);
     await checkin(checking).run;
-    const made = [...joining.sent, ...checking.sent];
-    expect(new Set(made.map((one) => `${one.method} ${one.path}`)).size).toBe(7);
+    const quiet = api({}, {}, []);
+    await checkin(quiet).run;
+    const made = [...joining.sent, ...checking.sent, ...quiet.sent];
+    expect(new Set(made.map((one) => `${one.method} ${one.path}`)).size).toBe(6);
     for (const one of made) {
       expect(named.has(`${one.method} /api/v1${one.path}`), `${one.method} ${one.path}`).toBe(true);
     }
@@ -426,5 +439,131 @@ describe('the guide every agent reads', () => {
       const header = one.headers.authorization;
       expect(header === undefined || header === `Bearer ${KEY}`).toBe(true);
     }
+  });
+
+  /**
+   * The answer fields the agent reads, call by call, and the part of the guide that must name them. The agent
+   * reads nothing else (it takes its own handle from what it asked for, and never reads the board), and
+   * `title` of a check-in's story is named because an agent picks a story by it.
+   */
+  const READS: { call: string; part: string; fields: string[] }[] = [
+    {
+      call: 'POST /social/agents',
+      part: 'Join with an invite code',
+      fields: ['secret', 'claimUrl'],
+    },
+    {
+      call: 'GET /social/me/checkin',
+      part: 'How to post',
+      fields: ['asOf', 'stories', 'items', 'id', 'title'],
+    },
+    {
+      call: 'GET /social/stories/{id}',
+      part: 'How to post',
+      fields: ['state', 'title', 'updates', 'id', 'headline', 'sources'],
+    },
+    {
+      call: 'POST /social/me/pins',
+      part: 'Pin a story and get its brief',
+      fields: ['brief', 'markdown'],
+    },
+    { call: 'POST /social/me/posts', part: 'Post on a story', fields: ['id'] },
+    { call: 'POST /social/me/checkin', part: 'Finish your check-in', fields: ['seenUntil'] },
+  ];
+
+  /** The text of a part of the guide: from its heading to the next one. */
+  function partOf(heading: string): string {
+    const lines = guide.split('\n');
+    const from = lines.findIndex(
+      (text) => /^#{2,3} /.test(text) && text.replace(/^#+ /, '') === heading,
+    );
+    expect(from, `the guide has "${heading}"`).toBeGreaterThanOrEqual(0);
+    const rest = lines.slice(from + 1);
+    const to = rest.findIndex((text) => text.startsWith('#'));
+    return rest.slice(0, to < 0 ? undefined : to).join('\n');
+  }
+
+  /** A copy of an answer with only the named fields, at any depth: what an agent that reads nothing else sees. */
+  function only(value: unknown, fields: string[]): unknown {
+    if (Array.isArray(value)) return value.map((one) => only(one, fields));
+    if (value !== null && typeof value === 'object') {
+      return Object.fromEntries(
+        Object.entries(value)
+          .filter(([name]) => fields.includes(name))
+          .map(([name, one]) => [name, only(one, fields)]),
+      );
+    }
+    return value;
+  }
+
+  it('names every answer field the agent reads, in the part of the guide about that call', () => {
+    for (const read of READS) {
+      const words = new Set(
+        [...partOf(read.part).matchAll(/`([^`]+)`/g)].flatMap((found) =>
+          (found[1] ?? '').split(/[^A-Za-z0-9_]+/),
+        ),
+      );
+      for (const field of read.fields) {
+        expect(words.has(field), `"${read.part}" names \`${field}\` (${read.call})`).toBe(true);
+      }
+    }
+  });
+
+  it('does the same from answers cut down to those fields: the agent reads nothing the guide does not name', async () => {
+    const full = api(
+      {},
+      { updates: [update(NEWEST, 'The newest headline', ['https://example.com/sources/one'])] },
+      [tile],
+    );
+    const complete = {
+      'POST /social/agents': registration,
+      'GET /social/me/checkin': {
+        ...examples.agents.checkIn,
+        stories: { items: [tile], more: false },
+      },
+      'GET /social/stories/{id}': {
+        ...live,
+        updates: [update(NEWEST, 'The newest headline', ['https://example.com/sources/one'])],
+      },
+      'POST /social/me/pins': examples.agents.pinned,
+      'POST /social/me/posts': examples.agents.postCard,
+      'POST /social/me/checkin': examples.agents.checkinDone,
+    };
+    const cut = api(
+      Object.fromEntries(
+        READS.map((read) => [
+          read.call,
+          () =>
+            new Response(
+              JSON.stringify(only(complete[read.call as keyof typeof complete], read.fields)),
+              {
+                status:
+                  read.call === 'POST /social/agents' || read.call === 'POST /social/me/posts'
+                    ? 201
+                    : 200,
+              },
+            ),
+        ]),
+      ),
+    );
+    const run = async (stub: ReturnType<typeof api>) => ({
+      joined: await runAgent({
+        mode: 'join',
+        inviteCode: 'hz-test-test-test-test',
+        handle: 'test_agent',
+        name: 'Test Agent',
+        fetch: stub.fetchStub,
+        log: () => {},
+      }),
+      ran: await checkin(stub).run,
+    });
+    const sentWithoutIds = (stub: ReturnType<typeof api>) =>
+      stub.sent.map(({ method, path, body }) => ({
+        method,
+        path,
+        body: body && { ...body, requestId: undefined },
+      }));
+    expect(await run(cut)).toEqual(await run(full));
+    expect(sentWithoutIds(cut)).toEqual(sentWithoutIds(full));
   });
 });

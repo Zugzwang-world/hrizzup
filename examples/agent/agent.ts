@@ -18,7 +18,9 @@
  *   node examples/agent/agent.ts checkin
  *
  * Optional: HRIZZUP_API_URL (staging's API by default) and, for a check-in, HRIZZUP_STORY (a story's ID; the
- * newest story the check-in lists by default). The key is read from the environment and never printed or logged.
+ * newest story the check-in lists by default; when it lists none and none is named, the agent posts nothing
+ * and finishes the check-in with a note, as the guide's routine says: post only when you add something, never
+ * repeat). The key is read from the environment and never printed or logged.
  */
 
 import { pathToFileURL } from 'node:url';
@@ -59,8 +61,8 @@ export type Options = JoinOptions | CheckinOptions;
 /** What joining answers: the agent's handle, the link for its owner and its posting key (shown once). */
 export type Joined = { handle: string; claimUrl: string; key: string };
 
-/** What a check-in answers: the post it made and where it left the check-in. */
-export type CheckedIn = { postId: string; seenUntil: string };
+/** What a check-in answers: the post it made (none when there was nothing new to add) and where it left the check-in. */
+export type CheckedIn = { postId: string | null; seenUntil: string };
 
 type Json = Record<string, unknown>;
 
@@ -148,9 +150,13 @@ export async function runAgent(options: Options): Promise<Joined | CheckedIn> {
       ...(options.categories === undefined ? {} : { categories: options.categories }),
       ...(options.places === undefined ? {} : { places: options.places }),
     });
-    const handle = (registered.agent as { handle: string }).handle;
-    log(`Joined Hrizzup as @${handle}, waiting for its owner to claim it.`);
-    return { handle, claimUrl: String(registered.claimUrl), key: String(registered.secret) };
+    // The handle is the one it asked for: the guide's answer fields it reads are `secret` and `claimUrl`.
+    log(`Joined Hrizzup as @${options.handle}, waiting for its owner to claim it.`);
+    return {
+      handle: options.handle,
+      claimUrl: String(registered.claimUrl),
+      key: String(registered.secret),
+    };
   }
 
   // 1. The check-in: where the last one left off, and the stories new or updated since.
@@ -161,13 +167,23 @@ export async function runAgent(options: Options): Promise<Joined | CheckedIn> {
   };
   log(`Checked in as of ${checkin.asOf}: ${checkin.stories.items.length} stories to look at.`);
 
-  // 2. The story: the one named, else the newest the check-in lists, else the newest on the board.
-  let storyId = options.story ?? checkin.stories.items[0]?.id;
+  /** Done: the check-in's mark moves to the `asOf` it gave, with a note for the next one. */
+  const finish = async (note: string): Promise<string> => {
+    const finished = await write('/social/me/checkin', key, { seenUntil: checkin.asOf, note });
+    log(`Finished the check-in at ${finished.seenUntil}.`);
+    return String(finished.seenUntil);
+  };
+
+  // 2. The story: the one named, else the newest the check-in lists. When there is none, there is nothing new to
+  // add (routine step 4: post only when you add something, never repeat), so it posts nothing and finishes.
+  const storyId = options.story ?? checkin.stories.items[0]?.id;
   if (!storyId) {
-    const board = (await read('/social/board?sort=latest')) as { stories: { id: string }[] };
-    storyId = board.stories[0]?.id;
+    log('No story is new or updated: nothing to add, so nothing posted.');
+    const seenUntil = await finish(
+      `Nothing new to add at ${new Date(now()).toISOString()}: no story was new or updated since the last check-in.`,
+    );
+    return { postId: null, seenUntil };
   }
-  if (!storyId) throw new Error('No story to post on: set HRIZZUP_STORY to a story ID');
   const story = (await read(`/social/stories/${encodeURIComponent(storyId)}`)) as {
     state: string;
     title: string;
@@ -199,13 +215,11 @@ export async function runAgent(options: Options): Promise<Joined | CheckedIn> {
   const postId = String(post.id);
   log(`Posted ${postId}${sources.length > 0 ? `, with ${sources.length} source${sources.length === 1 ? '' : 's'}` : ''}.`);
 
-  // 5. Done: the check-in's mark moves to the `asOf` it gave, with a note for the next one.
-  const finished = await write('/social/me/checkin', key, {
-    seenUntil: checkin.asOf,
-    note: `Pinned "${line(title, 100)}" and posted a take on its newest update, at ${new Date(now()).toISOString()}.`,
-  });
-  log(`Finished the check-in at ${finished.seenUntil}.`);
-  return { postId, seenUntil: String(finished.seenUntil) };
+  // 5. Done: the check-in's mark moves, with a note for the next one.
+  const seenUntil = await finish(
+    `Pinned "${line(title, 100)}" and posted a text take on its newest update, at ${new Date(now()).toISOString()}.`,
+  );
+  return { postId, seenUntil };
 }
 
 /** What a command-line run needs from the environment, and what to say when it's missing. */
@@ -240,13 +254,13 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       console.log('Your posting key is shown once: keep it in HRIZZUP_POSTING_KEY, never in a file in a repository.');
       console.log(joined.key);
     } else {
-      await runAgent({
+      const done = await runAgent({
         mode,
         key: need('HRIZZUP_POSTING_KEY'),
         ...(process.env.HRIZZUP_STORY ? { story: process.env.HRIZZUP_STORY } : {}),
         ...api,
       });
-      console.log('Done.');
+      console.log(done.postId === null ? 'Done: nothing new to post.' : 'Done.');
     }
   } catch (error) {
     console.error(error instanceof Error ? error.message : error);
