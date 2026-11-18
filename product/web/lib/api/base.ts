@@ -1,4 +1,4 @@
-import { contract, isSocialCall, printTimes } from '@hrizzup/api';
+import { contract, printTimes } from '@hrizzup/api';
 import { implement } from '@orpc/server';
 import type { ResponseHeadersPluginContext } from '@orpc/server/plugins';
 import { cacheHeaders, EdgeExpiry, EdgeTags } from './caching.ts';
@@ -29,9 +29,7 @@ export const everyCall: EveryCall = async ({ context, path, procedure, next }) =
       context.resHeaders?.set(name, value);
     }
     // The one place times are printed: three decimals, whichever way a package wrote them.
-    return isSocialCall(path)
-      ? result
-      : { ...result, output: printTimes(procedure['~orpc'].outputSchema, result.output) };
+    return { ...result, output: printTimes(procedure['~orpc'].outputSchema, result.output) };
   } catch (error) {
     throw inOneFormat(error);
   }
@@ -56,7 +54,9 @@ export const everyCall: EveryCall = async ({ context, path, procedure, next }) =
  *   its copy at the edge ends by then (caching.ts);
  * - **prints every time with three decimals** (`@hrizzup/api`'s `printTimes`), found by the call's
  *   own output schema, after the output has been checked: the website's route, the MCP server and
- *   `serverApi` all answer it. Social's calls are left as they are until social adopts it.
+ *   `serverApi` all answer it. Social's calls too (since 18 November 2026, R5's M7): the one
+ *   time of social's that is sent back, the check-in's `asOf` as `seenUntil`, is cut by under a
+ *   millisecond, which can only show the last millisecond's items again, never skip one.
  */
 export const api = implementer.use(everyCall);
 

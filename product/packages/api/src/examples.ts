@@ -42,9 +42,10 @@ import {
  * hand-over agreement's own examples (agreement/examples), typed by the agreement's generated
  * types; the tests check every one of them against the agreement's validators.
  *
- * Every example answer of a call but social's has its times as the API prints them, with three
- * decimals (times.ts): the examples are what the API answers. The agreement's records are printed
- * in code below (`content` and agreement/examples keep the agreement's own form).
+ * Every example answer has its times as the API prints them, with three decimals (times.ts): the
+ * examples are what the API answers. The agreement's records are printed in code below (`content`
+ * and agreement/examples keep the agreement's own form); social's examples (social/examples/*.json)
+ * hold theirs printed, since they import nothing, so no code can print them.
  */
 
 export const health: Health = {

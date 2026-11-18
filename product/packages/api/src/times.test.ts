@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { contract } from './contract.ts';
 import * as examples from './examples.ts';
 import { isSocialCall, procedures } from './procedures.ts';
+import { callExamples } from './social/examples.ts';
 import {
   FREE_TEXT_PATHS,
   mapTimes,
@@ -309,13 +310,22 @@ describe('every call is understood', () => {
       ]),
     );
     expect(paths('keys.revoke')).toContain('revokedAt');
+    // Social's: the check-in's moment and the mark an agent sends back, and the story read's.
+    expect(paths('social.me.checkin')).toEqual(expect.arrayContaining(['asOf', 'since']));
+    expect([...paths('social.me.checkinDone')].sort()).toEqual(['at', 'seenUntil']);
+    expect(paths('social.stories.get')).toEqual(
+      expect.arrayContaining(['createdAt', 'latestAt', 'updates[].reportedAt']),
+    );
+    expect(paths('admin.social.invites.create')).toEqual(
+      expect.arrayContaining(['invite.createdAt', 'invite.expiresAt']),
+    );
   });
 });
 
-/** Every call but social's that prints a time, and an example answer of each. */
+/** Every call that prints a time, and an example answer of each: the market's here, social's from its own examples. */
 const consolePerpPage = { perps: [examples.consolePerp], next: null };
 const consoleMarketPage = { markets: [examples.consoleMarket], next: null };
-const EXAMPLE_ANSWERS: Record<string, unknown> = {
+const MARKET_ANSWERS: Record<string, unknown> = {
   health: examples.health,
   'markets.list': examples.marketList,
   'markets.get': examples.oneMarket,
@@ -351,9 +361,49 @@ const EXAMPLE_ANSWERS: Record<string, unknown> = {
   'admin.perps.retireTest': examples.consolePerpWithLog,
 };
 
-/** The calls but social's whose answer holds a time, from the contract itself. */
+/**
+ * Four of social's calls may answer a time that the example, as it should, leaves null (a key's claim
+ * time, when a limit lifts, a preview's post that isn't saved, a reader's pause): the same answer with
+ * each of those times filled in, so the example the test prints holds them.
+ */
+const FILLED_TIME = '2026-11-18T08:00:00.000Z';
+const FILLED: Record<string, string[]> = {
+  'social.me.get': ['claimExpiresAt', 'limits.nextPostAt', 'limits.nextReplyAt'],
+  'social.me.preview': ['card.createdAt'],
+  'reader.get': ['usage.pausedUntil'],
+  'reader.saveProfile': ['usage.pausedUntil'],
+};
+
+function withTimesFilled(answer: unknown, paths: readonly string[]): unknown {
+  const copy = structuredClone(answer) as Record<string, unknown>;
+  for (const path of paths) {
+    const keys = path.split('.');
+    const last = keys.pop() as string;
+    let place = copy;
+    for (const key of keys) place = place[key] as Record<string, unknown>;
+    place[last] = FILLED_TIME;
+  }
+  return copy;
+}
+
+/**
+ * Social's example answers (its own examples, `social/examples/*.json`, joined by `callExamples`), of the
+ * calls whose answer holds a time. Taken from the examples, never from the list below, so a call with
+ * a time and no example can't hide: the two lists must have the same names.
+ */
+const SOCIAL_ANSWERS: Record<string, unknown> = Object.fromEntries(
+  Object.entries(callExamples)
+    .filter(([name]) => {
+      const call = calls.find(([called]) => called === name)?.[1];
+      return call !== undefined && timePlan(outputOf(call)).paths.length > 0;
+    })
+    .map(([name, example]) => [name, withTimesFilled(example.output, FILLED[name] ?? [])]),
+);
+const EXAMPLE_ANSWERS: Record<string, unknown> = { ...MARKET_ANSWERS, ...SOCIAL_ANSWERS };
+
+/** The calls whose answer holds a time, from the contract itself: social's and the market's. */
 const PRINTING = calls
-  .filter(([name, call]) => !isSocial(name) && timePlan(outputOf(call)).paths.length > 0)
+  .filter(([, call]) => timePlan(outputOf(call)).paths.length > 0)
   .map(([name]) => name);
 
 /** The free text that may read like a time: today only the perp log's old and new value of a rule. */
@@ -849,7 +899,7 @@ describe('a discriminated union (a choice of shapes told apart by one field)', (
   });
 });
 
-describe('social stays out of the printer', () => {
+describe('social is printed like the rest', () => {
   it('has an output it can read, the story read included (its answer is a choice of two shapes)', () => {
     const story = calls.find(([name]) => name === 'social.stories.get')?.[1] as Call;
     expect(timePlan(outputOf(story))).toEqual({
@@ -858,12 +908,72 @@ describe('social stays out of the printer', () => {
     });
   });
 
-  it('is in no list of calls whose answers are printed', () => {
-    expect(PRINTING.filter(isSocial)).toEqual([]);
-    expect(Object.keys(EXAMPLE_ANSWERS).filter(isSocial)).toEqual([]);
-    // Some social call holds a time, so the exclusion is a choice, not an absence.
-    expect(
-      calls.some(([name, call]) => isSocial(name) && timePlan(outputOf(call)).paths.length > 0),
-    ).toBe(true);
+  it('is in the lists of calls whose answers are printed, each with its own example answer', () => {
+    const social = PRINTING.filter(isSocial);
+    expect(social.length).toBeGreaterThan(30);
+    expect(Object.keys(EXAMPLE_ANSWERS).filter(isSocial).sort()).toEqual([...social].sort());
+    // Named members, so the list can't shrink to nothing or lose the calls an agent depends on.
+    expect(social).toEqual(
+      expect.arrayContaining([
+        'social.me.checkin',
+        'social.me.checkinDone',
+        'social.stories.get',
+        'social.board',
+        'owner.keys.list',
+        'admin.social.invites.create',
+      ]),
+    );
+  });
+
+  it('fills, in the four examples that hold none, exactly the times the call can answer', () => {
+    for (const [name, paths] of Object.entries(FILLED)) {
+      const call = calls.find(([called]) => called === name)?.[1] as Call;
+      expect([...timePlan(outputOf(call)).paths].sort(), name).toEqual([...paths].sort());
+      const example = callExamples[name]?.output;
+      expect(timesIn(outputOf(call), example), `${name}'s own example holds no time`).toEqual([]);
+    }
+  });
+
+  it('keeps the check-in’s `asOf` and the `seenUntil` it is sent back as the same moment, so a cut can only show the last millisecond again', async () => {
+    // The one time of social's an agent sends back: `asOf` of the check-in is `seenUntil` of its
+    // `checkinDone`. The printer cuts to the millisecond and never rounds, so the printed value is
+    // never later than the database's (which refuses a `seenUntil` after its clock and only moves
+    // its mark forward), and the items kept after the mark (`saved_at > mark`) are those of the
+    // last millisecond at most, shown again, never skipped.
+    const checkinDone = calls.find(([name]) => name === 'social.me.checkinDone')?.[1] as Call;
+    const sent = callExamples['social.me.checkin']?.output as { asOf: string };
+    const back = callExamples['social.me.checkinDone']?.input as { seenUntil: string };
+    expect(back.seenUntil).toBe(sent.asOf);
+
+    for (const stored of [
+      '2026-11-18T08:05:00Z',
+      '2026-11-18T08:05:00.123456Z',
+      '2026-11-18T08:05:00.999999Z',
+      '2026-12-31T23:59:59.999999Z',
+      '2026-11-18T08:05:00.000001Z',
+    ]) {
+      const printed = printedTime(stored);
+      expect(printed).toMatch(PRINTED_TIME);
+      // Both to the nanosecond, in one format, so the text's order is the time's: the printed time is the
+      // stored one's own first digits (a carry into the next second or year would change them), so it
+      // is never later, and earlier by less than a millisecond.
+      const [head = '', fraction = ''] = stored.slice(0, -1).split('.');
+      const exact = `${head}.${fraction.padEnd(9, '0')}`;
+      const cut = printed.slice(0, -1);
+      expect(exact.startsWith(cut), stored).toBe(true);
+      expect(`${cut}000000` <= exact, stored).toBe(true);
+      // The call takes what it printed.
+      const input = (await checkinDone['~orpc'].inputSchema?.['~standard'].validate({
+        requestId: '2f3a4b5c-6d7e-4f8a-9b0c-1d2e3f4a5b6c',
+        seenUntil: printed,
+      })) as { issues?: unknown[] };
+      expect(input.issues, stored).toBeUndefined();
+    }
+    // The check can fail: a mark that isn't a time is refused.
+    const refused = (await checkinDone['~orpc'].inputSchema?.['~standard'].validate({
+      requestId: '2f3a4b5c-6d7e-4f8a-9b0c-1d2e3f4a5b6c',
+      seenUntil: 'soon',
+    })) as { issues?: unknown[] };
+    expect(refused.issues?.length).toBeGreaterThan(0);
   });
 });

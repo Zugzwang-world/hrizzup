@@ -14,8 +14,8 @@
       "house": false,
       "listed": true,
       "codeShown": "hz-abcd",
-      "createdAt": "2026-11-16T09:00:00Z",
-      "expiresAt": "2026-12-16T09:00:00Z",
+      "createdAt": "2026-11-16T09:00:00.000Z",
+      "expiresAt": "2026-12-16T09:00:00.000Z",
       "usedAt": null,
       "revokedAt": null,
       "revokedReason": null,
@@ -34,9 +34,9 @@
         "house": true,
         "listed": true,
         "codeShown": "hz-wxyz",
-        "createdAt": "2026-11-16T11:00:00Z",
-        "expiresAt": "2026-12-16T11:00:00Z",
-        "usedAt": "2026-11-16T11:30:00Z",
+        "createdAt": "2026-11-16T11:00:00.000Z",
+        "expiresAt": "2026-12-16T11:00:00.000Z",
+        "usedAt": "2026-11-16T11:30:00.000Z",
         "revokedAt": null,
         "revokedReason": null,
         "agent": {
@@ -52,9 +52,9 @@
         "house": false,
         "listed": true,
         "codeShown": "hz-abcd",
-        "createdAt": "2026-11-16T09:00:00Z",
-        "expiresAt": "2026-12-16T09:00:00Z",
-        "usedAt": "2026-11-16T09:12:00Z",
+        "createdAt": "2026-11-16T09:00:00.000Z",
+        "expiresAt": "2026-12-16T09:00:00.000Z",
+        "usedAt": "2026-11-16T09:12:00.000Z",
         "revokedAt": null,
         "revokedReason": null,
         "agent": {
@@ -70,10 +70,10 @@
         "house": false,
         "listed": false,
         "codeShown": "hz-kmnp",
-        "createdAt": "2026-10-10T09:00:00Z",
-        "expiresAt": "2026-11-09T09:00:00Z",
+        "createdAt": "2026-10-10T09:00:00.000Z",
+        "expiresAt": "2026-11-09T09:00:00.000Z",
         "usedAt": null,
-        "revokedAt": "2026-11-10T09:00:00Z",
+        "revokedAt": "2026-11-10T09:00:00.000Z",
         "revokedReason": "expired",
         "agent": null
       }
@@ -106,8 +106,8 @@
     "summary": "A test story made in the console on staging, for trying the board, the desk and agents' posts.",
     "categories": ["general"],
     "places": ["mumbai"],
-    "createdAt": "2026-11-17T05:00:00Z",
-    "latestAt": "2026-11-17T05:00:00Z",
+    "createdAt": "2026-11-17T05:00:00.000Z",
+    "latestAt": "2026-11-17T05:00:00.000Z",
     "latestHeadline": null,
     "counts": { "posts": 0, "replies": 0, "upvotes": 0, "views": 0, "uniqueViews": 0, "pins": 0 },
     "listed": true,
@@ -125,8 +125,8 @@
         "summary": "A test story made in the console on staging, for trying the board, the desk and agents' posts.",
         "categories": ["general"],
         "places": ["mumbai"],
-        "createdAt": "2026-11-17T05:00:00Z",
-        "latestAt": "2026-11-17T05:05:00Z",
+        "createdAt": "2026-11-17T05:00:00.000Z",
+        "latestAt": "2026-11-17T05:05:00.000Z",
         "latestHeadline": "Test update: the second phase opens to traffic at 6 a.m.",
         "counts": {
           "posts": 0,
@@ -147,8 +147,8 @@
         "summary": "Made by a check run with the console's test account; it stays off the board.",
         "categories": ["general"],
         "places": ["global"],
-        "createdAt": "2026-11-17T04:10:00Z",
-        "latestAt": "2026-11-17T04:10:00Z",
+        "createdAt": "2026-11-17T04:10:00.000Z",
+        "latestAt": "2026-11-17T04:10:00.000Z",
         "latestHeadline": null,
         "counts": {
           "posts": 1,
@@ -218,10 +218,10 @@
     "readerDailyMessages": 20,
     "foryouMatchHours": 24,
     "foryouFormatHours": 6,
-    "changedAt": "2026-11-17T05:00:00Z",
+    "changedAt": "2026-11-17T05:00:00.000Z",
     "log": [
       {
-        "changedAt": "2026-11-17T05:00:00Z",
+        "changedAt": "2026-11-17T05:00:00.000Z",
         "changes": { "topWViews": [0, 0.01], "topWUpvotes": [0, 0.5] },
         "reason": "R11: views and upvotes join Top now that view notes flow (a reply is worth 100 views or two upvotes)"
       }
@@ -263,7 +263,7 @@
           "fileReads": 4,
           "uniqueFileReads": 4
         },
-        "registeredAt": "2026-11-16T11:30:00Z",
+        "registeredAt": "2026-11-16T11:30:00.000Z",
         "claimed": true,
         "retired": false,
         "state": "claimed",
@@ -277,8 +277,8 @@
             "id": "01a1e41f-02c0-7111-8a2b-3c4d5e6f7a8b",
             "name": "first key",
             "shown": "hz_demo_Exam",
-            "createdAt": "2026-11-16T11:30:00Z",
-            "lastUsedAt": "2026-11-17T09:55:00Z"
+            "createdAt": "2026-11-16T11:30:00.000Z",
+            "lastUsedAt": "2026-11-17T09:55:00.000Z"
           }
         ]
       }

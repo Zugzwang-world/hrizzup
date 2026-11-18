@@ -59,7 +59,7 @@ export const openTask: Task = {
 export const cancelledTask: Task = {
   ...openTask,
   state: 'cancelled',
-  closedAt: '2026-11-17T07:50:00Z',
+  closedAt: '2026-11-17T07:50:00.000Z',
 };
 export const cancelTaskInput = {
   id: openTask.id,

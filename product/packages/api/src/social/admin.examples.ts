@@ -34,7 +34,7 @@ export const revokeInviteInput: RevokeInviteInput = fromJson(
 export const revokedInvite: Invite = {
   ...createdInvite.invite,
   id: revokeInviteInput.id,
-  revokedAt: '2026-11-16T09:30:00Z',
+  revokedAt: '2026-11-16T09:30:00.000Z',
   revokedReason: revokeInviteInput.reason,
 };
 export const saveStoryInput: SaveStoryInput = fromJson(admin, 'admin.social.stories.save.input');

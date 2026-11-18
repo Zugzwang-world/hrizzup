@@ -2,7 +2,7 @@
 
 > Round 6, relay R16, milestone M2, 18 November 2026: the expert's design, for the builder. Design only: no code, test or setting changed here. The founder's ask (18 November 2026): every time the public API prints has exactly three decimals, done in the smallest safe place, with a test across every call that prints a time; existing v1 calls keep their shapes.
 
-**In short:** one printer in the API's one output layer, the middleware every call already passes through (`product/web/lib/api/base.ts`). It finds the times by the call's own output schema (never by how a string looks) and rewrites each one, as text, to exactly three decimals, cutting any digits past the third (never rounding). The contract, the inputs, `openapi.json` and the database stay exactly as they are. Social's calls are left out until social adopts it (an open question). `[normal]`, one pull request, no migration.
+**In short:** one printer in the API's one output layer, the middleware every call already passes through (`product/web/lib/api/base.ts`). It finds the times by the call's own output schema (never by how a string looks) and rewrites each one, as text, to exactly three decimals, cutting any digits past the third (never rounding). The contract, the inputs, `openapi.json` and the database stay exactly as they are. Social's calls were left out until social adopted it (done on 18 November 2026, R5's M7: see the end). `[normal]`, one pull request, no migration.
 
 ## 1. What is true today (checked, not assumed)
 
@@ -90,7 +90,7 @@
 | Copies kept at the edge before the deploy | They expire within their windows (at most 60 + 300 seconds); no purge, since both forms are valid |
 | Inputs | Unchanged: 0 to 6 decimals; the perp's `origin` still at most 3 |
 | A printed time | Up to 0.999 ms earlier than the one stored, never later |
-| Social, the live `admin.social` calls included | Unchanged in this milestone |
+| Social, the live `admin.social` calls included | Unchanged in this milestone (they joined on 18 November 2026, R5's M7) |
 | `/api/health` (outside v1) | Already `toISOString()`; untouched |
 
 ## 6. Tests that must exist
@@ -142,6 +142,8 @@
 - **`[normal]`, one pull request.** It is an output format with no money arithmetic, no database structure and no sign-in. The relay's reviewer sees it before it opens. `@hrizzup/api` sits upstream of every package, so its tests run everywhere.
 - **For the Product brief's open questions:** should social's calls print three decimals too?
   - **Recommendation:** yes, in social's own next milestone, before its public beta: remove the `isSocialCall` exception and print its examples.
+  - **Done on 18 November 2026 (R5's M7, the founder's decision):** social's calls joined, with no database change: the exception in `base.ts` is gone, social's examples are printed, and the tests that pinned social's raw times pin three decimals. The check-in's `asOf` is cut, never rounded, so `seenUntil` is at most a millisecond early.
   - **From what was checked, no database change is needed:** no social output holds a time in a cursor, and its replay fingerprints are built from what was sent.
   - **Two times can come back from a client:** the check-in's `asOf`, sent back as `seenUntil`, and the social console's saved records. A walk of every input found no others. `checkin_done` only moves the mark forward, so a cut `asOf` can only re-show what arrived in its last millisecond, never skip it; social's milestone confirms the console's records.
+  - **Confirmed on 18 November 2026 (R5's M7):** `admin.social.stories.save` and `admin.social.updates.save` take an agreement record the caller builds, and no console answer holds a record or a time that a client sends back; the console's forms write their own times (`toISOString()`, three decimals).
 - **For the founder:** nothing.

@@ -285,8 +285,8 @@ describe('social.me.checkin (H2)', () => {
     );
     expect(setUp[0]).toContain(KEY_ID);
     expect(result).toMatchObject({
-      asOf: '2026-11-18T08:05:00.123456Z',
-      since: '2026-11-17T08:00:00.000000Z',
+      asOf: '2026-11-18T08:05:00.123Z',
+      since: '2026-11-17T08:00:00.000Z',
       lastNote: null,
       agent: {
         handle: 'delhi_explainer',
@@ -542,7 +542,7 @@ describe('social.me.checkinDone', () => {
       seenUntil: '2026-11-18T08:05:00.123456Z',
       note: 'Pinned one story.',
     });
-    expect(done).toEqual({ seenUntil: '2026-11-18T08:05:00.123456Z', at: '2026-11-18T08:06:00Z' });
+    expect(done).toEqual({ seenUntil: '2026-11-18T08:05:00.123Z', at: '2026-11-18T08:06:00.000Z' });
     expect(asked).toEqual([
       {
         text: 'select social.checkin_done($1, $2, $3) as answer',
@@ -581,7 +581,11 @@ describe('social.me.pin and social.me.unpin', () => {
     expect(asked).toEqual([
       { text: 'select social.pin($1, $2) as answer', values: [REQUEST, STORY_ID] },
     ]);
-    expect(pinned.pin).toEqual({ storyId: STORY_ID, pinnedAt: '2026-11-18T08:00:00Z', live: true });
+    expect(pinned.pin).toEqual({
+      storyId: STORY_ID,
+      pinnedAt: '2026-11-18T08:00:00.000Z',
+      live: true,
+    });
     const expected = briefOf(briefData() as never, pinned.brief.builtAt);
     expect(pinned.brief).toEqual(expected);
     expect(pinned.brief.version).toMatch(/^[0-9a-f]{16}$/);
@@ -622,7 +626,7 @@ describe('social.me.pin and social.me.unpin', () => {
     answer = () => [{ answer: { pin: pinRow(false) } }];
     const unpinned = await api().call.social.me.unpin({ requestId: REQUEST, id: STORY_ID });
     expect(unpinned).toEqual({
-      pin: { storyId: STORY_ID, pinnedAt: '2026-11-18T08:00:00Z', live: false },
+      pin: { storyId: STORY_ID, pinnedAt: '2026-11-18T08:00:00.000Z', live: false },
     });
     expect(asked[0]).toEqual({
       text: 'select social.unpin($1, $2) as answer',
@@ -650,7 +654,7 @@ describe('social.me.pins', () => {
     ];
     const page = await api().call.social.me.pins({ limit: 5 });
     expect(page.pins).toEqual([
-      { storyId: STORY_ID, pinnedAt: '2026-11-18T08:00:00Z', live: true },
+      { storyId: STORY_ID, pinnedAt: '2026-11-18T08:00:00.000Z', live: true },
     ]);
     expect(page.next).toEqual(expect.any(String));
     expect(asked).toEqual([
@@ -733,7 +737,7 @@ describe('social.me.post', () => {
       format: null,
       afterUpdateId: UPDATE_ID,
       media: null,
-      createdAt: '2026-11-18T08:10:00Z',
+      createdAt: '2026-11-18T08:10:00.000Z',
       counts: { replies: 0, upvotes: 0, views: 0, uniqueViews: 0 },
     });
   });
@@ -888,7 +892,7 @@ describe('the public reads', () => {
         body: 'A question?',
         sources: [],
         depth: 0,
-        createdAt: '2026-11-18T08:20:00Z',
+        createdAt: '2026-11-18T08:20:00.000Z',
         children: 0,
       },
     ]);

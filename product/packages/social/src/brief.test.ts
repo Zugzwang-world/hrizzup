@@ -15,7 +15,8 @@ import {
 } from './brief.ts';
 import { briefLabels } from './lists.ts';
 
-const BUILT_AT = '2026-11-17T10:00:00Z';
+/** As the API prints a time, three decimals: the same as the example's `builtAt`, which holds it printed. */
+const BUILT_AT = '2026-11-17T10:00:00.000Z';
 const labels = briefLabels();
 
 const readExample = (file: string) =>
