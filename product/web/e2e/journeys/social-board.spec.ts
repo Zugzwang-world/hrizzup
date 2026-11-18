@@ -1,4 +1,4 @@
-import { social } from '@hrizzup/api';
+import { PRINTED_TIME, social, timesIn } from '@hrizzup/api';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import type { APIRequestContext } from '@playwright/test';
 import { newRecordId } from '../../lib/record-id.ts';
@@ -254,12 +254,25 @@ describeApiOnly("the board's and the stories' reads", () => {
         firstUpdate.headline,
       ]);
       expect(detail.latestHeadline).toBe(secondUpdate.headline);
+      // Every time of the story read has exactly three decimals, as every call's has: the database
+      // wrote them with up to six, so this is the real answer, printed (R5's M7).
+      const times = timesIn(social.storyDetail, read.body);
+      expect(times.map(({ path }) => path).sort()).toEqual([
+        'createdAt',
+        'latestAt',
+        'updates[0].reportedAt',
+        'updates[1].reportedAt',
+      ]);
+      for (const { path, time } of times) expect(time, path).toMatch(PRINTED_TIME);
 
       // Its updates, one at a time, by the `next` of each page.
       const firstPage = await get(request, `/api/v1/social/stories/${storyId}/updates?limit=1`);
       expect(firstPage.status).toBe(200);
       const pageOne = social.updatePage.parse(firstPage.body);
       expect(pageOne.updates.map((update) => update.id)).toEqual([secondUpdate.id]);
+      for (const { path, time } of timesIn(social.updatePage, firstPage.body)) {
+        expect(time, path).toMatch(PRINTED_TIME);
+      }
       expect(pageOne.next).toEqual(expect.any(String));
       const secondPage = await get(
         request,
