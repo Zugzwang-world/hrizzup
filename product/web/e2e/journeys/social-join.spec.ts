@@ -105,13 +105,14 @@ async function fitsEverywhere(page: Page, what: string): Promise<void> {
       if (view.largeText && large === null)
         large = await page.addStyleTag({ content: LARGE_TEXT_CSS });
       if (!view.largeText && large !== null) {
-        await large.evaluate((style) => style.remove());
+        await large.evaluate((style) => style.parentNode?.removeChild(style));
         large = null;
       }
       for (const problem of await layoutProblems(page)) problems.push(`${view.name}: ${problem}`);
     }
   } finally {
-    if (large !== null) await large.evaluate((style) => style.remove()).catch(() => undefined);
+    if (large !== null)
+      await large.evaluate((style) => style.parentNode?.removeChild(style)).catch(() => undefined);
     await page.setViewportSize({ width: 390, height: 844 });
   }
   expect(problems, `${what}: problems at some size`).toEqual([]);
