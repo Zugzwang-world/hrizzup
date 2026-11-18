@@ -17,6 +17,8 @@ const findKey = vi.fn();
 const revokeAgentKeys = vi.fn();
 const allowKeyRead = vi.fn();
 const allowVisitor = vi.fn();
+/** Who the stand-in says a visitor is (`visitor-one`); a test that needs the real one swaps it in. */
+const visitorOf = vi.fn<(headers: Headers) => string | null>(() => 'visitor-one');
 const refreshAgent = vi.fn();
 const invalidate = vi.fn();
 const events: string[] = [];
@@ -52,7 +54,7 @@ vi.mock('@/lib/social/callers.ts', async (original) => ({
 }));
 vi.mock('@/lib/social/limits.ts', async (original) => ({
   ...(await original<typeof import('@/lib/social/limits.ts')>()),
-  visitorOf: () => 'visitor-one',
+  visitorOf: (headers: Headers) => visitorOf(headers),
   allowVisitor: (...args: unknown[]) => allowVisitor(...args),
 }));
 
@@ -125,6 +127,7 @@ beforeEach(() => {
   vi.stubEnv('VERCEL', '1');
   vi.stubEnv('VERCEL_TARGET_ENV', 'staging');
   signedIn.mockResolvedValue(OWNER);
+  visitorOf.mockImplementation(() => 'visitor-one');
   allowVisitor.mockResolvedValue({ allowed: true });
   allowKeyRead.mockResolvedValue({ allowed: true });
   refreshAgent.mockResolvedValue(undefined);
@@ -629,6 +632,7 @@ describe('social.agents.register (G1 to G6)', () => {
     ['HZS07', 409, 'handle_taken'],
     ['HZS26', 409, 'already_claimed'],
     ['HZS27', 409, 'request_reused'],
+    ['HZS28', 409, 'clash'],
   ])(
     'answers the database’s %s as %i %s, without counting a refused code or a new agent',
     async (code, status, reason) => {
@@ -714,6 +718,87 @@ describe('registering over MCP (G6)', () => {
     expect(String(asked[0]?.values?.[1])).toMatch(/^[0-9a-f-]{36}$/);
     expect(everythingSent()).not.toContain(joined.secret);
     await mcp.close();
+  });
+});
+
+describe('registering over MCP counts the visitor by the address the request came from (L2, L3)', () => {
+  // A made-up secret and an address of the documentation range (203.0.113.0/24): never real ones.
+  const SECRET = 's'.repeat(32);
+  const ADDRESS = '203.0.113.7';
+  const row = [
+    {
+      answer: {
+        agent: viewRow('waiting'),
+        key: { ...keyRow(1), last_used_at: null },
+        claim_expires_at: '2026-11-24T08:00:00Z',
+        reissued: false,
+      },
+    },
+  ];
+
+  /** A tool call made over MCP, from this address (none: as a client the platform gave none). */
+  async function register(headers: Record<string, string>, inviteCode: string) {
+    const { Client, StreamableHTTPClientTransport } = await import('@modelcontextprotocol/client');
+    const { serveMcp } = await import('@/lib/mcp/server.ts');
+    const mcp = new Client({ name: 'hrizzup-test', version: '1.0.0' });
+    await mcp.connect(
+      new StreamableHTTPClientTransport(new URL(`${ORIGIN}/api/v1/mcp`), {
+        requestInit: { headers },
+        fetch: (url, init) => serveMcp(new Request(url, init)),
+      }),
+    );
+    const answered = await mcp.callTool({
+      name: 'social_agents_register',
+      arguments: { inviteCode, handle: 'delhi_explainer', name: 'Delhi Explainer' },
+    });
+    await mcp.close();
+    return answered;
+  }
+
+  /** The real visitor ID, as the limits make it from the platform's address header, never the stand-in. */
+  async function realVisitor() {
+    const real =
+      await vi.importActual<typeof import('@/lib/social/limits.ts')>('@/lib/social/limits.ts');
+    visitorOf.mockImplementation((headers) => real.visitorOf(headers));
+    return real.visitorOf(new Headers({ 'x-real-ip': ADDRESS }), { SOCIAL_JOBS_SECRET: SECRET });
+  }
+
+  const visitorsOf = (name: string) =>
+    allowVisitor.mock.calls.filter(([limit]) => limit === name).map(([, visitor]) => visitor);
+
+  it('counts a new agent (L2) for the visitor of its address, not for nobody', async () => {
+    vi.stubEnv('SOCIAL_JOBS_SECRET', SECRET);
+    const expected = await realVisitor();
+    expect(expected).toMatch(/^[A-Za-z0-9_-]{32}$/);
+    answer = () => row;
+    const answered = await register({ 'x-real-ip': ADDRESS }, INVITE);
+    expect(answered.isError).toBeFalsy();
+    // Asked before, counted after: both for the same visitor, and never null.
+    expect(visitorsOf('registration')).toEqual([expected, expected]);
+    expect(allowVisitor).toHaveBeenCalledWith('registration', expected, 'count');
+  });
+
+  it('counts a refused invite code (L3) for the visitor of its address, not for nobody', async () => {
+    vi.stubEnv('SOCIAL_JOBS_SECRET', SECRET);
+    const expected = await realVisitor();
+    const answered = await register({ 'x-real-ip': ADDRESS }, 'not a code');
+    expect(answered.isError).toBe(true);
+    expect(allowVisitor).toHaveBeenCalledWith('refused-code', expected, 'count');
+    expect(visitorsOf('refused-code')).toEqual([expected, expected]);
+    expect(client.query).not.toHaveBeenCalled();
+  });
+
+  it('counts for nobody when the platform gave no address, and takes no other header for one', async () => {
+    vi.stubEnv('SOCIAL_JOBS_SECRET', SECRET);
+    await realVisitor();
+    answer = () => row;
+    // A cookie and a forwarded-for chain are not the address: only `x-real-ip` is.
+    const answered = await register(
+      { cookie: 'session=made-up', 'x-forwarded-for': '198.51.100.9' },
+      INVITE,
+    );
+    expect(answered.isError).toBeFalsy();
+    expect(visitorsOf('registration')).toEqual([null, null]);
   });
 });
 
@@ -952,6 +1037,8 @@ describe('owner.agent and owner.claim', () => {
     ['HZS12', 409, 'already_has_agent'],
     ['HZS09', 422, 'claim_expired'],
     ['HZS02', 403, 'retired'],
+    ['HZS27', 409, 'request_reused'],
+    ['HZS28', 409, 'clash'],
   ])(
     'answers the database’s %s as %i %s, and purges and forgets nothing',
     async (code, status, reason) => {
@@ -964,6 +1051,15 @@ describe('owner.agent and owner.claim', () => {
       expect(events.filter((event) => event !== 'commit')).toEqual([]);
     },
   );
+
+  it('is made signed in, never with a key: a posting key is 403 before any trip, and nothing is purged or forgotten', async () => {
+    await expect(
+      api({ authorization: `Bearer ${POST_KEY}` }).call.owner.claim(claim),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(client.query).not.toHaveBeenCalled();
+    expect(refreshAgent).not.toHaveBeenCalled();
+    expect(events).toEqual([]);
+  });
 
   it('is 404 for a link that is not known any more (used, or replaced by a retry), and needs a session', async () => {
     answer = () => fault('HZS08', "This claim link isn't valid");

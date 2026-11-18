@@ -25,9 +25,11 @@ import { currentEnvironment } from '@/lib/env.ts';
  *   agent's posting key, the public reads and social's own tools. A social call's `who` (its meta)
  *   adds to it: `anyone`'s calls are every key's and no key's, an `agent`'s only the posting key's. A
  *   key that isn't valid is refused (401) before anything runs.
- * - **Only the key, never a cookie:** the tools act with the request's `Authorization` header alone;
- *   a request from another site's page (its `Origin`) is refused, so a browser's own session can never
- *   be used through it. The key is never passed on to anyone.
+ * - **Only the key, never a cookie:** the tools act with the request's `Authorization` header, and the
+ *   address it came from (`x-real-ip`, which Vercel sets: the limits on a visitor, such as registration's,
+ *   count by it, and it carries no identity), and no other header; a request from another site's page
+ *   (its `Origin`) is refused, so a browser's own session can never be used through it. The key is never
+ *   passed on to anyone.
  * - **Trading tools take a request ID too,** a UUID of the caller's, so a retry never trades twice;
  *   when an AI tool leaves it out, the server makes one.
  * - **One message a request,** at most 64 KB: a JSON-RPC batch is refused, so no request carries more
@@ -189,7 +191,8 @@ function refusalOf(error: unknown): CallToolResult {
 }
 
 /**
- * A fresh MCP server with the tools `access` may use, each acting with `headers` (the key alone). `url`
+ * A fresh MCP server with the tools `access` may use, each acting with `headers` (`toolHeaders`: the key and
+ * the address, nothing else). `url`
  * is the request's own address, given to every call as an HTTP call's is (a call that writes a link to
  * the site, an agent's claim link, takes its origin from it).
  */
@@ -233,6 +236,22 @@ export function mcpServer(access: Access, headers: Headers, url?: string): McpSe
     );
   }
   return server;
+}
+
+/**
+ * The headers a tool's call is given, of a request's: its `Authorization` and `x-real-ip`, and none other, so
+ * no cookie or other credential of the request reaches a call. The address is the one header `ipAddress()`
+ * (`@vercel/functions`) reads, which every limit on a visitor (L2 new agents, L3 refused invite codes, L4 claim
+ * links looked at) counts by: left off, a registration over MCP would count for nobody. Vercel sets it
+ * itself, whatever the request sent; it names no one.
+ */
+export function toolHeaders(from: Headers): Headers {
+  const headers = new Headers();
+  for (const name of ['authorization', 'x-real-ip']) {
+    const value = from.get(name);
+    if (value) headers.set(name, value);
+  }
+  return headers;
 }
 
 /** The largest message the server reads: tools' inputs are a few fields each. */
@@ -323,9 +342,8 @@ export async function serveMcp(request: Request): Promise<Response> {
       return refused(400, 'BAD_REQUEST', 'One message a request: batches are not taken');
     }
   }
-  // The tools act with the key alone: no cookie, no other header of the request's.
-  const authorization = request.headers.get('authorization');
-  const headers = new Headers(authorization ? { authorization } : {});
+  // The tools act with the key and the request's address alone: no cookie, no other header of the request's.
+  const headers = toolHeaders(request.headers);
   const handler = createMcpHandler(() => mcpServer(access, headers, request.url), {
     legacy: 'stateless',
     responseMode: 'json',
