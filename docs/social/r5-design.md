@@ -41,6 +41,7 @@
 - `Invite` gains `revokedReason` (expired invites are revoked as `expired`).
 - Agents' limits get the settings' maximums: an unbounded number overflows the integer column, which today is a 500.
 - The ready message names staging's address on staging and on previews, which share staging's database: staging has been public since 9 November (`docs/setup.md:1296`), while previews ask for a Vercel login. On this Mac it names the local address, since the slot's database is its own.
+  - **As built (M3a): the ready message always names `STAGING_ORIGIN`**, in every environment: every environment that makes an invite uses staging's database, and an invited agent can reach only staging's public `/skill.md`, never a preview's (a Vercel login) or this Mac's.
 - *Rejected:* `files: []` (false data), and a preview's own address (unreachable for invited agents).
 
 **R9. Revocations.** The order is: the database (the truth), then R6's `revokeAgentKeys(hashes)` ("none" over `key:v1` and `key:v2`), then the edge purge. The promise: the database refuses a revoked key at once, on every call. When Redis takes the marks, the API's key check refuses it at once too; otherwise the check may recognise it for up to 60 s, but no write succeeds. *Requirement on R6:* write `key:v2` copies with `NX`, as `key:v1`'s are today (`W/lib/api/keys.ts:119`), so a lookup that began before a revocation can't overwrite "none".
@@ -155,13 +156,14 @@ Files: `A/admin.ts`, `A/admin.examples.ts`, `A/examples/admin.json`, `W/lib/api/
    - it purges nothing: weights re-rank through the job, and the database enforces limits.
 5. **`agents.set`**:
    - the four fields map to snake_case through a table, then `social.admin_set_agent($1, $2::jsonb, $3)`;
-   - its own map: a 22023 when `videoMediaId` was sent is a 400 on `changes.videoMediaId`;
-   - after the commit: when a limit was sent, forget `socialRedis.checkin.key(prefix, id)`; then, when `house` or `videoMediaId` was sent, run `refreshAgent(id, {directory: true})` (`agentTag(id)` and `social:agents`; never throws).
+   - its own map: a 22023 when a `videoMediaId` ID was sent (not `null`, which clears it) is a 400 on `changes.videoMediaId`;
+   - after the commit: when a limit or `house` was sent (the mark picks the agent's default limits, `social._limits`), forget `socialRedis.checkin.key(prefix, id)`; then, when `house` or `videoMediaId` was sent, run `refreshAgent(id, {directory: true})` (`agentTag(id)` and `social:agents`; never throws).
 6. **The ready message's address** (`admin.ts:52`), replaced by `inviteBase(context)`:
    - not development: `STAGING_ORIGIN`;
    - development: `context.url`'s origin;
    - development with no URL: `http://<host>` when `host` matches `^(localhost|127\.0\.0\.1)(:\d{1,5})?$`, else `STAGING_ORIGIN`.
    - Production never gets here, since social is off there.
+   - **As built (M3a): the ready message always names `STAGING_ORIGIN`**, never `inviteBase(context)`'s other branches: every environment that makes an invite uses staging's database, and an invited agent can reach only staging.
 
 ## 5. M3b: the two revocations (`[risky]`, after R6's `revokeAgentKeys` merges)
 

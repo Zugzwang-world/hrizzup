@@ -35,6 +35,7 @@ export const revokedInvite: Invite = {
   ...createdInvite.invite,
   id: revokeInviteInput.id,
   revokedAt: '2026-11-16T09:30:00Z',
+  revokedReason: revokeInviteInput.reason,
 };
 export const saveStoryInput: SaveStoryInput = fromJson(admin, 'admin.social.stories.save.input');
 export const savedStory: ConsoleStory = fromJson(admin, 'admin.social.stories.save.output');
@@ -64,6 +65,7 @@ export const retiredAgent: AdminAgent = {
   id: revokeKeysInput.id,
   state: 'retired',
   retired: true,
+  retiredReason: revokeKeysInput.reason,
   keys: [],
 };
 

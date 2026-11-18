@@ -6,7 +6,7 @@ import type { ORPCError } from '@orpc/server';
 import { asApp } from '@/lib/social/access.ts';
 import { loadBrief } from '@/lib/social/brief.ts';
 import { refusalOf } from '@/lib/social/errors.ts';
-import { cursorFrom, nextFrom } from '@/lib/social/paging.ts';
+import { cursorFrom, cursorText, nextFrom, type Page } from '@/lib/social/paging.ts';
 import { type PostRow, postCardOf } from '@/lib/social/post-card.ts';
 import { answerOf } from '@/lib/social/shape.ts';
 import {
@@ -35,15 +35,9 @@ import { api } from '../base.ts';
  * - **Tags are added only after the answer is mapped**, so a read that fails tags nothing.
  */
 
-/** What a page of the database's answer holds, before it is mapped. */
-type Page<Field extends string, Row, Key> = { [F in Field]: Row[] } & { next: Key | null };
-
 /** One call of one social function as nobody, answering what it answers. */
 const answered = <T>(sql: string, values: unknown[]): Promise<T> =>
   asApp(async (tx) => answerOf((await tx.query(sql, values)).rows) as T);
-
-/** A cursor as the database takes it: JSON text, or null on a first page. */
-const cursorText = (key: unknown): string | null => (key === null ? null : JSON.stringify(key));
 
 export const boardRoutes = {
   social: {

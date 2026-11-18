@@ -49,3 +49,13 @@ export function nextFrom<K extends CursorKind>(
 ): string | null {
   return nextCursor(kind, key);
 }
+
+/**
+ * What a page of the database's answer holds before it is mapped: its rows under the list's own
+ * name, and the key where the next page starts (null on the last page).
+ */
+export type Page<Field extends string, Row, Key> = { [F in Field]: Row[] } & { next: Key | null };
+
+/** A cursor key as the database takes it: JSON text, or null on a first page. */
+export const cursorText = (key: unknown): string | null =>
+  key === null ? null : JSON.stringify(key);
