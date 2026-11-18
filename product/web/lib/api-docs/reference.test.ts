@@ -87,7 +87,7 @@ describe('the docs as text, for AI tools', () => {
 });
 
 describe('a call in beta', () => {
-  // The real file has no call in beta until social's calls join it: a small file shows the rest.
+  // A small file of every kind shows the rest, whether or not the real file has a call in beta yet.
   const answers = {
     '200': {
       content: {

@@ -110,7 +110,7 @@ describe('beta calls and calls not live yet', () => {
     for (const name of notLive) expect(ids, name).not.toContain(name);
   });
 
-  // The real contract has no social call yet: a small contract of every kind shows the rendering.
+  // A small contract of every kind shows the rendering, whichever social calls are live in the real one.
   const call = oc.$meta<Meta>({ caching: { kind: 'personal' } });
   const answer = z.object({ ok: z.boolean() });
   const make = (path: `/${string}`, meta: Partial<Meta> = {}) =>

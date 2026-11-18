@@ -231,9 +231,26 @@ describe("social's calls", () => {
     expect(liveNow).toEqual(expect.arrayContaining(LIVE_FROM_M3));
   });
 
-  it('are in none of the published places: the OpenAPI file, the docs and MCP’s tools', () => {
+  it('are published exactly when live, outside the console, owner and reader groups: the OpenAPI file, the docs and MCP’s tools', () => {
+    // The groups the public API never publishes, whatever a call's live mark (procedures.ts's list).
+    const never = ['admin', 'auth', 'keys', 'owner', 'reader'];
     for (const [name, procedure] of calls) {
-      expect(isPublished(name.split('.'), procedure), name).toBe(false);
+      const path = name.split('.');
+      expect(isPublished(path, procedure), name).toBe(
+        !never.includes(path[0] ?? '') && procedure['~orpc'].meta.live !== false,
+      );
+      // Social's calls are only ever in social's own groups, so the list above is all that decides.
+      expect(['social', 'owner', 'reader', 'admin'], name).toContain(path[0]);
+    }
+    // Each call's real path, with the mark set either way (a call going live, or the marks of the
+    // groups never published), so the rule bites whichever calls are live today.
+    for (const [name] of calls) {
+      const path = name.split('.');
+      const hidden = never.includes(path[0] ?? '');
+      expect(isPublished(path, { '~orpc': { meta: {} } }), `${name}, live`).toBe(!hidden);
+      expect(isPublished(path, { '~orpc': { meta: { live: false } } }), `${name}, not live`).toBe(
+        false,
+      );
     }
   });
 

@@ -3,9 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * Where social is off (production, until launch; docs/social/build.md, D14), every social call
- * answers as an address the API doesn't have, whether or not it is live. No social call is live
- * yet, so `social.test.ts` proves only the not-live rule on production; here a made-up live social
- * call shows the social-off choice by itself: served on staging, unmatched on production, while a
+ * answers as an address the API doesn't have, whether or not it is live. The live ones are the
+ * console's three so far (then each relay's own as it builds them), and `social.test.ts` proves the
+ * rule for the calls the contract holds; here a made-up live social call, whatever the real ones
+ * are, shows the social-off choice by itself: served on staging, unmatched on production, while a
  * live call that isn't social's is served on both. The router is a small one of plain procedures
  * (none made from base.ts's implementer), so nothing but the route's own choice can hide the call.
  */

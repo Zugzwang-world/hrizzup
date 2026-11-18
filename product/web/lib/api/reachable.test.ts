@@ -149,8 +149,8 @@ describe('a social call that is live, once one is built', () => {
 });
 
 describe('a live social call, called in process', () => {
-  // None is live yet: a made-up one (the contract's own `social.lists`, its not-live mark taken off
-  // with live()) shows base.ts's social-off choice by itself. It is made from base.ts's implementer,
+  // A made-up live public read (the contract's own `social.lists`, its not-live mark taken off with
+  // live()) shows base.ts's social-off choice by itself, whichever calls are live in the contract. It is made from base.ts's implementer,
   // so its middleware is the one the website's own server code meets.
   const built = api.social.lists.handler(() => socialExamples.board.lists);
   const liveSocial = new Procedure({
@@ -193,10 +193,26 @@ describe('the website’s own server code, which calls in process', () => {
       .split('.')
       .reduce<unknown>((at, part) => (at as Record<string, unknown>)[part], client) as Client;
 
-  it('is told “No such call” by every social call, before any input is read or any handler runs', async () => {
+  it('is told “No such call” by every social call not live yet, and every console call, before any input is read or any handler runs', async () => {
     const social = procedures(contract).filter(([name]) => isSocialCall(name.split('.')));
     expect(social.length).toBe(74);
-    for (const [name] of social) {
+    // A call not live yet answers so whoever asks. A console call does whatever its mark, since this
+    // client has no admin session. A live public read or agent call is tried in its area's own
+    // handler tests (`lib/api/social/`, as `admin.test.ts` does for the console) and in the
+    // "a live social call, called in process" block above.
+    const turnedAway = social.filter(
+      ([name, procedure]) => procedure['~orpc'].meta.live === false || name.startsWith('admin.'),
+    );
+    expect(turnedAway.length).toBeGreaterThan(0);
+    // The console's three live calls are among them, so the console rule is tried too.
+    expect(turnedAway.map(([name]) => name)).toEqual(
+      expect.arrayContaining([
+        'admin.social.invites.create',
+        'admin.social.stories.save',
+        'admin.social.updates.save',
+      ]),
+    );
+    for (const [name] of turnedAway) {
       // An input no call would take: the answer is the same, so nothing was read.
       for (const input of [undefined, {}, { unknown: 1 }, 'not an object']) {
         await expect(clientFor(name)(input), name).rejects.toMatchObject({
