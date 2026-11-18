@@ -99,6 +99,29 @@ export function refusalWords(code: string): { reason: RefusalReason; message: st
   return (WORDS as Record<string, { reason: RefusalReason; message: string }>)[code] ?? UNKNOWN;
 }
 
+/**
+ * A video or audio is said to be done with no transcript, or a blank one: 422 `transcript_needed`. Not a stored
+ * code (nothing was checked, and no lease is taken): the handler refuses it before the database is asked, since
+ * the transcript stands in for captions wherever the media is played.
+ */
+export const TRANSCRIPT_NEEDED = {
+  reason: 'transcript_needed',
+  message: 'A video or audio needs its transcript: send the words it says as transcript',
+} as const;
+
+/** The 422 a video or audio with no transcript answers. */
+export function transcriptNeeded(): ORPCError<string, unknown> {
+  return new ORPCError('REFUSED', {
+    status: 422,
+    message: TRANSCRIPT_NEEDED.message,
+    data: { reason: TRANSCRIPT_NEEDED.reason },
+  });
+}
+
+/** Whether a transcript says anything: sent, and not only blanks. */
+export const hasTranscript = (transcript: string | undefined): transcript is string =>
+  transcript !== undefined && transcript.trim() !== '';
+
 /** The 422 an upload refused with this code answers, as the shared map's refusals are made. */
 export function refusalError(code: string): ORPCError<string, unknown> {
   const { reason, message } = refusalWords(code);

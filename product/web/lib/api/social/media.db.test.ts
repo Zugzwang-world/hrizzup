@@ -808,6 +808,15 @@ describe.skipIf(!url)('the console’s own agents, its uploads and its posts', (
         transcript: 'Words.',
       }),
     ).rejects.toMatchObject({ status: 422, data: { reason: 'still_needed' } });
+    // With its still but no transcript: refused before a lease is taken, whatever the purpose.
+    await expect(
+      asConsole().admin.social.uploads.done({
+        id: video,
+        requestId: randomUUID(),
+        stillMediaId: still,
+      }),
+    ).rejects.toMatchObject({ status: 422, data: { reason: 'transcript_needed' } });
+    expect(await rowOf(video)).toMatchObject({ state: 'waiting', check_token: null });
     const ready = await asConsole().admin.social.uploads.done({
       id: video,
       requestId: randomUUID(),
@@ -1064,6 +1073,23 @@ describe.skipIf(!url)('a video, an audio clip and the posts that use them', () =
       id: ids.still,
       requestId: randomUUID(),
       description: 'The still of the test video',
+    });
+    // A video says what it says: with its still but no transcript, or a blank one, it is refused before a lease is taken.
+    for (const fields of [{}, { transcript: '   ' }]) {
+      await expect(
+        called.social.me.uploadDone({
+          id: ids.video,
+          requestId: randomUUID(),
+          stillMediaId: ids.still,
+          ...fields,
+        }),
+      ).rejects.toMatchObject({ status: 422, data: { reason: 'transcript_needed' } });
+    }
+    expect(await rowOf(ids.video)).toMatchObject({
+      state: 'waiting',
+      check_token: null,
+      check_until: null,
+      transcript: null,
     });
     const media = await called.social.me.uploadDone({
       id: ids.video,

@@ -1606,3 +1606,160 @@ describe('the console’s own agents: admin.social.house', () => {
     expect(invalidate).not.toHaveBeenCalled();
   });
 });
+
+// A video or audio always has its transcript -----------------------------------------------------------------
+
+describe('a video or audio’s transcript, for the agent’s and the console’s say-it-is-done alike', () => {
+  const callers = [
+    [
+      'social.me.uploadDone',
+      (input: { id: string; requestId: string; [field: string]: unknown }) =>
+        api().call.social.me.uploadDone(input as never),
+    ],
+    [
+      'admin.social.uploads.done',
+      (input: { id: string; requestId: string; [field: string]: unknown }) =>
+        asConsole().call.admin.social.uploads.done(input as never),
+    ],
+  ] as const;
+  const begin = (name: string) =>
+    name === 'social.me.uploadDone' ? 'upload_begin' : 'admin_upload_begin';
+  const finish = (name: string) =>
+    name === 'social.me.uploadDone' ? 'upload_finish' : 'admin_upload_finish';
+  const words = 'A video or audio needs its transcript: send the words it says as transcript';
+
+  it.each(callers)(
+    '%s refuses a still with no transcript, or a blank one, with 422 transcript_needed, before the database or storage is touched',
+    async (name, call) => {
+      const storage = memoryStorage();
+      held.storage = storage;
+      database({});
+      for (const fields of [
+        { stillMediaId: STILL_ID },
+        { stillMediaId: STILL_ID, transcript: '   ' },
+        { stillMediaId: STILL_ID, description: 'Only a description' },
+      ]) {
+        const failed = await call({ id: MEDIA_ID, requestId: REQUEST, ...fields }).then(
+          () => null,
+          (error: unknown) => error as { status: number; message: string; data?: unknown },
+        );
+        expect(failed, `${name} with ${JSON.stringify(fields)}`).toMatchObject({
+          status: 422,
+          message: words,
+          data: { reason: 'transcript_needed' },
+        });
+      }
+      // An empty transcript is turned away by the contract's own check (400, "Must not be empty"), as before.
+      await expect(
+        call({ id: MEDIA_ID, requestId: REQUEST, stillMediaId: STILL_ID, transcript: '' }),
+      ).rejects.toMatchObject({ status: 400 });
+      expect(asked).toHaveLength(0);
+      expect(storage.log).toEqual([]);
+      expect(events.filter((event) => event.startsWith('sql'))).toEqual([]);
+    },
+  );
+
+  it.each(callers)(
+    '%s says 422 transcript_needed for a still with no transcript, with the reason a caller acts on',
+    async (_name, call) => {
+      held.storage = memoryStorage();
+      database({});
+      await expect(
+        call({ id: MEDIA_ID, requestId: REQUEST, stillMediaId: STILL_ID }),
+      ).rejects.toMatchObject({
+        status: 422,
+        message: words,
+        data: { reason: 'transcript_needed' },
+      });
+    },
+  );
+
+  it.each(callers)(
+    '%s releases the lease and refuses when the database says a video is to be checked and no transcript came',
+    async (name, call) => {
+      const mp4 = sampleMp4({ seconds: 3, width: 100, height: 100, tracks: ['video'] });
+      const storage = stored(mp4, 'video/mp4');
+      database({
+        [begin(name)]: () => ({
+          step: 'check',
+          token: TOKEN,
+          upload: upload({
+            kind: 'video',
+            content_type: 'video/mp4',
+            bytes: mp4.length,
+            media_key: `${UPLOAD_KEY}.mp4`,
+          }),
+        }),
+        [finish(name)]: () => ({ step: 'released' }),
+      });
+      await expect(call({ id: MEDIA_ID, requestId: REQUEST })).rejects.toMatchObject({
+        status: 422,
+        data: { reason: 'transcript_needed' },
+      });
+      // The lease was taken by begin and given back at once; the file was never read.
+      expect(asked.map((statement) => nameOf(statement.text))).toEqual([begin(name), finish(name)]);
+      expect(JSON.parse(String(asked[1]?.values?.[3]))).toEqual({ outcome: 'release' });
+      expect(storage.log).toEqual([]);
+      expect(open).toBe(0);
+    },
+  );
+
+  it.each(callers)(
+    '%s still takes an image with no transcript at all, and a ready video asked again with neither',
+    async (name, call) => {
+      held.storage = memoryStorage();
+      database({ [begin(name)]: () => ({ step: 'answer', media: imageRow() }) });
+      await expect(call({ id: MEDIA_ID, requestId: REQUEST })).resolves.toMatchObject({
+        id: MEDIA_ID,
+      });
+      await expect(
+        call({ id: MEDIA_ID, requestId: REQUEST, description: 'A description, optional' }),
+      ).resolves.toMatchObject({ id: MEDIA_ID });
+    },
+  );
+
+  it.each(callers)(
+    '%s takes a video with its still and its transcript through begin, the check and finish',
+    async (name, call) => {
+      const mp4 = sampleMp4({ seconds: 3, width: 100, height: 100, tracks: ['video', 'audio'] });
+      stored(mp4, 'video/mp4');
+      database({
+        [begin(name)]: () => ({
+          step: 'check',
+          token: TOKEN,
+          upload: upload({
+            kind: 'video',
+            content_type: 'video/mp4',
+            bytes: mp4.length,
+            media_key: `${UPLOAD_KEY}.mp4`,
+          }),
+        }),
+        [finish(name)]: () => ({
+          step: 'answer',
+          media: imageRow({
+            kind: 'video',
+            media_key: `${UPLOAD_KEY}.mp4`,
+            width: 100,
+            height: 100,
+            duration_ms: 3000,
+            still: {
+              media_key: `social/${AGENT_ID}/${STILL_ID}.jpg`,
+              width: 64,
+              height: 36,
+              placeholder: null,
+              description: null,
+            },
+          }),
+        }),
+      });
+      const media = await call({
+        id: MEDIA_ID,
+        requestId: REQUEST,
+        stillMediaId: STILL_ID,
+        transcript: 'Every word.',
+      });
+      expect(media).toMatchObject({ kind: 'video', durationSeconds: 3 });
+      expect(asked[0]?.values).toEqual([REQUEST, MEDIA_ID, null, 'Every word.', STILL_ID]);
+    },
+  );
+});

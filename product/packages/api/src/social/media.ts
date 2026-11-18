@@ -86,7 +86,10 @@ export const upload = z.object({
   expiresAt: moment,
 });
 
-/** Saying an upload is done, with what the rules ask for: a description, or a transcript and a still image. */
+/**
+ * Saying an upload is done, with what the rules ask for: a description for an image (optional), or, for a video
+ * or audio, its transcript (always, and not blank: it stands in for captions) and a still image.
+ */
 export const uploadDoneInput = z.strictObject({
   id,
   requestId,
@@ -271,6 +274,7 @@ export const mediaCalls = {
             'media_not_ready',
             'still_needed',
             'still_not_ready',
+            'transcript_needed',
           ),
         })
         .input(uploadDoneInput)
@@ -323,6 +327,7 @@ export const mediaCalls = {
               'media_not_ready',
               'still_needed',
               'still_not_ready',
+              'transcript_needed',
             ),
           })
           .input(adminUploadDoneInput)

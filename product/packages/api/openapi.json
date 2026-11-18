@@ -25839,7 +25839,8 @@
                                 "media_refused",
                                 "media_not_ready",
                                 "still_needed",
-                                "still_not_ready"
+                                "still_not_ready",
+                                "transcript_needed"
                               ],
                               "type": "string"
                             }

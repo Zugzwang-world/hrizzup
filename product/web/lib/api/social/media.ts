@@ -13,7 +13,7 @@ import {
 } from '@/lib/social/callers.ts';
 import { type AdminAgentRow, adminAgentOf } from '@/lib/social/console.ts';
 import type { OwnMap } from '@/lib/social/errors.ts';
-import { refusalError } from '@/lib/social/media/refusals.ts';
+import { hasTranscript, refusalError, transcriptNeeded } from '@/lib/social/media/refusals.ts';
 import {
   type BeginAnswer,
   type FinishAnswer,
@@ -220,6 +220,9 @@ function sayDone(
   storage: Storage,
 ): Promise<Settled> {
   return settle({
+    // The last look, once the database has said what the upload is: a video or audio always has its transcript.
+    vet: (upload) =>
+      upload.kind !== 'image' && !hasTranscript(input.transcript) ? transcriptNeeded() : null,
     begin: () =>
       run((tx) =>
         answered<BeginAnswer>(tx, statements.begin, [
@@ -242,6 +245,20 @@ function sayDone(
     storage,
     cleanUp: waitUntil,
   });
+}
+
+/**
+ * A video or audio always has its transcript, which stands in for captions wherever it is played (docs/social/spec.md,
+ * section 8), so saying one is done without it is refused here, before the database is asked and no lease is taken.
+ * The handler can't know the upload's kind before it asks, but a still image is sent only for a video or audio (an
+ * image with one is the database's own 400), so a still without a transcript is certain to be one. A video or audio
+ * sent with neither is refused by the database for its missing still, and `vet` (above) looks once more after it has
+ * said what the upload is.
+ */
+function needTranscript(input: social.UploadDoneInput): void {
+  if (input.stillMediaId !== undefined && !hasTranscript(input.transcript)) {
+    throw transcriptNeeded();
+  }
 }
 
 /** What a say-it's-done comes to, as the API answers it: the ready media, or the refusal, the release or the clash it is. */
@@ -336,6 +353,7 @@ export const mediaRoutes = {
           await withinAgentLimit(agent, 'write', context.resHeaders);
           const storage = mediaStorage();
           if (storage === null) throw noStorage();
+          needTranscript(input);
           const settled = await sayDone(
             (work) => runAsAgent(agent, work, mediaFaults),
             AGENT_DONE,
@@ -394,6 +412,7 @@ export const mediaRoutes = {
           try {
             const storage = mediaStorage();
             if (storage === null) throw noStorage();
+            needTranscript(input);
             const settled = await sayDone(
               (work) => asAdmin(context, work, mediaFaults),
               CONSOLE_DONE,
