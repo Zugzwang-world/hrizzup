@@ -241,7 +241,9 @@ describe('the real database covers every published call that prints a time', () 
       .filter(
         ([name, call]) =>
           // The markets' and perps' packages' tests: social's real answers are the journeys' (they
-          // are printed like these, but no package's *.db.test.ts here runs them).
+          // are printed like these, but no package's *.db.test.ts here runs them). The board journey
+          // (e2e/journeys/social-board.spec.ts) checks two of them on a real database,
+          // `social.stories.get` and `social.stories.updates`.
           !isSocialCall(name.split('.')) &&
           isPublished(name.split('.'), call) &&
           timePlan(call['~orpc'].outputSchema).paths.length > 0,

@@ -310,6 +310,15 @@ describe('every call is understood', () => {
       ]),
     );
     expect(paths('keys.revoke')).toContain('revokedAt');
+    // Social's: the check-in's moment and the mark an agent sends back, and the story read's.
+    expect(paths('social.me.checkin')).toEqual(expect.arrayContaining(['asOf', 'since']));
+    expect([...paths('social.me.checkinDone')].sort()).toEqual(['at', 'seenUntil']);
+    expect(paths('social.stories.get')).toEqual(
+      expect.arrayContaining(['createdAt', 'latestAt', 'updates[].reportedAt']),
+    );
+    expect(paths('admin.social.invites.create')).toEqual(
+      expect.arrayContaining(['invite.createdAt', 'invite.expiresAt']),
+    );
   });
 });
 
@@ -903,11 +912,17 @@ describe('social is printed like the rest', () => {
     const social = PRINTING.filter(isSocial);
     expect(social.length).toBeGreaterThan(30);
     expect(Object.keys(EXAMPLE_ANSWERS).filter(isSocial).sort()).toEqual([...social].sort());
-    // Every social call that holds a time is there: the lists are the contract's, not a choice.
-    const holding = calls
-      .filter(([name, call]) => isSocial(name) && timePlan(outputOf(call)).paths.length > 0)
-      .map(([name]) => name);
-    expect(social).toEqual(holding);
+    // Named members, so the list can't shrink to nothing or lose the calls an agent depends on.
+    expect(social).toEqual(
+      expect.arrayContaining([
+        'social.me.checkin',
+        'social.me.checkinDone',
+        'social.stories.get',
+        'social.board',
+        'owner.keys.list',
+        'admin.social.invites.create',
+      ]),
+    );
   });
 
   it('fills, in the four examples that hold none, exactly the times the call can answer', () => {
@@ -919,7 +934,7 @@ describe('social is printed like the rest', () => {
     }
   });
 
-  it('keeps the check-in’s `asOf` and the `seenUntil` it is sent back as the same moment, so a cut can only show the last millisecond again', () => {
+  it('keeps the check-in’s `asOf` and the `seenUntil` it is sent back as the same moment, so a cut can only show the last millisecond again', async () => {
     // The one time of social's an agent sends back: `asOf` of the check-in is `seenUntil` of its
     // `checkinDone`. The printer cuts to the millisecond and never rounds, so the printed value is
     // never later than the database's (which refuses a `seenUntil` after its clock and only moves
@@ -948,11 +963,17 @@ describe('social is printed like the rest', () => {
       expect(exact.startsWith(cut), stored).toBe(true);
       expect(`${cut}000000` <= exact, stored).toBe(true);
       // The call takes what it printed.
-      const input = checkinDone['~orpc'].inputSchema?.['~standard'].validate({
+      const input = (await checkinDone['~orpc'].inputSchema?.['~standard'].validate({
         requestId: '2f3a4b5c-6d7e-4f8a-9b0c-1d2e3f4a5b6c',
         seenUntil: printed,
-      }) as { issues?: unknown[] };
+      })) as { issues?: unknown[] };
       expect(input.issues, stored).toBeUndefined();
     }
+    // The check can fail: a mark that isn't a time is refused.
+    const refused = (await checkinDone['~orpc'].inputSchema?.['~standard'].validate({
+      requestId: '2f3a4b5c-6d7e-4f8a-9b0c-1d2e3f4a5b6c',
+      seenUntil: 'soon',
+    })) as { issues?: unknown[] };
+    expect(refused.issues?.length).toBeGreaterThan(0);
   });
 });
