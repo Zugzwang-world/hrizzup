@@ -42,9 +42,10 @@
 #                   allowance (product/web/e2e/speed-allowances.json, worked out from real checks of
 #                   the same code by .github/scripts/speed_allowances.py), every budget verdict and
 #                   the contrast verdicts equal. The comparison is kept as an artifact whose name
-#                   carries the verdict ("speed-comparison-clean" or "speed-comparison-not-clean"),
-#                   and the job's summary counts how many pull requests in a row compared clean, with
-#                   no not-clean record among any of their pushes (.github/scripts/side_by_side.py).
+#                   carries the verdict ("speed-comparison-clean" or "-not-clean"; "-not-run" when
+#                   the comparison didn't run, which is passed over), and the job's summary counts
+#                   how many pull requests in a row compared clean, with no not-clean record among
+#                   any of their pushes (.github/scripts/side_by_side.py).
 #                   When five have, and their average difference is within its limits, a later change
 #                   makes the three machines the Speed check itself. Nothing here is a required
 #                   check, and the comparison fails only when its own machinery breaks, never because
@@ -615,8 +616,30 @@ jobs:
           TURBO_SCM_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: python3 .github/scripts/affected.py
 
-      - name: "Website: wait for Vercel's preview"
+      # The Speed check's own numbers first, by pattern (no failure when they aren't there): the trial
+      # has something to compare with only when the Speed check measured. Without them (it never got to
+      # measure, say because Vercel missed the preview) this part leaves a "not measured" record at once
+      # instead of waiting for a preview that isn't coming, so three parts never poll for 20 minutes
+      # against the job token's shared allowance.
+      - name: The Speed check's own numbers
         if: steps.affected.outputs.website == 'true'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: speed-one-machine
+          merge-multiple: true
+          path: ${{ runner.temp }}/one
+      - name: Did the Speed check measure the website?
+        id: one
+        if: steps.affected.outputs.website == 'true'
+        run: |
+          if [ -f "$RUNNER_TEMP/one/website.json" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: "Website: wait for Vercel's preview"
+        if: steps.affected.outputs.website == 'true' && steps.one.outputs.present == 'true'
         id: preview
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -643,6 +666,12 @@ jobs:
           SPEED_PART: ${{ matrix.part }}/3
           SPEED_OUT: ${{ runner.temp }}/speed-part
         run: python3 .github/scripts/side_by_side.py untouched "$SPEED_OUT" "$SPEED_PART"
+      - name: This part has nothing to compare with (the Speed check left no numbers)
+        if: steps.affected.outputs.website == 'true' && steps.one.outputs.present == 'false'
+        env:
+          SPEED_PART: ${{ matrix.part }}/3
+          SPEED_OUT: ${{ runner.temp }}/speed-part
+        run: python3 .github/scripts/side_by_side.py not-measured "$SPEED_OUT" "$SPEED_PART"
 
       # The results the comparison job reads (and the record that this part had nothing to measure);
       # the Lighthouse reports stay with the Speed check's own upload.
@@ -661,10 +690,12 @@ jobs:
   # judges, then compared with the Speed check's own numbers page by page, each number within that
   # page's allowance (product/web/e2e/speed-allowances.json, worked out from real checks of the same
   # code). Not a required check, so it never fails on "not clean": the record says so, its artifact's
-  # name carries the verdict ("speed-comparison-clean" or "speed-comparison-not-clean"), and the tally
-  # counts it. It fails only when its own machinery breaks. A comparison that errors while the Speed
-  # check's numbers exist is kept as a not-clean record, so it can never hide a push. Its summary has
-  # the verdict for each page and the count of pull requests in a row that compared clean.
+  # name carries the verdict ("speed-comparison-clean", "-not-clean", or "-not-run" for a comparison
+  # that didn't run), and the tally counts it. It fails only when its own machinery breaks. A comparison
+  # that errors, or whose parts left no results, while the Speed check's numbers exist is kept as a
+  # not-run record, which the tally passes over (neither clean nor not clean). A cancelled run leaves no
+  # record: the newer run compares the pull request anyway. Its summary has the verdict for each page
+  # and the count of pull requests in a row that compared clean.
   speed-three:
     name: Speed check on three machines
     needs: [speed, speed-part]
@@ -715,7 +746,7 @@ jobs:
 
       # What to do, from what the jobs before it left: with no numbers from the Speed check there is
       # nothing to compare and no record; with them, compare, or, when a part left no results, keep a
-      # not-clean record. It reads the parts' result through env:, never in the script.
+      # not-run record. It reads the parts' result through env:, never in the script.
       - name: Is there anything to compare?
         id: plan
         if: ${{ !cancelled() }}
@@ -738,12 +769,12 @@ jobs:
           COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: node e2e/speed-check.ts --compare "$RUNNER_TEMP/one/website.json" "$RUNNER_TEMP/speed-comparison/website.json" "$RUNNER_TEMP/speed-comparison"
-      # Whatever happened above, a comparison that was due leaves a record: if the step before it
-      # errored, this one writes a not-clean record ("the comparison failed"), so a failing comparison
-      # can never hide a push. It says which verdict the record has, for the artifact's name.
+      # Whatever happened above (unless the run was cancelled), a comparison that was due leaves a
+      # record: if the step before it errored, this one writes a not-run record ("the comparison
+      # failed"). It says which verdict the record has, for the artifact's name.
       - name: This comparison's verdict
         id: record
-        if: ${{ always() && steps.plan.outputs.measured == 'true' }}
+        if: ${{ !cancelled() && steps.plan.outputs.measured == 'true' }}
         env:
           COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -763,7 +794,7 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
       - name: This comparison's record
-        if: ${{ always() && steps.record.outputs.verdict != '' }}
+        if: ${{ !cancelled() && steps.record.outputs.verdict != '' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: speed-comparison-${{ steps.record.outputs.verdict }}

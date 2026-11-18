@@ -2,6 +2,7 @@
 """The side-by-side trial's small helper: a part's record, the plan, the record's verdict, the tally.
 
     python3 .github/scripts/side_by_side.py untouched <folder> <part>/<of>
+    python3 .github/scripts/side_by_side.py not-measured <folder> <part>/<of>
     python3 .github/scripts/side_by_side.py speed-plan <one-machine folder> <parts folder> <of> <out folder> >> "$GITHUB_OUTPUT"
     python3 .github/scripts/side_by_side.py finalize <out folder> >> "$GITHUB_OUTPUT"
     python3 .github/scripts/side_by_side.py tally speed --limits <speed-allowances.json> [--current <comparison.json>] >> "$GITHUB_STEP_SUMMARY"
@@ -12,31 +13,44 @@ is; every pull request that measures the website compares the two, and a later c
 when five pull requests in a row compared clean and their average difference is within its limits.
 
 Each comparison leaves one record, comparison.json, kept 30 days as an artifact whose NAME carries
-the verdict (`speed-comparison-clean` or `speed-comparison-not-clean`), so the tally can count from
-names alone and read a file only when it needs the numbers.
+the verdict, so the tally can count from names alone and read a file only when it needs the numbers:
+
+  - `speed-comparison-clean` and `speed-comparison-not-clean`: the comparison RAN, and the three
+    machines did or didn't measure what one did;
+  - `speed-comparison-not-run`: the comparison didn't run (a part left no results, or the joining or
+    comparing step errored: a record with no pages). That is machinery, not evidence about measuring
+    (the parts start as the required check finishes, which is when auto-merge can merge and GitHub
+    drops the pull request's merge commit under them), so the tally passes it over: it is neither
+    clean nor not clean, doesn't end the row and doesn't count, and the summary lists it.
 
   - `untouched` writes a part's record when the change doesn't touch the website:
     {"part", "of", "website": false}. The part passes at once; nothing was measured.
+  - `not-measured` writes a part's record when the website is touched but the Speed check left no
+    numbers to compare with (it never got to measure, for instance because Vercel missed the
+    preview): the part leaves at once instead of waiting for the preview.
   - `speed-plan` decides what the comparison job does. It is "measured" when the one-machine Speed
     check left its numbers (speed-one-machine); without them (the website wasn't touched, or the
     check never got to measure) there is no comparison and no record. When measured, it prints
     `measure=true` if all three parts left results to join and compare. Otherwise it writes a
-    not-clean record into <out folder> (a part left no results, or the parts disagree with the
-    one-machine check about whether the website was touched): a failing trial counts against the
-    trial, so it can never hide a push.
-  - `finalize` says which record there is: `verdict=clean` or `verdict=not-clean`. If the comparison
-    step errored and left no record, it writes a not-clean one, "the comparison failed".
+    not-run record into <out folder> (a part left no results, or the parts disagree with the
+    one-machine check about whether the website was touched).
+  - `finalize` says which record there is: `verdict=clean`, `verdict=not-clean` or
+    `verdict=not-run`. If the comparison step errored and left no record, it writes a not-run one,
+    "the comparison failed".
   - `tally` counts, from the artifacts' names, how many pull requests in a row compared clean:
-    it lists the repository's artifacts of both names through GitHub's API (GITHUB_TOKEN with
-    `actions: read`, GITHUB_REPOSITORY), reading each list to its end, sorts them by time itself and
-    groups them by branch (a pull request). Starting with the newest pull request, one with ANY
+    it lists the repository's artifacts of the three names through GitHub's API (GITHUB_TOKEN with
+    `actions: read`, GITHUB_REPOSITORY), the not-clean and not-run names before the clean one and
+    each list to its end, sorts them by time itself and groups them by branch (a pull request).
+    Records that didn't run are passed over. Starting with the newest pull request, one with ANY
     not-clean record ends the row (a retry never makes a pull request clean); the rest count, until
     five. At five it downloads every record of those five pull requests, averages each one's
     average difference (three machines minus one), averages the five (each weighted equally) and
     says whether busy time and load are within the limits in the allowances file. `--current` is
     this run's own record (BRANCH is its branch), counted before the list shows it.
     It makes at most 40 requests and never retries: the job token's hourly allowance is shared
-    with the checks that wait for the preview. If GitHub doesn't answer, it says so and exits 0.
+    with the checks that wait for the preview. If the requests run out after every not-clean and
+    not-run record was listed it says "at least N"; before that it gives no count at all. If GitHub
+    doesn't answer, it says so and exits 0.
 
 Python's standard library only. Prints no secrets: counts, pull request numbers and page paths.
 """
@@ -58,7 +72,10 @@ MAX_PAGES = 15  # pages of artifacts read for each name
 PER_PAGE = 100
 RECORD = "comparison.json"
 RECORD_LIMIT = 1024 * 1024  # a record is a few kilobytes; nothing bigger is read
-NAMES = {"speed": ("speed-comparison-clean", "speed-comparison-not-clean")}
+# The artifacts' names by verdict, in the order they are listed: what could end the row or be passed
+# over comes first, so a list cut short by the request budget can't overstate the count.
+NAMES = {"speed": {"not-clean": "speed-comparison-not-clean", "not-run": "speed-comparison-not-run",
+                   "clean": "speed-comparison-clean"}}
 API = "https://api.github.com"
 M75_BRANCH = "claude/r6-r4-m7-5-speed-split"  # its runs prove the plumbing, not the comparison: never counted
 NOT_COUNTED = frozenset({"main", M75_BRANCH})
@@ -101,19 +118,35 @@ def untouched(folder, share):
     write_json(os.path.join(folder, "untouched.json"), {"part": part, "of": of, "website": False})
 
 
+def not_measured(folder, share):
+    part, of = (int(n) for n in share.split("/"))
+    write_json(os.path.join(folder, "not-measured.json"), {"part": part, "of": of, "website": True, "measured": False})
+
+
 # --- the records ---------------------------------------------------------------------------------
 
+def verdict_of(record):
+    """`clean`, `not-clean` or `not-run` for a comparison record; None when it isn't a record at all. A
+    record whose comparison didn't run says so (`ran: false`) or has no pages."""
+    if not isinstance(record, dict) or not isinstance(record.get("clean"), bool):
+        return None
+    pages = record.get("pages")
+    if record.get("ran") is False or (isinstance(pages, list) and not pages):
+        return "not-run"
+    return "clean" if record["clean"] else "not-clean"
+
+
 def failed_record(commit, pr, reason):
-    """A measured comparison that didn't happen: not clean, with the reason."""
-    return {"kind": "speed", "commit": commit, "pr": pr, "measured": True, "clean": False, "reasons": [reason],
-            "pages": [], "averages": {"busyMs": 0, "loadMs": 0}, "flip": False}
+    """A comparison that was due and didn't run: no pages, so the tally passes it over."""
+    return {"kind": "speed", "commit": commit, "pr": pr, "measured": True, "ran": False, "clean": False,
+            "reasons": [reason], "pages": [], "averages": {"busyMs": 0, "loadMs": 0}, "flip": False}
 
 
 def write_failed(out, environ, reason):
     write_json(os.path.join(out, RECORD), failed_record(environ.get("COMMIT", ""),
                                                         pr_number(environ.get("PR_NUMBER", "")), reason))
     with open(os.path.join(out, "comparison.md"), "w", encoding="utf-8") as f:
-        f.write(f"**Not clean:** {reason}\n")
+        f.write(f"**Not run, so passed over and not counted:** {reason}\n")
 
 
 # --- the plan for one comparison ------------------------------------------------------------
@@ -127,6 +160,8 @@ def part_states(parts_folder, of):
             states[part] = "measured"
         elif isinstance(record, dict) and record.get("website") is False:
             states[part] = "untouched"
+        elif os.path.isfile(os.path.join(folder, "not-measured.json")):
+            states[part] = "not-measured"
         else:
             states[part] = "none"
     return states
@@ -141,7 +176,7 @@ def speed_plan(one_folder, parts_folder, of, parts_result):
     states = part_states(parts_folder, of)
     if set(states.values()) == {"measured"}:
         return True, True, ""
-    missing = sorted(part for part, state in states.items() if state == "none")
+    missing = sorted(part for part, state in states.items() if state in ("none", "not-measured"))
     if missing:
         names = ", ".join(str(part) for part in missing)
         return True, False, (f"Part {names} of the three machines left no results (the parts' result was "
@@ -158,7 +193,7 @@ def plan(argv, environ=os.environ):
     if measure:
         say(f"All {of} parts and the one-machine check left results to compare.")
     elif measured:
-        say(f"Not clean: {reason}")
+        say(f"Not run: {reason}")
         write_failed(out, environ, reason)
     else:
         say(reason)
@@ -166,14 +201,15 @@ def plan(argv, environ=os.environ):
 
 
 def finalize(out, environ=os.environ):
-    """Says `verdict=clean` or `verdict=not-clean` for the record in <out>, writing a not-clean one
-    first if the comparison errored and left none."""
+    """Says `verdict=clean`, `verdict=not-clean` or `verdict=not-run` for the record in <out>, writing
+    a not-run one first if the comparison errored and left none."""
     record = read_json(os.path.join(out, RECORD))
-    if not isinstance(record, dict) or not isinstance(record.get("clean"), bool):
+    verdict = verdict_of(record)
+    if verdict is None:
         write_failed(out, environ, "the comparison failed")
-        record = read_json(os.path.join(out, RECORD))
-        say("The comparison step left no record: a not-clean one is kept, so a failing comparison can't hide.")
-    print(f"verdict={'clean' if record['clean'] else 'not-clean'}")
+        verdict = verdict_of(read_json(os.path.join(out, RECORD)))
+        say("The comparison step left no record: a not-run one is kept, so a failing comparison leaves a trace.")
+    print(f"verdict={verdict}")
     return 0
 
 
@@ -259,13 +295,15 @@ def record_in(zipped):
 
 
 def listing(github, names, budget):
-    """(entries, capped): every unexpired artifact of those two names that came from this repository's
-    own branches (not main, and not the branch of the trial's own pull request), each as {id, created_at, branch, run, clean}, newest first. Each name's
-    list is read to its end, a page shorter than a full one, because GitHub doesn't say what order it
-    lists in. `capped` is True when the budget ran out before the lists were read."""
-    entries, capped = [], False
+    """(entries, complete): every unexpired artifact of those names that came from this repository's
+    own branches (not main, and not the branch of the trial's own pull request), each as {id,
+    created_at, branch, run, verdict}, newest first, and {verdict: whether its list was read to its
+    end}. The names are read in the order given (not-clean and not-run before clean), each list to
+    its end, a page shorter than a full one, because GitHub doesn't say what order it lists in. A list
+    is left unfinished when the budget runs out or MAX_PAGES full pages were read."""
+    entries, complete = [], {verdict: False for verdict in names}
     try:
-        for clean, name in zip((True, False), names):
+        for verdict, name in names.items():
             for number in range(1, MAX_PAGES + 1):
                 budget.take()
                 found = github.page(name, number)
@@ -277,13 +315,14 @@ def listing(github, names, budget):
                             and from_this_repository(artifact) and isinstance(branch, str) and branch
                             and branch not in NOT_COUNTED and isinstance(artifact.get("id"), int)):
                         entries.append({"id": artifact["id"], "created_at": created if isinstance(created, str) else "",
-                                        "branch": branch, "run": run.get("id"), "clean": clean})
+                                        "branch": branch, "run": run.get("id"), "verdict": verdict})
                 if len(found) < github.per_page:
+                    complete[verdict] = True
                     break
     except OverBudget:
-        capped = True
+        pass
     entries.sort(key=lambda e: (e["created_at"], e["id"]), reverse=True)
-    return entries, capped
+    return entries, complete
 
 
 def by_branch(entries):
@@ -340,24 +379,35 @@ def clean_name(text):
 
 
 def tally(github, kind, limits, current=None, branch=None, run_id=None, budget=None):
-    """(summary text, pull requests counted, reached the budget). See the module's description."""
+    """(summary text, pull requests counted or None, reached the budget). See the module's description."""
     names = NAMES[kind]
     budget = budget or Requests()
     heading = ["### The tally: the Speed check on three machines, beside the Speed check", ""]
-    entries, capped = listing(github, names, budget)
-    if current is not None and branch and branch not in NOT_COUNTED:
+    entries, complete = listing(github, names, budget)
+    capped = not all(complete.values())
+    # The count is only an "at least" if every list that could end the row or be passed over was read.
+    trusted = all(done for verdict, done in complete.items() if verdict != "clean")
+    if current is not None and branch and branch not in NOT_COUNTED and verdict_of(current):
         # This run's own record is counted from the file. The list may already show it (same run, same
-        # verdict) and must not count it twice; an earlier attempt of the same run that was NOT clean is
+        # verdict) and must not count it twice; an earlier attempt of the same run with another verdict is
         # another record and stays, so a re-run can't make a pull request look clean.
-        verdict = current.get("clean") is True
-        entries = [e for e in entries if not (e["run"] == run_id and e["clean"] == verdict)]
+        verdict = verdict_of(current)
+        entries = [e for e in entries if not (e["run"] == run_id and e["verdict"] == verdict)]
         entries.insert(0, {"id": None, "created_at": "9999", "branch": branch, "run": run_id,
-                           "clean": verdict, "record": current})
-    groups = by_branch(entries)
+                           "verdict": verdict, "record": current})
 
+    lines = list(heading)
+    if capped and not trusted:
+        lines += [f"**No count this run:** the {MAX_REQUESTS} requests this tally may make ran out before every "
+                  "not-clean record was listed, so any count could be too high.", ""]
+        return "\n".join(lines) + "\n", None, True
+
+    # A comparison that didn't run is passed over: neither clean nor not clean.
+    passed = [e for e in entries if e["verdict"] == "not-run"]
+    groups = by_branch([e for e in entries if e["verdict"] != "not-run"])
     counted, ended = [], None
     for name, found in groups.items():
-        if all(e["clean"] for e in found):
+        if all(e["verdict"] == "clean" for e in found):
             counted.append(name)
             if len(counted) == NEEDED:
                 break
@@ -365,18 +415,17 @@ def tally(github, kind, limits, current=None, branch=None, run_id=None, budget=N
             ended = (name, found)
             break
 
-    lines = list(heading)
     if capped:
         lines += [f"**At least {line_for(len(counted))}**: the {MAX_REQUESTS} requests this tally may make ran out "
-                  "while listing, so the list may be incomplete.", ""]
+                  "while listing the clean records, so the list may be incomplete.", ""]
     else:
         lines += [f"**{line_for(len(counted))}**", ""]
     if counted:
         lines.append("Counted: " + ", ".join(f"`{clean_name(b)}`" for b in counted) + ".")
     if ended:
         lines += ["", f"The row ended at `{clean_name(ended[0])}`, which has a record that is not clean."]
-        record = next((e.get("record") for e in ended[1] if not e["clean"] and e.get("record")), None)
-        newest_bad = next(e for e in ended[1] if not e["clean"])
+        newest_bad = next(e for e in ended[1] if e["verdict"] == "not-clean")
+        record = newest_bad.get("record")
         try:
             if record is None:
                 budget.take()
@@ -390,6 +439,14 @@ def tally(github, kind, limits, current=None, branch=None, run_id=None, budget=N
                          + (", and **a budget passes on three machines that fails on one**:" if record.get("flip") is True
                             else ":"))
             lines += [f"- {clean_name_text(r)}" for r in (record.get("reasons") or [])[:8] if isinstance(r, str)]
+    if passed:
+        shown = {}
+        for entry in passed:
+            shown[entry["branch"]] = shown.get(entry["branch"], 0) + 1
+        names_shown = [f"`{clean_name(b)}`" + (f" ({n} records)" if n > 1 else "") for b, n in list(shown.items())[:10]]
+        lines += ["", "Passed over, because the comparison didn't run (a part left no results, or the comparison "
+                      "failed; not counted either way): " + ", ".join(names_shown)
+                  + (f" and {len(shown) - 10} more" if len(shown) > 10 else "") + "."]
     if len(counted) == NEEDED and not capped:
         try:
             averages, problems = averaged(github, groups, counted, budget, limits)
@@ -405,11 +462,11 @@ def tally(github, kind, limits, current=None, branch=None, run_id=None, budget=N
             busy, load = averages["busyMs"], averages["loadMs"]
             outside = [name for name, value, limit in (("busy time", busy, limits["busyMs"]),
                                                        ("load", load, limits["loadMs"])) if abs(value) > limit]
-            verdict = ("**outside its limits:** " + " and ".join(outside)) if outside else "**within its limits**"
+            standing = ("**outside its limits:** " + " and ".join(outside)) if outside else "**within its limits**"
             lines.append(
                 "The five pull requests' average difference (three machines - one machine, each pull request "
                 f"weighted equally): busy {busy:+.1f} ms (limit +/-{limits['busyMs']} ms), load {load:+.1f} ms "
-                f"(limit +/-{limits['loadMs']} ms): {verdict}.")
+                f"(limit +/-{limits['loadMs']} ms): {standing}.")
     return "\n".join(lines) + "\n", len(counted), capped
 
 
@@ -448,7 +505,8 @@ def run_tally(argv, environ=os.environ):
         say(f"tally unavailable this run: {error}")
         return 0
     print(text)
-    say(("at least " if capped else "") + line_for(count))
+    say("no count this run (the request budget ran out)" if count is None
+        else ("at least " if capped else "") + line_for(count))
     return 0
 
 
@@ -458,6 +516,10 @@ def main(argv=None):
     if command == "untouched" and len(rest) == 2 and valid_share(rest[1]):
         untouched(*rest)
         say(f"Part {rest[1]}: this change doesn't touch the website, so there was nothing to measure.")
+        return 0
+    if command == "not-measured" and len(rest) == 2 and valid_share(rest[1]):
+        not_measured(*rest)
+        say(f"Part {rest[1]}: the Speed check left no numbers to compare with, so this part leaves at once.")
         return 0
     if command == "speed-plan" and len(rest) == 4 and rest[2].isdigit() and int(rest[2]) >= 1:
         return plan(rest)

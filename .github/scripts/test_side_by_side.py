@@ -33,7 +33,8 @@ import zipfile
 import side_by_side as sbs
 from test_screen_parts import REQUIRED, job_name, jobs, read, steps
 
-CLEAN, NOT_CLEAN = sbs.NAMES["speed"]
+CLEAN, NOT_CLEAN, NOT_RUN = (sbs.NAMES["speed"][v] for v in ("clean", "not-clean", "not-run"))
+NAME_OF = {"clean": CLEAN, "not-clean": NOT_CLEAN, "not-run": NOT_RUN}
 LIMITS = {"busyMs": 36, "loadMs": 24}
 
 
@@ -45,8 +46,14 @@ def zipped(record, name="comparison.json"):
 
 
 def rec(pr, clean=True, busy=0.0, load=0.0, flip=False, reasons=(), commit="abc1234"):
+    """A record of a comparison that ran: it has pages."""
     return {"kind": "speed", "commit": commit, "pr": pr, "measured": True, "clean": clean, "reasons": list(reasons),
-            "pages": [], "averages": {"busyMs": busy, "loadMs": load}, "flip": flip}
+            "pages": [{"path": "/", "clean": clean}], "averages": {"busyMs": busy, "loadMs": load}, "flip": flip}
+
+
+def not_run(pr, reason="Part 2 of the three machines left no results", commit="abc1234"):
+    """A record of a comparison that didn't run: what the plan and the finalize step write."""
+    return sbs.failed_record(commit, pr, reason)
 
 
 def at(n):
@@ -55,7 +62,7 @@ def at(n):
 
 class FakeGitHub:
     """What GitHub lists and serves, from a list of items: {branch, record, created_at, run, ...}. An item
-    is in the clean list when its record is clean, unless it says `named` (a name that disagrees)."""
+    is in the list of its record's verdict, unless it says `named` (a name that disagrees)."""
 
     def __init__(self, items, per_page=100):
         self.items, self.per_page = items, per_page
@@ -63,7 +70,7 @@ class FakeGitHub:
 
     def artifact(self, number, item):
         record = item["record"]
-        named = item.get("named") or (CLEAN if isinstance(record, dict) and record.get("clean") is True else NOT_CLEAN)
+        named = item.get("named") or (NAME_OF[sbs.verdict_of(record)] if isinstance(record, dict) else CLEAN)
         return {"id": number, "name": named, "created_at": item["created_at"], "expired": item.get("expired", False),
                 "workflow_run": {"id": item.get("run", number), "head_branch": item["branch"],
                                  "repository_id": 1, "head_repository_id": item.get("head", 1)}}
@@ -92,9 +99,17 @@ class TheRecords(unittest.TestCase):
             with open(os.path.join(folder, "untouched.json")) as f:
                 self.assertEqual(json.load(f), {"part": 2, "of": 3, "website": False})
 
+    def test_a_part_with_no_numbers_to_compare_with_leaves_a_not_measured_record(self):
+        with tempfile.TemporaryDirectory() as folder:
+            with contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(sbs.main(["not-measured", folder, "3/3"]), 0)
+            with open(os.path.join(folder, "not-measured.json")) as f:
+                self.assertEqual(json.load(f), {"part": 3, "of": 3, "website": True, "measured": False})
+
     def test_the_command_line_is_checked(self):
         for argv in ([], ["nothing"], ["untouched", "x"], ["untouched", "x", "4/3"], ["untouched", "x", "0/3"],
-                     ["untouched", "x", "a/b"], ["speed-plan", "a", "b", "0", "c"], ["speed-plan", "a"],
+                     ["untouched", "x", "a/b"], ["not-measured", "x"], ["not-measured", "x", "0/3"],
+                     ["speed-plan", "a", "b", "0", "c"], ["speed-plan", "a"],
                      ["finalize"], ["finalize", "a", "b"], ["tally"], ["tally", "speed"],
                      ["tally", "other", "--limits", "x"], ["tally", "speed", "--other", "y"],
                      ["tally", "speed", "--limits", "x", "--other", "y"]):
@@ -123,6 +138,9 @@ class ThePlan(unittest.TestCase):
             elif state == "untouched":
                 with open(os.path.join(folder, "untouched.json"), "w") as f:
                     json.dump({"part": number, "of": 3, "website": False}, f)
+            elif state == "not-measured":
+                with open(os.path.join(folder, "not-measured.json"), "w") as f:
+                    json.dump({"part": number, "of": 3, "website": True, "measured": False}, f)
         os.makedirs(os.path.join(root, "one"))
         if one:
             with open(os.path.join(root, "one", "website.json"), "w") as f:
@@ -154,20 +172,27 @@ class ThePlan(unittest.TestCase):
                 self.assertFalse(os.path.exists(out))
                 self.assertIn("nothing to compare", said)
 
-    def test_a_part_that_left_no_results_is_a_not_clean_record_naming_it_and_the_parts_result(self):
+    def test_a_part_that_left_no_results_is_a_not_run_record_naming_it_and_the_parts_result(self):
         code, printed, said, record, _ = self.plan(env={"PARTS_RESULT": "failure"}, parts=("measured", "none", "none"))
         self.assertEqual((code, printed), (0, "measured=true\nmeasure=false\n"))
-        self.assertEqual(record["clean"], False)
+        self.assertEqual((record["ran"], record["clean"], record["pages"]), (False, False, []))
+        self.assertEqual(sbs.verdict_of(record), "not-run")
         self.assertEqual((record["kind"], record["pr"], record["commit"], record["measured"]), ("speed", 161, "abc1234", True))
         self.assertEqual(record["reasons"], ["Part 2, 3 of the three machines left no results (the parts' result was 'failure')"])
-        self.assertIn("Not clean", said)
+        self.assertIn("Not run", said)
 
-    def test_parts_that_say_the_website_wasnt_touched_when_the_speed_check_measured_it_are_not_clean(self):
+    def test_a_part_that_left_a_not_measured_record_while_the_speed_check_has_numbers_is_a_not_run_record_too(self):
+        code, printed, _, record, _ = self.plan(parts=("measured", "not-measured", "measured"))
+        self.assertEqual((code, printed), (0, "measured=true\nmeasure=false\n"))
+        self.assertEqual(sbs.verdict_of(record), "not-run")
+        self.assertIn("Part 2 of the three machines left no results", record["reasons"][0])
+
+    def test_parts_that_say_the_website_wasnt_touched_when_the_speed_check_measured_it_are_not_run(self):
         for parts in (("untouched",) * 3, ("measured", "untouched", "untouched")):
             with self.subTest(parts=parts):
                 _, printed, _, record, _ = self.plan(parts=parts)
                 self.assertEqual(printed, "measured=true\nmeasure=false\n")
-                self.assertFalse(record["clean"])
+                self.assertEqual(sbs.verdict_of(record), "not-run")
                 self.assertIn("disagree with the Speed check", record["reasons"][0])
 
     def test_the_record_has_no_pull_request_number_when_the_run_isnt_one(self):
@@ -189,20 +214,32 @@ class TheVerdict(unittest.TestCase):
         with open(os.path.join(out, "comparison.json")) as f:
             return code, printed.getvalue(), json.load(f), out
 
-    def test_a_record_says_its_verdict_and_is_left_alone(self):
+    def test_a_record_of_a_comparison_that_ran_says_clean_or_not_clean_and_is_left_alone(self):
         self.assertEqual(self.finalize(rec(161, clean=True))[:2], (0, "verdict=clean\n"))
         code, printed, record, _ = self.finalize(rec(161, clean=False, reasons=["/: Load: ..."]))
         self.assertEqual((code, printed, record["reasons"]), (0, "verdict=not-clean\n", ["/: Load: ..."]))
 
-    def test_a_comparison_that_errored_and_left_no_record_becomes_a_not_clean_one_so_it_cant_hide_a_push(self):
+    def test_a_record_of_a_comparison_that_didnt_run_says_not_run(self):
+        self.assertEqual(self.finalize(not_run(161))[:2], (0, "verdict=not-run\n"))
+        # A comparison that compared nothing (no pages), clean or not, didn't run either.
+        for empty in ({**rec(161), "pages": []}, {**rec(161, clean=False), "pages": []}):
+            self.assertEqual(self.finalize(empty)[:2], (0, "verdict=not-run\n"))
+        self.assertEqual(self.finalize({**rec(161), "ran": False})[:2], (0, "verdict=not-run\n"))
+
+    def test_a_comparison_that_errored_and_left_no_record_becomes_a_not_run_one(self):
         for broken in (None, "", "not json", "[1, 2]", {"clean": "yes"}, {"pr": 161}):
             with self.subTest(broken=broken):
                 code, printed, record, out = self.finalize(broken)
-                self.assertEqual((code, printed), (0, "verdict=not-clean\n"))
-                self.assertEqual((record["clean"], record["pr"], record["commit"]), (False, 161, "abc1234"))
+                self.assertEqual((code, printed), (0, "verdict=not-run\n"))
+                self.assertEqual((record["ran"], record["clean"], record["pr"], record["commit"]), (False, False, 161, "abc1234"))
                 self.assertEqual(record["reasons"], ["the comparison failed"])
                 with open(os.path.join(out, "comparison.md")) as f:
                     self.assertIn("the comparison failed", f.read())
+
+    def test_the_verdict_of_a_record_is_none_when_it_isnt_one(self):
+        for not_a_record in (None, [], "text", {}, {"clean": 1}, {"clean": None}):
+            self.assertIsNone(sbs.verdict_of(not_a_record))
+        self.assertEqual(sbs.verdict_of({"clean": True}), "clean")  # no pages key: an older record that ran
 
 
 class TheRow(unittest.TestCase):
@@ -222,20 +259,20 @@ class TheRow(unittest.TestCase):
         self.assertIn("**5 pull requests in a row clean (the switch needs 5)**", text)
         self.assertIn("Counted: `pr-4`, `pr-3`, `pr-2`, `pr-1`, `pr-0`.", text)  # newest first
 
-    def test_a_list_is_read_to_its_end_a_page_at_a_time_and_sorted_by_time_here(self):
-        # Seven clean and three not clean, listed out of order, three to a page: pages 1 to 3 and 1 to 2.
+    def test_the_not_clean_and_not_run_lists_are_read_before_the_clean_one_each_to_its_end_a_page_at_a_time(self):
+        # Seven clean and three not clean, listed out of order, three to a page.
         items = [item(f"b{n}", rec(n), (n * 7) % 11 + 1) for n in range(7)]
         items += [item(f"c{n}", rec(50 + n, clean=False), 20 + n) for n in range(3)]
         github = FakeGitHub(items, per_page=3)
         text, count, _ = self.tally(github)
-        self.assertEqual(github.pages, [(CLEAN, 1), (CLEAN, 2), (CLEAN, 3), (NOT_CLEAN, 1), (NOT_CLEAN, 2)])
-        self.assertEqual(count, 0)  # the newest, c2, isn't clean
+        self.assertEqual(github.pages, [(NOT_CLEAN, 1), (NOT_CLEAN, 2), (NOT_RUN, 1), (CLEAN, 1), (CLEAN, 2), (CLEAN, 3)])
+        self.assertEqual(count, 0)  # the newest, c2, isn't clean: sorted by time here, whatever order was listed
         self.assertIn("The row ended at `c2`", text)
 
     def test_a_list_that_ends_on_a_full_page_asks_for_the_next_page_too(self):
         github = FakeGitHub(self.clean_prs(3), per_page=3)
         self.tally(github)
-        self.assertEqual(github.pages, [(CLEAN, 1), (CLEAN, 2), (NOT_CLEAN, 1)])
+        self.assertEqual(github.pages, [(NOT_CLEAN, 1), (NOT_RUN, 1), (CLEAN, 1), (CLEAN, 2)])
 
     def test_a_pull_request_with_any_not_clean_record_ends_the_row_even_if_a_later_push_was_clean(self):
         items = [item("pr-new", rec(170), 15), item("pr-mid", rec(169), 14), item("pr-mid", rec(169, clean=False), 13),
@@ -347,6 +384,54 @@ class TheRow(unittest.TestCase):
         self.assertEqual(other[1], 0)
         self.assertIn("The row ended at `claude/r6-r4-m7-6-app`", other[0])
 
+    def test_a_comparison_that_didnt_run_is_passed_over_it_neither_counts_nor_ends_the_row_and_is_listed(self):
+        items = self.clean_prs(2) + [item("pr-gone", not_run(300), 25)]
+        github = FakeGitHub(items)
+        text, count, _ = self.tally(github)
+        self.assertEqual(count, 2)
+        self.assertNotIn("The row ended", text)
+        self.assertNotIn("Counted: `pr-gone`", text)
+        self.assertIn("Passed over, because the comparison didn't run", text)
+        self.assertIn("`pr-gone`", text)
+        self.assertEqual(github.downloads, [])
+
+    def test_a_pull_request_with_only_not_run_records_does_not_use_up_a_place_among_the_five(self):
+        items = self.clean_prs(6) + [item("pr-gone", not_run(300), 40), item("pr-gone", not_run(300), 41)]
+        github = FakeGitHub(items)
+        text, count, _ = self.tally(github)
+        self.assertEqual(count, 5)
+        self.assertIn("Counted: `pr-5`, `pr-4`, `pr-3`, `pr-2`, `pr-1`.", text)
+        self.assertIn("`pr-gone` (2 records)", text)
+        self.assertNotIn(7, github.downloads)  # no not-run record is read for the average
+        self.assertNotIn(8, github.downloads)
+
+    def test_a_not_run_record_changes_nothing_for_a_pull_request_that_also_has_clean_or_not_clean_ones(self):
+        both_clean = [item("pr-a", rec(1), 20), item("pr-a", not_run(1), 21)]
+        self.assertEqual(self.tally(FakeGitHub(both_clean))[1], 1)
+        with_bad = [item("pr-a", rec(1, clean=False), 20), item("pr-a", not_run(1), 21)]
+        text, count, _ = self.tally(FakeGitHub(with_bad))
+        self.assertEqual(count, 0)
+        self.assertIn("The row ended at `pr-a`", text)
+
+    def test_this_runs_own_record_of_a_comparison_that_didnt_run_is_listed_and_not_counted(self):
+        github = FakeGitHub(self.clean_prs(2))
+        text, count, _ = self.tally(github, current=not_run(200), branch="pr-now", run_id=777)
+        self.assertEqual(count, 2)
+        self.assertNotIn("The row ended", text)
+        self.assertIn("Passed over", text)
+        self.assertIn("`pr-now`", text)
+
+    def test_this_runs_own_not_run_record_doesnt_hide_an_earlier_not_clean_one_of_the_same_run(self):
+        earlier = item("pr-now", rec(200, clean=False), 20, run=777)
+        text, count, _ = self.tally(FakeGitHub([earlier]), current=not_run(200), branch="pr-now", run_id=777)
+        self.assertEqual(count, 0)
+        self.assertIn("The row ended at `pr-now`", text)
+
+    def test_a_current_record_that_is_not_a_record_is_ignored(self):
+        text, count, _ = self.tally(FakeGitHub(self.clean_prs(2)), current={"pr": 1}, branch="pr-now", run_id=1)
+        self.assertEqual(count, 2)
+        self.assertNotIn("pr-now", text)
+
     def test_this_runs_own_record_counts_before_the_list_shows_it(self):
         github = FakeGitHub(self.clean_prs(2))
         text, count, _ = self.tally(github, current=rec(200), branch="pr-now", run_id=777)
@@ -388,16 +473,48 @@ class TheRow(unittest.TestCase):
     def test_a_run_that_left_no_record_is_just_the_stored_ones(self):
         self.assertEqual(self.tally(FakeGitHub(self.clean_prs(2)), current=None, branch="pr-now", run_id=1)[1], 2)
 
-    def test_the_budget_is_40_requests_and_a_list_that_runs_it_out_says_at_least(self):
+    def test_the_budget_is_40_requests_and_a_list_that_runs_out_in_the_clean_names_says_at_least(self):
         self.assertEqual(sbs.MAX_REQUESTS, 40)
         # Fifteen pages a name and ten records is the most a real tally reads before the average; a smaller
-        # budget shows what a list that runs out does.
+        # budget shows what a list that runs out does: every not-clean and not-run record was listed (their
+        # lists are read first), so the count is an "at least".
         github = FakeGitHub([item(f"pr-{n}", rec(n), (n % 28) + 1) for n in range(100)], per_page=1)
         text, count, capped = self.tally(github, budget=sbs.Requests(6))
         self.assertTrue(capped)
         self.assertEqual(len(github.pages) + len(github.downloads), 6)
+        self.assertEqual(github.pages[:2], [(NOT_CLEAN, 1), (NOT_RUN, 1)])
+        self.assertIsNotNone(count)
         self.assertIn("**At least ", text)
         self.assertIn("40 requests", text)
+
+    def test_a_budget_that_runs_out_before_every_not_clean_record_was_listed_gives_no_count_at_all(self):
+        # A count could be too high if a not-clean record was never seen, so none is printed.
+        items = [item(f"bad-{n}", rec(n, clean=False), n + 1) for n in range(50)] + self.clean_prs(5)
+        for cap in (1, 2, 3, 20):
+            with self.subTest(cap=cap):
+                github = FakeGitHub(items, per_page=1)
+                text, count, capped = self.tally(github, budget=sbs.Requests(cap))
+                self.assertEqual((count, capped), (None, True))
+                self.assertIn("**No count this run:**", text)
+                self.assertNotIn("At least", text)
+                self.assertNotIn("in a row clean", text)
+
+    def test_a_budget_that_runs_out_in_the_not_run_list_gives_no_count_either(self):
+        items = [item(f"gone-{n}", not_run(n), n + 1) for n in range(30)] + self.clean_prs(3)
+        github = FakeGitHub(items, per_page=1)
+        # One request reads the whole (empty) not-clean list; the not-run list needs 31 and the budget has 5.
+        _, count, capped = self.tally(github, budget=sbs.Requests(5))
+        self.assertEqual((count, capped), (None, True))
+
+    def test_the_command_prints_no_count_when_there_is_none(self):
+        class Capped(FakeGitHub):
+            def page(self, name, number):
+                if name == NOT_CLEAN:
+                    raise sbs.OverBudget()
+                return super().page(name, number)
+
+        text, count, capped = sbs.tally(Capped(self.clean_prs(3)), "speed", LIMITS)
+        self.assertEqual((count, capped), (None, True))
 
     def test_the_budget_also_bounds_the_records_read_for_the_average(self):
         items = []
@@ -671,7 +788,8 @@ class TheWorkflow(unittest.TestCase):
     def test_three_parts_that_never_cancel_one_another(self):
         self.assertRegex(self.part, re.compile(
             r"^    strategy:\n      fail-fast: false\n      matrix:\n        part: \[1, 2, 3\]\n", re.M))
-        self.assertEqual(self.part.count("SPEED_PART: ${{ matrix.part }}/3"), 2)  # the measuring, the untouched
+        # the measuring, the untouched record, the not-measured record
+        self.assertEqual(self.part.count("SPEED_PART: ${{ matrix.part }}/3"), 3)
 
     def test_a_part_measures_like_the_required_job_with_its_own_share_and_leaves_its_results_and_nothing_else(self):
         found = re.findall(r"node e2e/speed-check\.ts([^\n]*)\n", self.part)
@@ -692,6 +810,33 @@ class TheWorkflow(unittest.TestCase):
         self.assertIn("if-no-files-found: ignore", upload)
         self.assertIn("retention-days: 7", upload)
         self.assertIn("speed-part/*.json", upload)
+
+    def test_a_part_looks_for_the_speed_checks_numbers_first_and_waits_for_the_preview_only_when_they_are_there(self):
+        order = steps(self.part)
+        download = next(step for step in order if "pattern: speed-one-machine" in step)
+        self.assertIn("actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333", download)  # by pattern: no failure when absent
+        self.assertIn("merge-multiple: true", download)
+        self.assertIn("path: ${{ runner.temp }}/one", download)
+        self.assertIn("if: steps.affected.outputs.website == 'true'", download)
+        present = next(step for step in order if "id: one" in step)
+        self.assertIn('[ -f "$RUNNER_TEMP/one/website.json" ]', present)
+        self.assertIn('echo "present=true" >> "$GITHUB_OUTPUT"', present)
+        self.assertIn('echo "present=false" >> "$GITHUB_OUTPUT"', present)
+        wait = next(step for step in order if "wait_for_preview.py" in step)
+        self.assertIn("if: steps.affected.outputs.website == 'true' && steps.one.outputs.present == 'true'", wait)
+        self.assertLess(order.index(download), order.index(present))
+        self.assertLess(order.index(present), order.index(wait))
+        # The measuring (and the sandbox step) follow the preview having been found, as before.
+        measure = next(step for step in order if "node e2e/speed-check.ts" in step)
+        self.assertIn("steps.preview.outcome == 'success'", measure)
+
+    def test_a_part_with_no_numbers_to_compare_with_leaves_a_not_measured_record_at_once(self):
+        step = next(step for step in steps(self.part) if "side_by_side.py not-measured" in step)
+        self.assertIn("if: steps.affected.outputs.website == 'true' && steps.one.outputs.present == 'false'", step)
+        self.assertIn('side_by_side.py not-measured "$SPEED_OUT" "$SPEED_PART"', step)
+        self.assertIn("SPEED_OUT: ${{ runner.temp }}/speed-part", step)
+        # It leaves its record where the part's other records go, and the upload takes every .json there.
+        self.assertIn("speed-part/*.json", next(s for s in steps(self.part) if "name: speed-part-${{ matrix.part }}" in s))
 
     def test_a_part_asks_for_no_more_than_to_read_the_repository_and_find_the_preview(self):
         self.assertRegex(self.part, re.compile(
@@ -729,11 +874,14 @@ class TheWorkflow(unittest.TestCase):
     def test_the_comparison_keeps_a_record_even_when_it_failed_and_names_the_verdict_in_the_artifact(self):
         record = next(step for step in steps(self.three) if "side_by_side.py finalize" in step)
         self.assertIn("id: record", record)
-        self.assertIn("if: ${{ always() && steps.plan.outputs.measured == 'true' }}", record)
+        # `!cancelled()`, not `always()`: a cancelled run leaves no record (the newer run compares the pull request).
+        self.assertIn("if: ${{ !cancelled() && steps.plan.outputs.measured == 'true' }}", record)
+        self.assertNotIn("always()", record)
         self.assertIn('finalize "$RUNNER_TEMP/speed-comparison" >> "$GITHUB_OUTPUT"', record)
         upload = next(step for step in steps(self.three) if "name: speed-comparison-" in step)
         self.assertIn("name: speed-comparison-${{ steps.record.outputs.verdict }}", upload)
-        self.assertIn("if: ${{ always() && steps.record.outputs.verdict != '' }}", upload)
+        self.assertIn("if: ${{ !cancelled() && steps.record.outputs.verdict != '' }}", upload)
+        self.assertNotIn("always()", upload)
         self.assertIn("retention-days: 30", upload)
         self.assertIn("comparison.json", upload)
         order = steps(self.three)
@@ -744,8 +892,11 @@ class TheWorkflow(unittest.TestCase):
     def test_the_artifact_names_are_the_ones_the_tally_reads(self):
         # The upload's name is `speed-comparison-` and the verdict the finalize step prints (TheVerdict),
         # and the tally reads exactly those two names.
-        self.assertEqual((CLEAN, NOT_CLEAN), ("speed-comparison-clean", "speed-comparison-not-clean"))
-        self.assertEqual(sbs.NAMES["speed"], tuple(f"speed-comparison-{verdict}" for verdict in ("clean", "not-clean")))
+        self.assertEqual((CLEAN, NOT_CLEAN, NOT_RUN),
+                         ("speed-comparison-clean", "speed-comparison-not-clean", "speed-comparison-not-run"))
+        # Not-clean and not-run first: the order they are listed in, so a list cut short can't overstate the count.
+        self.assertEqual(list(sbs.NAMES["speed"]), ["not-clean", "not-run", "clean"])
+        self.assertEqual(sbs.NAMES["speed"], {verdict: f"speed-comparison-{verdict}" for verdict in ("not-clean", "not-run", "clean")})
 
     def test_the_tally_reads_the_limits_from_the_allowances_file_and_counts_this_runs_record(self):
         tally = next(step for step in steps(self.three) if "side_by_side.py tally" in step)
@@ -770,7 +921,7 @@ class TheWorkflow(unittest.TestCase):
 
     def test_the_number_of_parts_is_three_wherever_it_is_written_for_the_trial(self):
         written_as = re.findall(r"SPEED_PART: \$\{\{ matrix\.part \}\}/(\d+)", self.text)
-        self.assertEqual(written_as, ["3", "3"])
+        self.assertEqual(written_as, ["3", "3", "3"])
         plan = next(step for step in steps(self.three) if "side_by_side.py speed-plan" in step)
         self.assertRegex(plan, r'speed-plan "\$RUNNER_TEMP/one" "\$RUNNER_TEMP/parts" 3 ')
 
