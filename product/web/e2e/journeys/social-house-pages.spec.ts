@@ -183,10 +183,14 @@ test.describe('the console’s post page', () => {
       const post = '/console/social/post';
       const opened = await page.goto(`${post}?as=${agent.id}&story=${storyId}`);
       expect(opened?.status(), 'the post page, as an admin').toBe(200);
+      await expect(page.getByTestId('post-preview-button')).toBeEnabled();
       await expect(page.getByRole('heading', { level: 1, name: 'Post as Hrizzup' })).toBeVisible();
       await expect(page.locator('#post-agent')).toHaveValue(agent.id);
       await expect(page.locator('#post-story')).toHaveValue(storyId);
-      await expect(page.locator('#post-story option:checked')).toContainText('(test, unlisted)');
+      // (Its label marks it "(test, unlisted)" when it is among the newest; either way it carries its title.)
+      await expect(page.locator('#post-story option:checked')).toContainText(
+        `Post page journey (${label}): a test story`,
+      );
       // Nothing about a wrong address is said of the right one.
       await expect(page.locator('main')).not.toContainText(
         'No agent that the console runs has that ID',
@@ -195,30 +199,49 @@ test.describe('the console’s post page', () => {
       await expect(page.locator('#post-kind')).toHaveValue('text');
       expect(await page.locator('#post-file').count(), 'a text post has no file field').toBe(0);
 
-      await page.goto(`${post}?as=${randomUUID()}&story=${MEDIA_FIXTURE_STORY}`);
-      await expect(page.locator('#post-agent')).toHaveValue('');
+      // The kept fixture's story: nothing is selected, it isn't offered, the page says why, and a Preview is refused
+      // in words under the story, before anything is sent. (The run's own agent is named, so the form is always
+      // there: the listed agents are none on staging until Hrizzup is made.)
+      await page.goto(`${post}?as=${agent.id}&story=${MEDIA_FIXTURE_STORY}`);
+      await expect(page.getByTestId('post-preview-button')).toBeEnabled();
+      await expect(page.locator('#post-agent')).toHaveValue(agent.id);
       await expect(page.locator('#post-story')).toHaveValue('');
-      await expect(page.getByTestId('post-notes')).toContainText(
-        'No agent that the console runs has that ID: choose one.',
-      );
       await expect(page.getByTestId('post-notes')).toContainText(
         'That story is kept for the checks: nothing is posted on it.',
       );
       await expect(page.locator(`#post-story option[value="${MEDIA_FIXTURE_STORY}"]`)).toHaveCount(
         0,
       );
-      // A Preview with nothing chosen is refused in words under the fields, before anything is sent.
       await page.locator('#post-body').fill('Words that must be kept');
       await page.getByTestId('post-preview-button').click();
       await expect(page.getByTestId('console-refusal')).toHaveText(
         'Not previewed: see the lines under the fields.',
       );
-      await expect(page.locator('#post-agent-problem')).toHaveText('Choose who posts.');
       await expect(page.locator('#post-story-problem')).toHaveText('Choose a story.');
       await expect(page.locator('#post-body')).toHaveValue('Words that must be kept');
+      expect(puts, 'nothing was sent').toEqual([]);
+
+      // An agent that isn't one of the console's: nothing is selected, and the page says so. Whether the form is there
+      // or only the line "no agent" depends on whether a listed agent exists yet (Hrizzup, once the founder makes
+      // it), so both are accepted, and neither is allowed to pick another agent for the one asked for.
+      await page.goto(`${post}?as=${randomUUID()}&story=${storyId}`);
+      await expect(page.getByTestId('post-notes')).toContainText(
+        'No agent that the console runs has that ID: choose one.',
+      );
+      const form = page.getByTestId('post-form');
+      const none = page.getByTestId('post-no-agent');
+      await expect(form.or(none)).toBeVisible();
+      if ((await form.count()) > 0) {
+        await expect(page.locator('#post-agent')).toHaveValue('');
+        await expect(page.locator('#post-story')).toHaveValue(storyId);
+      }
 
       // ---- The form, with the run's own agent and story. ----
       await page.goto(`${post}?as=${agent.id}&story=${storyId}`);
+      // The form's buttons are off until it has mounted, so nothing typed before then is lost to a native submit.
+      await expect(page.getByTestId('post-preview-button')).toBeEnabled();
+      await expect(page.locator('#post-agent')).toHaveValue(agent.id);
+      await expect(page.locator('#post-story')).toHaveValue(storyId);
       await fitsEverywhere(page, 'the post page, as it opens');
 
       // A video chosen with nothing else: each field that is wrong says so, what was typed is kept, nothing is sent.
@@ -303,6 +326,7 @@ test.describe('the console’s post page', () => {
       // The same file and words: nothing is sent a second time.
       expect(puts.length, 'a second Preview sends the file once only').toBe(1);
       await expect(page.getByTestId('post-send-button')).toHaveText(`Post as ${agentName}`);
+      await expect(page.locator('#post-agent')).toHaveValue(agent.id);
       await page.getByTestId('post-send-button').click();
 
       await expect(page.getByTestId('console-saved')).toHaveText('Posted', { timeout: 60_000 });
@@ -370,6 +394,8 @@ test.describe('the console’s post page', () => {
       await expect(page.locator('video, audio')).toHaveCount(0);
       await expect(videoPreview.getByTestId('preview-transcript')).toContainText(transcript);
       await fitsEverywhere(page, 'the post page, with a video previewed');
+      await expect(page.getByTestId('post-send-button')).toHaveText(`Post as ${agentName}`);
+      await expect(page.locator('#post-agent')).toHaveValue(agent.id);
       await page.getByTestId('post-send-button').click();
       await expect(page.getByTestId('console-saved')).toHaveText('Posted', { timeout: 60_000 });
       await expect(

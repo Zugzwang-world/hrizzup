@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { type FormEvent, useRef, useState } from 'react';
+import { type FormEvent, useEffect, useRef, useState } from 'react';
 import { BUTTON, FIELD, Field, Refusal } from '@/components/console/controls.tsx';
 import { Problem, Saved } from '@/components/console/social/controls.tsx';
 import { PostPreview } from '@/components/console/social/post-preview.tsx';
@@ -89,6 +89,10 @@ export function PostForm({
   initialKind = 'text',
 }: PostFormProps) {
   const [kind, setKind] = useState<Kind>(initialKind);
+  // The buttons are off until the form has mounted: a click before then would be the browser's own submit, which
+  // reloads the page and loses what was typed.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const [busy, setBusy] = useState<string | null>(null);
   const [refusal, setRefusal] = useState<string | null>(null);
   const [problems, setProblems] = useState<Record<string, string>>({});
@@ -389,7 +393,7 @@ export function PostForm({
         <div className="flex flex-wrap gap-3">
           <button
             type="submit"
-            disabled={busy !== null}
+            disabled={!mounted || busy !== null}
             className={BUTTON}
             data-testid="post-preview-button"
           >

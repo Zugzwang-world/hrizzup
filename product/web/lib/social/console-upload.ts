@@ -49,6 +49,13 @@ export const FILE_WORDS: Record<MediaKind, string> = {
   audio: 'an M4A or MP3 sound file',
 };
 
+/** What a limit is the limit of, in a sentence about it. */
+const SIZE_WORDS: Record<MediaKind, string> = {
+  image: 'a picture',
+  video: 'a video',
+  audio: 'an audio file',
+};
+
 /** Whole megabytes (of 1,048,576 bytes) as the limits are said: 10, 100, 20. */
 export const megabytes = (bytes: number) => Math.round(bytes / 1_048_576);
 
@@ -69,7 +76,7 @@ export function fileRefusal(
     return `${what} must be ${FILE_WORDS[kind]}: choose another.`;
   }
   if (file.size > rules.maxBytes[kind]) {
-    return `${what} is too big: ${kind === 'image' ? 'pictures' : kind} are at most ${megabytes(rules.maxBytes[kind])} MB.`;
+    return `${what} is too big: ${SIZE_WORDS[kind]} is at most ${megabytes(rules.maxBytes[kind])} MB.`;
   }
   return null;
 }

@@ -82,6 +82,12 @@ describe('the post form', () => {
     expect(markup).toContain('mt-1 block w-full min-w-0 rounded-md border border-line');
   });
 
+  it('has its Preview button off in the server’s markup, so a click before the form has mounted is not the browser’s own submit', () => {
+    expect(render()).toMatch(
+      /<button type="submit" disabled=""[^>]*data-testid="post-preview-button"/,
+    );
+  });
+
   it('has no file, still image, description or transcript field for a text post, and no Post button before a Preview', () => {
     const markup = render();
     expect(markup).not.toContain('type="file"');

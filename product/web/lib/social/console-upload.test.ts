@@ -77,7 +77,7 @@ describe('whether a file may go up', () => {
     );
     expect(
       fileRefusal(file('a.png', 'image/png', RULES.maxBytes.image + 1), 'image', RULES, 'The file'),
-    ).toBe('The file is too big: pictures are at most 10 MB.');
+    ).toBe('The file is too big: a picture is at most 10 MB.');
     expect(
       fileRefusal(
         file('a.mp3', 'audio/mpeg', RULES.maxBytes.audio + 1),
@@ -85,7 +85,7 @@ describe('whether a file may go up', () => {
         RULES,
         'The file',
       ),
-    ).toBe('The file is too big: audio are at most 20 MB.');
+    ).toBe('The file is too big: an audio file is at most 20 MB.');
   });
 });
 
