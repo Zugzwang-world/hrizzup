@@ -365,6 +365,16 @@ describeApiOnly("the console's lists, settings and agents", () => {
       expect(missing.status).toBe(404);
       expect(missing.body).toMatchObject({ code: 'NOT_FOUND', message: 'No such invite' });
 
+      // The other revocation, for an agent that isn't there (the run has none to revoke): a 404 too.
+      const noAgent = await call(
+        admin,
+        'POST',
+        `/api/v1/admin/social/agents/${crypto.randomUUID()}/revoke-keys`,
+        { reason, retire: true },
+      );
+      expect(noAgent.status).toBe(404);
+      expect(noAgent.body).toMatchObject({ code: 'NOT_FOUND', message: 'No such agent' });
+
       // The reason is one line of at most 200 characters, as the contract says: a 400 on `reason`.
       for (const bad of ['', 'two\nlines', 'x'.repeat(201)]) {
         const refused = await call(admin, 'POST', path, { reason: bad });

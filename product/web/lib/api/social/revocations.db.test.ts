@@ -116,7 +116,7 @@ const recordingRedis = {
     return pipeline;
   },
 };
-const PREFIX = 'dev:slot3';
+const PREFIX = 'dev';
 /** A key's two copies' names: what a deployment from before posting keys kept, and what this code keeps. */
 const copiesOf = (hash: string) => [
   redisKey(PREFIX, 'key', 'v1', hash),
@@ -135,6 +135,8 @@ const seeded = {
   keyed: {} as Seeded,
   /** A claimed agent: its invite can't be revoked, its keys can. */
   claimed: {} as Seeded,
+  /** A waiting agent no test revokes: what the refused calls (not an admin) must leave exactly as it was. */
+  untouched: {} as Seeded,
 };
 
 /** One invite, made as the admin through the database's own function, with the code hash the test chose. */
@@ -235,6 +237,7 @@ beforeAll(async () => {
 
   seeded.waiting = await seedAgent(`waiting-${run}@revocations.test`, bytes());
   seeded.keyed = await seedAgent(`keyed-${run}@revocations.test`, bytes());
+  seeded.untouched = await seedAgent(`untouched-${run}@revocations.test`, bytes());
   const claimHash = bytes();
   seeded.claimed = await seedAgent(ownerEmail, claimHash);
   await asAccount(ownerAccount, (tx) =>
@@ -408,24 +411,26 @@ describe.skipIf(!url)("revoking an agent's keys over the real function", () => {
 
 describe.skipIf(!url)('who may revoke, over the real admins table', () => {
   it('is an admin only: nobody signed in, and an account that is no admin, are told "No such call", and nothing is revoked', async () => {
-    // Every seeded agent's key is revoked by now, so what proves nothing got through is the claimed
-    // agent's state and Redis's writes being the same before and after.
-    const before = await stateOf(seeded.claimed.agent);
+    // An agent no other test touches, still waiting, with a live key: if either call got through it
+    // would be retired, its key revoked and its invite closed.
+    const { invite, agent, keyHash } = seeded.untouched;
     for (const account of [null, seeded.stranger]) {
       held.account = account;
       await expect(
-        api().admin.social.invites.revoke({ id: seeded.claimed.invite, reason: 'x' }),
+        api().admin.social.invites.revoke({ id: invite, reason: 'x' }),
       ).rejects.toMatchObject(noSuchCall);
       await expect(
-        api().admin.social.agents.revokeKeys({
-          id: seeded.claimed.agent,
-          reason: 'x',
-          retire: true,
-        }),
+        api().admin.social.agents.revokeKeys({ id: agent, reason: 'x', retire: true }),
       ).rejects.toMatchObject(noSuchCall);
     }
     held.account = seeded.admin;
-    expect(await stateOf(seeded.claimed.agent)).toEqual(before);
+    expect(await found(keyHash), 'its key still works').toMatchObject({ kind: 'post' });
+    expect((await stateOf(agent))?.retired_at).toBeNull();
+    const { rows } = await owner.query<{ revoked_at: Date | null }>(
+      'select revoked_at from social.invites where id = $1',
+      [invite],
+    );
+    expect(rows[0]?.revoked_at, 'its invite is still open').toBeNull();
     expect(writes).toEqual([]);
     expect(invalidate).not.toHaveBeenCalled();
   });
