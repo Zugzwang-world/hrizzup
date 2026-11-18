@@ -58,7 +58,9 @@ vi.mock('@hrizzup/markets', async (original) => ({
   ),
 }));
 
-const { describedUse, serveMcp, toolsFor, toolsOf, TOOLS } = await import('./server.ts');
+const { describedUse, serveMcp, toolHeaders, toolsFor, toolsOf, TOOLS } = await import(
+  './server.ts'
+);
 
 const SITE = 'https://staging.hrizzup.com';
 const MCP = `${SITE}/api/v1/mcp`;
@@ -69,11 +71,12 @@ const POST_KEY = `hz_demo_${'p'.repeat(43)}`;
 const ADA = '00000000-0000-4000-8000-00000000a0a1';
 const AGENT = '00000000-0000-4000-8000-00000000b0b1';
 
-/** A connected MCP client whose requests our handler serves, with this key (or none). */
-async function connect(key?: string): Promise<Client> {
+/** A connected MCP client whose requests our handler serves, with this key (or none) and these other headers. */
+async function connect(key?: string, other: Record<string, string> = {}): Promise<Client> {
   const client = new Client({ name: 'hrizzup-test', version: '1.0.0' });
+  const headers = { ...(key ? { authorization: `Bearer ${key}` } : {}), ...other };
   const transport = new StreamableHTTPClientTransport(new URL(MCP), {
-    ...(key ? { requestInit: { headers: { authorization: `Bearer ${key}` } } } : {}),
+    ...(Object.keys(headers).length > 0 ? { requestInit: { headers } } : {}),
     fetch: (url, init) => serveMcp(new Request(url, init)),
   });
   await client.connect(transport);
@@ -143,7 +146,8 @@ describe('the tools', () => {
       expect(reading).not.toContain(name);
       expect(trading).toContain(name);
     }
-    expect(trading.length).toBe(TOOLS.length);
+    // A trading key sees every tool but an agent's own (the posting key's: K8).
+    expect(trading.length).toBe(TOOLS.filter((tool) => tool.who !== 'agent').length);
   });
 });
 
@@ -399,6 +403,36 @@ describe('an MCP client', () => {
     await client.close();
   });
 
+  it('is told once, whatever its key, to call social_basics first and that an agent’s tools need its posting key (K8)', async () => {
+    for (const key of [undefined, POST_KEY]) {
+      const client = await connect(key);
+      const told = client.getInstructions() ?? '';
+      expect(told, String(key)).toContain(
+        'Social (beta): an agent calls social_basics, the skill file, first; agent tools need its posting key.',
+      );
+      // The market API's own lines stay.
+      expect(told).toContain('markets_quote');
+      await client.close();
+    }
+  });
+
+  it('with a posting key sees the agent tools that are live, social_me_get among them, and no market tool of a person’s', async () => {
+    const client = await connect(POST_KEY);
+    const names = (await client.listTools()).tools.map((tool) => tool.name);
+    expect(names).toContain('social_basics');
+    expect(names).toContain('social_me_get');
+    for (const personal of ['portfolio_positions', 'markets_trade', 'perps_open', 'me']) {
+      expect(names, personal).not.toContain(personal);
+    }
+    // The same key as a trading key sees none of the agent's own.
+    const trade = await connect(TRADE_KEY);
+    const traded = (await trade.listTools()).tools.map((tool) => tool.name);
+    expect(traded).not.toContain('social_me_get');
+    expect(traded).toContain('social_basics');
+    await trade.close();
+    await client.close();
+  });
+
   it('with a read-only key reads its own positions, and has no trading tool', async () => {
     const client = await connect(READ_KEY);
     const names = (await client.listTools()).tools.map((tool) => tool.name);
@@ -507,6 +541,47 @@ describe("an MCP client with an agent's posting key", () => {
       expect([...(context() as { headers: Headers }).headers.keys()]).toEqual(['authorization']);
     }
     await client.close();
+  });
+
+  it('also gives them the address the request came from (the limits on a visitor count by it), and no cookie or other header', async () => {
+    // `x-real-ip` is the one header `ipAddress()` reads; a cookie, a forwarded-for chain and any other
+    // header of the request never reach a call.
+    const client = await connect(POST_KEY, {
+      'x-real-ip': '203.0.113.7',
+      cookie: 'session=made-up',
+      'x-forwarded-for': '198.51.100.9',
+      'x-custom': 'anything',
+    });
+    await client.listTools();
+    expect(contexts.made.length).toBeGreaterThan(0);
+    for (const context of contexts.made) {
+      const headers = (context() as { headers: Headers }).headers;
+      expect([...headers.keys()].sort()).toEqual(['authorization', 'x-real-ip']);
+      expect(headers.get('x-real-ip')).toBe('203.0.113.7');
+    }
+    await client.close();
+  });
+});
+
+describe('the headers a tool is given', () => {
+  it('are the key and the address, and only a header the request has', () => {
+    const request = new Headers({
+      authorization: `Bearer ${POST_KEY}`,
+      'x-real-ip': '203.0.113.7',
+      cookie: 'a=b',
+      origin: 'https://elsewhere.example',
+    });
+    const given = toolHeaders(request);
+    expect([...given.entries()].sort()).toEqual([
+      ['authorization', `Bearer ${POST_KEY}`],
+      ['x-real-ip', '203.0.113.7'],
+    ]);
+    // No key sent: the address alone; nothing sent: nothing; an empty value is none.
+    expect([...toolHeaders(new Headers({ 'x-real-ip': '203.0.113.7' })).keys()]).toEqual([
+      'x-real-ip',
+    ]);
+    expect([...toolHeaders(new Headers({ cookie: 'a=b' })).keys()]).toEqual([]);
+    expect([...toolHeaders(new Headers({ 'x-real-ip': '' })).keys()]).toEqual([]);
   });
 });
 

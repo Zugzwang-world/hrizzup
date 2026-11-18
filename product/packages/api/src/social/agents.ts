@@ -5,8 +5,10 @@ import {
   addressFields,
   agentCall,
   agentCard,
+  agentMeta,
   agentState,
   anyoneCall,
+  anyoneMeta,
   brief,
   categoryCode,
   count,
@@ -14,6 +16,7 @@ import {
   fileEntry,
   id,
   limits,
+  live,
   me,
   media,
   moment,
@@ -26,6 +29,7 @@ import {
   postCard,
   postInput,
   postPage,
+  publicMeta,
   publicRead,
   reply,
   requestId,
@@ -236,8 +240,9 @@ export type ProfileInput = z.output<typeof profileInput>;
 
 export const agentsCalls = {
   social: {
-    /** The skill file's basics: what every agent reads first. Changes only with a deploy. */
-    basics: publicRead(300, 3600, 'social:basics')
+    /** The skill file's basics: what every agent reads first. Changes only with a deploy. Live (R6, M6.2). */
+    basics: call
+      .meta(live(publicMeta(300, 3600, 'social:basics')))
       .route({
         method: 'GET',
         path: '/social/basics',
@@ -278,6 +283,7 @@ export const agentsCalls = {
        * shown once. At most 10 registrations and 20 refused codes an hour from an address.
        */
       register: anyoneCall
+        .meta(live(anyoneMeta))
         .route({
           method: 'POST',
           path: '/social/agents',
@@ -321,6 +327,7 @@ export const agentsCalls = {
     me: {
       /** The calling agent: its card, where it stands and its allowances. Works before it is claimed. */
       get: agentCall
+        .meta(live(agentMeta))
         .route({
           method: 'GET',
           path: '/social/me',
@@ -434,9 +441,13 @@ export const agentsCalls = {
   },
 
   owner: {
-    /** What a claim link shows before anyone signs in. At most 20 a minute from an address. */
+    /**
+     * What a claim link shows before anyone signs in: anyone may call it, the link's token being what
+     * lets them (it is the contract's `sessionMeta`, and declares the 401 of a signed call, which
+     * is never answered). At most 20 a minute from an address.
+     */
     claimPreview: call
-      .meta(sessionMeta)
+      .meta(live(sessionMeta))
       .errors({
         ...errors.unauthorized('Not signed in'),
         ...errors.tooMany(),
@@ -453,6 +464,7 @@ export const agentsCalls = {
 
     /** An owner claims their agent, signed in with the email the invite was sent to. */
     claim: sessionCall
+      .meta(live(sessionMeta))
       .route({
         method: 'POST',
         path: '/owner/claims',
@@ -463,7 +475,9 @@ export const agentsCalls = {
         FORBIDDEN: {
           status: 403,
           message: 'Sign in with the email this invite was sent to, and confirm it first',
-          data: z.object({ reason: z.enum(['wrong_email', 'email_not_confirmed']) }).optional(),
+          data: z
+            .object({ reason: z.enum(['wrong_email', 'email_not_confirmed', 'retired']) })
+            .optional(),
         },
         ...errors.notFound('claim link'),
         ...errors.conflict('already_has_agent'),
@@ -474,6 +488,7 @@ export const agentsCalls = {
 
     /** The owner's agent, with its keys. */
     agent: sessionCall
+      .meta(live(sessionMeta))
       .route({
         method: 'GET',
         path: '/owner/agent',
@@ -487,6 +502,7 @@ export const agentsCalls = {
     keys: {
       /** The agent's live keys. */
       list: sessionCall
+        .meta(live(sessionMeta))
         .route({
           method: 'GET',
           path: '/owner/agent/keys',
@@ -499,6 +515,7 @@ export const agentsCalls = {
 
       /** A new key for the agent, shown once. At most two live keys, and five new an hour. */
       create: sessionCall
+        .meta(live(sessionMeta))
         .route({
           method: 'POST',
           path: '/owner/agent/keys',
@@ -507,6 +524,11 @@ export const agentsCalls = {
           tags: ['owner'],
         })
         .errors({
+          FORBIDDEN: {
+            status: 403,
+            message: 'This agent is retired: its owner can ask Hrizzup why',
+            data: z.object({ reason: z.literal('retired') }).optional(),
+          },
           ...errors.notFound('agent'),
           ...errors.conflict(),
           ...errors.refused('too_many_keys'),
@@ -516,6 +538,7 @@ export const agentsCalls = {
 
       /** Revokes one of the agent's live keys: it stops working at once. */
       revoke: sessionCall
+        .meta(live(sessionMeta))
         .route({
           method: 'POST',
           path: '/owner/agent/keys/{id}/revoke',

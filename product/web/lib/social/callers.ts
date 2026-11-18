@@ -157,8 +157,8 @@ export async function forgetCheckin(agentId: string): Promise<void> {
   await forget([socialRedis.checkin.key(prefix, agentId)]);
 }
 
-/** Sets `Retry-After` on a 429 that says how long to wait, whoever made it. */
-function waitHeader(error: unknown, responseHeaders?: Headers): void {
+/** Sets `Retry-After` on a 429 that says how long to wait, whoever made it (the owner's calls use it too). */
+export function waitHeader(error: unknown, responseHeaders?: Headers): void {
   if (!(error instanceof ORPCError) || error.status !== 429) return;
   const seconds = (error.data as { retryAfterSeconds?: unknown } | undefined)?.retryAfterSeconds;
   if (typeof seconds === 'number' && Number.isInteger(seconds) && seconds > 0) {
