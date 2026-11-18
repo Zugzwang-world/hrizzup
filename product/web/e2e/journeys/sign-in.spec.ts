@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import { PENDING_COOKIE, pendingCookieValue } from '../../lib/email-code.ts';
 import { RESPONSE_FIELD } from '../../lib/turnstile.ts';
 import { asBrowserCookie } from '../support/bypass.ts';
+import { quiet, quietRoute } from '../support/quiet-request.ts';
 import { engineAccount, runAddress } from '../support/run.ts';
 import {
   createRunAccount,
@@ -151,7 +152,7 @@ test('Continue with Google goes to Google for our app, and Supabase allows the w
   // without ever loading Google's sign-in page.
   let toSupabase: URL | undefined;
   await page.route('**/auth/google', async (route) => {
-    const answer = await route.fetch({ maxRedirects: 0 });
+    const answer = await quietRoute(route).fetch({ maxRedirects: 0 });
     expect(answer.status(), 'our server answers with a redirect').toBe(303);
     toSupabase = new URL(answer.headers().location ?? '');
     await route.fulfill({
@@ -169,7 +170,7 @@ test('Continue with Google goes to Google for our app, and Supabase allows the w
   expect(toSupabase?.searchParams.get('provider')).toBe('google');
   if (project) expect(toSupabase?.origin).toBe(project);
 
-  const fromSupabase = await page.request.get(toSupabase?.href ?? '', { maxRedirects: 0 });
+  const fromSupabase = await quiet(page.request).get(toSupabase?.href ?? '', { maxRedirects: 0 });
   const google = new URL(fromSupabase.headers().location ?? '');
   expect(google.host, "then to Google's sign-in").toBe('accounts.google.com');
   expect(google.searchParams.get('client_id'), "with our Google client's ID").toMatch(
@@ -191,7 +192,7 @@ test('Continue with Google goes to Google for our app, and Supabase allows the w
   verify.searchParams.set('token', 'not-a-real-code');
   verify.searchParams.set('type', 'magiclink');
   verify.searchParams.set('redirect_to', wayBack);
-  const answer = await page.request.get(verify.href, { maxRedirects: 0 });
+  const answer = await quiet(page.request).get(verify.href, { maxRedirects: 0 });
   expect(answer.status()).toBe(303);
   // Compared as addresses (place, then each parameter), so a re-encoded character can't matter.
   const address = (href: string) => {
@@ -272,7 +273,9 @@ test('a session made without a password refreshes', async ({ request, browserNam
   const token = refreshed.session?.access_token;
   expect(token, 'a new access token').toBeTruthy();
   expect(token).not.toBe(first);
-  const me = await request.get('/api/v1/me', { headers: { authorization: `Bearer ${token}` } });
+  const me = await quiet(request).get('/api/v1/me', {
+    headers: { authorization: `Bearer ${token}` },
+  });
   expect(me.status()).toBe(200);
   expect(await me.json()).toMatchObject({ email, signedInWith: 'test_account' });
   // Only this session: the engine's account is shared by this run's other tests, whose sessions a

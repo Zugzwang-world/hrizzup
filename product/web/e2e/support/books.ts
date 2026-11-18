@@ -1,4 +1,10 @@
 import { type APIRequestContext, expect } from '@playwright/test';
+import { call } from './quiet-request.ts';
+
+export type { Answer } from './quiet-request.ts';
+// Every call of the typed API is sent by the quiet `call` (support/quiet-request.ts): the importers of this
+// file keep taking `call` and `Answer` from here.
+export { call };
 
 /**
  * Exact play money for the journeys that trade (journeys/trading-api.spec.ts): amounts as whole
@@ -20,28 +26,6 @@ export const decimal = (value: bigint): string => {
   const size = negative ? -value : value;
   return `${negative ? '-' : ''}${size / 1_000_000n}.${(size % 1_000_000n).toString().padStart(6, '0')}`;
 };
-
-export type Answer = {
-  status: number;
-  body: Record<string, unknown>;
-  headers: Record<string, string>;
-};
-
-/** One call of the typed API over HTTP, as any client makes it. */
-export async function call(
-  as: APIRequestContext,
-  method: 'GET' | 'POST',
-  path: string,
-  data?: unknown,
-): Promise<Answer> {
-  const response = await as.fetch(path, { method, ...(data === undefined ? {} : { data }) });
-  const text = await response.text();
-  return {
-    status: response.status(),
-    body: text ? (JSON.parse(text) as Record<string, unknown>) : {},
-    headers: response.headers(),
-  };
-}
 
 /** A trader's balance, and their Yes and No shares in one market (none once it's settled). */
 export async function holdings(

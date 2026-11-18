@@ -1,5 +1,6 @@
 import { readBotCheckMessage } from '@hrizzup/core';
 import { expect, type Page, test } from '@playwright/test';
+import { quiet } from '../support/quiet-request.ts';
 import { stagingKeys } from '../support/test-accounts.ts';
 import { phone } from './phone.ts';
 
@@ -57,7 +58,7 @@ async function openAsTheApp(page: Page) {
 test("the app's sign-in settings are Supabase's address and publishable key", async ({
   request,
 }) => {
-  const answer = await request.get('/api/v1/auth/settings');
+  const answer = await quiet(request).get('/api/v1/auth/settings');
   if (environment() === 'production') {
     expect(answer.status()).toBe(503);
     return;
@@ -95,7 +96,7 @@ test("where the bot check is real, an answer it didn't give is refused and nothi
   skipOnProduction();
   test.skip(botCheckIsATest(), "Previews use Cloudflare's test keys, which pass every answer");
   // Cloudflare's own dummy answer, which only its test keys accept.
-  const refused = await request.post('/api/v1/auth/email/code', {
+  const refused = await quiet(request).post('/api/v1/auth/email/code', {
     data: { email: 'delivered+never-sent@resend.dev', botCheck: 'XXXX.DUMMY.TOKEN.XXXX' },
   });
   expect(refused.status()).toBe(403);
@@ -116,7 +117,7 @@ test("Supabase sends the phone's browser back from Google to the app's own addre
     verify.searchParams.set('token', 'not-a-real-code');
     verify.searchParams.set('type', 'magiclink');
     verify.searchParams.set('redirect_to', to);
-    const answer = await request.get(verify.href, { maxRedirects: 0 });
+    const answer = await quiet(request).get(verify.href, { maxRedirects: 0 });
     expect(answer.status()).toBe(303);
     return answer.headers().location ?? '';
   };

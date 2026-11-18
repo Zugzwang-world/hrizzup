@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { accessTokenFromCookies } from '../../lib/api/context.ts';
 import { describeApiOnly, expect, test } from '../support/api-only.ts';
+import { quiet } from '../support/quiet-request.ts';
 import { engineAccount } from '../support/run.ts';
 import { signedInState } from '../support/states.ts';
 import { type Engine, stagingKeys } from '../support/test-accounts.ts';
@@ -20,7 +21,7 @@ const onVercel = () =>
 
 describeApiOnly('the typed API', () => {
   test('the public read answers, and the edge keeps it', async ({ request }) => {
-    const first = await request.get('/api/v1/health');
+    const first = await quiet(request).get('/api/v1/health');
     expect(first.status()).toBe(200);
     const body = await first.json();
     expect(body).toMatchObject({ environment: process.env.SCREEN_CHECK_ENVIRONMENT });
@@ -31,7 +32,7 @@ describeApiOnly('the typed API', () => {
     let cached = '';
     for (let attempt = 0; attempt < 10 && !/^(HIT|STALE)$/.test(cached); attempt++) {
       if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 500));
-      const again = await request.get('/api/v1/health');
+      const again = await quiet(request).get('/api/v1/health');
       expect(again.status()).toBe(200);
       cached = again.headers()['x-vercel-cache'] ?? '';
     }
@@ -39,7 +40,7 @@ describeApiOnly('the typed API', () => {
   });
 
   test('an input the call does not take is refused', async ({ request }) => {
-    const refused = await request.get('/api/v1/health?unexpected=1');
+    const refused = await quiet(request).get('/api/v1/health?unexpected=1');
     expect(refused.status()).toBe(400);
     expect(await refused.json()).toMatchObject({ code: 'BAD_REQUEST' });
     expect(refused.headers()['cache-control']).toBe('private, no-store');
@@ -49,7 +50,7 @@ describeApiOnly('the typed API', () => {
     request,
     browserName,
   }) => {
-    const stranger = await request.get('/api/v1/me');
+    const stranger = await quiet(request).get('/api/v1/me');
     expect(stranger.status()).toBe(401);
     expect(stranger.headers()['cache-control']).toBe('private, no-store');
 
@@ -73,7 +74,7 @@ describeApiOnly('the typed API', () => {
       keys.url,
     );
     expect(token, 'a session for the test account').toBeTruthy();
-    const answered = await request.get('/api/v1/me', {
+    const answered = await quiet(request).get('/api/v1/me', {
       headers: { authorization: `Bearer ${token}` },
     });
     expect(answered.status()).toBe(200);
