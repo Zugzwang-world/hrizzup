@@ -6,6 +6,7 @@ import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { newRecordId } from '@/lib/record-id.ts';
 import { resetSocialCache } from '@/lib/social/cache.ts';
+import { localDatabaseOrThrow } from '@/lib/social/local-database.ts';
 
 /**
  * The board's six reads against a real database (docs/social/build.md, D5; R5's design note, M1; the
@@ -33,24 +34,7 @@ import { resetSocialCache } from '@/lib/social/cache.ts';
 
 const url = process.env.SOCIAL_DATABASE_URL;
 
-/**
- * This file seeds accounts, an admin and stories with the database's own login, so it runs only on a
- * database on this Mac (the slot's), never on one it was pointed at by mistake: any other host stops it,
- * loudly, before a connection is made.
- */
-function localDatabaseOrThrow(address: string): void {
-  let host: string;
-  try {
-    host = new URL(address).hostname;
-  } catch {
-    throw new Error('SOCIAL_DATABASE_URL is not an address');
-  }
-  if (host !== '127.0.0.1' && host !== 'localhost') {
-    throw new Error(
-      'SOCIAL_DATABASE_URL must be a database on this Mac (127.0.0.1 or localhost): this test writes accounts and an admin to it',
-    );
-  }
-}
+// The guard is shared (`lib/social/local-database.ts`): the host pg would connect to must be this Mac's.
 
 const held = vi.hoisted(() => ({ pool: null as import('pg').Pool | null }));
 vi.mock('@/lib/db.ts', () => ({ database: () => held.pool }));

@@ -89,6 +89,12 @@ type Revocation<Thing> = { revoked_key_hashes: string[] } & Thing;
  * asked of Redis for none. Never throws: the database already refuses the keys, and a copy that stays
  * expires within a minute, so a failure only logs the error's name (its text may quote data, and a hash
  * is never printed).
+ *
+ * "At once" holds only in the environment the revocation ran in: Redis's keys start with the environment
+ * (`stg:`, `pre:` for a preview, `dev:slotN:`), but a preview and this Mac share staging's database. A
+ * key revoked from a preview (or this Mac) is marked under that environment's prefix, so staging's own
+ * `stg:key:v2` copy of it may be recognised for up to 60 s more. The database still refuses every write
+ * it makes, so nothing can post with it in that time, and the copy expires on its own.
  */
 async function forgetRevokedKeys(hashes: string[]): Promise<void> {
   try {

@@ -167,14 +167,18 @@ describeApiOnly("the console's lists, settings and agents", () => {
         code: string;
         message: string;
       };
-      expect(code).toMatch(CODE);
+      // Booleans, so a failure never prints the code into a public log.
+      expect(CODE.test(code), 'the invite code has its shape').toBe(true);
 
       // The ready message names the one address an invited agent can reach, staging's public /skill.md,
       // whichever address the request came to (a preview's, or this Mac's own): every environment that
       // makes an invite uses staging's database.
-      expect(message).toContain(
-        `Read https://staging.hrizzup.com/skill.md and join Hrizzup with invite code ${code}.`,
-      );
+      expect(
+        message.includes(
+          `Read https://staging.hrizzup.com/skill.md and join Hrizzup with invite code ${code}.`,
+        ),
+        'the ready message names staging and the code',
+      ).toBe(true);
 
       // The invites list: the run's invite, found by its ID, with no reason for a revocation, and no code.
       const invites = await findIn<Record<string, unknown> & { id: string }>(
@@ -317,7 +321,8 @@ describeApiOnly("the console's lists, settings and agents", () => {
       });
       expect(created.status).toBe(201);
       const { invite, code } = created.body as { invite: { id: string }; code: string };
-      expect(code).toMatch(CODE);
+      // Booleans, so a failure never prints the code into a public log.
+      expect(CODE.test(code), 'the invite code has its shape').toBe(true);
 
       // Revoked: answered as the invite, now closed, with the reason it was given, and never its code.
       const reason = `The revocation journey's own invite (${label})`;

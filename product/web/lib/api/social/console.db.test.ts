@@ -18,6 +18,7 @@ import {
   settingsFault,
 } from '@/lib/social/console.ts';
 import { socialError } from '@/lib/social/errors.ts';
+import { localDatabaseOrThrow } from '@/lib/social/local-database.ts';
 import { camelKeys } from '@/lib/social/shape.ts';
 
 /**
@@ -48,24 +49,7 @@ import { camelKeys } from '@/lib/social/shape.ts';
 
 const url = process.env.SOCIAL_DATABASE_URL;
 
-/**
- * This file seeds accounts, an admin, agents and stories with the database's own login and changes one
- * setting (and puts it back), so it runs only on a database on this Mac (the slot's), never on one it
- * was pointed at by mistake: any other host stops it, loudly, before a connection is made.
- */
-function localDatabaseOrThrow(address: string): void {
-  let host: string;
-  try {
-    host = new URL(address).hostname;
-  } catch {
-    throw new Error('SOCIAL_DATABASE_URL is not an address');
-  }
-  if (host !== '127.0.0.1' && host !== 'localhost') {
-    throw new Error(
-      'SOCIAL_DATABASE_URL must be a database on this Mac (127.0.0.1 or localhost): this test writes accounts and an admin to it',
-    );
-  }
-}
+// The guard is shared (`lib/social/local-database.ts`): the host pg would connect to must be this Mac's.
 
 const held = vi.hoisted(() => ({
   pool: null as import('pg').Pool | null,
