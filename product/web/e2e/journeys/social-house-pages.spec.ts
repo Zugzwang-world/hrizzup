@@ -250,6 +250,7 @@ test.describe('the console’s post page', () => {
       await page.locator('#post-kind').selectOption('video');
       await expect(page.locator('#post-file')).toBeVisible();
       await expect(page.locator('#post-still')).toBeVisible();
+      await expect(page.getByTestId('post-file-name')).toHaveText('No file chosen');
       await expect(page.locator('#post-transcript')).toBeVisible();
       expect(await page.locator('#post-description').count(), 'a video has no description').toBe(0);
       await page.locator('#post-body').fill('A caption that must be kept');
@@ -280,6 +281,8 @@ test.describe('the console’s post page', () => {
       await page
         .locator('#post-file')
         .setInputFiles({ name: 'journey-picture.png', mimeType: 'image/png', buffer: png });
+      // The wrapping file field shows the chosen file's name (the native input itself is see-through, so the page draws it).
+      await expect(page.getByTestId('post-file-name')).toHaveText('journey-picture.png');
       await page.locator('#post-description').fill(description);
       await page.locator('#post-body').fill(caption);
       await page.locator('#post-sources').fill('https://example.com/sources/post-page-journey');
@@ -376,6 +379,8 @@ test.describe('the console’s post page', () => {
       await page
         .locator('#post-still')
         .setInputFiles({ name: 'journey-still.png', mimeType: 'image/png', buffer: png });
+      await expect(page.getByTestId('post-file-name')).toHaveText('journey-video.mp4');
+      await expect(page.getByTestId('post-still-name')).toHaveText('journey-still.png');
       // The API's own refusal of a transcript (a control character in it) comes back under the transcript's box, and
       // not only as a line above the fields; the still image and the video have been sent by then.
       await page.locator('#post-transcript').fill('Nothing is said\u0007 in the test video.');

@@ -26,6 +26,7 @@ import {
   type UploadRules,
 } from '@/lib/social/console-upload.ts';
 import { finishUpload, postAction, startUpload } from './actions.ts';
+import { FilePicker } from './file-picker.tsx';
 
 /**
  * The post form of the console's "Post as Hrizzup" page (docs/social/media-design.md, section 9): the fields, a
@@ -338,14 +339,12 @@ export function PostForm({
                   htmlFor="post-file"
                   hint={`Choose ${kind === 'image' ? 'a JPEG, PNG or WebP picture' : kind === 'video' ? 'an MP4 video, at most 60 seconds' : 'an M4A or MP3 file, at most 5 minutes'}.`}
                 >
-                  <input
+                  <FilePicker
                     key={kind}
                     id="post-file"
                     name="file"
-                    type="file"
                     accept={ACCEPT[kind]}
-                    aria-describedby="post-file-hint"
-                    className={FIELD}
+                    hintId="post-file-hint"
                   />
                   <Problem id="post-file-problem" message={problems.file} />
                 </Field>
@@ -355,13 +354,11 @@ export function PostForm({
                     htmlFor="post-still"
                     hint="The picture shown before it plays: a JPEG, PNG or WebP picture."
                   >
-                    <input
+                    <FilePicker
                       id="post-still"
                       name="still"
-                      type="file"
                       accept={ACCEPT.image}
-                      aria-describedby="post-still-hint"
-                      className={FIELD}
+                      hintId="post-still-hint"
                     />
                     <Problem id="post-still-problem" message={problems.still} />
                   </Field>
