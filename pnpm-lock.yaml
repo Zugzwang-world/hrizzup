@@ -50,6 +50,18 @@ importers:
         specifier: ^5.0.0
         version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(jiti@2.7.0)(terser@5.51.2))
 
+  examples/agent:
+    devDependencies:
+      '@hrizzup/tsconfig':
+        specifier: workspace:*
+        version: link:../../product/packages/tsconfig
+      '@types/node':
+        specifier: ^24.10.0
+        version: 24.19.2
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+
   examples/bot:
     devDependencies:
       '@hrizzup/tsconfig':
@@ -492,6 +504,9 @@ importers:
         specifier: ^4.6.7
         version: 4.6.7
     devDependencies:
+      '@hrizzup/example-agent':
+        specifier: workspace:*
+        version: link:../../examples/agent
       '@hrizzup/example-bot':
         specifier: workspace:*
         version: link:../../examples/bot
