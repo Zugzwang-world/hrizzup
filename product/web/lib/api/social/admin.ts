@@ -1,26 +1,40 @@
-import type { social } from '@hrizzup/api';
+import { DEFAULT_PAGE, type social } from '@hrizzup/api';
 import { type SaveResult, saveStory, saveUpdate } from '@hrizzup/content';
 import { makeInvite } from '@hrizzup/social';
 import { ORPCError } from '@orpc/server';
-import { STAGING_ORIGIN } from '@/lib/auth-relay.ts';
 import { testStoriesEnabled } from '@/lib/env.ts';
-import { mapped, runner } from '@/lib/social/access.ts';
-import { recordProblems, recordRefusal, refusalOf } from '@/lib/social/errors.ts';
-import { refreshStories } from '@/lib/social/purge.ts';
+import { asAdmin, mapped, runner } from '@/lib/social/access.ts';
+import { forgetCheckin } from '@/lib/social/callers.ts';
+import {
+  type AdminAgentRow,
+  adminAgentOf,
+  agentChangesOf,
+  agentFault,
+  consoleStoryOf,
+  inviteBase,
+  inviteOf,
+  settingChangesOf,
+  settingsFault,
+  settingsOf,
+} from '@/lib/social/console.ts';
+import { type OwnMap, recordProblems, recordRefusal, refusalOf } from '@/lib/social/errors.ts';
+import { cursorFrom, cursorText, nextFrom, type Page } from '@/lib/social/paging.ts';
+import { refreshAgent, refreshStories } from '@/lib/social/purge.ts';
 import { answerOf, camelKeys } from '@/lib/social/shape.ts';
 import { admin } from '../base.ts';
-import { noSuchCall } from '../console.ts';
+import { type ConsoleAdmin, noSuchCall } from '../console.ts';
 import { notBuilt } from './not-built.ts';
 
 /**
  * The console's invites, stories, settings and agents (R5): this area's handlers, one for each of its calls in `social/admin.ts` of the
- * contract. Three are live from M3 (the two saves and creating an invite: D4, D13, sections 7.9 and
- * 7.10), thin and written here; the rest are stubs until R5 builds them: each is `live: false` until
- * then, so none is reached (the route and `base.ts` answer "No such call" first). R5 replaces its
- * stubs here, takes `live: false` off each call in the contract, and edits no other area's file; it
- * gives M3's three their page. The two saves purge what they changed once the save has answered
- * (`refreshStories`: the story's and its desk's tags, the board's when the story is listed, and the
- * story's brief in Redis), and a purge that fails never fails the save.
+ * contract. Nine are live: M3's three (the two saves and creating an invite: D4, D13, sections 7.9 and
+ * 7.10) and M3a's six (the three lists, the two settings calls and an agent's limits), each thin, one
+ * database function through `asAdmin`, mapped by `lib/social/console.ts`. The two revocations
+ * (`invites.revoke`, `agents.revokeKeys`) are stubs until M3b: each is `live: false` until then, so none
+ * is reached (the route and `base.ts` answer "No such call" first). The two saves purge what they
+ * changed once the save has answered (`refreshStories`: the story's and its desk's tags, the board's
+ * when the story is listed, and the story's brief in Redis), and a purge that fails never fails the
+ * save.
  *
  * Every call here is an admin's: the route and `base.ts`'s `admin` middleware have already turned
  * anyone else away as an address the API doesn't have, before any input is read (the six layers: the
@@ -51,20 +65,32 @@ export function readyMessage(origin: string, code: string, email: string): strin
   );
 }
 
-/** The site's own address for the message: the one the request came to, else staging's. */
-function originOf(url: string | undefined): string {
-  try {
-    return url ? new URL(url).origin : STAGING_ORIGIN;
-  } catch {
-    return STAGING_ORIGIN;
-  }
-}
+/** One call of one admin function as the admin, answering what it answers. */
+const answered = <T>(
+  context: ConsoleAdmin,
+  sql: string,
+  values: unknown[],
+  own?: OwnMap,
+): Promise<T> =>
+  asAdmin(context, async (tx) => answerOf((await tx.query(sql, values)).rows) as T, own);
 
 export const adminRoutes = {
   admin: {
     social: {
       invites: {
-        list: admin.social.invites.list.handler(notBuilt),
+        /**
+         * The invites, newest first, a page at a time: `social.admin_invites`, paged by the last invite's
+         * ID (the `last` cursor). Each carries its agent's handle and state, never its code.
+         */
+        list: admin.social.invites.list.handler(async ({ context, input }) => {
+          const cursor = cursorFrom('last', input?.cursor);
+          const page = await answered<Page<'invites', unknown, string>>(
+            context,
+            'select social.admin_invites($1, $2) as answer',
+            [cursor, input?.limit ?? DEFAULT_PAGE],
+          );
+          return { invites: page.invites.map(inviteOf), next: nextFrom('last', page.next) };
+        }),
         /**
          * A new invite, its code made here and shown once: only its hash and first group go to the
          * database (`code_hash`, `code_shown`), so no code is ever stored. A retry (the same request ID,
@@ -95,9 +121,7 @@ export const adminRoutes = {
               ),
             ),
           );
-          const { invite } = camelKeys<{ invite: social.Invite & { revokedReason?: unknown } }>(
-            answer,
-          );
+          const invite = inviteOf((answer as { invite: unknown }).invite);
           // The retry found its invite closed: the code made now was not kept, so none is shown. A retry
           // can never change that, so it is not a `clash` (which says "try again").
           if (invite.usedAt !== null || invite.revokedAt !== null) {
@@ -116,17 +140,29 @@ export const adminRoutes = {
               data: { reason: 'clash' },
             });
           }
-          const { revokedReason: _kept, ...shown } = invite;
           return {
-            invite: shown,
+            invite,
             code: made.code,
-            message: readyMessage(originOf(context.url), made.code, invite.email),
+            message: readyMessage(inviteBase(context), made.code, invite.email),
           };
         }),
         revoke: admin.social.invites.revoke.handler(notBuilt),
       },
       stories: {
-        list: admin.social.stories.list.handler(notBuilt),
+        /**
+         * The stories social lists, newest listed first (`social.admin_stories`, paged by the last story's
+         * listing time and ID, the `time` cursor): each one's tile, whether it is listed, who made it, its
+         * state, and a null `saved`.
+         */
+        list: admin.social.stories.list.handler(async ({ context, input }) => {
+          const cursor = cursorFrom('time', input?.cursor);
+          const page = await answered<Page<'stories', unknown, { t: string; i: string }>>(
+            context,
+            'select social.admin_stories($1::jsonb, $2) as answer',
+            [cursorText(cursor), input?.limit ?? DEFAULT_PAGE],
+          );
+          return { stories: page.stories.map(consoleStoryOf), next: nextFrom('time', page.next) };
+        }),
         /**
          * A test story: the agreement's own check, then `social.admin_save_story` in one transaction
          * (D4). The code refuses first where test stories are never allowed (production); the database
@@ -169,12 +205,70 @@ export const adminRoutes = {
         }),
       },
       settings: {
-        get: admin.social.settings.get.handler(notBuilt),
-        set: admin.social.settings.set.handler(notBuilt),
+        /** Every setting by its name, when they last changed, and the last 20 changes (`social.admin_settings`). */
+        get: admin.social.settings.get.handler(async ({ context }) =>
+          settingsOf(await answered(context, 'select social.admin_settings() as answer', [])),
+        ),
+        /**
+         * Changes some settings (`social.admin_set_settings`): the database's `changes` are built from
+         * `SETTING_COLUMNS` only, each value in its range (the contract's, which is the table's CHECKs';
+         * a 23514 that still gets through is a 400 on `changes.<field>`). It purges nothing: a weight or a
+         * half-life raises `ranks_version`, and the minute job re-ranks within minutes; the limits are
+         * enforced by the database on every write.
+         */
+        set: admin.social.settings.set.handler(async ({ context, input }) =>
+          settingsOf(
+            await answered(
+              context,
+              'select social.admin_set_settings($1::jsonb, $2) as answer',
+              [JSON.stringify(settingChangesOf(input.changes)), input.reason],
+              settingsFault,
+            ),
+          ),
+        ),
       },
       agents: {
-        list: admin.social.agents.list.handler(notBuilt),
-        set: admin.social.agents.set.handler(notBuilt),
+        /**
+         * The agents, newest first (`social.admin_agents`, the `last` cursor): each one's profile and state,
+         * its invite's email, its limits' overrides and its live keys (never the keys themselves).
+         */
+        list: admin.social.agents.list.handler(async ({ context, input }) => {
+          const cursor = cursorFrom('last', input?.cursor);
+          const page = await answered<Page<'agents', AdminAgentRow, string>>(
+            context,
+            'select social.admin_agents($1, $2) as answer',
+            [cursor, input?.limit ?? DEFAULT_PAGE],
+          );
+          return { agents: page.agents.map(adminAgentOf), next: nextFrom('last', page.next) };
+        }),
+        /**
+         * Changes an agent's Hrizzup mark, its limits (null: the settings') or its explainer video
+         * (`social.admin_set_agent`), then, once it has committed and never failing the call: a changed
+         * limit forgets the agent's check-in copy (which tells it its allowances), and a changed mark or
+         * video clears the agent's edge copies and the directory's.
+         */
+        set: admin.social.agents.set.handler(async ({ context, input }) => {
+          const id = input.id.toLowerCase();
+          const row = await answered<AdminAgentRow>(
+            context,
+            'select social.admin_set_agent($1, $2::jsonb, $3) as answer',
+            [id, JSON.stringify(agentChangesOf(input.changes)), input.reason],
+            agentFault(input.changes),
+          );
+          const agent = adminAgentOf(row);
+          const { house, videoMediaId, postsPerDay, repliesPerHour } = input.changes;
+          if (postsPerDay !== undefined || repliesPerHour !== undefined) {
+            try {
+              await forgetCheckin(id);
+            } catch {
+              // A committed change never fails for a copy that expires in 30 seconds.
+            }
+          }
+          if (house !== undefined || videoMediaId !== undefined) {
+            await refreshAgent(id, { directory: true });
+          }
+          return agent;
+        }),
         revokeKeys: admin.social.agents.revokeKeys.handler(notBuilt),
       },
     },

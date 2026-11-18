@@ -1,7 +1,7 @@
 import { CursorError, encodeCursor } from '@hrizzup/social/cursor';
 import { ORPCError } from '@orpc/server';
 import { describe, expect, it } from 'vitest';
-import { cursorFrom, nextFrom } from './paging.ts';
+import { cursorFrom, cursorText, nextFrom } from './paging.ts';
 
 const ID = '01a1a57b-8ca0-7c96-8905-93eb7d0b0d54';
 const KEYS = {
@@ -73,5 +73,14 @@ describe('turning the database’s key into the cursor handed out', () => {
     }
     expect(error).toBeInstanceOf(CursorError);
     expect(error).not.toBeInstanceOf(ORPCError);
+  });
+});
+
+describe('a cursor key as the database takes it', () => {
+  it('is JSON text, or null on a first page, for every kind of key', () => {
+    expect(cursorText(null)).toBeNull();
+    for (const key of [KEYS.top, KEYS.time, KEYS.id]) {
+      expect(JSON.parse(String(cursorText(key)))).toEqual(key);
+    }
   });
 });
