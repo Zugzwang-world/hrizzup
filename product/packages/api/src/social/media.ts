@@ -1,18 +1,21 @@
 import { z } from 'zod';
-import { noInput } from '../builders.ts';
+import { call, noInput } from '../builders.ts';
 import {
   agentCall,
+  agentMeta,
   consoleCall,
   count,
   errors,
   id,
   listCode,
+  live,
   longText,
   media,
   moment,
   oneLine,
   plainText,
   postKind,
+  publicMeta,
   publicRead,
   requestId,
 } from './common.ts';
@@ -33,6 +36,26 @@ export const mediaContentType = z.enum([
   'audio/mp4',
   'audio/mpeg',
 ]);
+
+/**
+ * The numbers of the rules, written once in code (the database's CHECKs hold the same, pinned by tests): the
+ * most bytes an upload of each kind may be, and the most seconds of video and audio (nothing is converted).
+ */
+export const mediaLimits = {
+  image: { maxBytes: 10_485_760, maxSeconds: null },
+  video: { maxBytes: 104_857_600, maxSeconds: 60 },
+  audio: { maxBytes: 20_971_520, maxSeconds: 300 },
+} as const;
+
+/** The types each kind of upload may be (`mediaContentType`, by kind). */
+export const mediaContentTypes = {
+  image: ['image/jpeg', 'image/png', 'image/webp'],
+  video: ['video/mp4'],
+  audio: ['audio/mp4', 'audio/mpeg'],
+} as const;
+
+/** The widths a picture is served at (Cloudflare's transformations), each at or under the picture's own. */
+export const imageWidths = [320, 640, 960, 1280] as const;
 
 /** Where an upload stands: waiting for its bytes, checked and ready, or refused. */
 export const uploadState = z.enum(['waiting', 'ready', 'refused']);
@@ -138,12 +161,19 @@ export type AssetList = z.infer<typeof assetList>;
 export type AdminUploadInput = z.output<typeof adminUploadInput>;
 export type AdminUploadDoneInput = z.output<typeof adminUploadDoneInput>;
 
-const uploadRefusals = ['media_kind', 'media_too_big', 'media_refused'] as const;
+/** Why a checked upload is refused (422 `data.reason`), besides `media_not_ready` and the still image's two. */
+export const uploadRefusals = [
+  'media_kind',
+  'media_too_big',
+  'media_too_long',
+  'media_refused',
+] as const;
 
 export const mediaCalls = {
   social: {
     /** The format guide: what each format of post is, and its limits. */
-    formats: publicRead(3600, 86400, 'social:formats')
+    formats: call
+      .meta(live(publicMeta(3600, 86400, 'social:formats')))
       .route({
         method: 'GET',
         path: '/social/formats',
@@ -167,6 +197,7 @@ export const mediaCalls = {
     me: {
       /** Asks for a one-time link to upload an image, a video or audio to. */
       upload: agentCall
+        .meta(live(agentMeta))
         .route({
           method: 'POST',
           path: '/social/me/uploads',
@@ -174,12 +205,17 @@ export const mediaCalls = {
           summary: 'Ask for a one-time link to upload media to',
           tags: ['personal'],
         })
-        .errors({ ...errors.conflict(), ...errors.refused(...uploadRefusals) })
+        .errors({
+          ...errors.conflict(),
+          ...errors.refused('media_kind', 'media_too_big'),
+          ...errors.tooMany('uploads_per_day'),
+        })
         .input(uploadInput)
         .output(upload),
 
       /** Says an upload is done: it is checked once, and becomes media a post can use. */
       uploadDone: agentCall
+        .meta(live(agentMeta))
         .route({
           method: 'POST',
           path: '/social/me/uploads/{id}/done',
@@ -188,8 +224,13 @@ export const mediaCalls = {
         })
         .errors({
           ...errors.notFound('upload'),
-          ...errors.conflict(),
-          ...errors.refused(...uploadRefusals, 'media_not_ready'),
+          ...errors.conflict('media_checking'),
+          ...errors.refused(
+            ...uploadRefusals,
+            'media_not_ready',
+            'still_needed',
+            'still_not_ready',
+          ),
         })
         .input(uploadDoneInput)
         .output(media),
