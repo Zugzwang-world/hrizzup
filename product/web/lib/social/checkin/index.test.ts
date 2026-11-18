@@ -95,7 +95,10 @@ describe('the check-in', () => {
 
   it('makes no trip when no section has SQL, and answers each section’s empty value', async () => {
     const query = vi.fn();
-    const result = await checkin(query);
+    // The real sections, each as if its area weren't built yet: their own empty values, no SQL. Held
+    // explicitly, so the areas filling in their SQL (R6's agent and stories first) keep this test whole.
+    const unbuilt = SECTIONS.map((one) => ({ ...one, sql: null }));
+    const result = await checkin(query, { sections: unbuilt });
     expect(query).not.toHaveBeenCalled();
     expect(result).toMatchObject({
       owner: { messages: [], tasks: [], more: false },
