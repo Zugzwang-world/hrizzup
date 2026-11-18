@@ -1,5 +1,5 @@
 import { socialRedis } from '@hrizzup/social/redis';
-import { deskTag, familyTags, storyTag } from '@hrizzup/social/tags';
+import { agentTag, deskTag, familyTags, storyTag } from '@hrizzup/social/tags';
 import { invalidateByTag, waitUntil } from '@vercel/functions';
 import { forget, redisPrefix } from './cache.ts';
 
@@ -96,10 +96,26 @@ export async function purgeTags(
 }
 
 /**
+ * Logs how a purge went when it did not go cleanly: the counts of calls that failed and calls still
+ * running when the wait ended, and nothing else (no tag, no error text). Silent when every call finished.
+ */
+function reportUnclean({ failed, late }: PurgeResult): void {
+  if (failed > 0 || late > 0) {
+    console.error('social purge: some purge calls did not finish cleanly', { failed, late });
+  }
+}
+
+/** Logs what was thrown, by its name alone (its text may quote data). */
+function reportThrown(error: unknown): void {
+  const { name } = (error ?? {}) as { name?: unknown };
+  console.error('social purge: a purge failed', { name });
+}
+
+/**
  * What a change of these stories made stale: their briefs in Redis (deleted first), then their story
  * and desk tags at the edge, and the board's when it lists one of them. Waits up to a second and a half
  * for the edge, so whoever saved and asks again at once is served by the refresh. Catches everything and
- * logs only the error's name, so it never fails the write that asked for it.
+ * logs only counts and an error's name, so it never fails the write that asked for it.
  */
 export async function refreshStories(
   ids: readonly string[],
@@ -109,13 +125,38 @@ export async function refreshStories(
     const stories = [...new Set(ids.map((id) => id.toLowerCase()))];
     await forgetBriefs(stories);
     const tags = [...stories.flatMap(storyTags), ...(options.board ? [familyTags.board] : [])];
-    await purgeTags(tags, {
-      waitMs: 1_500,
-      ...(options.invalidate ? { invalidate: options.invalidate } : {}),
-    });
+    reportUnclean(
+      await purgeTags(tags, {
+        waitMs: 1_500,
+        ...(options.invalidate ? { invalidate: options.invalidate } : {}),
+      }),
+    );
   } catch (error) {
-    // The log gets the error's name, never its text, which may quote data.
-    const { name } = (error ?? {}) as { name?: unknown };
-    console.error('social purge: a purge failed', { name });
+    reportThrown(error);
+  }
+}
+
+/**
+ * What a change of one agent made stale: its tag (its profile, posts, files and timeline), and the
+ * directory's (`social:agents`) when its card shows there too. Waits up to a second and a half for the
+ * edge. The ID is read in lower case. Never throws; logs only counts and an error's name.
+ */
+export async function refreshAgent(
+  agentId: string,
+  options: { directory: boolean; invalidate?: Invalidate },
+): Promise<void> {
+  try {
+    const tags = [
+      agentTag(agentId.toLowerCase()),
+      ...(options.directory ? [familyTags.agents] : []),
+    ];
+    reportUnclean(
+      await purgeTags(tags, {
+        waitMs: 1_500,
+        ...(options.invalidate ? { invalidate: options.invalidate } : {}),
+      }),
+    );
+  } catch (error) {
+    reportThrown(error);
   }
 }

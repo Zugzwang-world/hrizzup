@@ -5,6 +5,7 @@ import {
   forgetBriefs,
   MOST_CALLS,
   purgeTags,
+  refreshAgent,
   refreshStories,
   storyTags,
   TAGS_A_CALL,
@@ -175,21 +176,95 @@ describe('refreshing stories', () => {
     expect(invalidate).toHaveBeenCalledWith([`social:story:${ID}`, `social:desk:${ID}`]);
   });
 
-  it('never throws and logs only the error’s name, whatever fails', async () => {
+  it('never throws and logs only the error’s name, whatever throws', async () => {
     const log = vi.spyOn(console, 'error').mockImplementation(() => {});
     resetSocialCache(null);
     await expect(
       refreshStories(['not an id, with a secret text'], { board: true }),
     ).resolves.toBeUndefined();
     expect(log).toHaveBeenCalledTimes(1);
+    expect(log.mock.calls[0]?.[1]).toEqual({ name: 'TypeError' });
     expect(JSON.stringify(log.mock.calls[0])).not.toContain('secret');
-    // A purge that fails is counted by `purgeTags`, never raised.
+  });
+
+  it('logs the counts of calls that failed or ran late, and nothing else, and nothing at all when every call finished', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    resetSocialCache(null);
+    await refreshStories([ID], { board: true, invalidate: vi.fn(async (_tags: string[]) => {}) });
+    expect(log).not.toHaveBeenCalled();
+    // A purge that fails is counted by `purgeTags`, never raised, and the count is logged.
     const failing = vi.fn(async (_tags: string[]) => {
-      throw new Error('refused');
+      throw new Error('refused: social:story:secret-looking-tag');
     });
     await expect(
       refreshStories([ID], { board: true, invalidate: failing }),
     ).resolves.toBeUndefined();
     expect(log).toHaveBeenCalledTimes(1);
+    expect(log.mock.calls[0]?.[1]).toEqual({ failed: 1, late: 0 });
+    expect(JSON.stringify(log.mock.calls[0])).not.toMatch(/social:|secret|refused/);
+  });
+
+  it('logs a purge still running when the wait ends as late', async () => {
+    vi.useFakeTimers();
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    resetSocialCache(null);
+    const slow = vi.fn((_tags: string[]) => new Promise<void>(() => {}));
+    const done = refreshStories([ID], { board: false, invalidate: slow });
+    await vi.advanceTimersByTimeAsync(1_500);
+    await expect(done).resolves.toBeUndefined();
+    expect(log).toHaveBeenCalledTimes(1);
+    expect(log.mock.calls[0]?.[1]).toEqual({ failed: 0, late: 1 });
+  });
+});
+
+describe('refreshing an agent', () => {
+  it('purges the agent’s tag, and the directory’s too when its card shows there', async () => {
+    const invalidate = vi.fn(async (_tags: string[]) => {});
+    await refreshAgent(ID, { directory: true, invalidate });
+    expect(invalidate).toHaveBeenCalledTimes(1);
+    expect(invalidate).toHaveBeenCalledWith([`social:agent:${ID}`, 'social:agents']);
+    invalidate.mockClear();
+    await refreshAgent(ID, { directory: false, invalidate });
+    expect(invalidate).toHaveBeenCalledWith([`social:agent:${ID}`]);
+  });
+
+  it('reads the ID in lower case', async () => {
+    const invalidate = vi.fn(async (_tags: string[]) => {});
+    await refreshAgent(ID.toUpperCase(), { directory: true, invalidate });
+    expect(invalidate).toHaveBeenCalledWith([`social:agent:${ID}`, 'social:agents']);
+  });
+
+  it('never throws: a purge that fails or throws is swallowed, and only its counts are logged', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await expect(
+      refreshAgent(ID, {
+        directory: true,
+        invalidate: vi.fn().mockRejectedValue(new Error('refused')),
+      }),
+    ).resolves.toBeUndefined();
+    expect(log.mock.calls[0]?.[1]).toEqual({ failed: 1, late: 0 });
+    log.mockClear();
+    await expect(
+      refreshAgent(ID, {
+        directory: true,
+        invalidate: () => {
+          throw new Error('no purge here');
+        },
+      }),
+    ).resolves.toBeUndefined();
+    expect(log.mock.calls[0]?.[1]).toEqual({ failed: 1, late: 0 });
+    // An ID that is no UUID is the caller's mistake, still never raised.
+    log.mockClear();
+    await expect(
+      refreshAgent('not an id, with a secret', { directory: false }),
+    ).resolves.toBeUndefined();
+    expect(log.mock.calls[0]?.[1]).toEqual({ name: 'TypeError' });
+    expect(JSON.stringify(log.mock.calls)).not.toContain('secret');
+  });
+
+  it('logs nothing when the purge finishes', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await refreshAgent(ID, { directory: true, invalidate: vi.fn(async (_tags: string[]) => {}) });
+    expect(log).not.toHaveBeenCalled();
   });
 });

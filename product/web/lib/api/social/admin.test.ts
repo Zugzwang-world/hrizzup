@@ -311,6 +311,7 @@ describe("the saves' purges", () => {
   });
 
   it('never fail the save, whether the edge refuses the purge or throws before it starts', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
     answer = () => snake({ ...examples.admin.savedStory, saved: 'new' });
     invalidate.mockRejectedValue(new Error('the edge refused'));
     await expect(api().admin.social.stories.save(story)).resolves.toMatchObject({ saved: 'new' });
@@ -320,6 +321,9 @@ describe("the saves' purges", () => {
     await expect(api().admin.social.stories.save(story)).resolves.toMatchObject({ saved: 'new' });
     answer = () => snake({ ...examples.admin.savedUpdate, saved: 'new' });
     await expect(api().admin.social.updates.save(update)).resolves.toMatchObject({ saved: 'new' });
+    // Only the counts of what failed are logged.
+    expect(log).toHaveBeenCalledWith(expect.any(String), { failed: 1, late: 0 });
+    log.mockRestore();
   });
 });
 
