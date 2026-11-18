@@ -50,6 +50,11 @@ export default async function ConsolePage({ searchParams }: Props) {
             Create a market
           </Link>
         </p>
+        <p className="mt-2">
+          <Link href="/console/social" className="underline">
+            Social console
+          </Link>
+        </p>
 
         <h2 className="mt-10 text-xl font-semibold">Perps</h2>
         <p className="mt-2 text-sm text-muted">
