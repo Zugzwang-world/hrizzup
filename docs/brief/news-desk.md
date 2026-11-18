@@ -2,7 +2,7 @@
 
 **This brief replaces Claude Code's report:** read it after clicking **Sync now**, instead of asking the founder for a report, and attach the files under "Read for detail" from GitHub when you need more.
 
-> Rewritten 18 November 2026 by Round 6's relay R16, Scheduled jobs and records, in its M3 (PR_M3), whose change to PLAN.md rewrites every brief. The News Desk project's only file from the repository, rewritten at the end of every session that touches its part. PLAN.md wins any disagreement.
+> Rewritten 18 November 2026 by Round 6's relay R16, Scheduled jobs and records, in its M3 ([#166](https://github.com/Zugzwang-world/hrizzup/pull/166)), whose change to PLAN.md rewrites every brief. The News Desk project's only file from the repository, rewritten at the end of every session that touches its part. PLAN.md wins any disagreement.
 
 **Hrizzup** is a news app built around creators, plus a website with play-money prediction markets. Our AI finds news as it breaks on X and turns it into developing stories that readers see through creators' takes. **News Desk's job:** make our own content from the sourced pool and onboard creators; in social's V1 beta, that means making and running Hrizzup's own AI agents, which post on every story's desk like any invited agent. **News Desk is on hold until the founder sets it up.**
 
@@ -37,7 +37,7 @@
 
 ## What changed in the latest session
 
-On 18 November 2026, Round 6's relay R16 (PR_M3; records only) recorded three of the founder's decisions. **The creation shape, the agreement and News Desk's hold don't change.** For News Desk, from his yes to social's six small questions (`docs/social/spec.md`, section 17, items 9 to 14):
+On 18 November 2026, Round 6's relay R16 ([#166](https://github.com/Zugzwang-world/hrizzup/pull/166); records only) recorded three of the founder's decisions. **The creation shape, the agreement and News Desk's hold don't change.** For News Desk, from his yes to social's six small questions (`docs/social/spec.md`, section 17, items 9 to 14):
 
 - **An owner's tasks stay private** to the owner and the agent, off the public timeline; **agents upvote posts only,** never replies; **a video or audio post needs its still image;** **the owner's name on an agent's profile is what they type at the claim,** prefilled from Google; **the board's Latest** orders stories by their newest update.
 - **Sourcing's pipeline saves stories and updates through Product's checked save** (`intake`), for Sourcing to confirm. The rest is Product's: a database-only risky change skips the preview checks (PLAN.md section 3), and the advisor is consulted at set moments in every relay.

@@ -2,7 +2,7 @@
 
 **This brief replaces Claude Code's report:** read it after clicking **Sync now**, instead of asking the founder for a report, and attach the files under "Read for detail" from GitHub when you need more.
 
-> Rewritten 18 November 2026 by Round 6's relay R16, Scheduled jobs and records, in its M3 (PR_M3), whose change to PLAN.md rewrites every brief. The Sourcing project's only file from the repository, rewritten at the end of every session that touches its part. PLAN.md wins any disagreement.
+> Rewritten 18 November 2026 by Round 6's relay R16, Scheduled jobs and records, in its M3 ([#166](https://github.com/Zugzwang-world/hrizzup/pull/166)), whose change to PLAN.md rewrites every brief. The Sourcing project's only file from the repository, rewritten at the end of every session that touches its part. PLAN.md wins any disagreement.
 
 **Hrizzup** is a news app built around creators, plus a website with play-money prediction markets. Our AI finds news as it breaks on X and turns it into developing stories that readers see through creators' takes. **Sourcing's job:** design and run the Grok bots that find news and creators' takes on X, keep everything they find in the sourced pool, and turn the news into stories and updates. Product shows what Sourcing produces, in the shapes the hand-over agreement (`agreement/README.md`) fixes.
 
@@ -33,7 +33,7 @@
 
 ## What changed in the latest session
 
-On 18 November 2026, Round 6's relay R16 (PR_M3; records only) recorded three of the founder's decisions. **For Sourcing:** his yes to the pipeline saving stories and updates through `intake.save_story` and `intake.save_update` after `validate()`, for Sourcing to confirm when it designs its pipeline (Decisions in force). The others are Product's: PLAN.md section 3 now says a risky change that only touches the database skips the checks run against the website's preview, which can't see it; and the advisor (Fable 5.2) is consulted at set moments in every relay. Nothing Sourcing writes, reads or checks changes now.
+On 18 November 2026, Round 6's relay R16 ([#166](https://github.com/Zugzwang-world/hrizzup/pull/166); records only) recorded three of the founder's decisions. **For Sourcing:** his yes to the pipeline saving stories and updates through `intake.save_story` and `intake.save_update` after `validate()`, for Sourcing to confirm when it designs its pipeline (Decisions in force). The others are Product's: PLAN.md section 3 now says a risky change that only touches the database skips the checks run against the website's preview, which can't see it; and the advisor (Fable 5.2) is consulted at set moments in every relay. Nothing Sourcing writes, reads or checks changes now.
 
 ## Open questions
 

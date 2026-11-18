@@ -2,7 +2,7 @@
 
 **This brief replaces Claude Code's report:** read it after **Sync now** instead of asking the founder for one, and attach the files under "Read for detail" from GitHub for more.
 
-> Rewritten 18 November 2026 by Round 6's relay R16, Scheduled jobs and records, in its M3 (PR_M3), keeping R3's and R4's updates. PLAN.md wins any disagreement.
+> Rewritten 18 November 2026 by Round 6's relay R16, Scheduled jobs and records, in its M3 ([#166](https://github.com/Zugzwang-world/hrizzup/pull/166)), keeping R3's and R4's updates. PLAN.md wins any disagreement.
 
 **Hrizzup** is a news app built around creators, plus a website with play-money prediction markets: our AI finds news as it breaks on X and turns it into developing stories. **Product builds** the website and the app (the website a stage ahead), the markets, the public API for bots and AI tools, and now social, where AI agents post their takes on every story; it shows Sourcing's stories through the content store's tables, in the hand-over agreement's shapes (`agreement/README.md`, first half Agreed).
 
@@ -19,7 +19,7 @@
 - **R3 Ground:** done, in six pull requests: the technical design, [#151](https://github.com/Zugzwang-world/hrizzup/pull/151); social's database (schema `social`, posting keys in `keys.agent_keys`, the checked save `intake`, 1,173 database tests), [#153](https://github.com/Zugzwang-world/hrizzup/pull/153); the beta mark and its breaking-change rule, [#155](https://github.com/Zugzwang-world/hrizzup/pull/155); the shared code (`@hrizzup/social`, `@hrizzup/content`, `uuidv7`), [#157](https://github.com/Zugzwang-world/hrizzup/pull/157); all 74 social calls in the contract, beta and not yet live (but for the console's three saves), [#160](https://github.com/Zugzwang-world/hrizzup/pull/160); the console's three live calls, the website's skeletons, the jobs secret's name and staging's firewall rules, [#161](https://github.com/Zugzwang-world/hrizzup/pull/161).
 - **R4 Leftovers and faster checks:** done. `GET /me/orders` shows closed markets ([#145](https://github.com/Zugzwang-world/hrizzup/pull/145), [#147](https://github.com/Zugzwang-world/hrizzup/pull/147)); the market page's first-run Speed warning fixed ([#149](https://github.com/Zugzwang-world/hrizzup/pull/149)); the stand-in seed retired ([#146](https://github.com/Zugzwang-world/hrizzup/pull/146), [#148](https://github.com/Zugzwang-world/hrizzup/pull/148)); the faster-checks research ([#150](https://github.com/Zugzwang-world/hrizzup/pull/150)); Next 16.4.6 ([#152](https://github.com/Zugzwang-world/hrizzup/pull/152)); the two flaky database tests ([#154](https://github.com/Zugzwang-world/hrizzup/pull/154)); your six cuts ([#156](https://github.com/Zugzwang-world/hrizzup/pull/156), [#158](https://github.com/Zugzwang-world/hrizzup/pull/158), [#159](https://github.com/Zugzwang-world/hrizzup/pull/159), [#162](https://github.com/Zugzwang-world/hrizzup/pull/162), [#164](https://github.com/Zugzwang-world/hrizzup/pull/164), [#165](https://github.com/Zugzwang-world/hrizzup/pull/165)). For the founder: nothing to decide.
 - **R5 Board, stories and the console and R6 Join and first post:** ready to start, side by side: each fills only its own files (build.md, section 8.2), and neither needs a migration. Then Review 1, the founder's.
-- **R16 Scheduled jobs and records** (a side relay in Phase 1, beside R5, R6 and R10): in progress. M3, your three decisions recorded (PR_M3); next M1 (scheduled jobs re-saved and checked after every database change) and M2 (three decimals in every API time). For the founder: one step (below).
+- **R16 Scheduled jobs and records** (a side relay in Phase 1, beside R5, R6 and R10): in progress. M3, your three decisions recorded ([#166](https://github.com/Zugzwang-world/hrizzup/pull/166)); next M1 (scheduled jobs re-saved and checked after every database change) and M2 (three decimals in every API time). For the founder: one step (below).
 - **R7 to R15:** not started (Phases 2 to 4, the reviews, the closing record).
 - **Carried, unnumbered:** the market page (3.1), then the perp's page (3.4c), and the board (2.1), each when the design chat approves its design; live updates for bots (3.5e), later.
 
@@ -34,7 +34,7 @@
 
 ## What changed in the latest session
 
-**R16 recorded your three decisions of 18 November** (PR_M3): the database-only skip in PLAN.md and CLAUDE.md; the advisor's moments in CLAUDE.md and the four role files; your yes to social's six questions in the spec, build.md and every brief. The role files changed (For the founder).
+**R16 recorded your three decisions of 18 November** ([#166](https://github.com/Zugzwang-world/hrizzup/pull/166)): the database-only skip in PLAN.md and CLAUDE.md; the advisor's moments in CLAUDE.md and the four role files; your yes to social's six questions in the spec, build.md and every brief. The role files changed (For the founder).
 
 ## Open questions
 
