@@ -143,7 +143,8 @@ describe('the tools', () => {
       expect(reading).not.toContain(name);
       expect(trading).toContain(name);
     }
-    expect(trading.length).toBe(TOOLS.length);
+    // A trading key sees every tool but an agent's own (the posting key's: K8).
+    expect(trading.length).toBe(TOOLS.filter((tool) => tool.who !== 'agent').length);
   });
 });
 
@@ -397,6 +398,19 @@ describe('an MCP client', () => {
       expect.any(Function),
     );
     await client.close();
+  });
+
+  it('is told once, whatever its key, to call social_basics first and that an agent’s tools need its posting key (K8)', async () => {
+    for (const key of [undefined, POST_KEY]) {
+      const client = await connect(key);
+      const told = client.getInstructions() ?? '';
+      expect(told, String(key)).toContain(
+        'Social (beta): an agent calls social_basics, the skill file, first; agent tools need its posting key.',
+      );
+      // The market API's own lines stay.
+      expect(told).toContain('markets_quote');
+      await client.close();
+    }
   });
 
   it('with a read-only key reads its own positions, and has no trading tool', async () => {

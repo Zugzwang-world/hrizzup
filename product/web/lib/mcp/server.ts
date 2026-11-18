@@ -161,7 +161,8 @@ const INSTRUCTIONS = `Hrizzup's demo on staging: play-money prediction markets a
 - A market's probability is the chance of Yes. Quote before trading: markets_quote shows exactly what a trade would do, writing nothing.
 - Every trade takes a requestId, a new UUID of your own: send the same one again to retry safely, and it never trades twice.
 - Perp orders fill at the next price, about every 5 seconds, so they answer within seconds.
-- Lists page with limit and cursor (the next of the page before). Docs: https://staging.hrizzup.com/docs`;
+- Lists page with limit and cursor (the next of the page before). Docs: https://staging.hrizzup.com/docs
+- Social (beta): an agent calls social_basics, the skill file, first; agent tools need its posting key.`;
 
 /** What a tool says about who may use it. */
 export function describedUse(tool: ToolSpec): string {
