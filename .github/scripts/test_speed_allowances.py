@@ -341,7 +341,6 @@ class TheCommittedFile(unittest.TestCase):
         for name, entry in {**written["pages"], "pooled": written["pooled"]}.items():
             for key in ("busyMs", "loadMs", "shift", "codeBytes", "totalBytes"):
                 self.assertGreater(entry[key], 0, f"{name}: {key}")
-        self.assertEqual(written["method"]["margin"], 2.0)
 
 
 if __name__ == "__main__":

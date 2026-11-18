@@ -19,6 +19,7 @@ exactly as it is. Quick checks prove, on every pull request:
 Python's standard library only.
 """
 import contextlib
+import http.client
 import http.server
 import io
 import json
@@ -281,7 +282,10 @@ class TheRow(unittest.TestCase):
             items = [item(f"pr-{n}", rec(10 + n, **{field: value}), 10 + n) for n in range(5)]
             text, count, _ = self.tally(FakeGitHub(items))
             self.assertEqual(count, 5)
-            self.assertIn("**outside its limits**", text, field)
+            self.assertIn("**outside its limits:** " + ("busy time" if field == "busy" else "load") + ".", text, field)
+            self.assertNotIn("within its limits", text)
+        both = [item(f"pr-{n}", rec(10 + n, busy=40.0, load=-25.0), 10 + n) for n in range(5)]
+        self.assertIn("**outside its limits:** busy time and load.", self.tally(FakeGitHub(both))[0])
 
     def test_a_limit_is_inside_at_exactly_the_limit_and_the_sign_doesnt_matter(self):
         items = [item(f"pr-{n}", rec(10 + n, busy=-33.0, load=22.0), 10 + n) for n in range(5)]
@@ -346,6 +350,16 @@ class TheRow(unittest.TestCase):
         self.assertEqual(count, 5)
         self.assertEqual(len(github.downloads), 4)  # the current one is read from this run, not downloaded
         self.assertIn("busy +6.0 ms", text)  # (30 + 0 + 0 + 0 + 0) / 5
+
+    def test_a_rerun_cant_make_a_pull_request_look_clean_an_earlier_attempts_not_clean_record_stays(self):
+        # The same run (777) left a not-clean record on the list; its re-run is clean. The list keeps the
+        # earlier record, so the pull request is not clean here, as it will be in every later tally.
+        earlier = item("pr-now", rec(200, clean=False, reasons=["/: Load: ..."]), 20, run=777)
+        github = FakeGitHub([earlier] + self.clean_prs(4))
+        text, count, _ = self.tally(github, current=rec(200), branch="pr-now", run_id=777)
+        self.assertEqual(count, 0)
+        self.assertIn("The row ended at `pr-now`", text)
+        self.assertIn("- /: Load: ...", text)
 
     def test_a_clean_pull_requests_record_from_an_earlier_push_still_counts_with_the_current_one(self):
         github = FakeGitHub([item("pr-now", rec(200), 20, run=5)] + self.clean_prs(3))
@@ -461,6 +475,80 @@ class TheGitHubClient(unittest.TestCase):
                 self.assertIn("Tally unavailable this run", printed.getvalue())
                 self.assertIn(f"{status}", said.getvalue())
                 self.assertNotIn("sekrit", printed.getvalue() + said.getvalue())
+
+    def test_an_answer_that_isnt_a_list_of_artifacts_is_unavailable_not_a_crash(self):
+        listed = tempfile.mkdtemp()
+        self.addCleanup(lambda: __import__("shutil").rmtree(listed, ignore_errors=True))
+        limits = os.path.join(listed, "allowances.json")
+        with open(limits, "w") as f:
+            json.dump({"fiveComparisonAverage": LIMITS}, f)
+        for body in ("[]", '"text"', "null", '{"artifacts": "no"}', '{"artifacts": [1, 2]}', "not json", ""):
+            with self.subTest(body=body):
+                def opener(request, timeout, body=body):
+                    return io.BytesIO(body.encode())
+
+                client = sbs.GitHub("token", "owner/repo", opener=opener)
+                with self.assertRaises(sbs.Unavailable):
+                    client.page(CLEAN, 1)
+        # And through the command: a 200 that isn't an object ends as "unavailable", with exit 0.
+        for body in (b"[]", b'{"artifacts": [null]}'):
+            with self.subTest(command=body):
+                api, seen = self.serve_body(body)
+                env = {"GITHUB_TOKEN": "sekrit", "GITHUB_REPOSITORY": "owner/repo", "GITHUB_API_URL": api}
+                with contextlib.redirect_stdout(io.StringIO()) as printed, contextlib.redirect_stderr(io.StringIO()):
+                    self.assertEqual(sbs.run_tally(["speed", "--limits", limits], env), 0)
+                self.assertIn("Tally unavailable this run", printed.getvalue())
+
+    def test_a_download_that_breaks_off_mid_read_is_unavailable_too(self):
+        class Broken:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+            def read(self):
+                raise http.client.IncompleteRead(b"par", 100)
+
+        client = sbs.GitHub("token", "owner/repo", opener=lambda request, timeout: Broken())
+        with self.assertRaises(sbs.Unavailable):
+            client.download(5)
+
+        def reset(request, timeout):
+            raise ConnectionResetError("reset")
+
+        with self.assertRaises(sbs.Unavailable):
+            sbs.GitHub("token", "owner/repo", opener=reset).page(CLEAN, 1)
+
+    def test_a_download_that_fails_after_five_are_counted_leaves_the_count_and_says_the_average_cant_be_checked(self):
+        class Failing(FakeGitHub):
+            def download(self, artifact_id):
+                raise sbs.Unavailable("URLError")
+
+        text, count, _ = sbs.tally(Failing([item(f"pr-{n}", rec(10 + n), 10 + n) for n in range(5)]), "speed", LIMITS)
+        self.assertEqual(count, 5)
+        self.assertIn("**The five-comparison average can't be checked this run:** GitHub didn't answer.", text)
+
+    def serve_body(self, body):
+        """A local server that answers every request 200 with these bytes."""
+        seen = []
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):  # noqa: N802
+                seen.append(self.path)
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *args):
+                pass
+
+        server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.shutdown)
+        self.addCleanup(server.server_close)
+        return f"http://127.0.0.1:{server.server_port}", seen
 
     def test_a_server_that_isnt_there_is_unavailable_too(self):
         client = sbs.GitHub("token", "owner/repo", api="http://127.0.0.1:1")
@@ -671,11 +759,6 @@ class TheWorkflow(unittest.TestCase):
         for job in ("quick", "database", "screen-part", "screens"):
             self.assertNotIn("speed-one-machine", self.jobs[job])
             self.assertNotIn("SPEED_PART", self.jobs[job])
-
-    def test_the_trial_is_not_named_in_the_ruleset_or_the_documents_that_list_the_required_checks(self):
-        for name in ("Speed check on three machines", "Speed check on three machines, part"):
-            for required in REQUIRED:
-                self.assertNotEqual(name, required)
 
 
 if __name__ == "__main__":

@@ -40,6 +40,7 @@ names alone and read a file only when it needs the numbers.
 
 Python's standard library only. Prints no secrets: counts, pull request numbers and page paths.
 """
+import http.client
 import io
 import json
 import os
@@ -213,17 +214,21 @@ class GitHub:
         try:
             with self.opener(request, timeout=60) as answer:
                 return answer.read()
-        except (urllib.error.URLError, OSError) as error:  # HTTPError is one too
+        except (urllib.error.URLError, http.client.HTTPException, OSError) as error:  # HTTPError is a URLError
             raise Unavailable(type(error).__name__ + (f" {error.code}" if hasattr(error, "code") else "")) from None
 
     def page(self, name, number):
-        """One page of the repository's artifacts of that name."""
+        """One page of the repository's artifacts of that name: a list of objects, or Unavailable."""
         url = (f"{self.api}/repos/{self.repository}/actions/artifacts?"
                + urllib.parse.urlencode({"name": name, "per_page": self.per_page, "page": number}))
         try:
-            return json.loads(self.get(url)).get("artifacts") or []
+            answer = json.loads(self.get(url))
         except ValueError:
             raise Unavailable("an answer that isn't JSON") from None
+        found = answer.get("artifacts") if isinstance(answer, dict) else None
+        if not isinstance(found, list) or not all(isinstance(a, dict) for a in found):
+            raise Unavailable("an answer that isn't a list of artifacts")
+        return found
 
     def download(self, artifact_id):
         return self.get(f"{self.api}/repos/{self.repository}/actions/artifacts/{int(artifact_id)}/zip")
@@ -232,7 +237,8 @@ class GitHub:
 def from_this_repository(artifact):
     """False for a run whose code came from another repository (a fork's pull request): its
     artifact could say anything, so it is never counted."""
-    run = artifact.get("workflow_run") or {}
+    run = artifact.get("workflow_run")
+    run = run if isinstance(run, dict) else {}
     head, home = run.get("head_repository_id"), run.get("repository_id")
     return head is None or home is None or head == home
 
@@ -262,12 +268,13 @@ def listing(github, names, budget):
                 budget.take()
                 found = github.page(name, number)
                 for artifact in found:
-                    run = artifact.get("workflow_run") or {}
-                    branch = run.get("head_branch")
+                    run = artifact.get("workflow_run")
+                    run = run if isinstance(run, dict) else {}
+                    branch, created = run.get("head_branch"), artifact.get("created_at")
                     if (artifact.get("name") == name and not artifact.get("expired")
                             and from_this_repository(artifact) and isinstance(branch, str) and branch
-                            and branch != "main"):
-                        entries.append({"id": artifact["id"], "created_at": artifact.get("created_at") or "",
+                            and branch != "main" and isinstance(artifact.get("id"), int)):
+                        entries.append({"id": artifact["id"], "created_at": created if isinstance(created, str) else "",
                                         "branch": branch, "run": run.get("id"), "clean": clean})
                 if len(found) < github.per_page:
                     break
@@ -337,9 +344,13 @@ def tally(github, kind, limits, current=None, branch=None, run_id=None, budget=N
     heading = ["### The tally: the Speed check on three machines, beside the Speed check", ""]
     entries, capped = listing(github, names, budget)
     if current is not None and branch:
-        entries = [e for e in entries if e["run"] != run_id]
+        # This run's own record is counted from the file. The list may already show it (same run, same
+        # verdict) and must not count it twice; an earlier attempt of the same run that was NOT clean is
+        # another record and stays, so a re-run can't make a pull request look clean.
+        verdict = current.get("clean") is True
+        entries = [e for e in entries if not (e["run"] == run_id and e["clean"] == verdict)]
         entries.insert(0, {"id": None, "created_at": "9999", "branch": branch, "run": run_id,
-                           "clean": current.get("clean") is True, "record": current})
+                           "clean": verdict, "record": current})
     groups = by_branch(entries)
 
     counted, ended = [], None
@@ -390,11 +401,13 @@ def tally(github, kind, limits, current=None, branch=None, run_id=None, budget=N
             lines.append("**The five-comparison average can't be checked this run:** " + "; ".join(problems) + ".")
         else:
             busy, load = averages["busyMs"], averages["loadMs"]
-            inside = abs(busy) <= limits["busyMs"] and abs(load) <= limits["loadMs"]
+            outside = [name for name, value, limit in (("busy time", busy, limits["busyMs"]),
+                                                       ("load", load, limits["loadMs"])) if abs(value) > limit]
+            verdict = ("**outside its limits:** " + " and ".join(outside)) if outside else "**within its limits**"
             lines.append(
                 "The five pull requests' average difference (three machines - one machine, each pull request "
                 f"weighted equally): busy {busy:+.1f} ms (limit +/-{limits['busyMs']} ms), load {load:+.1f} ms "
-                f"(limit +/-{limits['loadMs']} ms): **{'within its limits' if inside else 'outside its limits'}**.")
+                f"(limit +/-{limits['loadMs']} ms): {verdict}.")
     return "\n".join(lines) + "\n", len(counted), capped
 
 
