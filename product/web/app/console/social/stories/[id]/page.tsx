@@ -4,7 +4,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Facts, Frame } from '@/components/console/social/frame.tsx';
-import { UpdateForm } from '@/components/console/social/story-forms.tsx';
+import { UpdateForm, WithdrawForm } from '@/components/console/social/story-forms.tsx';
 import { serverApi } from '@/lib/api/server.ts';
 import { indiaTime } from '@/lib/console-format.ts';
 import { testStoriesEnabled } from '@/lib/env.ts';
@@ -114,6 +114,16 @@ export default async function ConsoleStoryPage({ params }: Props) {
       ) : (
         <p className="mt-2 text-muted">Updates are added on staging only.</p>
       )}
+
+      {testStoriesEnabled() ? (
+        <>
+          <h2 className="mt-8 text-xl font-semibold">Withdraw</h2>
+          <p className="mt-2 max-w-3xl text-sm text-muted">
+            Takes the story off the board, listed or not; its page then says why. Staging only.
+          </p>
+          <WithdrawForm id={story.id} />
+        </>
+      ) : null}
     </Frame>
   );
 }

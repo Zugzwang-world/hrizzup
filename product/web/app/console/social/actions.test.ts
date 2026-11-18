@@ -21,7 +21,10 @@ const social = {
 };
 
 vi.mock('@/lib/console.ts', () => ({ consoleAdmin: () => consoleAdmin() }));
-vi.mock('@/lib/api/server.ts', () => ({ serverApi: { admin: { social } } }));
+const storyGet = vi.fn();
+vi.mock('@/lib/api/server.ts', () => ({
+  serverApi: { admin: { social }, social: { stories: { get: storyGet } } },
+}));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 vi.mock('next/navigation', () => ({
   notFound: () => {
@@ -40,6 +43,7 @@ const {
   saveUpdateAction,
   setAgentAction,
   setSettingsAction,
+  withdrawStoryAction,
 } = await import('./actions.ts');
 
 const NOW = new Date('2026-11-18T12:00:00.000Z');
@@ -78,6 +82,7 @@ describe('the social console’s forms, to anyone but an admin', () => {
       [saveStoryAction, form({ id: STORY, title: 'T', listed: 'unlisted' })],
       [saveStoryAction, form({})],
       [saveUpdateAction, form({ id: UPDATE, storyId: STORY, headline: 'H' })],
+      [withdrawStoryAction, form({ id: STORY, reason: 'x' })],
       [setSettingsAction, form({ postsPerDay: '9', 'shown-postsPerDay': '5', reason: 'x' })],
       [setAgentAction, form({ id: INVITE, house: 'on', reason: 'x' })],
       [revokeAgentKeysAction, form({ id: INVITE, reason: 'x' })],
@@ -85,6 +90,7 @@ describe('the social console’s forms, to anyone but an admin', () => {
     for (const [action, sent] of attempts) {
       await expect(action(START, sent)).rejects.toThrow('NOT_FOUND');
     }
+    expect(storyGet).not.toHaveBeenCalled();
     for (const group of Object.values(social)) {
       for (const call of Object.values(group)) expect(call).not.toHaveBeenCalled();
     }
@@ -488,5 +494,80 @@ describe('revoking an agent’s keys', () => {
     );
     const answer = await revokeAgentKeysAction(START, form({ id: INVITE, reason: '' }));
     expect(answer.problems).toEqual({ reason: 'Must not be empty.' });
+  });
+});
+
+describe('withdrawing a story', () => {
+  const live = {
+    id: STORY,
+    state: 'live',
+    requestedId: null,
+    listed: true,
+    title: 'A listed test story',
+    summary: 'A summary of the test.',
+    categories: ['general'],
+    places: ['mumbai'],
+    createdAt: '2026-11-18T10:00:00.123456Z',
+  };
+
+  it('saves the same story again as withdrawn with the reason, carrying its own listing, then shows its page', async () => {
+    storyGet.mockResolvedValue(live);
+    social.stories.save.mockResolvedValue({ id: STORY });
+    await expect(
+      withdrawStoryAction(START, form({ id: STORY, reason: ' It was a test ' })),
+    ).rejects.toThrow(`REDIRECT /console/social/stories/${STORY}`);
+    expect(social.stories.save).toHaveBeenCalledWith({
+      record: {
+        format: 'story/1',
+        id: STORY,
+        title: 'A listed test story',
+        summary: 'A summary of the test.',
+        locations: ['mumbai'],
+        categories: ['general'],
+        state: 'withdrawn',
+        withdrawn_reason: 'It was a test',
+        created_at: '2026-11-18T10:00:00.123456Z',
+        updated_at: '2026-11-18T11:59:55.000Z',
+      },
+      listed: true,
+    });
+  });
+
+  it('asks for a reason under its field, and calls nothing to save', async () => {
+    storyGet.mockResolvedValue(live);
+    const answer = await withdrawStoryAction(START, form({ id: STORY, reason: '' }));
+    expect(answer.problems.reason).toBe('Must not be empty.');
+    expect(social.stories.save).not.toHaveBeenCalled();
+  });
+
+  it('refuses a story that is not live, or was merged into another', async () => {
+    storyGet.mockResolvedValue({
+      id: STORY,
+      state: 'withdrawn',
+      requestedId: null,
+      withdrawnReason: 'x',
+    });
+    expect((await withdrawStoryAction(START, form({ id: STORY, reason: 'x' }))).error).toMatch(
+      /not live/,
+    );
+    storyGet.mockResolvedValue({ ...live, requestedId: INVITE });
+    expect((await withdrawStoryAction(START, form({ id: STORY, reason: 'x' }))).error).toMatch(
+      /not live/,
+    );
+    expect(social.stories.save).not.toHaveBeenCalled();
+  });
+
+  it('says a story that is not there, and a newer version already saved, in words', async () => {
+    storyGet.mockRejectedValue(refusal('NOT_FOUND', 404, 'No such story'));
+    expect((await withdrawStoryAction(START, form({ id: STORY, reason: 'x' }))).error).toMatch(
+      /no longer exists/,
+    );
+    storyGet.mockResolvedValue(live);
+    social.stories.save.mockRejectedValue(
+      refusal('CONFLICT', 409, 'x', { reason: 'stale_record' }),
+    );
+    expect((await withdrawStoryAction(START, form({ id: STORY, reason: 'x' }))).error).toMatch(
+      /newer version/,
+    );
   });
 });

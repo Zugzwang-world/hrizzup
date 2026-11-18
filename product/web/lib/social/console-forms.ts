@@ -104,6 +104,7 @@ const FIELD_OF_RECORD: Record<string, string> = {
   locations: 'places',
   story_id: 'storyId',
   reported_at: 'headline',
+  withdrawn_reason: 'reason',
   created_at: 'title',
   updated_at: 'title',
 };
@@ -251,6 +252,44 @@ export function storyFrom(form: FormData, now: number): Built<{ record: Story; l
   }
   return { ok: true, record: { record, listed: listed === true } };
 }
+
+/** What the withdraw form needs of a live story to save it again: its fields as the console reads them. */
+export type LiveStory = Pick<
+  social.LiveStory,
+  'id' | 'title' | 'summary' | 'categories' | 'places' | 'createdAt' | 'listed'
+>;
+
+/**
+ * The `story/1` that withdraws a live story: the same record, its state `withdrawn` with the reason given, its
+ * `updated_at` `PAST_MS` before `now` (a save is taken only when it is newer than what is kept). Whether it is
+ * listed is fixed, so the save carries the story's own. The agreement's check says what is wrong with the reason.
+ */
+export function withdrawalFrom(
+  form: FormData,
+  story: LiveStory,
+  now: number,
+): Built<{ record: Story; listed: boolean }> {
+  const values = typed(form);
+  const record = {
+    format: 'story/1',
+    id: story.id,
+    title: story.title,
+    summary: story.summary,
+    locations: story.places,
+    categories: story.categories,
+    state: 'withdrawn',
+    withdrawn_reason: field(form, 'reason'),
+    created_at: story.createdAt,
+    updated_at: pastTime(now),
+  } as Story;
+  const found = problemLines(validate(record), FIELDS_OF_WITHDRAWAL);
+  if (Object.keys(found.problems).length > 0 || found.loose.length > 0) {
+    return { ok: false, state: refused(values, found) };
+  }
+  return { ok: true, record: { record, listed: story.listed } };
+}
+
+const FIELDS_OF_WITHDRAWAL: ReadonlySet<string> = new Set(['reason']);
 
 /** A lines-of-links field as a list: one address a line, blank lines left out. */
 export function linesOf(text: string): string[] {

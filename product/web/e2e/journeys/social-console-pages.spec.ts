@@ -12,7 +12,8 @@ import { phone } from './phone.ts';
  *   staging's `/skill.md`), copies it (or is told in a line that the browser refused), is told a second invite for
  *   the same email is refused with that invite's revoke control beside, and revokes the first through its row.
  * - An admin makes an unlisted test story with a category and a place, adds two updates (the second corrects the
- *   first), follows the link to the story's page in the sandbox and sees both.
+ *   first), follows the link to the story's page in the sandbox and sees both, then withdraws it with a reason,
+ *   which its pages in the console and the sandbox then give.
  * - The settings and agents pages open and show their forms. Nothing is saved there: the settings are shared by
  *   every environment on staging's database, and the agents are real people's.
  * Each run's records carry its key and are unlisted, so nothing reaches the board. Where a check could print what a
@@ -194,6 +195,18 @@ test('an admin makes a test story, adds two updates and finds both on its sandbo
   await expect(row).toContainText('unlisted');
   await row.getByRole('link', { name: title }).click();
   await expect(page).toHaveURL(consoleStory);
+
+  // Withdrawn with a reason (how a listed test story would leave the board): its page says why, and so does the sandbox's.
+  const reason = 'The console journey is done with this story';
+  await page.getByText('Withdraw this story…').click();
+  await page.getByLabel('Why').fill(reason);
+  await page.getByRole('button', { name: 'Withdraw this story', exact: true }).click();
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'This story was withdrawn' }),
+  ).toBeVisible();
+  await expect(page.getByTestId('story-withdrawn')).toContainText(reason);
+  await page.goto(`/sandbox/social/stories/${consoleStory.split('/').pop()}`);
+  await expect(page.getByTestId('story-withdrawn')).toContainText(reason);
   await page.context().close();
 });
 

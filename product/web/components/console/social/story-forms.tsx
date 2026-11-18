@@ -1,10 +1,15 @@
 'use client';
 
 import { useActionState, useState } from 'react';
-import { saveStoryAction, saveUpdateAction } from '@/app/console/social/actions.ts';
+import {
+  saveStoryAction,
+  saveUpdateAction,
+  withdrawStoryAction,
+} from '@/app/console/social/actions.ts';
 import { START } from '@/lib/social/console-forms.ts';
 import { BUTTON, FIELD, Field, Refusal } from '../controls.tsx';
 import { ListedChoice, Problem, Saved } from './controls.tsx';
+import { Reveal } from './reveal.tsx';
 
 type Named = { code: string; name: string };
 /** The places by tier, each tier a group of the select. */
@@ -250,5 +255,42 @@ export function UpdateForm({
         </button>
       </div>
     </form>
+  );
+}
+
+/**
+ * Withdrawing a story, with the reason: it leaves the board (a listed one too) and its page says why. The reason is
+ * kept in the story, and shown to anyone who opens its address.
+ */
+export function WithdrawForm({ id }: { id: string }) {
+  const [state, run, pending] = useActionState(withdrawStoryAction, START);
+  return (
+    <Reveal label="Withdraw this story…">
+      <form action={run} className="mt-3 grid gap-4" data-testid="withdraw-form">
+        <input type="hidden" name="id" value={id} />
+        <Field
+          label="Why"
+          htmlFor="withdraw-reason"
+          hint="Shown to anyone who opens the story: one line, at most 200 characters."
+        >
+          <input
+            id="withdraw-reason"
+            name="reason"
+            required
+            maxLength={200}
+            defaultValue={state.values.reason ?? ''}
+            aria-describedby="withdraw-reason-hint"
+            className={FIELD}
+          />
+          <Problem id="withdraw-reason-problem" message={state.problems.reason} />
+        </Field>
+        <Refusal message={state.error} />
+        <div>
+          <button type="submit" disabled={pending} className={BUTTON}>
+            {pending ? 'Withdrawing…' : 'Withdraw this story'}
+          </button>
+        </div>
+      </form>
+    </Reveal>
   );
 }

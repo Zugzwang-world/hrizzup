@@ -21,6 +21,7 @@ import {
   storyFrom,
   typed,
   updateFrom,
+  withdrawalFrom,
 } from '@/lib/social/console-forms.ts';
 import { SETTING_ROWS } from '@/lib/social/console-settings.ts';
 
@@ -154,6 +155,38 @@ export async function saveStoryAction(
   }
   revalidatePath('/console/social/stories');
   redirect(`/console/social/stories/${built.record.record.id}`);
+}
+
+/**
+ * Withdraws a live story, with the reason given: the same story saved again with its state `withdrawn`, so it leaves
+ * the board and its page says why. Its listing is fixed, so the save carries the story's own. Then shows its page.
+ */
+export async function withdrawStoryAction(
+  _before: SocialFormState,
+  form: FormData,
+): Promise<SocialFormState> {
+  await adminsOnly();
+  const values = typed(form);
+  const id = field(form, 'id');
+  let story: social.StoryDetail;
+  try {
+    story = await serverApi.social.stories.get({ id });
+  } catch (error) {
+    return refused(error, values, FIELDS.reason);
+  }
+  if (story.state !== 'live' || story.requestedId !== null) {
+    return { error: 'This story is not live: there is nothing to withdraw.', problems: {}, values };
+  }
+  const built = withdrawalFrom(form, story, Date.now());
+  if (!built.ok) return built.state;
+  try {
+    await serverApi.admin.social.stories.save(built.record);
+  } catch (error) {
+    return refused(error, values, FIELDS.reason);
+  }
+  revalidatePath('/console/social/stories');
+  revalidatePath(`/console/social/stories/${id}`);
+  redirect(`/console/social/stories/${id}`);
 }
 
 /** Saves an update of a story, then shows the story again with it; a new ID is given for the next update. */
