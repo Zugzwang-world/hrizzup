@@ -99,6 +99,47 @@ function fetchThrough(context: APIRequestContext): typeof fetch {
   };
 }
 
+/**
+ * Reads an address until Vercel's edge serves a copy of it, and says how old that copy was and when it
+ * was served: only a purge can show a later save before that copy's own minute is up. Where there is no
+ * edge (this Mac), nothing is read and nothing is kept.
+ */
+async function prime(
+  request: APIRequestContext,
+  path: string,
+): Promise<{ age: number; at: number }> {
+  let primed = { age: 0, at: Date.now() };
+  if (!onVercel()) return primed;
+  let kept = false;
+  for (let attempt = 0; attempt < 20 && !kept; attempt++) {
+    if (attempt > 0) await sleep(500);
+    const again = await get(request, path);
+    expect(again.status, path).toBe(200);
+    kept = again.edge === 'HIT';
+    primed = { age: again.age, at: Date.now() };
+  }
+  expect(kept, `the edge keeps ${path} within seconds`).toBe(true);
+  return primed;
+}
+
+/**
+ * Reads an address every second, until `done` says what it answered is the new one or `deadline` (a
+ * moment, in milliseconds) passes: the first read after a purge may be the old copy, served once while the
+ * edge fetches the new one. Answers the last thing read and the moment it was read.
+ */
+async function until<T>(
+  deadline: number,
+  read: () => Promise<T>,
+  done: (answer: T) => boolean,
+): Promise<{ answer: T; at: number }> {
+  for (;;) {
+    const answer = await read();
+    const at = Date.now();
+    if (done(answer) || at >= deadline) return { answer, at };
+    await sleep(1000);
+  }
+}
+
 /** A story/1 record of the run's: an unlisted test story, made a minute ago. */
 function storyRecord(id: string, label: string, at: Date) {
   const now = at.toISOString();
@@ -295,27 +336,22 @@ describeApiOnly("the board's and the stories' reads", () => {
       }
       expect((await get(request, '/api/v1/social/stories/not-an-id')).status).toBe(400);
 
-      // The purge, end to end. First the story is read until the edge serves a copy (where there is an
-      // edge), and how old that copy is, and when, is noted: only a purge can show the save before that
-      // copy's own minute is up.
-      let primedAge = 0;
-      let primedAt = Date.now();
-      if (onVercel()) {
-        let kept = false;
-        for (let attempt = 0; attempt < 20 && !kept; attempt++) {
-          if (attempt > 0) await sleep(500);
-          const again = await get(request, `/api/v1/social/stories/${storyId}`);
-          expect(again.status).toBe(200);
-          kept = again.edge === 'HIT';
-          primedAge = again.age;
-          primedAt = Date.now();
-        }
-        expect(kept, 'the edge keeps the story read within seconds').toBe(true);
-      }
+      // The purge, end to end. First each of three reads the save changes (the story, its first page of
+      // updates and its brief) is read until the edge serves a copy (where there is an edge), and how old
+      // that copy was, and when, is noted for each: the save must show on each before its copy's own
+      // minute is up, so the edge's expiry can never explain a pass.
+      const storyPath = `/api/v1/social/stories/${storyId}`;
+      const updatesPath = `${storyPath}/updates?limit=1`;
+      const briefPath = `${storyPath}/brief`;
+      const [primedStory, primedUpdates, primedBrief] = await Promise.all([
+        prime(request, storyPath),
+        prime(request, updatesPath),
+        prime(request, briefPath),
+      ]);
       test.info().annotations.push({
         type: 'edge',
         description: onVercel()
-          ? `The story read was served from Vercel's edge before the save, a copy ${primedAge} s old.`
+          ? `Served from Vercel's edge before the save: the story a copy ${primedStory.age} s old, its updates ${primedUpdates.age} s, its brief ${primedBrief.age} s.`
           : 'No edge here: nothing was kept before the save.',
       });
 
@@ -330,62 +366,72 @@ describeApiOnly("the board's and the stories' reads", () => {
       expect(third.status).toBe(200);
       expect(third.body).toEqual({ id: thirdUpdate.id, storyId, saved: 'new' });
       const savedAt = Date.now();
+      const deadline = savedAt + PURGE_DEADLINE_MS;
+      /** The copy the edge kept would still have been fresh when the new answer showed: so a purge did it. */
+      const beforeItsOwnExpiry = (
+        what: string,
+        primed: { age: number; at: number },
+        shownAt: number,
+      ) => {
+        if (onVercel()) {
+          expect(
+            primed.age + (shownAt - primed.at) / 1000,
+            `${what} showed the save before the old copy's own minute was up, so the purge did it`,
+          ).toBeLessThan(EDGE_SECONDS);
+        }
+      };
 
-      // The story read shows it within seconds, not at the end of the edge's own minute: the first read
-      // may be the old copy (served once while the edge fetches the new one), so it is polled.
-      let shown: string[] = [];
-      while (Date.now() - savedAt < PURGE_DEADLINE_MS) {
-        const now = await get(request, `/api/v1/social/stories/${storyId}`);
-        expect(now.status).toBe(200);
-        const parsed = social.storyDetail.parse(now.body);
-        shown = parsed.state === 'live' ? parsed.updates.map((update) => update.id) : [];
-        if (shown[0] === thirdUpdate.id) break;
-        await sleep(1000);
-      }
-      const shownAt = Date.now();
-      const storySeenAfter = shownAt - savedAt;
+      // The story read shows it within seconds, not at the end of the edge's own minute.
+      const story3 = await until(
+        deadline,
+        async () => {
+          const now = await get(request, storyPath);
+          expect(now.status).toBe(200);
+          const parsed = social.storyDetail.parse(now.body);
+          return parsed.state === 'live' ? parsed.updates.map((update) => update.id) : [];
+        },
+        (shown) => shown[0] === thirdUpdate.id,
+      );
       expect(
-        shown,
-        `the third update shows within ${PURGE_DEADLINE_MS / 1000} seconds of the save`,
+        story3.answer,
+        `the story shows the third update within ${PURGE_DEADLINE_MS / 1000} seconds of the save`,
       ).toEqual([thirdUpdate.id, secondUpdate.id, firstUpdate.id]);
-      if (onVercel()) {
-        // Not the edge's own expiry: the copy the edge kept would still have been fresh when it showed.
-        expect(
-          primedAge + (shownAt - primedAt) / 1000,
-          "the save showed before the old copy's own minute was up, so the purge did it",
-        ).toBeLessThan(EDGE_SECONDS);
-      }
+      beforeItsOwnExpiry('the story read', primedStory, story3.at);
 
-      // The updates read is tagged with the story too, and the brief: its Redis copy is deleted by the
-      // save before the tags are purged, so the refresh the edge makes can't read the old file.
-      let updates: string[] = [];
-      let markdown = '';
-      let version = '';
-      while (Date.now() - savedAt < PURGE_DEADLINE_MS) {
-        const page = social.updatePage.parse(
-          (await get(request, `/api/v1/social/stories/${storyId}/updates?limit=3`)).body,
-        );
-        updates = page.updates.map((update) => update.id);
-        const file = social.brief.parse(
-          (await get(request, `/api/v1/social/stories/${storyId}/brief`)).body,
-        );
-        markdown = file.markdown;
-        version = file.version;
-        if (updates[0] === thirdUpdate.id && markdown.includes(thirdUpdate.headline)) break;
-        await sleep(1000);
-      }
-      expect(updates, 'the updates read shows the third update').toEqual([
+      // The first page of updates (the address read and kept above) is tagged with the story too.
+      const updates3 = await until(
+        deadline,
+        async () => {
+          const now = await get(request, updatesPath);
+          expect(now.status).toBe(200);
+          return social.updatePage.parse(now.body).updates.map((update) => update.id);
+        },
+        (shown) => shown[0] === thirdUpdate.id,
+      );
+      expect(updates3.answer, 'the first page of updates shows the third update').toEqual([
         thirdUpdate.id,
-        secondUpdate.id,
-        firstUpdate.id,
       ]);
-      expect(markdown, "the brief holds the third update's headline").toContain(
+      beforeItsOwnExpiry('the updates read', primedUpdates, updates3.at);
+
+      // The brief: its Redis copy is deleted by the save before the tags are purged, so the refresh the
+      // edge makes can't read the old file, and it shows the update before its own edge copy expired.
+      const brief3 = await until(
+        deadline,
+        async () => {
+          const now = await get(request, briefPath);
+          expect(now.status).toBe(200);
+          return social.brief.parse(now.body);
+        },
+        (file) => file.markdown.includes(thirdUpdate.headline),
+      );
+      expect(brief3.answer.markdown, "the brief holds the third update's headline").toContain(
         thirdUpdate.headline,
       );
-      expect(version, 'the brief is a new file').not.toBe(written.version);
+      expect(brief3.answer.version, 'the brief is a new file').not.toBe(written.version);
+      beforeItsOwnExpiry('the brief read', primedBrief, brief3.at);
       test.info().annotations.push({
         type: 'purge',
-        description: `The story read showed the saved update ${(storySeenAfter / 1000).toFixed(1)} s after the save.`,
+        description: `After the save, the story showed it ${((story3.at - savedAt) / 1000).toFixed(1)} s later, its updates ${((updates3.at - savedAt) / 1000).toFixed(1)} s, its brief ${((brief3.at - savedAt) / 1000).toFixed(1)} s.`,
       });
 
       // The same six reads are MCP tools, in beta and public: an AI tool with no key lists them, and
