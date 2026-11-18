@@ -6,7 +6,7 @@ import {
   saveUpdateAction,
   withdrawStoryAction,
 } from '@/app/console/social/actions.ts';
-import { START } from '@/lib/social/console-state.ts';
+import { START, sendId } from '@/lib/social/console-state.ts';
 import { BUTTON, FIELD, Field, Refusal } from '../controls.tsx';
 import { ListedChoice, Problem, Saved } from './controls.tsx';
 import { Reveal } from './reveal.tsx';
@@ -168,9 +168,10 @@ export function UpdateForm({
   earlier: { id: string; headline: string }[];
 }) {
   const [state, run, pending] = useActionState(saveUpdateAction, START);
-  // The ID kept for as long as the page is open and changed only by a save: sending the form twice is one update.
+  // The ID the last send carried until a save uses it up (`sendId`): sending the form twice is one update, and
+  // an update after a save never carries the saved one's ID, a refused send between them or not.
   const [first] = useState(id);
-  const own = state.nextId ?? first;
+  const own = sendId(state, 'id', first);
   const value = (name: string, fallback = '') => state.values[name] ?? fallback;
   return (
     <form key={own} action={run} className="mt-4 grid gap-6" data-testid="update-form">

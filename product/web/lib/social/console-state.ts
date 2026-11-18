@@ -24,3 +24,13 @@ export type SocialFormState = {
 };
 
 export const START: SocialFormState = { error: null, problems: {}, values: {} };
+
+/**
+ * The ID the form's next send carries (a story's update, or an invite's request): the new one a save gave
+ * (`nextId`), else the one the last send carried (`values[name]`, which a refusal keeps), else the one the page
+ * first rendered. A save has used its ID up, so after one the next send never carries it again, even when a refused
+ * send comes between; a refused send, which saved nothing, carries its own again, so sending it twice is still one.
+ */
+export function sendId(state: SocialFormState, name: string, first: string): string {
+  return state.nextId ?? state.values[name] ?? first;
+}

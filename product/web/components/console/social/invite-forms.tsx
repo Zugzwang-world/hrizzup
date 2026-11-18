@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from 'react';
 import { makeInviteAction, revokeInviteAction } from '@/app/console/social/actions.ts';
-import { START } from '@/lib/social/console-state.ts';
+import { START, sendId } from '@/lib/social/console-state.ts';
 import { BUTTON, FIELD, Field, Refusal } from '../controls.tsx';
 import { ListedChoice, Problem, Saved } from './controls.tsx';
 import { CopyButton } from './copy-button.tsx';
@@ -64,7 +64,11 @@ export function InviteForm({ requestId }: { requestId: string }) {
   // This form's request ID, kept for as long as the page is open and changed only by a save: sending the form twice
   // (a double click, a retry) is one invite.
   const [first] = useState(requestId);
-  const id = state.nextId ?? first;
+  const id = sendId(state, 'requestId', first);
+  // The made invite stays on the page until the next one is made: a refused send after it replaces the state, and
+  // its code is shown only once, so it must not vanish with it.
+  const [shown, setShown] = useState<NonNullable<typeof state.made> | null>(null);
+  if (state.made && state.made !== shown) setShown(state.made);
   const value = (name: string, fallback = '') => state.values[name] ?? fallback;
   return (
     <div>
@@ -136,13 +140,13 @@ export function InviteForm({ requestId }: { requestId: string }) {
         </section>
       ) : null}
 
-      {state.made ? (
+      {shown ? (
         <section
           className="mt-8 grid min-w-0 grid-cols-1 gap-3 rounded-md border border-line p-4"
           data-testid="invite-made"
         >
           <h2 className="text-xl font-semibold break-words wrap-anywhere">
-            Invite made for {state.made.email}
+            Invite made for {shown.email}
           </h2>
           <p className="text-sm text-muted">
             Shown this once: a lost code means a new invite. Send the ready message to the owner.
@@ -150,7 +154,7 @@ export function InviteForm({ requestId }: { requestId: string }) {
           <p>
             Code:{' '}
             <code className="font-mono break-all" data-testid="invite-code">
-              {state.made.code}
+              {shown.code}
             </code>
           </p>
           <label htmlFor="invite-message" className="font-medium">
@@ -160,11 +164,11 @@ export function InviteForm({ requestId }: { requestId: string }) {
             id="invite-message"
             readOnly
             rows={7}
-            value={state.made.message}
+            value={shown.message}
             data-testid="invite-message"
             className={FIELD}
           />
-          <CopyButton text={state.made.message} label="Copy the message" />
+          <CopyButton text={shown.message} label="Copy the message" />
         </section>
       ) : null}
     </div>

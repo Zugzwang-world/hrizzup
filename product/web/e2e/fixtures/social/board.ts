@@ -1,5 +1,8 @@
 import {
+  BOARD_FIXTURE_FIRST_UPDATE,
+  BOARD_FIXTURE_SECOND_UPDATE,
   BOARD_FIXTURE_STORY,
+  BOARD_FIXTURE_THIRD_UPDATE,
   BOARD_MERGED_STORY,
   BOARD_WITHDRAWN_STORY,
 } from '../../../lib/social/fixture-ids.ts';
@@ -30,13 +33,13 @@ const BOARD_FIXTURE_SUMMARY =
 /** The story's three updates, oldest first, as `update/1` records (the third corrects the first). */
 export const BOARD_FIXTURE_UPDATES = [
   {
-    id: '01a1ddca-8700-7c4f-9d52-6e3b0a7f2c18',
+    id: BOARD_FIXTURE_FIRST_UPDATE,
     headline: 'First update: a test development in the kept story',
     reportedAt: '2026-11-15T06:00:00.000Z',
     sources: ['https://example.com/sources/board-fixture-first'],
   },
   {
-    id: '01a1dde5-fe40-7d50-ae63-7f4c1b8a3d29',
+    id: BOARD_FIXTURE_SECOND_UPDATE,
     headline: 'Second update: a later test development',
     body: 'The second update carries a body, in two lines.\nIt is plain text, kept as written.',
     reportedAt: '2026-11-15T06:30:00.000Z',
@@ -46,11 +49,11 @@ export const BOARD_FIXTURE_UPDATES = [
     ],
   },
   {
-    id: '01a1de01-7580-7e61-bf74-805d2c9b4e3a',
+    id: BOARD_FIXTURE_THIRD_UPDATE,
     headline: 'Third update: a correction of the first',
     reportedAt: '2026-11-15T07:00:00.000Z',
     sources: ['https://example.com/sources/board-fixture-third'],
-    corrects: '01a1ddca-8700-7c4f-9d52-6e3b0a7f2c18',
+    corrects: BOARD_FIXTURE_FIRST_UPDATE,
   },
 ] as const;
 
@@ -212,13 +215,24 @@ const withdrawnStory: SocialFixture = {
   name: "the board's withdrawn test story",
   ensure: async (context) => {
     const found = await read(context, BOARD_WITHDRAWN_STORY, 'withdrawn story');
+    // Its own address answers it, not another story's (a merged story answers the one it went into).
+    if (found.status === 200 && found.body.id !== BOARD_WITHDRAWN_STORY) {
+      throw new Error(`The board's withdrawn story isn't as it was made (${found.status})`);
+    }
     if (found.status === 200 && found.body.state === 'withdrawn') {
       if (found.body.withdrawnReason !== BOARD_WITHDRAWN_REASON) {
         throw new Error(`The board's withdrawn story isn't as it was made (${found.status})`);
       }
       return;
     }
-    if (found.status === 200 && !(found.body.state === 'live' && found.body.listed === false)) {
+    if (
+      found.status === 200 &&
+      !(
+        found.body.state === 'live' &&
+        found.body.listed === false &&
+        found.body.requestedId === null
+      )
+    ) {
       throw new Error(`The board's withdrawn story isn't as it was made (${found.status})`);
     }
     if (found.status === 404) {

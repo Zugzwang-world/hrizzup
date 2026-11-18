@@ -73,7 +73,7 @@ export function SettingsForm({
       <Field
         label="Why"
         htmlFor="settings-reason"
-        hint="Every change is logged with its reason: one line, at most 200 characters."
+        hint="Every change is logged with its reason: one line, at most 200 characters. The change log, reasons included, shows in the checks' public screenshots: write nothing private."
       >
         <input
           id="settings-reason"

@@ -1,8 +1,12 @@
 import { ORPCError } from '@orpc/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { KEPT_LINE, RECORD_ID, START } from '@/lib/social/console-forms.ts';
+import { KEPT_LINE, RECORD_ID } from '@/lib/social/console-forms.ts';
+import { START, sendId } from '@/lib/social/console-state.ts';
 import {
+  BOARD_FIXTURE_FIRST_UPDATE,
+  BOARD_FIXTURE_SECOND_UPDATE,
   BOARD_FIXTURE_STORY,
+  BOARD_FIXTURE_THIRD_UPDATE,
   BOARD_MERGED_STORY,
   BOARD_WITHDRAWN_STORY,
 } from '@/lib/social/fixture-ids.ts';
@@ -247,6 +251,9 @@ describe('revoking an invite', () => {
 });
 
 describe('saving a test story', () => {
+  beforeEach(() => {
+    storyGet.mockRejectedValue(refusal('NOT_FOUND', 404, 'No such record'));
+  });
   const good = {
     id: STORY,
     title: 'A test story',
@@ -334,6 +341,40 @@ describe('saving a test story', () => {
   it('throws again an error that is not a refusal, rather than showing it', async () => {
     social.stories.save.mockRejectedValue(new Error('boom'));
     await expect(saveStoryAction(START, form(good))).rejects.toThrow('boom');
+  });
+
+  it('never saves over a story the checks keep, whatever else was sent: refused before anything is read', async () => {
+    for (const kept of [BOARD_FIXTURE_STORY, BOARD_WITHDRAWN_STORY, BOARD_MERGED_STORY]) {
+      const answer = await saveStoryAction(START, form({ ...good, id: kept }));
+      expect(answer.error, kept).toBe(KEPT_LINE);
+    }
+    expect(storyGet).not.toHaveBeenCalled();
+    expect(social.stories.save).not.toHaveBeenCalled();
+  });
+
+  it('never saves over a story that already exists (a form sent by hand with its ID), and says so', async () => {
+    storyGet.mockResolvedValue({ id: STORY, state: 'live', requestedId: null });
+    const answer = await saveStoryAction(START, form(good));
+    expect(answer.error).toMatch(/already exists/);
+    expect(answer.values.title).toBe('A test story');
+    // A withdrawn story, and one merged into another, are stories too.
+    storyGet.mockResolvedValue({ id: STORY, state: 'withdrawn', requestedId: null });
+    expect((await saveStoryAction(START, form(good))).error).toMatch(/already exists/);
+    storyGet.mockResolvedValue({ id: INVITE, state: 'live', requestedId: STORY });
+    expect((await saveStoryAction(START, form(good))).error).toMatch(/already exists/);
+    expect(social.stories.save).not.toHaveBeenCalled();
+  });
+
+  it('goes on only when the story is not there, and shows any other answer of the read as it is', async () => {
+    storyGet.mockRejectedValue(refusal('SERVICE_UNAVAILABLE', 503, 'busy'));
+    expect((await saveStoryAction(START, form(good))).error).toMatch(/busy/);
+    storyGet.mockRejectedValue(refusal('NOT_FOUND', 404, 'No such call'));
+    await expect(saveStoryAction(START, form(good))).rejects.toThrow('NOT_FOUND');
+    expect(social.stories.save).not.toHaveBeenCalled();
+    storyGet.mockRejectedValue(refusal('NOT_FOUND', 404, 'No such record'));
+    social.stories.save.mockResolvedValue({ id: STORY });
+    await expect(saveStoryAction(START, form(good))).rejects.toThrow('REDIRECT');
+    expect(social.stories.save).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -606,7 +647,7 @@ describe('withdrawing a story', () => {
     await expect(withdrawStoryAction(START, form({ id: STORY, reason: 'x' }))).rejects.toThrow(
       'REDIRECT',
     );
-    expect(social.stories.list).toHaveBeenLastCalledWith({ limit: 100, cursor: 'more' });
+    expect(social.stories.list).toHaveBeenLastCalledWith({ limit: 20, cursor: 'more' });
   });
 
   it('is never offered for a story the checks keep, whoever made it: refused before anything is read', async () => {
@@ -623,20 +664,95 @@ describe('withdrawing a story', () => {
   });
 });
 
-describe('adding an update to a story the checks keep', () => {
-  it('is refused with the same line, and calls nothing to save', async () => {
-    for (const kept of [BOARD_FIXTURE_STORY, BOARD_WITHDRAWN_STORY, BOARD_MERGED_STORY]) {
+describe('adding an update the checks keep, or to a story they keep', () => {
+  it('is refused with the same line for the story’s three updates, by the update’s own ID, and calls nothing to save', async () => {
+    for (const kept of [
+      BOARD_FIXTURE_FIRST_UPDATE,
+      BOARD_FIXTURE_SECOND_UPDATE,
+      BOARD_FIXTURE_THIRD_UPDATE,
+    ]) {
       const answer = await saveUpdateAction(
         START,
         form({
-          id: UPDATE,
-          storyId: kept,
-          headline: 'A development',
+          id: kept,
+          storyId: STORY,
+          headline: 'Overwritten',
           sources: 'https://example.com/a',
         }),
       );
       expect(answer.error, kept).toBe(KEPT_LINE);
+      expect(answer.values.headline).toBe('Overwritten');
     }
     expect(social.updates.save).not.toHaveBeenCalled();
+  });
+
+  it('is refused for any of the kept stories, by the story’s ID, whatever the update’s own', async () => {
+    for (const kept of [BOARD_FIXTURE_STORY, BOARD_WITHDRAWN_STORY, BOARD_MERGED_STORY]) {
+      const answer = await saveUpdateAction(
+        START,
+        form({ id: UPDATE, storyId: kept, headline: 'Added', sources: 'https://example.com/a' }),
+      );
+      expect(answer.error, kept).toBe(KEPT_LINE);
+    }
+    expect(social.updates.save).not.toHaveBeenCalled();
+  });
+});
+
+describe('a form sent again after a save, with a refused send between', () => {
+  const FIRST = '019a6b3c-00aa-7000-8000-0000000000aa';
+  const ids = (calls: { mock: { calls: unknown[][] } }, pick: (arg: never) => string) =>
+    calls.mock.calls.map(([arg]) => pick(arg as never));
+
+  it('makes two updates with two IDs: the second never carries the saved one’s, and the refused one is retried with its own', async () => {
+    social.updates.save
+      .mockResolvedValueOnce({ id: FIRST })
+      .mockRejectedValueOnce(refusal('SERVICE_UNAVAILABLE', 503, 'busy'))
+      .mockResolvedValueOnce({ id: 'second' });
+    const send = (id: string, headline: string) =>
+      form({ id, storyId: STORY, headline, sources: 'https://example.com/a' });
+    // The page's first form, as the browser sends it: its ID is the one the page rendered.
+    let state = await saveUpdateAction(START, send(sendId(START, 'id', FIRST), 'One'));
+    expect(state.saved).toBeDefined();
+    // The next send carries the new ID the save gave, and is refused...
+    const secondId = sendId(state, 'id', FIRST);
+    expect(secondId).not.toBe(FIRST);
+    state = await saveUpdateAction(state, send(secondId, 'Two'));
+    expect(state.error).toMatch(/busy/);
+    // ...and sent again it carries its own ID (never the page's first), and goes through.
+    const thirdId = sendId(state, 'id', FIRST);
+    expect(thirdId).toBe(secondId);
+    state = await saveUpdateAction(state, send(thirdId, 'Two'));
+    expect(state.saved).toBeDefined();
+    const sent = ids(social.updates.save, (arg: { record: { id: string } }) => arg.record.id);
+    expect(sent).toEqual([FIRST, secondId, secondId]);
+    // The two that were saved have two IDs.
+    expect(new Set([sent[0], sent[2]]).size).toBe(2);
+    // And the next after that is new again.
+    expect(sendId(state, 'id', FIRST)).not.toBe(secondId);
+  });
+
+  it('makes two invites with two request IDs, the same way', async () => {
+    social.invites.create
+      .mockResolvedValueOnce({ invite: { email: 'a@b.test' }, code: CODE, message: 'm' })
+      .mockRejectedValueOnce(refusal('SERVICE_UNAVAILABLE', 503, 'busy'))
+      .mockResolvedValueOnce({ invite: { email: 'c@d.test' }, code: CODE, message: 'm' });
+    const send = (requestId: string, email: string) =>
+      form({ requestId, email, listed: 'unlisted' });
+    let state = await makeInviteAction(
+      START,
+      send(sendId(START, 'requestId', REQUEST), 'a@b.test'),
+    );
+    expect(state.made).toBeDefined();
+    const secondId = sendId(state, 'requestId', REQUEST);
+    expect(secondId).not.toBe(REQUEST);
+    state = await makeInviteAction(state, send(secondId, 'c@d.test'));
+    expect(state.error).toMatch(/busy/);
+    const thirdId = sendId(state, 'requestId', REQUEST);
+    expect(thirdId).toBe(secondId);
+    state = await makeInviteAction(state, send(thirdId, 'c@d.test'));
+    expect(state.made).toBeDefined();
+    const sent = ids(social.invites.create, (arg: { requestId: string }) => arg.requestId);
+    expect(sent).toEqual([REQUEST, secondId, secondId]);
+    expect(new Set([sent[0], sent[2]]).size).toBe(2);
   });
 });

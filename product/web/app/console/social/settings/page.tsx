@@ -44,7 +44,10 @@ export default async function SocialSettingsPage() {
       <SettingsForm rows={SETTING_ROWS} current={current} />
 
       <h2 className="mt-10 text-xl font-semibold">The change log</h2>
-      <p className="mt-2 text-sm text-muted">The last 20 changes, newest first.</p>
+      <p className="mt-2 text-sm text-muted">
+        The last 20 changes, newest first. This log, reasons included, shows in the checks' public
+        screenshots.
+      </p>
       {settings.log.length === 0 ? (
         <p className="mt-4 text-muted" data-testid="settings-log-empty">
           No changes yet.

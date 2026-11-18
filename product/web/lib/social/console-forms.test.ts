@@ -14,12 +14,14 @@ import {
   inviteState,
   KEPT_LINE,
   keptRefusal,
+  keptUpdateRefusal,
   LISTED_MISSING,
   linesOf,
   listedChoice,
   openInviteFor,
   PAST_MS,
   plainProblem,
+  problemLines,
   RECORD_ID,
   refusalOf,
   sentence,
@@ -29,11 +31,16 @@ import {
   updateFrom,
 } from './console-forms.ts';
 import { rangeOf, SETTING_ROWS } from './console-settings.ts';
+import { START, sendId } from './console-state.ts';
 import {
+  BOARD_FIXTURE_FIRST_UPDATE,
+  BOARD_FIXTURE_SECOND_UPDATE,
   BOARD_FIXTURE_STORY,
+  BOARD_FIXTURE_THIRD_UPDATE,
   BOARD_MERGED_STORY,
   BOARD_WITHDRAWN_STORY,
   KEPT_STORY_IDS,
+  KEPT_UPDATE_IDS,
 } from './fixture-ids.ts';
 
 /**
@@ -277,9 +284,10 @@ describe('the agreement’s problems in plain words', () => {
   });
 
   it('drops a problem that only repeats another, and says a set of the checker’s phrases as one', () => {
-    expect(
-      plainProblem({ path: '/created_at', message: 'must match format "date-time"' }),
-    ).toBeNull();
+    // A format problem alone is a line; `problemLines`, which sees every problem at its path, drops the repeat.
+    expect(plainProblem({ path: '/created_at', message: 'must match format "date-time"' })).toEqual(
+      { path: '/created_at', message: 'Is not in the right form' },
+    );
     expect(
       plainProblem({ path: '/categories/0', message: 'must match exactly one schema in oneOf' }),
     ).toEqual({ path: '/categories', message: 'Choose each one from the list' });
@@ -528,5 +536,86 @@ describe('which stories the console may change', () => {
       'Made by the pipeline: the console does not withdraw it.',
     );
     expect(changeRefusal(STORY_ID, null)).toMatch(/not known here/);
+  });
+});
+
+describe('a "must match format" problem', () => {
+  const only = (path: string, message: string) =>
+    problemLines([{ path, message }], new Set(['sources', 'title']));
+
+  it('gets a line of its own when it is the only problem at its path: a source an address checker refuses', () => {
+    for (const odd of ['a"b', 'a{b', 'a|b', 'a<b', '%zz']) {
+      const built = updateFrom(
+        form({ ...goodUpdate, sources: `https://example.com/ok\nhttps://example.com/${odd}` }),
+        NOW,
+      );
+      expect(built.ok, odd).toBe(false);
+      if (built.ok) continue;
+      expect(built.state.problems, odd).toEqual({
+        sources:
+          'Line 2: Must be a web address starting https://, with no spaces or odd characters.',
+      });
+    }
+    expect(only('/title', 'must match format "date-time"').problems).toEqual({
+      title: 'Is not in the right form.',
+    });
+  });
+
+  it('is dropped only when another problem is at the same path, so a wrong time is one line', () => {
+    expect(
+      problemLines(
+        [
+          { path: '/title', message: 'must be time in UTC, like 2026-11-05T09:30:00Z' },
+          { path: '/title', message: 'must match format "date-time"' },
+        ],
+        new Set(['title']),
+      ).problems,
+    ).toEqual({ title: 'The time is not valid: reload the page.' });
+    // Another path's problem doesn't hide it.
+    expect(
+      problemLines(
+        [
+          { path: '/summary', message: 'must NOT have more than 300 characters' },
+          { path: '/title', message: 'must match format "date-time"' },
+        ],
+        new Set(['title', 'summary']),
+      ).problems,
+    ).toEqual({ summary: 'At most 300 characters.', title: 'Is not in the right form.' });
+  });
+});
+
+describe('the updates the checks keep', () => {
+  it('are the live fixture story’s three, refused by their own IDs', () => {
+    expect(KEPT_UPDATE_IDS.size).toBe(3);
+    for (const id of [
+      BOARD_FIXTURE_FIRST_UPDATE,
+      BOARD_FIXTURE_SECOND_UPDATE,
+      BOARD_FIXTURE_THIRD_UPDATE,
+    ]) {
+      expect(keptUpdateRefusal(id)).toBe(KEPT_LINE);
+    }
+    expect(keptUpdateRefusal(UPDATE_ID)).toBeNull();
+    expect(keptUpdateRefusal(STORY_ID)).toBeNull();
+  });
+});
+
+describe('the ID a form sends next', () => {
+  const FIRST = '019a6b3c-00aa-7000-8000-0000000000aa';
+  const SAVED = '019a6b3c-00bb-7000-8000-0000000000bb';
+  const sent = (id: string) => ({ ...START, error: 'Refused.', values: { id, requestId: id } });
+
+  it('is the one the page rendered until a save, and a refused first send carries its own again', () => {
+    expect(sendId(START, 'id', FIRST)).toBe(FIRST);
+    expect(sendId(sent(FIRST), 'id', FIRST)).toBe(FIRST);
+  });
+
+  it('is the new one after a save, and stays the one a refusal after it was sent with, never the first again', () => {
+    const saved = { ...START, saved: 'Saved.', nextId: SAVED };
+    expect(sendId(saved, 'id', FIRST)).toBe(SAVED);
+    // save, then refused (carrying the new ID it was sent with): the next send is the refused one's, not the page's first.
+    const refusedAfter = sent(SAVED);
+    expect(sendId(refusedAfter, 'id', FIRST)).toBe(SAVED);
+    expect(sendId(refusedAfter, 'requestId', FIRST)).toBe(SAVED);
+    expect(sendId(refusedAfter, 'id', FIRST)).not.toBe(FIRST);
   });
 });

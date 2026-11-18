@@ -1,6 +1,7 @@
 'use server';
 
 import type { social } from '@hrizzup/api';
+import { ORPCError } from '@orpc/server';
 import { revalidatePath } from 'next/cache';
 import { notFound, redirect } from 'next/navigation';
 import { serverApi } from '@/lib/api/server.ts';
@@ -13,6 +14,7 @@ import {
   field,
   fieldsWith,
   keptRefusal,
+  keptUpdateRefusal,
   LISTED_MISSING,
   listedChoice,
   openInviteFor,
@@ -149,8 +151,30 @@ export async function saveStoryAction(
   form: FormData,
 ): Promise<SocialFormState> {
   await adminsOnly();
+  // The form makes new stories only: never one the checks keep, and never an ID that already names a story (a
+  // form sent by hand with another story's ID would save over it).
+  const kept = keptRefusal(field(form, 'id'));
+  if (kept) return { error: kept, problems: {}, values: typed(form) };
   const built = storyFrom(form, Date.now());
   if (!built.ok) return built.state;
+  try {
+    await serverApi.social.stories.get({ id: built.record.record.id });
+    return {
+      error:
+        'A story with this ID already exists: this form makes new stories only. Reload the page for a new one.',
+      problems: {},
+      values: typed(form),
+    };
+  } catch (error) {
+    // Only "no such story" lets the save go on; anything else is shown as it is ("No such call" is not found).
+    if (
+      !(error instanceof ORPCError) ||
+      error.code !== 'NOT_FOUND' ||
+      error.message === 'No such call'
+    ) {
+      return refused(error, typed(form), FIELDS.story);
+    }
+  }
   try {
     await serverApi.admin.social.stories.save(built.record);
   } catch (error) {
@@ -203,8 +227,9 @@ export async function saveUpdateAction(
   form: FormData,
 ): Promise<SocialFormState> {
   await adminsOnly();
-  // A story the checks keep is never lengthened: their pages and journeys count its updates.
-  const kept = keptRefusal(field(form, 'storyId'));
+  // A story the checks keep is never lengthened, and none of its updates is saved again: their pages and journeys
+  // count them. Both the update's own ID and its story's are looked at, since a form can be sent by hand.
+  const kept = keptRefusal(field(form, 'storyId')) ?? keptUpdateRefusal(field(form, 'id'));
   if (kept) return { error: kept, problems: {}, values: typed(form) };
   const built = updateFrom(form, Date.now());
   if (!built.ok) return built.state;

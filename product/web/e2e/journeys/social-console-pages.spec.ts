@@ -118,7 +118,12 @@ test('an admin makes an invite, copies its ready message and revokes it', async 
   const clash = page.getByTestId('invite-clash');
   await expect(clash).toContainText('This email already has an open invite: revoke it first');
   await expect(clash.getByLabel('Why')).toBeVisible();
-  await expect(page.getByTestId('invite-made')).toHaveCount(0);
+  // The first invite's code and message stay on the page after a refused send (it is shown only once).
+  await expect(page.getByTestId('invite-made')).toBeVisible();
+  expect(
+    (await page.getByTestId('invite-message').inputValue()).includes(code),
+    'the message of the first invite is still there',
+  ).toBe(true);
 
   // Revoke it through its row, with a reason (required: the field says so).
   const why = row.getByLabel('Why');

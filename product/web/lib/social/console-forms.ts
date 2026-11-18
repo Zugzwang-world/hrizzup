@@ -2,7 +2,7 @@ import { type Story, type Update, validate } from '@hrizzup/agreement';
 import type { social } from '@hrizzup/api';
 import { ORPCError, ValidationError } from '@orpc/server';
 import type { SocialFormState } from './console-state.ts';
-import { KEPT_STORY_IDS } from './fixture-ids.ts';
+import { KEPT_STORY_IDS, KEPT_UPDATE_IDS } from './fixture-ids.ts';
 
 /**
  * What the social console's forms (`app/console/social/actions.ts`) are made of, as plain functions with no
@@ -108,7 +108,7 @@ type Problem = { path: string; message: string };
  * ("must be equal to constant", eight times over for a category not on the list) said as what to do. A
  * problem with the record as a whole that names its sources (an update needs at least one of them or of the
  * posts it is based on) is one under `sources`, the field the console has. Null for a problem not worth a
- * line of its own (the checker says the same thing twice).
+ * line of its own (the checker says the same thing twice: `problemLines`, which sees them all, drops the repeat).
  */
 export function plainProblem(problem: Problem): Problem | null {
   let { path, message } = problem;
@@ -119,7 +119,6 @@ export function plainProblem(problem: Problem): Problem | null {
   if (listed && /equal to constant|oneOf/.test(message)) {
     return { path: `/${path.split('/')[1]}`, message: 'Choose each one from the list' };
   }
-  if (/^must match format/.test(message)) return null;
   const line = /^\/sources\/(\d+)$/.exec(path);
   if (line) path = '/sources';
   const empty = /^must NOT have fewer than 1 characters$/.exec(message);
@@ -135,6 +134,9 @@ export function plainProblem(problem: Problem): Problem | null {
     message = 'One line of plain text, with no hidden characters';
   } else if (/^must be record ID/.test(message)) message = 'The ID is not valid: reload the page';
   else if (/^must be time in UTC/.test(message)) message = 'The time is not valid: reload the page';
+  else if (/^must match format "uri"/.test(message)) {
+    message = 'Must be a web address starting https://, with no spaces or odd characters';
+  } else if (/^must match format/.test(message)) message = 'Is not in the right form';
   return {
     path,
     message: line
@@ -150,7 +152,12 @@ export function problemLines(
 ): { problems: Record<string, string>; loose: string[] } {
   const byField: Record<string, string[]> = {};
   const loose: string[] = [];
+  // A "must match format" problem only repeats another at the same path (a time or an address that is wrong
+  // is also wrong by its pattern), so it gets a line only when it is the one problem there.
+  const isFormat = (problem: Problem) => /^must match format/.test(problem.message);
+  const elsewhere = new Set(problems.filter((problem) => !isFormat(problem)).map((p) => p.path));
   for (const raw of problems) {
+    if (isFormat(raw) && elsewhere.has(raw.path)) continue;
     const problem = plainProblem(raw);
     if (!problem) continue;
     const name = fieldOfPath(problem.path);
@@ -243,6 +250,11 @@ export const KEPT_LINE = 'Kept for the checks: not to be changed.';
 /** The line for a story the checks keep, or null for any other: nothing else is asked about it first. */
 export function keptRefusal(id: string): string | null {
   return KEPT_STORY_IDS.has(id) ? KEPT_LINE : null;
+}
+
+/** The line for an update the checks keep (the live fixture story's three), or null for any other. */
+export function keptUpdateRefusal(id: string): string | null {
+  return KEPT_UPDATE_IDS.has(id) ? KEPT_LINE : null;
 }
 
 /**

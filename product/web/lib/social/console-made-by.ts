@@ -1,8 +1,12 @@
 import { serverApi } from '@/lib/api/server.ts';
 
-/** How many of the console's newest stories are read to find one's maker, and how many to a page: 500 at most. */
+/**
+ * How many of the console's newest stories are read to find one's maker, and how many to a page: 100 at most, 20 a
+ * time, since a story's page asks this on every visit and a story the console just made is the newest, so it is
+ * found on the first page.
+ */
 const PAGES = 5;
-const PAGE = 100;
+const PAGE = 20;
 
 /**
  * Who made a story, by the console's own list of stories (the only place that says: `madeBy`, `console` or

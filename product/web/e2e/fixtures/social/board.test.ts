@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { KEPT_STORY_IDS } from '../../../lib/social/fixture-ids.ts';
+import { KEPT_STORY_IDS, KEPT_UPDATE_IDS } from '../../../lib/social/fixture-ids.ts';
 import {
   BOARD_FIXTURE_STORY,
   BOARD_FIXTURE_UPDATES,
@@ -193,11 +193,14 @@ describe('the board’s withdrawn fixture story', () => {
 
   it('writes nothing when it is withdrawn with its reason, and only the withdrawal when it was made live', async () => {
     const there = site({
-      read: [200, { state: 'withdrawn', withdrawnReason: BOARD_WITHDRAWN_REASON }],
+      read: [
+        200,
+        { id: BOARD_WITHDRAWN_STORY, state: 'withdrawn', withdrawnReason: BOARD_WITHDRAWN_REASON },
+      ],
     });
     await withdrawn?.ensure(context);
     expect(there).toHaveLength(1);
-    const half = site({ read: [200, { ...LIVE }] });
+    const half = site({ read: [200, { ...LIVE, id: BOARD_WITHDRAWN_STORY }] });
     await withdrawn?.ensure(context);
     expect(half.map((one) => one.method)).toEqual(['GET', 'POST']);
     expect(half[1]?.body?.record).toMatchObject({ state: 'withdrawn' });
@@ -205,9 +208,16 @@ describe('the board’s withdrawn fixture story', () => {
 
   it('fails when what is there is not what it was made as, naming the status only', async () => {
     for (const answer of [
-      { state: 'withdrawn', withdrawnReason: 'another reason, never printed' },
-      { ...LIVE, listed: true },
-      { ...LIVE, state: 'merged' },
+      {
+        id: BOARD_WITHDRAWN_STORY,
+        state: 'withdrawn',
+        withdrawnReason: 'another reason, never printed',
+      },
+      { ...LIVE, id: BOARD_WITHDRAWN_STORY, listed: true },
+      { ...LIVE, id: BOARD_WITHDRAWN_STORY, state: 'merged' },
+      // A merged story answers the one it went into, with the address asked for in `requestedId`: not its own.
+      { ...LIVE, id: BOARD_FIXTURE_STORY, requestedId: BOARD_WITHDRAWN_STORY },
+      { state: 'withdrawn', id: BOARD_FIXTURE_STORY, withdrawnReason: BOARD_WITHDRAWN_REASON },
     ]) {
       const sent = site({ read: [200, answer] });
       const failure = await withdrawn?.ensure(context).catch((error: Error) => error);
@@ -289,5 +299,9 @@ describe('the stories the console keeps its hands off', () => {
       }
     }
     expect(made).toEqual(KEPT_STORY_IDS);
+  });
+
+  it('and the updates it keeps are exactly the live story’s three', () => {
+    expect(new Set(BOARD_FIXTURE_UPDATES.map((update) => update.id))).toEqual(KEPT_UPDATE_IDS);
   });
 });
