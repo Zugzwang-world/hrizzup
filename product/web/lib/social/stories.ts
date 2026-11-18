@@ -1,4 +1,5 @@
 import type { social } from '@hrizzup/api';
+import { imageOf } from './post-card.ts';
 
 /**
  * A story, its tile and its updates as the contract's shapes (R5's design note, M1 rule 4): built field by
@@ -25,6 +26,8 @@ export type StoryTileRow = {
     unique_views: number;
     pins: number;
   };
+  /** The story's picture (`social._image`'s answer, or null): turned into the contract's `Image` by `imageOf`. */
+  picture: unknown;
 };
 
 /** What `social._update_card` answers. */
@@ -73,6 +76,7 @@ export function storyTileOf(row: StoryTileRow): social.StoryTile {
       uniqueViews: row.counts.unique_views,
       pins: row.counts.pins,
     },
+    picture: imageOf(row.picture ?? null),
   };
 }
 

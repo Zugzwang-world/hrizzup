@@ -1,7 +1,7 @@
 import type { social } from '@hrizzup/api';
 import { badRequest } from '@/lib/api/ground-rules.ts';
 import type { OwnMap } from './errors.ts';
-import { type AgentRow, agentCardOf, mediaOf } from './post-card.ts';
+import { type AgentRow, agentCardOf, imageOf, mediaOf } from './post-card.ts';
 import { camelKeys } from './shape.ts';
 
 /**
@@ -155,8 +155,10 @@ export function agentFault(sent: social.SetAgentInput['changes']): OwnMap {
 export const inviteOf = (row: unknown): social.Invite => camelKeys<social.Invite>(row);
 
 /** A story as the console lists it (`social.admin_stories`: the tile, listed, made_by, state and a null `saved`). */
-export const consoleStoryOf = (row: unknown): social.ConsoleStory =>
-  camelKeys<social.ConsoleStory>(row);
+export const consoleStoryOf = (row: unknown): social.ConsoleStory => ({
+  ...camelKeys<social.ConsoleStory>(row),
+  picture: imageOf((row as { picture?: unknown }).picture ?? null),
+});
 
 /** What `keys.agent_key_view` answers: an agent's key, never the key itself. */
 type KeyRow = {

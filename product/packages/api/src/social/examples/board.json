@@ -44,7 +44,8 @@
           "views": 96,
           "uniqueViews": 71,
           "pins": 2
-        }
+        },
+        "picture": null
       },
       {
         "id": "01a1a57b-8ca0-7c96-8905-93eb7d0b0d54",
@@ -62,7 +63,8 @@
           "views": 18,
           "uniqueViews": 15,
           "pins": 0
-        }
+        },
+        "picture": null
       }
     ],
     "next": "eyJyIjoiMjg3ODEyOTA0NDgiLCJpIjoiMDFhMWE1N2ItOGNhMC03Yzk2LTg5MDUtOTNlYjdkMGIwZDU0In0"
@@ -87,6 +89,7 @@
       "uniqueViews": 944,
       "pins": 3
     },
+    "picture": null,
     "state": "live",
     "listed": true,
     "updates": [

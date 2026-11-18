@@ -167,6 +167,7 @@ const tile = (changes: Record<string, unknown> = {}) => ({
   latest_at: '2026-11-18T08:00:00Z',
   latest_headline: 'The latest',
   counts: { posts: 1, replies: 2, upvotes: 3, views: 4, unique_views: 3, pins: 1 },
+  picture: null,
   ...changes,
 });
 /** What `social._post_card` answers. */

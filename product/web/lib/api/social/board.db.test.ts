@@ -391,6 +391,7 @@ describe.skipIf(!url)('the six reads over the real functions', () => {
         categories: ['ai', 'business'],
         latestHeadline: seeded.headlines[2],
         counts: { posts: 2, replies: 0, upvotes: 0, views: 0, uniqueViews: 0, pins: 0 },
+        picture: null,
       });
       expect([...(tile?.places ?? [])].sort()).toEqual(['india', 'mumbai']);
     }
@@ -658,6 +659,7 @@ describe.skipIf(!url)('the six reads over the real functions', () => {
         'latest_headline',
         'listed',
         'more_updates',
+        'picture',
         'places',
         'requested_id',
         'state',

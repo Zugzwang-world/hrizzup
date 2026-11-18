@@ -31,7 +31,16 @@ const tileRow = (): StoryTileRow => ({
     unique_views: story.counts.uniqueViews,
     pins: story.counts.pins,
   },
+  picture: null,
 });
+/** What `social._image` answers for a picture: the row `imageOf` turns into the contract's `Image`. */
+const pictureRow = {
+  media_key: 'social/019a7b10-0000-7000-8000-0000000000a1/019a7b10-0000-7000-8000-0000000000b1.jpg',
+  width: 1280,
+  height: 720,
+  placeholder: 'YJqGPQw7sFlslqhFafSE+Q6oJ1h2iHB2Rw==',
+  description: 'The coast road at dawn',
+};
 const updateRows = (): UpdateRow[] =>
   story.updates.map((update) => ({
     id: update.id,
@@ -57,6 +66,25 @@ describe('a story tile', () => {
     expect(social.storyTile.parse(tile)).toEqual(tile);
     expect(tile.counts).toEqual(story.counts);
     expect(tile.latestHeadline).toBe(story.latestHeadline);
+  });
+
+  it('carries the story’s picture, which is null when it has none', () => {
+    const tile = storyTileOf({ ...tileRow(), picture: null });
+    expect(tile).toHaveProperty('picture', null);
+    expect(social.storyTile.parse(tile).picture).toBeNull();
+    expect(tile.picture).toBe(story.picture);
+    // A row without the key (a database that does not answer it yet) is a story with no picture.
+    const { picture: _picture, ...without } = tileRow();
+    expect(storyTileOf(without as StoryTileRow).picture).toBeNull();
+  });
+
+  it('maps a picture row through `imageOf`, which answers null until R8’s uploads can make media (M2)', () => {
+    const tile = storyTileOf({ ...tileRow(), picture: pictureRow });
+    expect(social.storyTile.parse(tile)).toEqual(tile);
+    expect(tile.picture).toBeNull();
+    // The row's own snake_case keys never reach the reader as a picture.
+    expect(JSON.stringify(tile)).not.toContain('media_key');
+    expect(JSON.stringify(tile)).not.toContain('mediaKey');
   });
 
   it('keeps a story with no update yet (no latest headline)', () => {

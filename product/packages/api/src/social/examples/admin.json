@@ -110,6 +110,7 @@
     "latestAt": "2026-11-17T05:00:00.000Z",
     "latestHeadline": null,
     "counts": { "posts": 0, "replies": 0, "upvotes": 0, "views": 0, "uniqueViews": 0, "pins": 0 },
+    "picture": null,
     "listed": true,
     "madeBy": "console",
     "state": "live",
@@ -136,6 +137,7 @@
           "uniqueViews": 0,
           "pins": 0
         },
+        "picture": null,
         "listed": true,
         "madeBy": "console",
         "state": "live",
@@ -158,6 +160,7 @@
           "uniqueViews": 0,
           "pins": 1
         },
+        "picture": null,
         "listed": false,
         "madeBy": "console",
         "state": "live",

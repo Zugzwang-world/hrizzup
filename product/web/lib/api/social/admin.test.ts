@@ -153,6 +153,23 @@ describe('saving a test story', () => {
     expect(isAdmin).toHaveBeenCalled();
   });
 
+  it("answers the story's picture through `imageOf`, so a picture row's own keys never fail the contract's output check (null until R8's M2)", async () => {
+    answer = () => ({
+      ...(snake(examples.admin.savedStory) as Record<string, unknown>),
+      picture: {
+        media_key:
+          'social/019a7b10-0000-7000-8000-0000000000a1/019a7b10-0000-7000-8000-0000000000b1.jpg',
+        width: 1280,
+        height: 720,
+        placeholder: null,
+        description: null,
+      },
+    });
+    await expect(api().admin.social.stories.save(story)).resolves.toEqual(
+      examples.admin.savedStory,
+    );
+  });
+
   it('answers `same` when the very same story is saved again, and nothing else changes', async () => {
     answer = () => snake({ ...examples.admin.savedStory, saved: 'same' });
     const again = await api().admin.social.stories.save(story);
