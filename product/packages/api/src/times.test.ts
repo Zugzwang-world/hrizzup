@@ -540,3 +540,330 @@ describe('printingProblems, which the database tests run real answers through', 
     expect(printingProblems(contract.admin.perps.get['~orpc'].outputSchema, perp)).toEqual([]);
   });
 });
+
+describe('a discriminated union (a choice of shapes told apart by one field)', () => {
+  const time = z.iso.datetime();
+  const live = z.object({
+    state: z.literal('live'),
+    at: time,
+    list: z.array(z.object({ at: time })),
+    name: z.string(),
+  });
+  const gone = z.object({
+    state: z.literal('withdrawn'),
+    reason: z.string().nullable(),
+    since: time,
+  });
+  const quiet = z.object({ state: z.literal('quiet'), note: z.string() });
+  const story = z.discriminatedUnion('state', [live, gone, quiet]);
+
+  const aLive = {
+    state: 'live',
+    at: '2026-11-09T06:30:00Z',
+    list: [{ at: '2026-11-09T06:30:00.5Z' }],
+    name: 'a story',
+  };
+  const aGone = { state: 'withdrawn', reason: null, since: '2026-11-09T06:30:00.123456Z' };
+  const aQuiet = { state: 'quiet', note: 'a note' };
+  // Free text that reads like a time, in the option that has none and in one that has.
+  const lookalike = { ...aLive, name: '2026-11-09T06:30:00Z' };
+  const quietLookalike = { ...aQuiet, note: '2026-11-09T06:30:00Z' };
+
+  it('reads the times of each option, each path once, and says nothing it cannot read', () => {
+    expect(timePlan(story)).toEqual({ paths: ['at', 'list[].at', 'since'], unknown: [] });
+    // A time at the same place in two options is listed once.
+    const both = z.discriminatedUnion('kind', [
+      z.object({ kind: z.literal('a'), at: time }),
+      z.object({ kind: z.literal('b'), at: time, also: time }),
+    ]);
+    expect(timePlan(both)).toEqual({ paths: ['at', 'also'], unknown: [] });
+    // An option can fix its discriminator to several values, or to a number.
+    const many = z.discriminatedUnion('n', [
+      z.object({ n: z.literal([1, 2]), at: time }),
+      z.object({ n: z.literal(3) }),
+    ]);
+    expect(timePlan(many)).toEqual({ paths: ['at'], unknown: [] });
+    // Nothing to print: nothing to read.
+    expect(
+      timePlan(
+        z.discriminatedUnion('kind', [
+          z.object({ kind: z.literal('a'), x: z.string() }),
+          z.object({ kind: z.literal('b') }),
+        ]),
+      ),
+    ).toEqual({ paths: [], unknown: [] });
+    // The part of an option it cannot read is named, by the path it has there.
+    const odd = z.discriminatedUnion('kind', [
+      z.object({ kind: z.literal('a'), at: time }),
+      z.object({ kind: z.literal('b'), grid: z.record(z.string(), time) }),
+    ]);
+    expect(timePlan(odd)).toEqual({ paths: ['at'], unknown: ['grid'] });
+  });
+
+  it("prints the times of the option the value's own discriminator picks, and no other", () => {
+    expect(printTimes(story, lookalike)).toEqual({
+      state: 'live',
+      at: '2026-11-09T06:30:00.000Z',
+      list: [{ at: '2026-11-09T06:30:00.500Z' }],
+      // Free text that reads like a time is left as it is.
+      name: '2026-11-09T06:30:00Z',
+    });
+    expect(printTimes(story, aGone)).toEqual({
+      state: 'withdrawn',
+      reason: null,
+      since: '2026-11-09T06:30:00.123Z',
+    });
+    // A field of another option, on a value that picks this one, is not a time here.
+    expect(printTimes(story, { ...aLive, since: '2026-11-09T06:30:00Z' })).toMatchObject({
+      since: '2026-11-09T06:30:00Z',
+    });
+    expect(timesIn(story, aLive)).toEqual([
+      { path: 'at', time: '2026-11-09T06:30:00Z' },
+      { path: 'list[0].at', time: '2026-11-09T06:30:00.5Z' },
+    ]);
+    expect(timesIn(story, aGone)).toEqual([{ path: 'since', time: '2026-11-09T06:30:00.123456Z' }]);
+    // An option with no time comes back as the very value, its text that reads like a time untouched.
+    expect(printTimes(story, quietLookalike)).toBe(quietLookalike);
+    expect(timesIn(story, quietLookalike)).toEqual([]);
+    expect(printingProblems(story, aLive)).toEqual([]);
+    expect(printingProblems(story, aGone)).toEqual([]);
+  });
+
+  it('leaves a value as it is, never throwing, when it picks no option', () => {
+    const picks = [
+      'a string',
+      7,
+      null,
+      undefined,
+      true,
+      [aLive],
+      {},
+      { at: '2026-11-09T06:30:00Z' }, // no discriminator
+      { state: undefined, at: '2026-11-09T06:30:00Z' },
+      { state: null, at: '2026-11-09T06:30:00Z' },
+      { state: true, at: '2026-11-09T06:30:00Z' },
+      { state: { is: 'live' }, at: '2026-11-09T06:30:00Z' },
+      { state: ['live'], at: '2026-11-09T06:30:00Z' },
+      { state: 'other', at: '2026-11-09T06:30:00Z', since: '2026-11-09T06:30:00Z' },
+      { state: 7, at: '2026-11-09T06:30:00Z' },
+      { state: 'LIVE', at: '2026-11-09T06:30:00Z' },
+    ];
+    for (const value of picks) {
+      expect(() => printTimes(story, value), JSON.stringify(value)).not.toThrow();
+      expect(printTimes(story, value), JSON.stringify(value)).toBe(value);
+      expect(
+        mapTimes(story, value, () => 'X'),
+        JSON.stringify(value),
+      ).toBe(value);
+      expect(timesIn(story, value), JSON.stringify(value)).toEqual([]);
+    }
+    // A number discriminator picks by number only, never by the same digits as text.
+    const numbered = z.discriminatedUnion('n', [
+      z.object({ n: z.literal(1), at: time }),
+      z.object({ n: z.literal(2) }),
+    ]);
+    expect(printTimes(numbered, { n: 1, at: '2026-11-09T06:30:00Z' })).toEqual({
+      n: 1,
+      at: '2026-11-09T06:30:00.000Z',
+    });
+    const text = { n: '1', at: '2026-11-09T06:30:00Z' };
+    expect(printTimes(numbered, text)).toBe(text);
+  });
+
+  it('copies what it changes and never changes what it was given', () => {
+    const given = deepFreeze(structuredClone({ story: aLive, items: [aGone, aQuiet, aLive] }));
+    const nested = z.object({ story, items: z.array(story) });
+    const before = JSON.stringify(given);
+    const printed = printTimes(nested, given);
+    expect(JSON.stringify(given)).toBe(before);
+    expect(printed).not.toBe(given);
+    expect(printed.story).not.toBe(given.story);
+    expect(printed.story.at).toBe('2026-11-09T06:30:00.000Z');
+    expect(given.story.at).toBe('2026-11-09T06:30:00Z');
+    // The key order is kept, and a part that holds no time is the very part it was.
+    expect(Object.keys(printed.story)).toEqual(Object.keys(given.story));
+    expect(printed.items[1]).toBe(given.items[1]);
+    expect(printed.items[0]).not.toBe(given.items[0]);
+    expect(printingProblems(nested, given)).toEqual([]);
+  });
+
+  it('works the same inside an object or a list, at any depth', () => {
+    const inside = z.object({
+      story,
+      items: z.array(story),
+      deeper: z.object({ list: z.array(z.object({ one: story.nullable() })) }),
+    });
+    expect(timePlan(inside)).toEqual({
+      paths: [
+        'story.at',
+        'story.list[].at',
+        'story.since',
+        'items[].at',
+        'items[].list[].at',
+        'items[].since',
+        'deeper.list[].one.at',
+        'deeper.list[].one.list[].at',
+        'deeper.list[].one.since',
+      ],
+      unknown: [],
+    });
+    const answer = {
+      story: aGone,
+      items: [aLive, aQuiet, aGone, { state: 'other' }],
+      deeper: { list: [{ one: aLive }, { one: null }] },
+    };
+    expect(printTimes(inside, answer)).toEqual({
+      story: { ...aGone, since: '2026-11-09T06:30:00.123Z' },
+      items: [
+        { ...aLive, at: '2026-11-09T06:30:00.000Z', list: [{ at: '2026-11-09T06:30:00.500Z' }] },
+        aQuiet,
+        { ...aGone, since: '2026-11-09T06:30:00.123Z' },
+        { state: 'other' },
+      ],
+      deeper: {
+        list: [
+          {
+            one: {
+              ...aLive,
+              at: '2026-11-09T06:30:00.000Z',
+              list: [{ at: '2026-11-09T06:30:00.500Z' }],
+            },
+          },
+          { one: null },
+        ],
+      },
+    });
+    expect(timesIn(inside, answer).map(({ path }) => path)).toEqual([
+      'story.since',
+      'items[0].at',
+      'items[0].list[0].at',
+      'items[2].since',
+      'deeper.list[0].one.at',
+      'deeper.list[0].one.list[0].at',
+    ]);
+    expect(printingProblems(inside, answer)).toEqual([]);
+  });
+
+  it('keeps the rule for a union without a discriminator: a union that holds a time is not read', () => {
+    const asked = [
+      z.union([time, z.number()]),
+      z.union([
+        z.object({ kind: z.literal('a'), at: time }),
+        z.object({ kind: z.literal('b'), at: time }),
+      ]),
+    ];
+    for (const schema of asked) {
+      expect(timePlan(schema).unknown.length).toBeGreaterThan(0);
+      expect(timePlan(schema).paths).toEqual([]);
+      const value = { kind: 'a', at: '2026-11-09T06:30:00Z' };
+      expect(printTimes(schema, value)).toBe(value);
+    }
+    // A plain union with no time in it is nothing to read, as before.
+    expect(timePlan(z.union([z.string(), z.number()]))).toEqual({ paths: [], unknown: [] });
+    expect(timePlan(z.object({ x: z.union([time, z.number()]) })).unknown).toEqual(['x']);
+  });
+
+  it('is not read when an option is not an object with a literal discriminator: the whole union is unknown', () => {
+    const named = [
+      // An enum is not a literal.
+      z.discriminatedUnion('kind', [
+        z.object({ kind: z.literal('a'), at: time }),
+        z.object({ kind: z.enum(['b', 'c']), at: time }),
+      ]),
+      // Nor is a boolean one read, nor a value that two options fix.
+      z.discriminatedUnion('ok', [
+        z.object({ ok: z.literal(true), at: time }),
+        z.object({ ok: z.literal(false) }),
+      ]),
+      z.discriminatedUnion('kind', [
+        z.object({ kind: z.literal('a'), at: time }),
+        z.object({ kind: z.literal('a'), x: z.string() }),
+      ]),
+    ];
+    for (const schema of named) {
+      expect(timePlan(schema)).toEqual({ paths: [], unknown: [''] });
+      const value = { kind: 'a', ok: true, at: '2026-11-09T06:30:00Z' };
+      expect(printTimes(schema, value)).toBe(value);
+    }
+    // An option that is no object at all (made by hand: zod makes none).
+    const crafted = z.discriminatedUnion('kind', [
+      z.object({ kind: z.literal('a'), at: time }),
+      z.object({ kind: z.literal('b') }),
+    ]);
+    (crafted._zod.def as { options: unknown[] }).options = [
+      z.object({ kind: z.literal('a'), at: time }),
+      time,
+    ];
+    expect(timePlan(crafted).unknown.length).toBeGreaterThan(0);
+    // And inside an object the part is named by its path, and the rest still prints.
+    const wrapped = z.object({ ok: time, choice: named[0] as z.ZodType });
+    expect(timePlan(wrapped)).toEqual({ paths: ['ok'], unknown: ['choice'] });
+    expect(printTimes(wrapped, { ok: '2026-11-09T06:30:00Z', choice: { kind: 'a' } })).toEqual({
+      ok: '2026-11-09T06:30:00.000Z',
+      choice: { kind: 'a' },
+    });
+  });
+
+  it('is read once for the schema, in the same cache, whatever the number of answers printed', () => {
+    const watched = z.discriminatedUnion('state', [
+      z.object({ state: z.literal('live'), at: time }),
+      z.object({ state: z.literal('withdrawn'), since: time }),
+    ]);
+    const counts = { live: 0, gone: 0 };
+    const options = (watched._zod.def as unknown as { options: { _zod: { def: object } }[] })
+      .options;
+    for (const [index, key] of [
+      [0, 'live'],
+      [1, 'gone'],
+    ] as const) {
+      const def = options[index]?._zod.def as { shape: unknown };
+      const shape = def.shape;
+      Object.defineProperty(def, 'shape', {
+        configurable: true,
+        get: () => {
+          counts[key]++;
+          return shape;
+        },
+      });
+    }
+    const answer = { state: 'live', at: '2026-11-09T06:30:00Z' };
+    for (let i = 0; i < 5; i++) {
+      expect(printTimes(watched, answer)).toEqual({
+        state: 'live',
+        at: '2026-11-09T06:30:00.000Z',
+      });
+    }
+    expect(timePlan(watched).paths).toEqual(['at', 'since']);
+    expect(timesIn(watched, answer)).toHaveLength(1);
+    // Each option's shape was read to build the plan, and by nothing after.
+    const built = { ...counts };
+    expect(built.live).toBeGreaterThan(0);
+    expect(built.gone).toBeGreaterThan(0);
+    printTimes(watched, answer);
+    mapTimes(watched, { state: 'withdrawn', since: '2026-11-09T06:30:00Z' }, (value) => value);
+    timePlan(watched);
+    expect(counts).toEqual(built);
+    // The plan is the schema's own, so a union nested in another schema is read when that is.
+    const parent = z.object({ inner: watched });
+    expect(timePlan(parent).paths).toEqual(['inner.at', 'inner.since']);
+  });
+});
+
+describe('social stays out of the printer', () => {
+  it('has an output it can read, the story read included (its answer is a choice of two shapes)', () => {
+    const story = calls.find(([name]) => name === 'social.stories.get')?.[1] as Call;
+    expect(timePlan(outputOf(story))).toEqual({
+      paths: ['createdAt', 'latestAt', 'updates[].reportedAt'],
+      unknown: [],
+    });
+  });
+
+  it('is in no list of calls whose answers are printed', () => {
+    expect(PRINTING.filter(isSocial)).toEqual([]);
+    expect(Object.keys(EXAMPLE_ANSWERS).filter(isSocial)).toEqual([]);
+    // Some social call holds a time, so the exclusion is a choice, not an absence.
+    expect(
+      calls.some(([name, call]) => isSocial(name) && timePlan(outputOf(call)).paths.length > 0),
+    ).toBe(true);
+  });
+});

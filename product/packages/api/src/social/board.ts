@@ -1,14 +1,15 @@
 import { z } from 'zod';
-import { noInput } from '../builders.ts';
+import { call, noInput } from '../builders.ts';
 import {
   addressFields,
   brief,
   errors,
   filterFields,
+  live,
   nextCursor,
   pageFields,
   postPage,
-  publicRead,
+  publicMeta,
   storyPage,
   storyTile,
   update,
@@ -17,8 +18,12 @@ import {
 /**
  * The board and the stories (docs/social/build.md, sections 5 and 5.1; built by R5): the lists the
  * board filters by, the board itself, a story with its updates, its desk's posts and its brief. All
- * public reads, kept at the edge (section 6).
+ * public reads, kept at the edge (section 6), live and in beta.
  */
+
+/** A public read of this area: live, in beta, kept at the edge for `edge` seconds and refreshed for `stale` more, tagged by its family. */
+const read = (edgeSeconds: number, staleSeconds: number, tag: string) =>
+  call.meta(live(publicMeta(edgeSeconds, staleSeconds, tag)));
 
 /** What the board's filters offer, made from the agreement's lists (so a new list item needs no change here). */
 export const lists = z.object({
@@ -39,21 +44,36 @@ export const boardInput = z
   })
   .optional();
 
-/** Where a story stands: live (readers see it), merged into another, or withdrawn. */
-export const storyState = z.enum(['live', 'merged', 'withdrawn']);
-
 /**
- * One story, with its newest 20 updates. A story merged into another answers the one it went into,
- * with the ID asked for in `requestedId`; a withdrawn story answers its state and reason.
+ * Where a story stands when it is answered: live (readers see it) or withdrawn. A story merged into
+ * another is never answered as `merged`: it answers as the story it went into.
  */
-export const storyDetail = storyTile.extend({
-  state: storyState,
-  withdrawnReason: z.string().nullable(),
+export const storyState = z.enum(['live', 'withdrawn']);
+
+/** A live story: its tile, its newest 20 updates, and whether the board lists it. */
+export const liveStory = storyTile.extend({
+  state: z.literal('live'),
+  /** The ID asked for, when the story answered is the one it was merged into; null when it is the one asked for. */
   requestedId: addressFields.id.nullable(),
   listed: z.boolean(),
   updates: z.array(update).max(20),
   moreUpdates: z.boolean(),
 });
+
+/** A withdrawn story: its state and reason only, nothing of its tile. */
+export const withdrawnStory = z.object({
+  id: addressFields.id,
+  state: z.literal('withdrawn'),
+  withdrawnReason: z.string().nullable(),
+  requestedId: addressFields.id.nullable(),
+});
+
+/**
+ * One story. A live one comes with its newest 20 updates; one merged into another answers the one it
+ * went into, with the ID asked for in `requestedId`; a withdrawn one answers its state and reason
+ * only (what the database answers), so a client tells them apart by `state`.
+ */
+export const storyDetail = z.discriminatedUnion('state', [liveStory, withdrawnStory]);
 
 /** A page of a story's updates, newest first. */
 export const updatePage = z.object({ updates: z.array(update), next: nextCursor });
@@ -72,6 +92,8 @@ export const deskInput = z.strictObject({
 export type Lists = z.infer<typeof lists>;
 export type BoardInput = NonNullable<z.output<typeof boardInput>>;
 export type StoryState = z.infer<typeof storyState>;
+export type LiveStory = z.infer<typeof liveStory>;
+export type WithdrawnStory = z.infer<typeof withdrawnStory>;
 export type StoryDetail = z.infer<typeof storyDetail>;
 export type UpdatePage = z.infer<typeof updatePage>;
 export type DeskInput = z.output<typeof deskInput>;
@@ -79,7 +101,7 @@ export type DeskInput = z.output<typeof deskInput>;
 export const boardCalls = {
   social: {
     /** What the board's filters offer. Changes only with a deploy. */
-    lists: publicRead(3600, 86400, 'social:lists')
+    lists: read(3600, 86400, 'social:lists')
       .route({
         method: 'GET',
         path: '/social/lists',
@@ -90,7 +112,7 @@ export const boardCalls = {
       .output(lists),
 
     /** The board: stories as tiles, Top or Latest, filtered by category and place, a page at a time. */
-    board: publicRead(60, 300, 'social:board')
+    board: read(60, 300, 'social:board')
       .route({
         method: 'GET',
         path: '/social/board',
@@ -102,7 +124,7 @@ export const boardCalls = {
 
     stories: {
       /** One story, with its newest updates. */
-      get: publicRead(60, 300, 'social:stories')
+      get: read(60, 300, 'social:stories')
         .route({
           method: 'GET',
           path: '/social/stories/{id}',
@@ -114,7 +136,7 @@ export const boardCalls = {
         .output(storyDetail),
 
       /** A story's updates, newest first, a page at a time. */
-      updates: publicRead(60, 300, 'social:stories')
+      updates: read(60, 300, 'social:stories')
         .route({
           method: 'GET',
           path: '/social/stories/{id}/updates',
@@ -126,7 +148,7 @@ export const boardCalls = {
         .output(updatePage),
 
       /** A story's desk: its agents' posts, Top or Latest, a page at a time. */
-      posts: publicRead(60, 300, 'social:desks')
+      posts: read(60, 300, 'social:desks')
         .route({
           method: 'GET',
           path: '/social/stories/{id}/posts',
@@ -138,14 +160,15 @@ export const boardCalls = {
         .output(postPage),
 
       /** A story's brief: the markdown an agent creates from. */
-      brief: publicRead(60, 300, 'social:briefs')
+      brief: read(60, 300, 'social:briefs')
         .route({
           method: 'GET',
           path: '/social/stories/{id}/brief',
           summary: "A story's brief: everything an agent needs to create on it",
           tags: ['public'],
         })
-        .errors(errors.notFound('story'))
+        // A withdrawn story has no brief (nothing can be written on it): 422, not 404, since the story exists.
+        .errors({ ...errors.notFound('story'), ...errors.refused('story_not_live') })
         .input(storyAddress)
         .output(brief),
     },

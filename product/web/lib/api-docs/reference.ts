@@ -53,6 +53,13 @@ export type Field = { name: string; kind: string; required: boolean; note?: stri
 /** One form a call's input can take: a buy or a sale, say. */
 export type Variant = { when?: string; fields: Field[] };
 
+/**
+ * One shape a call's answer can take, for a call whose answer is a choice of shapes (a story that is live
+ * or withdrawn): the label says which (`when state is "live"`, or `option 1` when no field is fixed to tell
+ * them apart) and the fields are that shape's own.
+ */
+export type AnswerForm = { label: string; fields: Field[] };
+
 export type ErrorAnswer = { status: number; code: string; message: string };
 
 export type Call = {
@@ -67,6 +74,8 @@ export type Call = {
   /** Where its inputs go: the address's query (a read) or a JSON body (a write). */
   takes: { query: Field[]; path: Field[]; body: Variant[] };
   answers: Field[];
+  /** Only for a call whose answer is a choice of shapes (then `answers` is empty): one list of fields for each. */
+  answerForms?: AnswerForm[];
   errors: ErrorAnswer[];
 };
 
@@ -182,6 +191,27 @@ function bodyOf(operation: Operation, schemas: Schemas): Variant[] {
   return [{ fields: fieldsOf(s, schemas) }];
 }
 
+/**
+ * The shapes of an answer that is a choice of shapes (`anyOf` or `oneOf` at the top), each with its own
+ * fields and a label from the field fixed to one value in it (`when state is "live"`), else `option 1`, `option 2`.
+ * Undefined for any other answer, so a call that answers one shape reads exactly as it always did.
+ */
+function answerFormsOf(answer: Schema, schemas: Schemas): AnswerForm[] | undefined {
+  const options = resolve(answer, schemas).anyOf ?? resolve(answer, schemas).oneOf;
+  if (!options) return undefined;
+  const shapes = options
+    .map((option) => resolve(option, schemas))
+    .filter((option) => option.type !== 'null');
+  const forms = shapes.map((shape, n) => {
+    const tag = Object.entries(shape.properties ?? {}).find(([, v]) => v.const !== undefined);
+    return {
+      label: tag ? `when ${tag[0]} is ${JSON.stringify(tag[1].const)}` : `option ${n + 1}`,
+      fields: fieldsOf(shape, schemas),
+    };
+  });
+  return forms.some((form) => form.fields.length > 0) ? forms : undefined;
+}
+
 function errorsOf(operation: Operation): ErrorAnswer[] {
   const found: ErrorAnswer[] = [];
   for (const [status, response] of Object.entries(operation.responses)) {
@@ -214,6 +244,7 @@ export function callsOf(document: Document): Call[] {
       });
       const ok = Object.entries(operation.responses).find(([status]) => status.startsWith('2'));
       const answer = ok?.[1].content?.['application/json']?.schema;
+      const answerForms = answer ? answerFormsOf(answer, schemas) : undefined;
       return {
         id: operation.operationId,
         method: method.toUpperCase(),
@@ -227,6 +258,7 @@ export function callsOf(document: Document): Call[] {
           body: bodyOf(operation, schemas),
         },
         answers: answer ? fieldsOf(answer, schemas) : [],
+        ...(answerForms ? { answerForms } : {}),
         errors: errorsOf(operation),
       };
     }),

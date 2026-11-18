@@ -6,6 +6,7 @@ import { STAGING_ORIGIN } from '@/lib/auth-relay.ts';
 import { testStoriesEnabled } from '@/lib/env.ts';
 import { mapped, runner } from '@/lib/social/access.ts';
 import { recordProblems, recordRefusal, refusalOf } from '@/lib/social/errors.ts';
+import { refreshStories } from '@/lib/social/purge.ts';
 import { answerOf, camelKeys } from '@/lib/social/shape.ts';
 import { admin } from '../base.ts';
 import { noSuchCall } from '../console.ts';
@@ -17,7 +18,9 @@ import { notBuilt } from './not-built.ts';
  * 7.10), thin and written here; the rest are stubs until R5 builds them: each is `live: false` until
  * then, so none is reached (the route and `base.ts` answer "No such call" first). R5 replaces its
  * stubs here, takes `live: false` off each call in the contract, and edits no other area's file; it
- * gives M3's three their page, and adds to the two saves the purge of what they changed (below).
+ * gives M3's three their page. The two saves purge what they changed once the save has answered
+ * (`refreshStories`: the story's and its desk's tags, the board's when the story is listed, and the
+ * story's brief in Redis), and a purge that fails never fails the save.
  *
  * Every call here is an admin's: the route and `base.ts`'s `admin` middleware have already turned
  * anyone else away as an address the API doesn't have, before any input is read (the six layers: the
@@ -130,10 +133,10 @@ export const adminRoutes = {
          * refuses again until its own flag is on. What the database raises at commit is mapped by
          * constraint name, like what the statement raises.
          *
-         * R5: a console save is a rare write, so it purges its own tags at once (D6 and the caching
-         * map): when the board's reads go live, add here the purge of `social:story:<id>` and
-         * `social:board` (`invalidateByTag`) for a save that was `new` or `changed`. Nothing is kept at
-         * the edge for it yet, so nothing is purged now.
+         * A console save is a rare write, so it purges its own tags at once (D6 and the caching map)
+         * after it has answered: a story saved as `new` or `changed` clears its story and desk tags and
+         * its brief, and the board's tag when the story is listed. `same` changed nothing, so it purges
+         * nothing.
          */
         save: admin.social.stories.save.handler(async ({ context, input }) => {
           if (!testStoriesEnabled()) throw noSuchCall();
@@ -142,14 +145,16 @@ export const adminRoutes = {
             saveStory(input.record, { run, fn: 'social.admin_save_story', listed: input.listed }),
           );
           if (!result.ok) throw saveFailure(result);
-          return camelKeys<social.ConsoleStory>(result.answer);
+          const saved = camelKeys<social.ConsoleStory>(result.answer);
+          if (saved.saved !== 'same') await refreshStories([saved.id], { board: saved.listed });
+          return saved;
         }),
       },
       updates: {
         /**
-         * An update of a story, the same way, through `social.admin_save_update`. R5 adds the purge of
-         * the update's story (`social:story:<storyId>`, `social:board`) when the board's reads go live,
-         * as for a story's save.
+         * An update of a story, the same way, through `social.admin_save_update`. An update saved as
+         * `new` or `changed` purges its story's tags and brief and the board's tag (the answer doesn't
+         * say whether the story is listed, and one more tag costs nothing); `same` purges nothing.
          */
         save: admin.social.updates.save.handler(async ({ context, input }) => {
           if (!testStoriesEnabled()) throw noSuchCall();
@@ -158,7 +163,9 @@ export const adminRoutes = {
             saveUpdate(input.record, { run, fn: 'social.admin_save_update' }),
           );
           if (!result.ok) throw saveFailure(result);
-          return camelKeys<social.ConsoleUpdate>(result.answer);
+          const saved = camelKeys<social.ConsoleUpdate>(result.answer);
+          if (saved.saved !== 'same') await refreshStories([saved.storyId], { board: true });
+          return saved;
         }),
       },
       settings: {
