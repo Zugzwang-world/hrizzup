@@ -1,4 +1,11 @@
-import type { BoardInput, DeskInput, Lists, StoryDetail, UpdatePage } from './board.ts';
+import type {
+  BoardInput,
+  DeskInput,
+  Lists,
+  StoryDetail,
+  UpdatePage,
+  WithdrawnStory,
+} from './board.ts';
 import type { Brief, PostPage, StoryPage } from './common.ts';
 import board from './examples/board.json' with { type: 'json' };
 import { type CallExamples, fromJson } from './kit.ts';
@@ -9,6 +16,8 @@ export const boardInput: BoardInput = fromJson(board, 'board.input');
 export const storyPage: StoryPage = fromJson(board, 'board.output');
 export const storyAddress = fromJson<{ id: string }>(board, 'stories.get.input');
 export const storyDetail: StoryDetail = fromJson(board, 'stories.get.output');
+/** A withdrawn story as `social.stories.get` answers it: its state and reason only. */
+export const withdrawnStory: WithdrawnStory = fromJson(board, 'stories.get.withdrawn');
 export const updatesInput = fromJson<{ id: string; limit: number; cursor: string }>(
   board,
   'stories.updates.input',

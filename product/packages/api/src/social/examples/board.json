@@ -88,7 +88,6 @@
       "pins": 3
     },
     "state": "live",
-    "withdrawnReason": null,
     "listed": true,
     "updates": [
       {
@@ -128,6 +127,13 @@
       }
     ],
     "moreUpdates": false
+  },
+
+  "stories.get.withdrawn": {
+    "id": "01a19cd1-3c40-7a1b-8b2c-4a7e1d9f0b55",
+    "state": "withdrawn",
+    "withdrawnReason": "No exchange confirmed this, and the posts that claimed it were deleted.",
+    "requestedId": null
   },
 
   "stories.updates.input": {
