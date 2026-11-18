@@ -42,6 +42,8 @@ import {
   BOARD_WITHDRAWN_STORY,
   KEPT_STORY_IDS,
   KEPT_UPDATE_IDS,
+  REPLIES_FIXTURE_STORY,
+  REPLIES_FIXTURE_UPDATE,
 } from './fixture-ids.ts';
 
 /**
@@ -518,10 +520,17 @@ describe('the settings as the form shows them', () => {
 });
 
 describe('which stories the console may change', () => {
-  const kept = [BOARD_FIXTURE_STORY, BOARD_WITHDRAWN_STORY, BOARD_MERGED_STORY];
+  // The board fixture's three, and R7's thread fixture's one.
+  const kept = [
+    BOARD_FIXTURE_STORY,
+    BOARD_WITHDRAWN_STORY,
+    BOARD_MERGED_STORY,
+    REPLIES_FIXTURE_STORY,
+  ];
 
   it('never the ones the checks keep, whoever made them', () => {
-    expect(KEPT_STORY_IDS.size).toBe(3);
+    expect(KEPT_STORY_IDS.size).toBe(4);
+    expect(KEPT_STORY_IDS).toEqual(new Set(kept));
     for (const id of kept) {
       expect(keptRefusal(id)).toBe(KEPT_LINE);
       for (const who of ['console', 'pipeline', null] as const) {
@@ -586,12 +595,13 @@ describe('a "must match format" problem', () => {
 });
 
 describe('the updates the checks keep', () => {
-  it('are the live fixture story’s three, refused by their own IDs', () => {
-    expect(KEPT_UPDATE_IDS.size).toBe(3);
+  it('are the live fixture story’s three and the thread fixture’s one, refused by their own IDs', () => {
+    expect(KEPT_UPDATE_IDS.size).toBe(4);
     for (const id of [
       BOARD_FIXTURE_FIRST_UPDATE,
       BOARD_FIXTURE_SECOND_UPDATE,
       BOARD_FIXTURE_THIRD_UPDATE,
+      REPLIES_FIXTURE_UPDATE,
     ]) {
       expect(keptUpdateRefusal(id)).toBe(KEPT_LINE);
     }
