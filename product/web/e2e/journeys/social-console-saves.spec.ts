@@ -152,9 +152,15 @@ test("the console's three saves answer anyone but an admin as an address the API
         const answer = await call(as, method, path, data);
         const what = `${who}: ${method} ${path}`;
         expect(answer.status, what).toBe(404);
-        // Byte for byte the same as an address the API doesn't have, and the same headers.
-        expect(answer.text, what).toBe(unknown.text);
-        expect(answer.headers, what).toEqual(unknown.headers);
+        // Byte for byte the same as an address the API doesn't have, and the same headers. Compared as
+        // booleans and header names, so a failure (an admin's answer that got through) never prints the
+        // body or a header's value into a public log.
+        expect(answer.text === unknown.text, `${what}: the same body`).toBe(true);
+        const names = new Set([...Object.keys(answer.headers), ...Object.keys(unknown.headers)]);
+        expect(
+          [...names].filter((name) => answer.headers[name] !== unknown.headers[name]),
+          `${what}: the headers that differ`,
+        ).toEqual([]);
         expect(answer.caching, what).toBe('private, no-store');
       }
     }
