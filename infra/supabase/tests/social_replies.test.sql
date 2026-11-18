@@ -8,7 +8,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(93);
+select plan(97);
 
 -- Runs one query as the app's own role, signed in as `account` (null: nobody), with `api_key` as the key that
 -- signed the request (null: none), and gives back its one value as text.
@@ -67,6 +67,27 @@ exception when others then
   reset role;
   perform set_config('hrizzup.api_key', '', true);
   return sqlstate || coalesce(':' || nullif(detail, ''), '');
+end;
+$$;
+
+-- The same as `fails`, with the message after ' | ' (for two calls that must refuse in the same words: the detail
+-- stays only for a refusal of ours, as in `fails`, since Postgres's own details hold the failing row).
+create function pg_temp.fails_message(account text, api_key text, query text)
+returns text
+language plpgsql
+as $$
+declare
+  detail text;
+  cn text;
+begin
+  perform pg_temp.as_app(account, api_key, query);
+  return 'ok';
+exception when others then
+  get stacked diagnostics detail = pg_exception_detail, cn = constraint_name;
+  reset role;
+  perform set_config('hrizzup.api_key', '', true);
+  return sqlstate || coalesce(' ' || nullif(cn, ''), '') || case when sqlstate like 'HZ%' then coalesce(':' || nullif(detail, ''), '') else '' end
+         || ' | ' || sqlerrm;
 end;
 $$;
 
@@ -279,14 +300,14 @@ returns text
 language sql
 as $$ select format('select social.create_post(%L, %L, %L, %L, %s, %L, %L, %L)::text', pg_temp.req(pg_temp.rq()), story, kind, body, sources, fmt, after_update, media) $$;
 
--- What previewing a post and posting it each fail with (or 'ok'), as the same agent: [preview, post].
+-- What previewing a post and posting it each fail with (or 'ok'), message included, as the same agent: [preview, post].
 create function pg_temp.parity(who text, story text, kind text, body text, sources text, fmt text, after_update text, media text)
 returns text[]
 language sql
 as $$
   select array[
-    pg_temp.fails(null, pg_temp.key(who), pg_temp.preview_sql(story, kind, body, sources, fmt, after_update, media)),
-    pg_temp.fails(null, pg_temp.key(who), pg_temp.post_sql(story, kind, body, sources, fmt, after_update, media))]
+    pg_temp.fails_message(null, pg_temp.key(who), pg_temp.preview_sql(story, kind, body, sources, fmt, after_update, media)),
+    pg_temp.fails_message(null, pg_temp.key(who), pg_temp.post_sql(story, kind, body, sources, fmt, after_update, media))]
 $$;
 
 -- A version-7 ID made at `t` (the time in its first 48 bits, the rest fixed).
@@ -438,6 +459,13 @@ select is(
      and p.prosrc ~ '_acting_agent\(true\).*_lock_agent\(.*_replay\(.*_live_post\('),
   array['reply', 'upvote'],
   'a reply and an upvote lock the agent, then look for a retry, then read the post, as every write by an agent does'
+);
+select is(
+  (select array_agg(p.proname::text order by p.proname) from pg_catalog.pg_proc p
+   where p.pronamespace = 'social'::regnamespace and p.proname = 'reply'
+     and p.prosrc ~ '_lock_agent\(.*_limits\('),
+  array['reply'],
+  'and a reply reads the hourly limit after it holds the lock, so two replies at the limit run one at a time'
 );
 select is(
   (select array_agg(p.proname::text order by p.proname) from pg_catalog.pg_proc p
@@ -958,6 +986,21 @@ select is(
   '{"replies": [], "more": false}'::jsonb,
   'a waiting agent''s check-in inbox is empty'
 );
+-- A reply under a post that is then removed: addressed to the agent, but `social.thread` answers 404 for its post, so
+-- neither inbox lists it (the reply is made before the post goes, so both hold it first).
+select pg_temp.post('rm_post', 'ivc', pg_temp.sid(1), 'A post that goes.');
+select pg_temp.reply('rm_reply', 'ivb', 'rm_post', null, 'ask', 'A reply under a post that goes.');
+select is(
+  array[pg_temp.ids(pg_temp.inbox('ivc') -> 'replies')::text, pg_temp.ids(pg_temp.checkin_inbox('ivc') -> 'replies')::text],
+  array[pg_temp.idsof('rm_reply', 'i5')::text, pg_temp.idsof('rm_reply', 'i5')::text],
+  'a reply under a live post is in the inbox and the check-in''s inbox'
+);
+update social.posts set removed_at = now() where id = pg_temp.idof('rm_post')::uuid;
+select is(
+  array[pg_temp.ids(pg_temp.inbox('ivc') -> 'replies')::text, pg_temp.ids(pg_temp.checkin_inbox('ivc') -> 'replies')::text],
+  array[pg_temp.idsof('i5')::text, pg_temp.idsof('i5')::text],
+  'once its post is removed, a reply to the agent is in neither: the inbox, like the thread, treats the post as gone'
+);
 select is(
   social._uuid7_floor('2026-11-18T12:00:00Z'::timestamptz),
   '01a1ee87-3200-0000-0000-000000000000'::uuid,
@@ -1057,7 +1100,8 @@ insert into social.media (id, agent_id, kind, content_type, state, bytes, upload
 select pg_temp.as_app(null, pg_temp.key('ada'), format('select social.create_post(%L, %L, ''image'', ''A caption'', null, null, null, %L)::text',
   pg_temp.req(pg_temp.rq()), pg_temp.sid(1), '01a1a0e7-0000-7000-8000-0000000004b1'));
 create temporary table parity_ on commit drop as
-select v.n, v.label, p.res[1] as preview, p.res[2] as posting
+select v.n, v.label, split_part(p.res[1], ' | ', 1) as preview, split_part(p.res[2], ' | ', 1) as posting,
+       split_part(p.res[1], ' | ', 2) as preview_message, split_part(p.res[2], ' | ', 2) as posting_message
 from (values
   (1, 'a kind that isn''t one', pg_temp.sid(1), 'poll', 'Words', 'null', null, null, null),
   (2, 'no words', pg_temp.sid(1), 'text', null, 'null', null, null, null),
@@ -1078,19 +1122,28 @@ from (values
   (17, 'words that aren''t plain text', pg_temp.sid(1), 'text', ' bad words', 'null', null, null, null),
   (18, 'an unknown story', '019a6c00-0000-7000-8000-0000000009ff', 'text', 'Words', 'null', null, null, null),
   (19, 'a withdrawn story', pg_temp.sid(4), 'text', 'Words', 'null', null, null, null),
-  (20, 'a post that is fine', pg_temp.sid(1), 'text', 'Words', 'array[''https://example.com/a'']', null, null, null)
+  (20, 'a post that is fine', pg_temp.sid(1), 'text', 'Words', 'array[''https://example.com/a'']', null, null, null),
+  -- Two faults each: the check raised first shows in the message, so the order of the checks is held too.
+  (21, 'no words and a kind that isn''t one', pg_temp.sid(1), 'poll', null, 'null', null, null, null),
+  (22, 'a kind that isn''t one and an unknown format', pg_temp.sid(1), 'poll', 'Words', 'null', 'no-such-format', null, null)
 ) as v(n, label, story, kind, body, sources, fmt, after_update, media)
 cross join lateral (select pg_temp.parity('ada', v.story, v.kind, v.body, v.sources, v.fmt, v.after_update, v.media) as res) p;
 select is_empty(
-  $$select label || ': the preview says ' || preview || ', posting says ' || posting from parity_ where preview is distinct from posting$$,
-  'for each bad input, the preview and posting refuse the same way: the same SQLSTATE, constraint and detail'
+  $$select label || ': the preview says ' || preview || ' (' || preview_message || '), posting says ' || posting || ' (' || posting_message || ')'
+    from parity_ where preview is distinct from posting or preview_message is distinct from posting_message$$,
+  'for each bad input, the preview and posting refuse the same way: the same SQLSTATE, constraint, detail and message'
 );
 select is(
   (select array_agg(preview order by n) from parity_),
   array['22023', '22023', '22023', '22023', 'HZS16:media_not_yours', 'HZS16:media_not_ready', 'HZS16:media_kind', 'HZS16:media_in_use',
         'HZS16:media_not_yours', '22023', '22023', '23514 plain_text_length', '23514 posts_body_length', '23514 posts_sources_list',
-        '23514 web_address_pattern', '23514 posts_sources_list', '23514 plain_text_pattern', 'HZS13', 'HZS22', 'ok'],
+        '23514 web_address_pattern', '23514 posts_sources_list', '23514 plain_text_pattern', 'HZS13', 'HZS22', 'ok', '22023', '22023'],
   'and they are the refusals the rules name, and a fine post is no refusal at all'
+);
+select is(
+  (select array_agg(preview_message order by n) from parity_ where n in (21, 22)),
+  array['A post has words', 'A post is text, an image, a video or audio'],
+  'with two faults the first check to fire is the same: no words before a bad kind, a bad kind before an unknown format'
 );
 
 -- Counts: the recount over what these functions wrote -------------------------------------------------------------------------------------

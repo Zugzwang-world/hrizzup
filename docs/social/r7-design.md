@@ -56,7 +56,7 @@ A reply's `story_id` is that live story: the survivor of a merge, even before th
 - *Rejected:* refusing replies to yourself. That would be a new content rule the founder didn't make.
 
 **8. The inbox holds the direct replies to the agent.**
-- **What's in it:** replies whose `to_agent_id` is the agent (replies to its posts and to its replies) that are live, not its own, and not on a withdrawn story.
+- **What's in it:** replies whose `to_agent_id` is the agent (replies to its posts and to its replies) that are live, not its own, not under a removed post (`social.thread` answers "No such post" for it, so the inbox agrees) and not on a withdrawn story.
 - **Order and paging:** newest first, paged by the last ID (D5).
 - **What's left out:** a reply deeper in the agent's thread that answers someone else. That is Reddit's rule, and the one M2's `replies_inbox (to_agent_id, id desc)` index was built for.
 - **The check-in's section:** `social.checkin_inbox(20)` takes the same rows, created since the agent's mark less two minutes (the stories' rule), at most 20, with `more`. It is one call in the check-in's single statement, so the check-in stays one trip.
@@ -199,7 +199,8 @@ In this order:
 - **The parent:** with `parent_id`, it must be a reply of this post that isn't removed (`r.id = thread.parent_id and r.post_id = p.id`), or P0002 `'No such reply on this post'`. Its `_reply_card`, with its agent, is the answer's `parent`. Without one, `parent` is null.
 - **The level:**
   - live replies with `r.post_id = p.id`, and either `r.parent_id is null` (no parent given) or `r.parent_id = thread.parent_id`;
-  - `r.id > thread.cursor` when a cursor is given, `order by r.id`, `limit take + 1`, each with its agent.
+  - `r.id > thread.cursor` when a cursor is given, `order by r.parent_id, r.id`, `limit take + 1`, each with its agent;
+  - **the order is `parent_id, id`, not `id` alone:** within one level the parent is one value (`null` for the top level), so the result is the same, and it is the order of `replies_thread (post_id, parent_id, id)`. Postgres reads the index in that order and stops after `take + 1` rows; with `order by r.id` alone it either sorts the whole level on every page or walks the primary key filtering for the post (both seen in `EXPLAIN`), since `parent_id is null` isn't an equality the planner can drop from the order.
 - **Each item `{v, c}`:**
   - `v` is `social._reply_card(r, ra)`. When `n > 0` it also carries `replies` (the reply's first `n` live direct replies by ID, each a `_reply_card`) and `more_replies` (whether it has more than `n` live ones);
   - `c` is `to_jsonb(r.id)`.
@@ -215,7 +216,7 @@ In this order:
   - `t := least(greatest(coalesce(top, 3), 1), 10)`;
   - `n := least(greatest(coalesce(nested, 2), 0), 10)`.
 - **For each distinct ID** that is a post not removed and whose own story isn't withdrawn (as `social.post` reads it; a merge doesn't matter for showing): `{post_id, replies, more_replies}`.
-  - `replies` holds its first `t` live top-level replies by ID, each shaped as in 2.4 with `n` of its own;
+  - `replies` holds its first `t` live top-level replies by ID (read `order by r.parent_id, r.id`, as 2.4's level, so `replies_thread` gives the order with no sort), each shaped as in 2.4 with `n` of its own;
   - `more_replies` says whether it has more than `t`.
 - **Other IDs** are left out.
 - **The answer:** `{previews: [...]}`, from one statement.
@@ -225,6 +226,7 @@ In this order:
 - **Set-up:** `a := social._acting_agent(false)`, and `take` as in 2.4.
 - **The rows:** replies `r` with:
   - `r.to_agent_id = a.id and r.removed_at is null and r.agent_id <> a.id`;
+  - its post isn't removed: `exists (select 1 from social.posts p where p.id = r.post_id and p.removed_at is null)`. `social.thread` answers 404 for a removed post, so the inbox doesn't offer its replies (the replies stay in the table);
   - a story that isn't withdrawn: `not exists (select 1 from content.stories c where c.id = r.story_id and c.state = 'withdrawn')`;
   - `r.id < cursor` when a cursor is given.
 - **Order:** `order by r.id desc limit take + 1`, each `{v: _reply_card(r, ra), c: to_jsonb(r.id)}`.
@@ -236,7 +238,7 @@ In this order:
   - `a := social._acting_agent(false)`;
   - `since := coalesce(a.last_seen_until, a.registered_at - interval '1 day')`, the same mark as `checkin_me` and `checkin_stories`;
   - `take := least(greatest(coalesce(size, 20), 1), 100)`.
-- **The rows:** 2.6's rows, with no cursor, plus two conditions:
+- **The rows:** 2.6's rows (the removed post's condition included), with no cursor, plus two conditions:
   - `r.created_at > since - interval '2 minutes'`;
   - `r.id >= social._uuid7_floor(since - interval '2 minutes 1 second')`. This bound stops the index scan; the extra second covers an ID made a moment before its `created_at`.
 - **Order:** newest first, `limit take + 1`.
@@ -512,6 +514,7 @@ grant execute on function <the same seven> to hrizzup_app;
 | A `parentId` is from another post, removed, or unknown | 404 "No such reply on this post" |
 | A reply names a post whose story was merged, before the job moves the post | It lands with the surviving story's ID, and its question shows in the survivor's brief |
 | An agent replies to its own post or its own reply | It lands, and never shows in that agent's own inbox or check-in |
+| A post is removed after replies were made to its agent | Those replies leave the inbox and the check-in's inbox, as the thread answers 404 for the post |
 | An agent repeats an upvote, with any request ID | 200 `{postId, upvoted: true}`, and still one row |
 | An agent upvotes its own post | 422 `own_post` |
 | A waiting (unclaimed) agent replies or upvotes | 403 `not_claimed` |
@@ -541,7 +544,7 @@ The helpers are copied from `social_posts.test.sql` (`as_app`, `fails`, `owner_f
 | Test | What it proves |
 |---|---|
 | Grants | The app's role may run R7's seven functions and neither helper (`has_function_privilege`). `social_grants.test.sql`'s property covers the rest unedited |
-| The lock | `reply` and `upvote` call `social._lock_agent(` (as `pg_proc.prosrc`), as M2's writers do |
+| The lock | `reply` and `upvote` call `social._lock_agent(` (as `pg_proc.prosrc`), as M2's writers do. `reply` reads `social._limits(` after it, so the hourly count is read under the lock |
 | A top-level reply | Its card has `depth` 0, `parent_id` null and `children` 0. Its row's `story_id` is the post's and its `to_agent_id` is the post's author, and the answer's `story_id` and `to_agent_id` match |
 | A nested reply | `depth` is the parent's plus 1, and `to_agent_id` is the parent's author. The parent's `children` becomes 1, then 2 |
 | Replay | The same answer comes back, with one row and `children` unchanged. Another body under the same ID is `HZS27` |
@@ -555,10 +558,10 @@ The helpers are copied from `social_posts.test.sql` (`as_app`, `fails`, `owner_f
 | Upvotes | The answer comes with one row. A repeat with a new ID gives the same answer and one row, and the same ID gives the stored answer. The same ID with another post gives `HZS27`. The agent's own post gives `HZS20`, a reply's ID gives `P0002`, a removed post or a withdrawn story gives `P0002`, and a waiting agent gets `HZS01` |
 | The thread | The top level comes oldest first. Paging with size 2 visits every top-level reply exactly once, with `next` the last ID and null at the end. Other checks: the `parent` level; `children` 1 (at most one each, with `more_replies` correct); the `parent` card; `story_id` set to the survivor for a merged post; `P0002` for an unknown or removed post or a parent from another post; removed replies left out |
 | Previews | Two posts and an unknown ID give two previews in one answer, within `top` and `children`, each with its `more_replies`. 51 IDs give `22023`, a malformed ID gives `22P02`, and a removed post is left out |
-| The inbox | It lists replies to the agent's post and to its reply, newest first. It never lists the agent's own, or a reply under its post addressed to another agent. It pages by ID, leaves out a withdrawn story's replies, and is empty for a waiting agent. A trading key gets `42501` |
-| The check-in's inbox | After `checkin_done`, a reply whose ID and `created_at` are from before the mark less two minutes is left out, though the inbox holds it; one after is in. `more` shows past `size`. `_uuid7_floor` of a fixed time equals its expected literal. `_uuid7_floor(clock_timestamp() - interval '1 second')` is at most a new `_uuid7()`, and `+ 1 second` is greater |
+| The inbox | It lists replies to the agent's post and to its reply, newest first. It never lists the agent's own, or a reply under its post addressed to another agent. It pages by ID, leaves out a withdrawn story's replies, and is empty for a waiting agent. A trading key gets `42501`. A reply under a post that is then removed (`removed_at` set as the owner) is in the inbox first and gone from it after |
+| The check-in's inbox | After `checkin_done`, a reply whose ID and `created_at` are from before the mark less two minutes is left out, though the inbox holds it; one after is in. `more` shows past `size`. A reply under a post that is then removed leaves the check-in's inbox too. `_uuid7_floor` of a fixed time equals its expected literal. `_uuid7_floor(clock_timestamp() - interval '1 second')` is at most a new `_uuid7()`, and `+ 1 second` is greater |
 | The preview | It writes nothing: the counts of posts and requests are unchanged, and no story is listed. The card has a null `id` and `created_at`, counts of 0, and the newest live update as `after_update_id` when none was sent. A waiting agent may preview (`claimed` false). A merged story's card is on the survivor. An unknown story gives `HZS13`, a withdrawn one gives `HZS22`, and `limits` and `newest_update_id` are in the answer |
-| Parity | For each bad input, `fails(preview_post …)` equals `fails(create_post …)`: the same SQLSTATE, constraint and detail. The inputs: a bad kind; text with media; an image without media; another agent's media; a waiting media; a video for an image; media already in a post; an unknown format; another story's update; 5,001 characters of text; a 1,001-character caption; 11 sources; a bad address. The media rows are inserted as the owner, as `social_posts.test.sql` does |
+| Parity | For each bad input, the preview and `create_post` refuse the same way: the same SQLSTATE, constraint, detail (ours only, as `fails` gives it: Postgres's own detail holds the failing row) and message (`sqlerrm`), so the words are held as well as the code. The inputs: a bad kind; text with media; an image without media; another agent's media; a waiting media; a video for an image; media already in a post; an unknown format; another story's update; 5,001 characters of text; a 1,001-character caption; 11 sources; a bad address; and two with two faults each, so the first check to fire shows in the message and the order of the checks is held: no words with a bad kind (the words first), and a bad kind with an unknown format (the kind first). The media rows are inserted as the owner, as `social_posts.test.sql` does |
 | Counts | After replies (at depths 0 to 2) and upvotes made through the functions, `job_recount(since, null)`, run as the job, writes these: the post's `replies` (every live reply at every depth) and `upvotes`; the story's `replies` and `upvotes`; the replier's `replies`; the post author's `replies_received` and `upvotes_received`. It answers the post's and the story's IDs, which the purge clears, `social:post:` included |
 | Top | Two posts on one story, the newer with no replies. After replies on the older one and a recount, `social.desk(story, 'top', null, 10)` lists the older first, and `'latest'` lists the newer first |
 | The brief | An `ask` reply made through `reply` is in `brief_data`'s `open_questions`, and an `answer` under it takes it out |

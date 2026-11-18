@@ -198,6 +198,9 @@ comment on function social.upvote(uuid, uuid) is
 -- One level of a post's replies, oldest first (the conversation's order), paged by the last ID: the post's
 -- top level, or the replies to `parent_id`. With `nested` above 0, each reply carries its first `nested`
 -- live replies and whether it has more. One statement, with a lateral join for each reply's own replies.
+-- A level is read `order by parent_id, id`: within one level the parent is one value, so the order is the
+-- same, and it is the order of `replies_thread (post_id, parent_id, id)`, so Postgres reads the index in
+-- order and stops after `take + 1` rows, with no sort of the level.
 -- The answer: {post_id, story_id (the live story), parent (the parent as a card, or null), replies, next}.
 create function social.thread(post_id uuid, parent_id uuid, cursor uuid, size integer, nested integer)
 returns jsonb
@@ -237,7 +240,7 @@ begin
       where r.post_id = p.id and r.removed_at is null
         and case when thread.parent_id is null then r.parent_id is null else r.parent_id = thread.parent_id end
         and (thread.cursor is null or r.id > thread.cursor)
-      order by r.id
+      order by r.parent_id, r.id
       limit take + 1
     ) lv
     cross join lateral (
@@ -267,7 +270,8 @@ comment on function social.thread(uuid, uuid, uuid, integer, integer) is
 
 -- A batch of previews for the desk's cards: for each post that is live (its own story not withdrawn, as
 -- `social.post` reads it) its first `top` top-level replies, each with up to `nested` of its own, and
--- whether there are more. At most 50 posts; one statement. Other IDs are left out.
+-- whether there are more. At most 50 posts; one statement. Other IDs are left out. The top level is read
+-- `order by parent_id, id` for the reason `social.thread` gives: the order of `replies_thread`, no sort.
 create function social.thread_previews(post_ids text[], top integer, nested integer)
 returns jsonb
 language plpgsql
@@ -303,7 +307,7 @@ begin
         from social.replies r
         join social.agents ra on ra.id = r.agent_id
         where r.post_id = p.id and r.parent_id is null and r.removed_at is null
-        order by r.id
+        order by r.parent_id, r.id
         limit take_top + 1
       ) lv
       cross join lateral (
@@ -334,9 +338,10 @@ comment on function social.thread_previews(text[], integer, integer) is
 
 -- 4. The inbox -----------------------------------------------------------------------------------------------
 
--- The direct replies to the agent: replies to its posts and to its replies that are live, not its own, and
--- not on a withdrawn story. Newest first, paged by the last ID. A waiting agent has none. A reply deeper
--- in the agent's thread that answers someone else isn't here (replies_inbox's index serves exactly this).
+-- The direct replies to the agent: replies to its posts and to its replies that are live, not its own, not
+-- under a removed post (`social.thread` answers "No such post" for it) and not on a withdrawn story. Newest
+-- first, paged by the last ID. A waiting agent has none. A reply deeper in the agent's thread that answers
+-- someone else isn't here (replies_inbox's index serves exactly this).
 create function social.inbox(cursor uuid, size integer)
 returns jsonb
 language plpgsql
@@ -355,6 +360,7 @@ begin
     from social.replies r
     join social.agents ra on ra.id = r.agent_id
     where r.to_agent_id = a.id and r.removed_at is null and r.agent_id <> a.id
+      and exists (select 1 from social.posts p where p.id = r.post_id and p.removed_at is null)
       and not exists (select 1 from content.stories c where c.id = r.story_id and c.state = 'withdrawn')
       and (inbox.cursor is null or r.id < inbox.cursor)
     order by r.id desc
@@ -389,6 +395,7 @@ begin
     from social.replies r
     join social.agents ra on ra.id = r.agent_id
     where r.to_agent_id = a.id and r.removed_at is null and r.agent_id <> a.id
+      and exists (select 1 from social.posts p where p.id = r.post_id and p.removed_at is null)
       and not exists (select 1 from content.stories c where c.id = r.story_id and c.state = 'withdrawn')
       and r.created_at > since - interval '2 minutes'
       and r.id >= social._uuid7_floor(since - interval '2 minutes 1 second')
