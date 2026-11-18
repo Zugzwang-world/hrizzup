@@ -441,12 +441,14 @@ grant execute on function <the same seven> to hrizzup_app;
 5. **`post-stats.tsx`** (`data-testid="post-stats"`) shows "1 reply" or "N replies", and "1 upvote" or "N upvotes", from `post.counts`. The replies link to the thread, except on the thread page's own card (`'replies' in post`). R11 adds views to this file later.
 6. **The thread page:**
    - **Address:** `sandboxOnly()` first. An `id` that isn't a UUID gives `notFound()`; otherwise lower-case it.
-   - **Search parameters:** `reply` must be a UUID, or it is dropped with the line "That reply isn't in this thread: here is the post's own"; `cursor` is passed as sent.
+   - **Search parameters:** `reply` must be a UUID, or it is dropped with the line "That reply isn't in this thread: here is the post's own". `cursor` is kept only when it is a UUID, and otherwise dropped with the line "That page isn't one of this thread's: showing the first page". It is checked before it is sent: it is a UUID parameter in SQL, so nothing valid is lost, and a zero byte in it is SQLSTATE 22021, which the shared `errors.ts` doesn't map (a 500 for a signed-out visitor).
    - **Reads:** `Promise.allSettled([serverApi.social.posts.get({id}), threadOf({postId: id, parent: reply, cursor, size: THREAD_PAGE, nested: THREAD_CHILDREN})])`.
    - **Failures:**
      - the post's 404 gives `notFound()`;
-     - a thread 404 for `reply` (not in this post) reads again without it, and shows the line above;
-     - a 400 for the cursor reads again from the first page;
+     - a thread 404 for `reply` (not in this post) reads again without it (and without the cursor), and shows the line above;
+     - a 400 for the cursor, which the check above makes a backstop only, reads again from the first page;
+     - a level read from a cursor that holds no replies (the cursor is stale: its next reply was removed since the link was made) reads again from the first page, with the cursor's line, never "No replies yet." under a post that has replies;
+     - each of these clears a value, so a page reads three times at most; the decision is `fallback` in `W/lib/social/reply-view.ts`, unit-tested there, and the journey opens a stale reply, a cursor that isn't a UUID, one with a zero byte and one past the end;
      - anything else throws.
    - **Drawing:**
      - `<PostCard post={detail}/>`;

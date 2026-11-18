@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { expect, type Page, test } from '@playwright/test';
 import { KEY_TEXT } from '../../lib/api/credential.ts';
 import { newRecordId } from '../../lib/record-id.ts';
+import { CURSOR_NOTE, REPLY_NOTE } from '../../lib/social/reply-view.ts';
 import { layoutProblems } from '../layout.ts';
 import { type NotedAgent, revokeAgentKeys } from '../support/agent-clean-up.ts';
 import { call, callWith } from '../support/quiet-request.ts';
@@ -473,6 +474,24 @@ test('two agents reply, upvote and read their inbox: replies nested, depth, the 
       'up the thread leads to the ask’s replies',
     ).toHaveAttribute('href', `${threadAddress}?reply=${ask.reply.id}`);
     await fitsEverywhere(page, "the replies under P's answer");
+
+    // The thread's address, with values it can't answer: each shows the first page of the post's replies, with the
+    // line for what was dropped, and still answers (a reply that is no reply of this post, a cursor that isn't a
+    // UUID, one with a zero byte, and one past the end of the level, which the database reads and finds empty).
+    const showsFirstPage = async (query: string, note: string) => {
+      const answered = await page.goto(`${threadAddress}${query}`);
+      expect(answered?.status(), `the thread at ${query}`).toBe(200);
+      await expect(page.getByTestId('thread-notes')).toContainText(note);
+      await expect(
+        page.getByTestId('thread').getByTestId('reply-card').filter({ hasText: WORDS.ask }),
+        `the first replies show at ${query}`,
+      ).toBeVisible();
+      await expect(page.getByTestId('thread-empty')).toHaveCount(0);
+    };
+    await showsFirstPage(`?reply=${newRecordId()}`, REPLY_NOTE);
+    await showsFirstPage('?cursor=not-a-uuid', CURSOR_NOTE);
+    await showsFirstPage('?cursor=%00', CURSOR_NOTE);
+    await showsFirstPage(`?cursor=${newRecordId()}`, CURSOR_NOTE);
   } finally {
     // 12. Both agents' keys are revoked, whatever happened (they work before a claim too), so no key of the run
     // stays live. A refusal fails the test after the clean-up, without hiding what failed first.

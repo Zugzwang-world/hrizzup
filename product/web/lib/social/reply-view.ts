@@ -111,10 +111,11 @@ export const CURSOR_NOTE = "That page isn't one of this thread's: showing the fi
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
- * The thread page's view of an address's query (`reply` and `cursor`): `reply` must be a UUID (lower-cased), or it
- * is dropped with a plain line saying so, and the cursor with it, since a cursor is only a place in one level. A
- * cursor is passed as sent, for the database to read (a bad one is a 400 the page answers by starting again); one
- * sent twice is dropped. Nothing sent is ever repeated on the page.
+ * The thread page's view of an address's query (`reply` and `cursor`): each must be a UUID (lower-cased), or it is
+ * dropped with a plain line saying so. A cursor is only a place in one level, so it goes with a `reply` that was
+ * dropped. A cursor is a UUID parameter in SQL, so one that isn't a UUID could never read anything, and one with a
+ * zero byte in it is a database error the shared map doesn't know (a 500): it is checked here, before it is sent.
+ * One sent twice is dropped too. Nothing sent is ever repeated on the page.
  */
 export function threadView(query: Record<string, Raw>): ThreadView {
   const notes: string[] = [];
@@ -127,7 +128,8 @@ export function threadView(query: Record<string, Raw>): ThreadView {
   }
   let cursor: string | undefined;
   if (sent(query.cursor) && !(sent(query.reply) && reply === undefined)) {
-    if (typeof query.cursor === 'string') cursor = query.cursor;
+    if (typeof query.cursor === 'string' && UUID.test(query.cursor))
+      cursor = query.cursor.toLowerCase();
     else notes.push(CURSOR_NOTE);
   }
   return {
@@ -136,3 +138,38 @@ export function threadView(query: Record<string, Raw>): ThreadView {
     notes,
   };
 }
+
+/** What the page asked of the thread: the reply whose replies it opens, and where the page starts. */
+export type Asked = { reply?: string; cursor?: string };
+
+/** How a read of a level came back: refused (404 for a reply that isn't in the thread, 400 for a cursor, or any other), or read, with how many replies it holds. */
+export type Outcome = { refused: 'NOT_FOUND' | 'BAD_REQUEST' | 'OTHER' } | { replies: number };
+
+/**
+ * What the thread page does when a read of a level didn't give it a page to draw: the next read to make, and the
+ * line to show for it, or null when there is nothing to try (the page is drawn, or the refusal is not one a
+ * smaller ask answers). Each step clears a value, so a page reads at most three times:
+ *
+ * - a 400 on a cursor: the database couldn't read it, so the level starts again without it;
+ * - a 404 on a reply: it isn't in this post's thread, so the post's own top level is read, and the cursor, a place in
+ *   the reply's level, goes with it;
+ * - a level read from a cursor that holds no replies: the cursor is stale (the reply after it was removed since the
+ *   link was made), so the level starts again without it, instead of "No replies yet." under a post with replies.
+ */
+export function fallback(asked: Asked, outcome: Outcome): { asked: Asked; note: string } | null {
+  if ('replies' in outcome) {
+    return outcome.replies === 0 && asked.cursor !== undefined
+      ? { asked: withoutCursor(asked), note: CURSOR_NOTE }
+      : null;
+  }
+  if (outcome.refused === 'BAD_REQUEST' && asked.cursor !== undefined) {
+    return { asked: withoutCursor(asked), note: CURSOR_NOTE };
+  }
+  if (outcome.refused === 'NOT_FOUND' && asked.reply !== undefined) {
+    return { asked: {}, note: REPLY_NOTE };
+  }
+  return null;
+}
+
+const withoutCursor = (asked: Asked): Asked =>
+  asked.reply === undefined ? {} : { reply: asked.reply };

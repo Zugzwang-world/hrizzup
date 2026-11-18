@@ -1,8 +1,10 @@
 import { social as examples } from '@hrizzup/api/examples';
 import { describe, expect, it } from 'vitest';
 import {
+  type Asked,
   CURSOR_NOTE,
   countText,
+  fallback,
   isThreadPost,
   type PreviewReply,
   REPLY_NOTE,
@@ -116,6 +118,7 @@ describe('the tree of replies a desk card or a thread draws', () => {
 
 describe('the thread page’s address', () => {
   const REPLY = '019A7B10-0000-7000-8000-00000000BB02';
+  const CURSOR_OK = '019a7b10-0000-7000-8000-00000000cc03';
 
   it('takes nothing, or a reply and a cursor, with no line when they are fine', () => {
     expect(threadView({})).toEqual({ notes: [] });
@@ -132,12 +135,115 @@ describe('the thread page’s address', () => {
     expect(threadView({ reply: ['a', 'b'] })).toEqual({ notes: [REPLY_NOTE] });
   });
 
-  it('passes a cursor as it was sent, for the database to read, and drops one sent twice with a line', () => {
-    expect(threadView({ cursor: 'not-a-uuid' })).toEqual({ cursor: 'not-a-uuid', notes: [] });
+  it('keeps a cursor only when it is a UUID (lower-cased), and drops anything else with a line', () => {
+    expect(threadView({ cursor: '019A7B10-0000-7000-8000-00000000CC03' })).toEqual({
+      cursor: '019a7b10-0000-7000-8000-00000000cc03',
+      notes: [],
+    });
+    expect(threadView({ cursor: 'not-a-uuid' })).toEqual({ notes: [CURSOR_NOTE] });
+    // A zero byte is a database error the shared map doesn't know (a 500): it never reaches the database.
+    expect(threadView({ cursor: `${String.fromCharCode(0)}` })).toEqual({ notes: [CURSOR_NOTE] });
+    expect(threadView({ cursor: `${CURSOR_OK}${String.fromCharCode(0)}` })).toEqual({
+      notes: [CURSOR_NOTE],
+    });
     expect(threadView({ cursor: ['a', 'b'] })).toEqual({ notes: [CURSOR_NOTE] });
   });
 
   it('treats an empty value as not sent', () => {
     expect(threadView({ reply: '', cursor: '' })).toEqual({ notes: [] });
+  });
+});
+
+describe('what the thread page does when a read gave it no page (the fallback)', () => {
+  const REPLY = '019a7b10-0000-7000-8000-00000000bb02';
+  const CURSOR = '019a7b10-0000-7000-8000-00000000cc03';
+
+  it('starts the level again without a cursor the database refused (a 400), keeping the reply', () => {
+    expect(fallback({ reply: REPLY, cursor: CURSOR }, { refused: 'BAD_REQUEST' })).toEqual({
+      asked: { reply: REPLY },
+      note: CURSOR_NOTE,
+    });
+    expect(fallback({ cursor: CURSOR }, { refused: 'BAD_REQUEST' })).toEqual({
+      asked: {},
+      note: CURSOR_NOTE,
+    });
+  });
+
+  it('reads the post’s own top level when the reply isn’t in the thread (a 404), dropping the cursor with it', () => {
+    expect(fallback({ reply: REPLY, cursor: CURSOR }, { refused: 'NOT_FOUND' })).toEqual({
+      asked: {},
+      note: REPLY_NOTE,
+    });
+    expect(fallback({ reply: REPLY }, { refused: 'NOT_FOUND' })).toEqual({
+      asked: {},
+      note: REPLY_NOTE,
+    });
+  });
+
+  it('starts a level again when a cursor leads to no replies, never "No replies yet." under a post with replies', () => {
+    expect(fallback({ cursor: CURSOR }, { replies: 0 })).toEqual({ asked: {}, note: CURSOR_NOTE });
+    expect(fallback({ reply: REPLY, cursor: CURSOR }, { replies: 0 })).toEqual({
+      asked: { reply: REPLY },
+      note: CURSOR_NOTE,
+    });
+  });
+
+  it('has nothing to try for a page that was read, an empty level with no cursor, or a refusal a smaller ask can’t answer', () => {
+    expect(fallback({ cursor: CURSOR }, { replies: 3 })).toBeNull();
+    expect(fallback({ reply: REPLY, cursor: CURSOR }, { replies: 1 })).toBeNull();
+    expect(fallback({}, { replies: 0 })).toBeNull();
+    expect(fallback({ reply: REPLY }, { replies: 0 })).toBeNull();
+    // A 404 with no reply is the post's own (the page is "not found"); a 400 with no cursor is not the cursor's.
+    expect(fallback({}, { refused: 'NOT_FOUND' })).toBeNull();
+    expect(fallback({ cursor: CURSOR }, { refused: 'NOT_FOUND' })).toBeNull();
+    expect(fallback({ reply: REPLY }, { refused: 'BAD_REQUEST' })).toBeNull();
+    expect(fallback({ reply: REPLY, cursor: CURSOR }, { refused: 'OTHER' })).toBeNull();
+  });
+
+  it('clears something at every step, so every address is answered in three reads at most, whatever is wrong with it', () => {
+    // The world, in every way it can be: which values the database refuses or finds, and what the levels hold.
+    const flags = [false, true];
+    for (const replyOk of flags) {
+      for (const cursorReadable of flags) {
+        for (const cursorPastEnd of flags) {
+          for (const levelHasReplies of flags) {
+            let asked: Asked = { reply: REPLY, cursor: CURSOR };
+            const notes: string[] = [];
+            let reads = 0;
+            for (;;) {
+              reads += 1;
+              expect(reads, 'reads').toBeLessThanOrEqual(3);
+              const outcome =
+                asked.cursor !== undefined && !cursorReadable
+                  ? ({ refused: 'BAD_REQUEST' } as const)
+                  : asked.reply !== undefined && !replyOk
+                    ? ({ refused: 'NOT_FOUND' } as const)
+                    : {
+                        replies:
+                          levelHasReplies && !(asked.cursor !== undefined && cursorPastEnd) ? 2 : 0,
+                      };
+              const step = fallback(asked, outcome);
+              if (step === null) {
+                // What is left is something the database answered (or an empty level with no cursor).
+                if ('replies' in outcome && outcome.replies === 0) {
+                  expect(
+                    asked.cursor,
+                    'an empty level is never read from a cursor',
+                  ).toBeUndefined();
+                }
+                break;
+              }
+              // Each step takes something away, and never adds anything.
+              expect(Object.keys(step.asked).length, 'a value is cleared').toBeLessThan(
+                Object.keys(asked).length,
+              );
+              notes.push(step.note);
+              asked = step.asked;
+            }
+            expect(new Set(notes).size, 'a line is said once').toBe(notes.length);
+          }
+        }
+      }
+    }
   });
 });
