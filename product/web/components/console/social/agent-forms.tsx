@@ -25,6 +25,8 @@ export function AgentLimitsForm({
     postsPerDay: postsPerDay ?? '',
     repliesPerHour: repliesPerHour ?? '',
   };
+  // After a refused send the box is as it was sent (an unticked box is not in what was sent, and must not tick again).
+  const sent = 'id' in state.values;
   const own = (name: string) => `${id}-${name}`;
   return (
     <Reveal label="Change limits and mark">
@@ -42,7 +44,7 @@ export function AgentLimitsForm({
           <input
             type="checkbox"
             name="house"
-            defaultChecked={state.values.house ? state.values.house === 'on' : house}
+            defaultChecked={sent ? state.values.house === 'on' : house}
             className="mt-1"
           />
           <span className="font-medium">Hrizzup's own agent</span>

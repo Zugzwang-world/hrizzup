@@ -1,4 +1,5 @@
 import { type Browser, expect, type Page, test } from '@playwright/test';
+import { layoutProblems } from '../layout.ts';
 import { consoleSocialPages } from '../pages/social/console.ts';
 import { runKey } from '../support/run.ts';
 import { adminState, signedInState } from '../support/states.ts';
@@ -102,6 +103,12 @@ test('an admin makes an invite, copies its ready message and revokes it', async 
   await expect(row).toContainText('unlisted');
   await expect(row).toContainText('A test invite of the console journey');
 
+  // The page fits with a row's form open and the made invite's block shown (the email field is clear for the next
+  // invite). Only how many problems are asserted: the list holds other people's emails, which a problem's description
+  // would print.
+  await row.getByText('Revoke…').click();
+  expect((await layoutProblems(page)).length, 'layout problems on the invites page').toBe(0);
+
   // A second invite for the same email is refused in a plain line, with the open invite's own revoke control.
   await page.getByLabel('Email').fill(email);
   await page.getByRole('radio', { name: /^Unlisted/ }).check();
@@ -112,7 +119,6 @@ test('an admin makes an invite, copies its ready message and revokes it', async 
   await expect(page.getByTestId('invite-made')).toHaveCount(0);
 
   // Revoke it through its row, with a reason (required: the field says so).
-  await row.getByText('Revoke…').click();
   const why = row.getByLabel('Why');
   await expect(why).toHaveAttribute('required', '');
   await why.fill('The console journey is done with it');
@@ -238,10 +244,40 @@ test('the settings and agents pages open and show their forms; nothing is saved 
   // Either some agents, each with its two forms, or none yet.
   const agents = page.getByTestId('agent-row');
   if ((await agents.count()) > 0) {
-    await expect(agents.first().getByText('Change limits and mark')).toBeVisible();
-    await expect(agents.first().getByText('Revoke keys')).toBeVisible();
+    const first = agents.first();
+    await first.getByText('Change limits and mark').click();
+    await first.getByText('Revoke keys').click();
+    // Both forms stand open, and the page still fits (only the count is asserted: a problem's description would print
+    // an agent's name).
+    await expect(first.getByTestId('agent-limits-form')).toBeVisible();
+    await expect(first.getByTestId('agent-keys-form')).toBeVisible();
+    expect((await layoutProblems(page)).length, 'layout problems on the agents page').toBe(0);
   } else {
     await expect(page.getByTestId('agents-empty')).toBeVisible();
   }
+  await page.context().close();
+});
+
+test('the two lists of people, opened where the Screen check opens them, hold no row', async ({
+  browser,
+  browserName,
+}) => {
+  test.skip(onProduction(), "The console doesn't exist on production until launch");
+  const page = await asAdmin(browser, browserName);
+  // The Screen check's screenshots are public: these two addresses must show no email, whoever has been invited.
+  const address = (name: string) => {
+    const entry = consoleSocialPages.find((candidate) => candidate.name === name);
+    if (!entry) throw new Error(`No page called ${name}`);
+    return entry.path;
+  };
+  await page.goto(address('console-social-invites'));
+  await expect(page.getByRole('heading', { level: 1, name: 'Invites' })).toBeVisible();
+  await expect(page.getByTestId('invite-form')).toBeVisible();
+  await expect(page.getByTestId('invites-empty')).toBeVisible();
+  await expect(page.getByTestId('invite-row')).toHaveCount(0);
+  await page.goto(address('console-social-agents'));
+  await expect(page.getByRole('heading', { level: 1, name: 'Agents' })).toBeVisible();
+  await expect(page.getByTestId('agents-empty')).toBeVisible();
+  await expect(page.getByTestId('agent-row')).toHaveCount(0);
   await page.context().close();
 });
