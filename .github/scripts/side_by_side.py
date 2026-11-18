@@ -308,7 +308,7 @@ def read_app_allowance(path):
 
 def names_of(flows):
     """Up to six flow names, each in backticks and kept to one plain line."""
-    return (", ".join(f"`{clean_name_text(name)[:80]}`" for name in sorted(flows)[:6])
+    return (", ".join(f"`{clean_name_text(name)[:150]}`" for name in sorted(flows)[:6])
             + (" and more" if len(flows) > 6 else ""))
 
 
@@ -341,7 +341,9 @@ def compare_app(one_folder, phone_folder, tablet_folder, allowance, commit="", p
     """(record, text) for the two ways of running App journeys: see the module's description."""
     reasons, flip, flows = [], False, {}
     sides = {"phone": phone_folder, "tablet": tablet_folder}
-    explained = {"one": False, "two": False}  # a side that failed a flow or left a report stops before its cold start
+    # What explains a missing cold start: the one-machine run stops at a flow that failed or a size that left no
+    # report; on two machines only the tablet's machine runs the cold start, so only its report explains it.
+    explained = {"one": False, "two": False}
     for size in SIZES:
         one = read_flows(os.path.join(one_folder, f"{size}.xml"))
         two = read_flows(os.path.join(sides[size], f"{size}.xml"))
@@ -350,7 +352,8 @@ def compare_app(one_folder, phone_folder, tablet_folder, allowance, commit="", p
         flip = flip or flipped
         flows[size] = {"oneMachine": counts["one"], "twoMachines": counts["two"]}
         for side, flows_of in (("one", one), ("two", two)):
-            explained[side] = explained[side] or flows_of is None or not all(flows_of.values())
+            if side == "one" or size == "tablet":
+                explained[side] = explained[side] or flows_of is None or not all(flows_of.values())
     one_start = read_startup(os.path.join(one_folder, "startup.json"))
     two_start = read_startup(os.path.join(tablet_folder, "startup.json"))
     if two_start is None and not explained["two"]:

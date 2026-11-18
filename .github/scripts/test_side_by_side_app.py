@@ -229,6 +229,16 @@ class TheComparison(unittest.TestCase):
         record, _ = compared(tablet={"tablet": {**FLOWS, "The app opens": False}})
         self.assertEqual(record["reasons"], ["at the tablet size, `The app opens` failed on two machines"])
 
+    def test_only_the_tablets_machine_explains_a_missing_cold_start_on_two_machines(self):
+        # The phone's machine failed a flow, which says nothing about the cold start: the tablet's machine runs it.
+        record, _ = compared(phone={"phone": {**FLOWS, "The app opens": False}}, tablet={"tablet": FLOWS})
+        self.assertEqual(record["reasons"], ["at the phone size, `The app opens` failed on two machines",
+                                             "the two-machine side measured no cold start (its tablet machine left "
+                                             "no startup.json)"])
+        # On one machine a failed flow at either size (or a size with no report) stops the run before its cold start.
+        record, _ = compared(one={"phone": {**FLOWS, "The app opens": False}, "tablet": FLOWS})
+        self.assertEqual(record["reasons"], ["at the phone size, `The app opens` failed on one machine"])
+
     def test_a_one_machine_run_that_left_no_cold_start_is_not_clean(self):
         record, _ = compared(one=BOTH)
         self.assertFalse(record["clean"])
