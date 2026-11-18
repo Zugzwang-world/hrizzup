@@ -55,6 +55,7 @@ export function PlayingMedia({ kind, src, poster, width, height, children }: Pla
   }, []);
   if (kind === 'video') {
     return (
+      // (No spread attributes on the element: Biome skips the rule on an element with one, which would leave this suppression unused.)
       // biome-ignore lint/a11y/useMediaCaption: the full transcript stands in for captions: under the player on the post's own page, and linked from every card (video formats also ask for captions burned in)
       <video
         ref={(node) => {

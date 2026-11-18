@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { expect, type Page, test } from '@playwright/test';
+import sharp from 'sharp';
 import { newRecordId } from '../../lib/record-id.ts';
 import { MEDIA_FIXTURE_STORY } from '../../lib/social/fixture-ids.ts';
 import { transformed } from '../../lib/social/media/delivery.ts';
@@ -33,7 +34,7 @@ import { views } from '../viewports.ts';
  * - The page fits at every size of the screen check: the 13 widths, sideways, and the phone widths at 200% text,
  *   before the taps, after them, and on the post's own page.
  * - Cloudflare's resize itself is proven once, on the fixture's kept picture (`fixtures/social/media.ts`): one `GET`
- *   with `Accept: image/avif` answers an AVIF. The same address every run, so after the first it is the edge's copy
+ *   with `Accept: image/avif` answers a picture 640 pixels wide, from the 1280 one. The same address every run, so after the first it is the edge's copy
  *   and costs no new transformation.
  *
  * The browser's requests to the media host are routed (and only those): a resize is answered with a small picture
@@ -454,11 +455,17 @@ test.describe('pictures, video and audio on a story’s page', () => {
         const resizedAddress = transformed(kept?.url ?? '', 640);
         const served = await quietly('GET', resizedAddress, async () => {
           const answer = await fetch(resizedAddress, { headers: { accept: 'image/avif' } });
-          await answer.arrayBuffer();
-          return { status: answer.status, type: answer.headers.get('content-type') };
+          return {
+            status: answer.status,
+            type: answer.headers.get('content-type') ?? '',
+            bytes: Buffer.from(await answer.arrayBuffer()),
+          };
         });
         expect(served.status, "Cloudflare's resize answers").toBe(200);
-        expect(served.type, 'in AVIF, for a browser that takes it').toBe('image/avif');
+        expect(served.type, 'with a picture').toMatch(/^image\//);
+        // Proven by its size, whatever format `format=auto` chose for a browser that takes AVIF: the kept picture
+        // is 1280 pixels wide, so the resize is 640 (and the one before the resize would be 1280).
+        expect((await sharp(served.bytes).metadata()).width, 'resized to 640 wide').toBe(640);
       }
     } finally {
       // The run's console agent is retired (it can post no more, and has no key to revoke), whatever happened. A
