@@ -492,12 +492,17 @@ export type PageComparison = {
 
 export type Comparison = { clean: boolean; pages: PageComparison[] };
 
+/**
+ * The numbers a page's runs keep, as the comparison says them: at the precision they are stored
+ * (whole milliseconds and bytes, four places of layout shift), so a miss of a few bytes or
+ * milliseconds never prints as equal numbers on both sides.
+ */
 const RANGED = [
-  { key: 'loadMs', label: 'Load', show: (v: number) => `${(v / 1000).toFixed(2)} s` },
+  { key: 'loadMs', label: 'Load', show: (v: number) => `${Math.round(v)} ms` },
   { key: 'blockingMs', label: 'Busy time', show: (v: number) => `${Math.round(v)} ms` },
-  { key: 'layoutShift', label: 'Layout shift', show: (v: number) => v.toFixed(3) },
-  { key: 'codeBytes', label: 'Code', show: (v: number) => `${(v / KB).toFixed(1)} KB` },
-  { key: 'totalBytes', label: 'Total download', show: (v: number) => `${(v / KB).toFixed(1)} KB` },
+  { key: 'layoutShift', label: 'Layout shift', show: (v: number) => v.toFixed(4) },
+  { key: 'codeBytes', label: 'Code', show: (v: number) => `${Math.round(v)} bytes` },
+  { key: 'totalBytes', label: 'Total download', show: (v: number) => `${Math.round(v)} bytes` },
 ] as const;
 
 const passFail = (passes: boolean) => (passes ? 'passes' : 'fails');

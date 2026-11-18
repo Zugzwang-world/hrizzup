@@ -276,7 +276,7 @@ def run_tally(argv, environ=os.environ):
         current = read_json(argv[argv.index("--current") + 1])
         if not isinstance(current, dict):
             current = None  # this run left none (the plan failed): the stored ones still count
-    github = GitHub(environ["GITHUB_TOKEN"], environ["GITHUB_REPOSITORY"])
+    github = GitHub(environ["GITHUB_TOKEN"], environ["GITHUB_REPOSITORY"], api=environ.get("GITHUB_API_URL") or API)
     text, count = tally(github, name, current)
     print(text)
     say(line_for(count))

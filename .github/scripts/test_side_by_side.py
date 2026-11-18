@@ -331,35 +331,63 @@ class TheGitHubClient(unittest.TestCase):
         with self.assertRaises(urllib.error.HTTPError):
             side_by_side.GitHub("token", "owner/repo", opener=always_busy).get("https://example.test/x", sleep=lambda s: None)
 
-    def test_the_token_goes_to_githubs_api_and_never_to_the_address_a_download_redirects_to(self):
+    def serve(self, artifacts, zips):
+        """A local stand-in for GitHub's API: lists `artifacts`, serves `zips` by id behind a redirect
+        to a storage address of its own, and remembers the Authorization header of every request."""
         seen = {}
 
         class Handler(http.server.BaseHTTPRequestHandler):
             def do_GET(self):  # noqa: N802
-                seen[self.path] = self.headers.get("Authorization")
-                if self.path.endswith("/zip"):
+                seen[self.path.split("?")[0]] = self.headers.get("Authorization")
+                found = re.search(r"/artifacts/(\d+)/zip$", self.path)
+                if found:
                     self.send_response(302)
-                    self.send_header("Location", f"http://127.0.0.1:{self.server.server_port}/storage/blob")
+                    self.send_header("Location", f"http://127.0.0.1:{self.server.server_port}/storage/{found.group(1)}")
                     self.end_headers()
-                else:
-                    body = zipped(record(160))
-                    self.send_response(200)
-                    self.send_header("Content-Length", str(len(body)))
-                    self.end_headers()
-                    self.wfile.write(body)
+                    return
+                stored = re.search(r"/storage/(\d+)$", self.path)
+                body = zips[int(stored.group(1))] if stored else json.dumps({"artifacts": artifacts}).encode()
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
 
             def log_message(self, *args):
                 pass
 
         server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
-        thread = threading.Thread(target=server.serve_forever, daemon=True)
-        thread.start()
+        threading.Thread(target=server.serve_forever, daemon=True).start()
         self.addCleanup(server.shutdown)
         self.addCleanup(server.server_close)
-        client = side_by_side.GitHub("sekrit", "owner/repo", api=f"http://127.0.0.1:{server.server_port}")
+        return f"http://127.0.0.1:{server.server_port}", seen
+
+    def test_the_token_goes_to_githubs_api_and_never_to_the_address_a_download_redirects_to(self):
+        api, seen = self.serve([], {7: zipped(record(160))})
+        client = side_by_side.GitHub("sekrit", "owner/repo", api=api)
         self.assertEqual(side_by_side.record_in(client.download(7)), record(160))
         self.assertEqual(seen["/repos/owner/repo/actions/artifacts/7/zip"], "Bearer sekrit")
-        self.assertIsNone(seen["/storage/blob"])
+        self.assertIsNone(seen["/storage/7"])
+
+    def test_the_command_counts_from_githubs_list_and_this_runs_own_record(self):
+        listed = [{"id": n, "name": "speed-comparison", "created_at": f"2026-11-{10 + n:02d}T00:00:00Z", "expired": False,
+                   "workflow_run": {"repository_id": 1, "head_repository_id": 1}} for n in (1, 2, 3)]
+        api, seen = self.serve(listed, {1: zipped(record(160)), 2: zipped(record(161)), 3: zipped(record(162, clean=False))})
+        with tempfile.TemporaryDirectory() as folder:
+            current = os.path.join(folder, "comparison.json")
+            with open(current, "w") as f:
+                json.dump(record(163), f)
+            env = {"GITHUB_TOKEN": "sekrit", "GITHUB_REPOSITORY": "owner/repo", "GITHUB_API_URL": api}
+            with contextlib.redirect_stdout(io.StringIO()) as printed, contextlib.redirect_stderr(io.StringIO()) as said:
+                self.assertEqual(side_by_side.run_tally(["speed-comparison", "--current", current], env), 0)
+            # #163 (this run's own) clean, then #162 isn't: the row is one.
+            self.assertIn("**1 pull request in a row clean (the switch needs 5)**", printed.getvalue())
+            self.assertIn("The row ended at #162", printed.getvalue())
+            self.assertEqual(said.getvalue().strip(), "1 pull request in a row clean (the switch needs 5)")
+            # This run left no record (its plan failed): the stored ones still count.
+            with contextlib.redirect_stdout(io.StringIO()) as printed, contextlib.redirect_stderr(io.StringIO()):
+                side_by_side.run_tally(["speed-comparison", "--current", os.path.join(folder, "missing.json")], env)
+            self.assertIn("**0 pull requests in a row clean (the switch needs 5)**", printed.getvalue())
+        self.assertEqual(seen["/repos/owner/repo/actions/artifacts"], "Bearer sekrit")
 
 
 class TheWorkflow(unittest.TestCase):

@@ -332,12 +332,15 @@ describe('the pages one machine of the trial measures', () => {
 
   it('is the whole list for one machine, and every third page for three, in the list order', () => {
     expect(partOf(list, { index: 1, of: 1 })).toEqual(list);
-    expect(list).toHaveLength(18);
+    const sizes: number[] = [];
     for (const index of [1, 2, 3]) {
       const share = partOf(list, { index, of: 3 });
-      expect(share).toHaveLength(6);
-      expect(share).toEqual([0, 1, 2, 3, 4, 5].map((n) => list[n * 3 + index - 1]));
+      expect(share).toEqual(list.filter((_, position) => position % 3 === index - 1));
+      sizes.push(share.length);
     }
+    // However many pages there are, no machine gets more than one page over another.
+    expect(Math.max(...sizes) - Math.min(...sizes)).toBeLessThanOrEqual(1);
+    expect(sizes.reduce((a, b) => a + b)).toBe(list.length);
   });
 
   it("leaves the list alone, so every machine's warm-up is still on the list's first page", () => {
@@ -443,7 +446,9 @@ describe("joining the trial's parts", () => {
 
   it('leaves a page no part measured out, for the comparison to name', () => {
     const joined = joinResults([parts[0], parts[1]] as WebsiteResult[], order);
-    expect(joined.reports).toHaveLength(12);
+    expect(joined.reports).toHaveLength(
+      (parts[0] as WebsiteResult).reports.length + (parts[1] as WebsiteResult).reports.length,
+    );
     expect(comparePages(whole, joined.reports).clean).toBe(false);
   });
 });
@@ -524,20 +529,24 @@ describe('comparing one machine with three', () => {
       [
         'load',
         { loadMs: 1700 },
-        /Load: the three machines' median 1\.70 s is outside .*\(1\.10 s to 1\.30 s\)/,
+        /Load: the three machines' median 1700 ms is outside the one machine's runs \(1100 ms to 1300 ms\)/,
       ],
       [
         'busy time',
         { blockingMs: 90 },
         /Busy time: .* median 90 ms is outside .*\(30 ms to 50 ms\)/,
       ],
-      ['layout shift', { layoutShift: 0.05 }, /Layout shift: .* median 0\.050 is outside/],
+      [
+        'layout shift',
+        { layoutShift: 0.05 },
+        /Layout shift: .* median 0\.0500 is outside .*\(0\.0100 to 0\.0300\)/,
+      ],
       [
         'code',
         { codeBytes: 151 * 1024 },
-        /Code: .* median 151\.0 KB is outside .*\(150\.0 KB to 150\.0 KB\)/,
+        /Code: .* median 154624 bytes is outside .*\(153600 bytes to 153600 bytes\)/,
       ],
-      ['total', { totalBytes: 299 * 1024 }, /Total download: .* median 299\.0 KB is outside/],
+      ['total', { totalBytes: 299 * 1024 }, /Total download: .* median 306176 bytes is outside/],
     ];
     const spread = [
       run({ loadMs: 1100, blockingMs: 30, layoutShift: 0.01 }),
@@ -555,6 +564,18 @@ describe('comparing one machine with three', () => {
       expect(result.clean, what).toBe(false);
       expect(result.pages[0]?.problems.join('\n'), what).toMatch(message);
     }
+  });
+
+  it('says a miss of one byte or one millisecond in numbers that differ, never as equal ones', () => {
+    const one = [pageReport('/', [run(), run(), run()])];
+    const bytes = comparePages(one, [pageReport('/', [run({ codeBytes: 150 * 1024 + 1 })])]);
+    expect(bytes.pages[0]?.problems).toEqual([
+      "Code: the three machines' median 153601 bytes is outside the one machine's runs (153600 bytes to 153600 bytes)",
+    ]);
+    const time = comparePages(one, [pageReport('/', [run({ loadMs: 1201 })])]);
+    expect(time.pages[0]?.problems).toEqual([
+      "Load: the three machines' median 1201 ms is outside the one machine's runs (1200 ms to 1200 ms)",
+    ]);
   });
 
   it("counts the edges of the one machine's runs as inside", () => {
