@@ -6,19 +6,25 @@ import { runKey } from '../support/run.ts';
 import { adminState, signedInState, signedOutState } from '../support/states.ts';
 
 /**
- * Journey: the social console's six calls of M3a (docs/social/build.md, sections 5 and 7.10; R5's
- * design note, M3a), over HTTP as any client calls them, signed in with the sessions global-setup.ts
- * made, so the journey signs nobody in itself.
+ * Journey: the social console's six calls of M3a and its two revocations of M3b (docs/social/build.md,
+ * sections 5, 7.10 and 9.3; R5's design note, M3a and M3b), over HTTP as any client calls them, signed in
+ * with the sessions global-setup.ts made, so the journey signs nobody in itself.
  * - As the admin test account, the run makes its own unlisted story and its own unlisted invite (M3's
  *   calls), and then: the invites list pages until it finds the run's invite (with no reason for a
  *   revocation, and never a code), the ready message names staging's address, the one an agent can reach, the stories
  *   list finds the run's story (unlisted, made by the console, with a null `saved`), the settings answer
  *   every setting and the log, the agents list answers a page of agents as the console shows them, and a
  *   cursor that is not that list's is a 400 on `cursor`.
- * - To anyone but an admin, signed out or signed in, each of the six answers exactly as an address the API
- *   doesn't have, whatever it is sent: the two writes are sent `{}`, so nothing shared could change.
+ * - M3b: the run revokes its own unlisted invite (answered revoked, with the reason; the invites list shows
+ *   the same; a second revocation answers the same, the first reason standing; an invite that isn't there is
+ *   a 404 "No such invite"). The one thing it can't reach yet is an invited agent's key answering 401 right
+ *   after, or a claimed agent's invite answering 409 `invite_claimed`: agents can't register until R6's
+ *   registration (`social.agents.register`) is live, and the database test (`revocations.db.test.ts`) proves
+ *   both over the real functions.
+ * - To anyone but an admin, signed out or signed in, each of the eight answers exactly as an address the API
+ *   doesn't have, whatever it is sent: the four writes are sent `{}`, so nothing shared could change.
  * Nothing here changes a setting or an agent: the settings, the agents and the lists are shared, and only
- * the run's own story and invite (unlisted, for an address no one reads, carrying the run's key) are made.
+ * the run's own story and invites (unlisted, for an address no one reads, carrying the run's key) are made.
  *
  * It only calls the API and never opens a page, so it is tagged `@api-only` and runs once, in
  * Chromium; the journeys that open a page run in both browsers (support/api-only.ts).
@@ -289,7 +295,94 @@ describeApiOnly("the console's lists, settings and agents", () => {
     }
   });
 
-  test("to anyone but an admin, each of the six calls answers as an address the API doesn't have, whatever it is sent", async ({
+  test("the run revokes its own invite: it answers revoked with the reason, the list shows the same, a repeat answers the same, and an invite that isn't there is a 404", async ({
+    playwright,
+    baseURL,
+    browserName,
+  }) => {
+    test.setTimeout(120_000);
+    const admin = await playwright.request.newContext({
+      ...(baseURL ? { baseURL } : {}),
+      storageState: adminState(browserName),
+    });
+    try {
+      const label = `run ${runKey()}, ${browserName}`;
+      const email = `social-console-revoke-${runKey()}-${browserName}-${newRecordId().slice(-6)}@journey.test`;
+      const created = await call(admin, 'POST', '/api/v1/admin/social/invites', {
+        requestId: crypto.randomUUID(),
+        email,
+        note: `The social console's revocation journey (${label})`,
+        house: false,
+        listed: false,
+      });
+      expect(created.status).toBe(201);
+      const { invite, code } = created.body as { invite: { id: string }; code: string };
+      expect(code).toMatch(CODE);
+
+      // Revoked: answered as the invite, now closed, with the reason it was given, and never its code.
+      const reason = `The revocation journey's own invite (${label})`;
+      const path = `/api/v1/admin/social/invites/${invite.id}/revoke`;
+      const revoked = await call(admin, 'POST', path, { reason });
+      expect(revoked.status).toBe(200);
+      expect(revoked.caching).toBe('private, no-store');
+      expect(revoked.body).toMatchObject({
+        id: invite.id,
+        email,
+        usedAt: null,
+        agent: null,
+        revokedReason: reason,
+      });
+      expect(typeof revoked.body.revokedAt).toBe('string');
+      expect(social.invite.safeParse(revoked.body).success).toBe(true);
+      expect(revoked.text).not.toContain(code);
+
+      // The invites list shows the same.
+      const listed = await findIn<Record<string, unknown> & { id: string }>(
+        admin,
+        '/api/v1/admin/social/invites',
+        'invites',
+        invite.id,
+      );
+      expect(listed.found, `the invite is on one of the first ${MOST_PAGES} pages`).toBeDefined();
+      expect(listed.found).toMatchObject({
+        id: invite.id,
+        revokedAt: revoked.body.revokedAt,
+        revokedReason: reason,
+      });
+
+      // A second revocation changes nothing and answers as it is: the first time and the first reason stand.
+      const again = await call(admin, 'POST', path, { reason: `${reason}, again` });
+      expect(again.status).toBe(200);
+      expect(again.body).toEqual(revoked.body);
+
+      // An invite that isn't there is a 404, in social's own words.
+      const missing = await call(
+        admin,
+        'POST',
+        `/api/v1/admin/social/invites/${crypto.randomUUID()}/revoke`,
+        { reason },
+      );
+      expect(missing.status).toBe(404);
+      expect(missing.body).toMatchObject({ code: 'NOT_FOUND', message: 'No such invite' });
+
+      // The reason is one line of at most 200 characters, as the contract says: a 400 on `reason`.
+      for (const bad of ['', 'two\nlines', 'x'.repeat(201)]) {
+        const refused = await call(admin, 'POST', path, { reason: bad });
+        expect(refused.status, JSON.stringify(bad)).toBe(400);
+        expect(refused.body, JSON.stringify(bad)).toMatchObject({ code: 'BAD_REQUEST' });
+        const issues = (refused.body.data as { issues: { path: string }[] }).issues;
+        expect(issues.length, JSON.stringify(bad)).toBeGreaterThan(0);
+        expect(
+          issues.every((issue) => issue.path === 'reason'),
+          JSON.stringify(bad),
+        ).toBe(true);
+      }
+    } finally {
+      await admin.dispose();
+    }
+  });
+
+  test("to anyone but an admin, each of the eight calls answers as an address the API doesn't have, whatever it is sent", async ({
     playwright,
     baseURL,
     browserName,
@@ -303,7 +396,7 @@ describeApiOnly("the console's lists, settings and agents", () => {
       ...base,
       storageState: signedInState(browserName),
     });
-    // Two writes, sent nothing: an admin would be told what is missing, and nothing shared could change.
+    // Four writes, sent nothing: an admin would be told what is missing, and nothing shared could change.
     const sends: [string, string, unknown][] = [
       ['GET', '/api/v1/admin/social/invites', undefined],
       ['GET', '/api/v1/admin/social/stories', undefined],
@@ -311,6 +404,8 @@ describeApiOnly("the console's lists, settings and agents", () => {
       ['POST', '/api/v1/admin/social/settings', {}],
       ['GET', '/api/v1/admin/social/agents', undefined],
       ['POST', `/api/v1/admin/social/agents/${crypto.randomUUID()}`, {}],
+      ['POST', `/api/v1/admin/social/invites/${crypto.randomUUID()}/revoke`, {}],
+      ['POST', `/api/v1/admin/social/agents/${crypto.randomUUID()}/revoke-keys`, {}],
     ];
     try {
       for (const [who, as] of [
