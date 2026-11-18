@@ -32,6 +32,10 @@ import { jobDeps, type Step, type StepAnswer, type StepName } from './types.ts';
  *   SOCIAL_DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:$(infra/slots/slot env | sed -n 's/^export SUPABASE_DB_PORT=//p')/postgres" \
  *     pnpm --filter @hrizzup/web exec vitest run lib/social/jobs/minute.db.test.ts
  *
+ * Run it beside `lib/api/social/board.db.test.ts` with `--no-file-parallelism`: the minute job lists every
+ * story saved in its window, and that test relies on its "saved a moment ago" story staying unlisted
+ * until it says otherwise, so the two files must not run at the same time on one database.
+ *
  * Without `SOCIAL_DATABASE_URL` the file does not run: Quick checks have no database.
  */
 
