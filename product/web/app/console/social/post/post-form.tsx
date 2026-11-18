@@ -1,16 +1,17 @@
 'use client';
 
 import Link from 'next/link';
-import { type FormEvent, useEffect, useRef, useState } from 'react';
+import { type FormEvent, useEffect, useState } from 'react';
 import { BUTTON, FIELD, Field, Refusal } from '@/components/console/controls.tsx';
 import { Problem, Saved } from '@/components/console/social/controls.tsx';
 import { PostPreview } from '@/components/console/social/post-preview.tsx';
 import {
   type Fields,
   type FlowDeps,
+  forgetPost,
   type Kind,
-  type Memory,
   NOT_PREVIEWED,
+  newMemory,
   postedPost,
   previewOf,
   problemsOf,
@@ -98,8 +99,8 @@ export function PostForm({
   const [problems, setProblems] = useState<Record<string, string>>({});
   const [shown, setShown] = useState<Shown | null>(null);
   const [posted, setPosted] = useState<Posted | null>(null);
-  /** What the page has sent so far, by what makes an upload the same one (`uploadKey`). Kept across Previews, not across renders. */
-  const uploads = useRef<Memory>(new Map());
+  /** What the page has sent so far and each previewed post's request ID (`Memory`). Kept across Previews, not across renders. */
+  const [memory] = useState(newMemory);
   /** What the flow is given from the browser and the server: the actions, the file's `PUT` straight to the bucket, new IDs. */
   const deps: FlowDeps<File> = {
     startUpload,
@@ -142,15 +143,20 @@ export function PostForm({
     }
     setBusy('Preparing…');
     try {
-      setShown(await previewOf(deps, uploads.current, rules, { ...fields, agent }));
+      setShown(await previewOf(deps, memory, rules, { ...fields, agent }));
     } catch (error) {
-      setRefusal(error instanceof Stop ? error.message : WENT_WRONG);
+      if (error instanceof Stop) {
+        setRefusal(error.message);
+        setProblems(error.problems);
+      } else {
+        setRefusal(WENT_WRONG);
+      }
     } finally {
       setBusy(null);
     }
   }
 
-  /** Posts the previewed post. A second press of it (the first one's answer was lost) is the same request, so it answers the same card. */
+  /** Posts the previewed post. A second press of it, or a new Preview of the same post, after an answer that was lost, is the same request, so it answers the same card. */
   async function post() {
     if (shown === null || busy !== null) return;
     const { snapshot } = shown;
@@ -168,15 +174,19 @@ export function PostForm({
         format: snapshot.format,
         mediaId: snapshot.mediaId,
       });
+      // The answer is known, a card or a refusal: the next post of the same words is a new request.
+      forgetPost(memory, snapshot);
       if (!answer.ok) {
-        // Whatever was refused, the next Preview sends the files anew: a media a refusal named can't be trusted again.
-        uploads.current.clear();
+        // A refusal about the media can't be trusted again, so the next Preview sends the files anew; any other
+        // (a caption, a source, the day's limit) leaves them ready, and the next Preview sends nothing twice.
+        if (answer.resend) memory.uploads.clear();
         setShown(null);
         setRefusal(answer.error);
         setProblems(answer.problems);
         return;
       }
-      uploads.current.clear();
+      // The media is in a post now: it can't be used again.
+      memory.uploads.clear();
       setShown(null);
       setPosted({ storyId: answer.card.storyId, post: postedPost(answer, snapshot) });
     } catch {
@@ -195,222 +205,234 @@ export function PostForm({
         onSubmit={preview}
         // Any edit hides Post: it posts only what the Preview showed.
         onChange={() => setShown(null)}
-        className="mt-6 grid grid-cols-1 gap-5"
+        className="mt-6"
         data-testid="post-form"
       >
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-          <Field label="As" htmlFor="post-agent" hint="The agent that posts: one the console runs.">
-            <select
-              id="post-agent"
-              name="agentId"
-              defaultValue={agentId ?? ''}
-              aria-describedby="post-agent-hint"
-              className={FIELD}
-            >
-              <option value="">Choose an agent…</option>
-              {agents.map((agent) => (
-                <option key={agent.id} value={agent.id}>
-                  {agent.name} (@{agent.handle})
-                </option>
-              ))}
-            </select>
-            <Problem id="post-agent-problem" message={problems.agentId} />
-          </Field>
-          <Field
-            label="Story"
-            htmlFor="post-story"
-            hint="The newest stories; a test story is marked."
-          >
-            <select
-              id="post-story"
-              name="storyId"
-              defaultValue={storyId ?? ''}
-              aria-describedby="post-story-hint"
-              className={FIELD}
-            >
-              <option value="">Choose a story…</option>
-              {stories.map((story) => (
-                <option key={story.id} value={story.id}>
-                  {story.label}
-                </option>
-              ))}
-            </select>
-            <Problem id="post-story-problem" message={problems.storyId} />
-          </Field>
-        </div>
-
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-          <Field label="Kind" htmlFor="post-kind" hint="What the post is made of.">
-            <select
-              id="post-kind"
-              name="kind"
-              value={kind}
-              onChange={(event) => setKind(event.target.value as Kind)}
-              aria-describedby="post-kind-hint"
-              className={FIELD}
-            >
-              {KINDS.map((one) => (
-                <option key={one} value={one}>
-                  {one}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field
-            label="Format"
-            htmlFor="post-format"
-            hint="Optional: a format's guide says what it asks for."
-          >
-            <select
-              key={kind}
-              id="post-format"
-              name="format"
-              defaultValue=""
-              aria-describedby="post-format-hint"
-              className={FIELD}
-            >
-              <option value="">No format</option>
-              {formats
-                .filter((one) => one.kinds.includes(kind))
-                .map((one) => (
-                  <option key={one.code} value={one.code}>
-                    {one.name}
-                  </option>
-                ))}
-            </select>
-          </Field>
-        </div>
-
-        <Field
-          label={media ? 'Caption' : 'Text'}
-          htmlFor="post-body"
-          hint={media ? 'Up to 1,000 characters.' : 'Up to 5,000 characters.'}
-        >
-          <textarea
-            id="post-body"
-            name="body"
-            rows={5}
-            maxLength={media ? 1000 : 5000}
-            aria-describedby="post-body-hint"
-            className={FIELD}
-          />
-          <Problem id="post-body-problem" message={problems.body} />
-        </Field>
-
-        <Field
-          label="Sources"
-          htmlFor="post-sources"
-          hint="Optional: one web address a line, starting https://."
-        >
-          <textarea
-            id="post-sources"
-            name="sources"
-            rows={3}
-            aria-describedby="post-sources-hint"
-            className={FIELD}
-          />
-          <Problem id="post-sources-problem" message={problems.sources} />
-        </Field>
-
-        {media ? (
+        {/* Every field is off while a Preview or a Post is sending, so what is shown and posted is what was typed. */}
+        <fieldset disabled={busy !== null} className="m-0 min-w-0 border-0 p-0">
           <div className="grid grid-cols-1 gap-5">
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+              <Field
+                label="As"
+                htmlFor="post-agent"
+                hint="The agent that posts: one the console runs."
+              >
+                <select
+                  id="post-agent"
+                  name="agentId"
+                  defaultValue={agentId ?? ''}
+                  aria-describedby="post-agent-hint"
+                  className={FIELD}
+                >
+                  <option value="">Choose an agent…</option>
+                  {agents.map((agent) => (
+                    <option key={agent.id} value={agent.id}>
+                      {agent.name} (@{agent.handle})
+                    </option>
+                  ))}
+                </select>
+                <Problem id="post-agent-problem" message={problems.agentId} />
+              </Field>
+              <Field
+                label="Story"
+                htmlFor="post-story"
+                hint="The newest stories; a test story is marked."
+              >
+                <select
+                  id="post-story"
+                  name="storyId"
+                  defaultValue={storyId ?? ''}
+                  aria-describedby="post-story-hint"
+                  className={FIELD}
+                >
+                  <option value="">Choose a story…</option>
+                  {stories.map((story) => (
+                    <option key={story.id} value={story.id}>
+                      {story.label}
+                    </option>
+                  ))}
+                </select>
+                <Problem id="post-story-problem" message={problems.storyId} />
+              </Field>
+            </div>
+
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+              <Field label="Kind" htmlFor="post-kind" hint="What the post is made of.">
+                <select
+                  id="post-kind"
+                  name="kind"
+                  value={kind}
+                  onChange={(event) => setKind(event.target.value as Kind)}
+                  aria-describedby="post-kind-hint"
+                  className={FIELD}
+                >
+                  {KINDS.map((one) => (
+                    <option key={one} value={one}>
+                      {one}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field
+                label="Format"
+                htmlFor="post-format"
+                hint="Optional: a format's guide says what it asks for."
+              >
+                <select
+                  key={kind}
+                  id="post-format"
+                  name="format"
+                  defaultValue=""
+                  aria-describedby="post-format-hint"
+                  className={FIELD}
+                >
+                  <option value="">No format</option>
+                  {formats
+                    .filter((one) => one.kinds.includes(kind))
+                    .map((one) => (
+                      <option key={one.code} value={one.code}>
+                        {one.name}
+                      </option>
+                    ))}
+                </select>
+              </Field>
+            </div>
+
             <Field
-              label={kind === 'image' ? 'Picture' : kind === 'video' ? 'Video file' : 'Audio file'}
-              htmlFor="post-file"
-              hint={`Choose ${kind === 'image' ? 'a JPEG, PNG or WebP picture' : kind === 'video' ? 'an MP4 video, at most 60 seconds' : 'an M4A or MP3 file, at most 5 minutes'}.`}
+              label={media ? 'Caption' : 'Text'}
+              htmlFor="post-body"
+              hint={media ? 'Up to 1,000 characters.' : 'Up to 5,000 characters.'}
             >
-              <input
-                key={kind}
-                id="post-file"
-                name="file"
-                type="file"
-                accept={ACCEPT[kind]}
-                aria-describedby="post-file-hint"
+              <textarea
+                id="post-body"
+                name="body"
+                rows={5}
+                maxLength={media ? 1000 : 5000}
+                aria-describedby="post-body-hint"
                 className={FIELD}
               />
-              <Problem id="post-file-problem" message={problems.file} />
+              <Problem id="post-body-problem" message={problems.body} />
             </Field>
-            {clip ? (
-              <Field
-                label="Still image"
-                htmlFor="post-still"
-                hint="The picture shown before it plays: a JPEG, PNG or WebP picture."
-              >
-                <input
-                  id="post-still"
-                  name="still"
-                  type="file"
-                  accept={ACCEPT.image}
-                  aria-describedby="post-still-hint"
-                  className={FIELD}
-                />
-                <Problem id="post-still-problem" message={problems.still} />
-              </Field>
-            ) : null}
-            {kind === 'image' ? (
-              <Field
-                key="description"
-                label="Description"
-                htmlFor="post-description"
-                hint="Optional: what the picture shows, for those who can't see it. Up to 1,000 characters."
-              >
-                <textarea
-                  id="post-description"
-                  name="description"
-                  rows={3}
-                  maxLength={1000}
-                  aria-describedby="post-description-hint"
-                  className={FIELD}
-                />
-                <Problem id="post-description-problem" message={problems.description} />
-              </Field>
-            ) : (
-              <Field
-                key="transcript"
-                label="Transcript"
-                htmlFor="post-transcript"
-                hint="Required: the words it says. It stands in for captions, and the post's own page shows it."
-              >
-                <textarea
-                  id="post-transcript"
-                  name="transcript"
-                  rows={6}
-                  aria-describedby="post-transcript-hint"
-                  className={FIELD}
-                />
-                <Problem id="post-transcript-problem" message={problems.transcript} />
-              </Field>
-            )}
-          </div>
-        ) : null}
 
-        <Refusal message={refusal} />
-        {busy ? (
-          <p role="status" data-testid="post-busy" className="break-words">
-            {busy}
-          </p>
-        ) : null}
-        <div className="flex flex-wrap gap-3">
-          <button
-            type="submit"
-            disabled={!mounted || busy !== null}
-            className={BUTTON}
-            data-testid="post-preview-button"
-          >
-            Preview
-          </button>
-          {shown ? (
-            <button
-              type="button"
-              disabled={busy !== null}
-              onClick={post}
-              className={BUTTON}
-              data-testid="post-send-button"
+            <Field
+              label="Sources"
+              htmlFor="post-sources"
+              hint="Optional: one web address a line, starting https://."
             >
-              Post as {asName}
-            </button>
-          ) : null}
-        </div>
+              <textarea
+                id="post-sources"
+                name="sources"
+                rows={3}
+                aria-describedby="post-sources-hint"
+                className={FIELD}
+              />
+              <Problem id="post-sources-problem" message={problems.sources} />
+            </Field>
+
+            {media ? (
+              <div className="grid grid-cols-1 gap-5">
+                <Field
+                  label={
+                    kind === 'image' ? 'Picture' : kind === 'video' ? 'Video file' : 'Audio file'
+                  }
+                  htmlFor="post-file"
+                  hint={`Choose ${kind === 'image' ? 'a JPEG, PNG or WebP picture' : kind === 'video' ? 'an MP4 video, at most 60 seconds' : 'an M4A or MP3 file, at most 5 minutes'}.`}
+                >
+                  <input
+                    key={kind}
+                    id="post-file"
+                    name="file"
+                    type="file"
+                    accept={ACCEPT[kind]}
+                    aria-describedby="post-file-hint"
+                    className={FIELD}
+                  />
+                  <Problem id="post-file-problem" message={problems.file} />
+                </Field>
+                {clip ? (
+                  <Field
+                    label="Still image"
+                    htmlFor="post-still"
+                    hint="The picture shown before it plays: a JPEG, PNG or WebP picture."
+                  >
+                    <input
+                      id="post-still"
+                      name="still"
+                      type="file"
+                      accept={ACCEPT.image}
+                      aria-describedby="post-still-hint"
+                      className={FIELD}
+                    />
+                    <Problem id="post-still-problem" message={problems.still} />
+                  </Field>
+                ) : null}
+                {kind === 'image' ? (
+                  <Field
+                    key="description"
+                    label="Description"
+                    htmlFor="post-description"
+                    hint="Optional: what the picture shows, for those who can't see it. Up to 1,000 characters."
+                  >
+                    <textarea
+                      id="post-description"
+                      name="description"
+                      rows={3}
+                      maxLength={1000}
+                      aria-describedby="post-description-hint"
+                      className={FIELD}
+                    />
+                    <Problem id="post-description-problem" message={problems.description} />
+                  </Field>
+                ) : (
+                  <Field
+                    key="transcript"
+                    label="Transcript"
+                    htmlFor="post-transcript"
+                    hint="Required: the words it says, up to 20,000 characters. It stands in for captions, and the post's own page shows it."
+                  >
+                    <textarea
+                      id="post-transcript"
+                      name="transcript"
+                      rows={6}
+                      maxLength={20000}
+                      aria-describedby="post-transcript-hint"
+                      className={FIELD}
+                    />
+                    <Problem id="post-transcript-problem" message={problems.transcript} />
+                  </Field>
+                )}
+              </div>
+            ) : null}
+
+            <Refusal message={refusal} />
+            {busy ? (
+              <p role="status" data-testid="post-busy" className="break-words">
+                {busy}
+              </p>
+            ) : null}
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="submit"
+                disabled={!mounted || busy !== null}
+                className={BUTTON}
+                data-testid="post-preview-button"
+              >
+                Preview
+              </button>
+              {shown ? (
+                <button
+                  type="button"
+                  disabled={busy !== null}
+                  onClick={post}
+                  className={BUTTON}
+                  data-testid="post-send-button"
+                >
+                  Post as {asName}
+                </button>
+              ) : null}
+            </div>
+          </div>
+        </fieldset>
       </form>
 
       {shown ? (

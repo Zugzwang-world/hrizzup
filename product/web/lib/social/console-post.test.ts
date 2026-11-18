@@ -1,3 +1,4 @@
+import { social } from '@hrizzup/api';
 import { ORPCError } from '@orpc/server';
 import { describe, expect, it } from 'vitest';
 import {
@@ -245,6 +246,7 @@ describe('a refusal said in words', () => {
       error: "The still image was refused: Animated images aren't taken: upload a still image.",
       problems: {},
       retry: false,
+      media: true,
     });
     expect(
       done('media_too_long', 'Video is at most 60 seconds and audio 5 minutes: cut it')?.error,
@@ -264,7 +266,54 @@ describe('a refusal said in words', () => {
       error: 'The file is still being checked: press Preview again in a minute.',
       problems: {},
       retry: true,
+      media: true,
     });
+  });
+
+  it('says whether a refusal is about the media (media_*, still_*), so only then the files are sent anew', () => {
+    const about = (reason: string, step: 'post' | 'done' = 'post') =>
+      pageRefusal(refusal('REFUSED', 422, 'API words', { reason }), step, POST_FIELDS)?.media;
+    for (const reason of [
+      'media_not_ready',
+      'media_in_use',
+      'media_not_yours',
+      'media_kind',
+      'still_needed',
+      'still_not_ready',
+    ]) {
+      expect(about(reason), reason).toBe(true);
+    }
+    // A caption, a source, a withdrawn story and the day's limit leave the files ready.
+    expect(about('story_not_live')).toBe(false);
+    expect(
+      pageRefusal(
+        refusal('TOO_MANY_REQUESTS', 429, 'Too many', {
+          reason: 'posts_per_day',
+          retryAfterSeconds: 60,
+        }),
+        'post',
+        POST_FIELDS,
+      )?.media,
+    ).toBe(false);
+    expect(
+      pageRefusal(
+        refusal('BAD_REQUEST', 400, 'Bad', {
+          issues: [{ path: 'body', message: 'At most 5000 characters' }],
+        }),
+        'post',
+        POST_FIELDS,
+      )?.media,
+    ).toBe(false);
+  });
+
+  it('says what each step did not do above the lines under the fields', () => {
+    const issues = { issues: [{ path: 'transcript', message: 'At most 20000 characters' }] };
+    const say = (step: 'link' | 'done' | 'post' | 'make') =>
+      pageRefusal(refusal('BAD_REQUEST', 400, 'Bad', issues), step, new Set(['transcript']))?.error;
+    expect(say('link')).toBe('Not previewed: see the lines under the fields.');
+    expect(say('done')).toBe('Not previewed: see the lines under the fields.');
+    expect(say('post')).toBe('Not posted: see the lines under the fields.');
+    expect(say('make')).toBe('Not made: see the lines under the fields.');
   });
 
   it('tells a busy store as one to try again, for an upload only', () => {
@@ -273,6 +322,7 @@ describe('a refusal said in words', () => {
       error: "Uploads aren't ready or storage is busy: press Preview again in a moment.",
       problems: {},
       retry: true,
+      media: false,
     });
     // A post's own 503 is the database's: the shared words.
     expect(pageRefusal(busy, 'post', POST_FIELDS)?.error).toBe(
@@ -290,6 +340,7 @@ describe('a refusal said in words', () => {
       error: 'Not made: see the line under the handle.',
       problems: { handle: 'That handle is taken: type another one.' },
       retry: false,
+      media: false,
     });
   });
 
@@ -304,7 +355,7 @@ describe('a refusal said in words', () => {
       'post',
       POST_FIELDS,
     );
-    expect(bad?.error).toBe('Not saved: see the lines under the fields.');
+    expect(bad?.error).toBe('Not posted: see the lines under the fields.');
     expect(bad?.problems.body).toBe('At most 1000 characters.');
     expect(bad?.problems.sources).toContain('Must be a web address starting https://');
   });
@@ -316,5 +367,29 @@ describe('a refusal said in words', () => {
     expect(
       pageRefusal(refusal('NOT_FOUND', 404, 'No such agent'), 'post', POST_FIELDS)?.error,
     ).toBe('That one no longer exists: reload the page.');
+  });
+});
+
+describe('the limits the post form’s boxes carry', () => {
+  // The form's `maxLength`s (description 1,000, transcript 20,000, caption 1,000 or 5,000) are the API's own: pinned here
+  // to the contract's input, so a change of one without the other fails.
+  const ids = {
+    id: '019a6b3c-0001-7000-8000-0000000000b1',
+    requestId: '3f1b7c36-5a2e-4f6e-9d3a-1c2b3d4e5f60',
+  };
+  const accepts = (more: Record<string, unknown>) =>
+    social.adminUploadDoneInput.safeParse({ ...ids, ...more }).success;
+
+  it('are the contract’s: a description of 1,000 characters and a transcript of 20,000 pass, one more does not', () => {
+    expect(accepts({ description: 'x'.repeat(1000) })).toBe(true);
+    expect(accepts({ description: 'x'.repeat(1001) })).toBe(false);
+    expect(accepts({ transcript: 'x'.repeat(20_000) })).toBe(true);
+    expect(accepts({ transcript: 'x'.repeat(20_001) })).toBe(false);
+  });
+
+  it('refuse a control character in either, which the page then shows under its box', () => {
+    expect(accepts({ description: 'A\u0007B' })).toBe(false);
+    expect(accepts({ transcript: 'A\u0007B' })).toBe(false);
+    expect(accepts({ transcript: 'Words that say something' })).toBe(true);
   });
 });

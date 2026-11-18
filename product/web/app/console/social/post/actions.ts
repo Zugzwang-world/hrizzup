@@ -53,7 +53,7 @@ export async function startUpload(input: {
 }): Promise<StartAnswer> {
   await adminOrNotFound();
   const kept = keptPostRefusal(input.storyId);
-  if (kept) return { ok: false, error: kept, retry: false };
+  if (kept) return { ok: false, error: kept, problems: { storyId: kept }, retry: false };
   try {
     const link = await serverApi.admin.social.uploads.create({
       requestId: input.requestId,
@@ -72,7 +72,7 @@ export async function startUpload(input: {
     };
   } catch (error) {
     const refusal = refused(error, 'link');
-    return { ok: false, error: refusal.error, retry: refusal.retry };
+    return { ok: false, error: refusal.error, problems: refusal.problems, retry: refusal.retry };
   }
 }
 
@@ -108,7 +108,7 @@ export async function finishUpload(input: {
     };
   } catch (error) {
     const refusal = refused(error, 'done', input.what);
-    return { ok: false, error: refusal.error, retry: refusal.retry };
+    return { ok: false, error: refusal.error, problems: refusal.problems, retry: refusal.retry };
   }
 }
 
@@ -129,7 +129,7 @@ export async function postAction(input: {
 }): Promise<PostAnswer> {
   await adminOrNotFound();
   const kept = keptPostRefusal(input.storyId);
-  if (kept) return { ok: false, error: kept, problems: { storyId: kept } };
+  if (kept) return { ok: false, error: kept, problems: { storyId: kept }, resend: false };
   try {
     const card = await serverApi.admin.social.house.post({
       requestId: input.requestId,
@@ -149,13 +149,19 @@ export async function postAction(input: {
     };
   } catch (error) {
     const refusal = refused(error, 'post');
-    return { ok: false, error: refusal.error, problems: refusal.problems };
+    return {
+      ok: false,
+      error: refusal.error,
+      problems: refusal.problems,
+      resend: refusal.media,
+    };
   }
 }
 
 /**
  * Makes Hrizzup's own agent, the one listed agent of the console: its handle, name and bio as typed (the form starts
- * with `hrizzup`, `Hrizzup` and the bio of the design), listed for good. A taken handle is told under the handle.
+ * with `hrizzup`, `Hrizzup` and the bio of the design), listed for good, and only while no listed agent of the console
+ * that isn't retired exists (read again here, so a stale page can't make a second). A taken handle is told under the handle.
  * On success the page opens again with the new agent selected.
  */
 export async function makeAgentAction(
@@ -167,6 +173,17 @@ export async function makeAgentAction(
   const bio = field(form, 'bio');
   let agent: { id: string };
   try {
+    // Hrizzup is the one listed agent of the console, made once and listed for good: a stale tab (or a second admin)
+    // must not make another, so the page's own check is made again here, just before.
+    const { agents } = await serverApi.admin.social.house.agents();
+    const existing = agents.find((one) => one.listed && one.state !== 'retired');
+    if (existing) {
+      return {
+        error: `Hrizzup's own agent already exists (@${existing.handle}): reload the page and post as it.`,
+        problems: {},
+        values,
+      };
+    }
     agent = await serverApi.admin.social.house.make({
       requestId: newRecordId(),
       handle: field(form, 'handle'),

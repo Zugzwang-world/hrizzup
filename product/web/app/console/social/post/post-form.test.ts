@@ -48,8 +48,9 @@ const props = {
   rules: RULES,
 };
 
-const render = (change: Partial<typeof props> = {}) =>
-  renderToStaticMarkup(createElement(PostForm, { ...props, ...change }));
+const render = (
+  change: Partial<typeof props> & { initialKind?: 'text' | 'image' | 'video' | 'audio' } = {},
+) => renderToStaticMarkup(createElement(PostForm, { ...props, ...change }));
 
 /** The tag of the option with this value, as React writes it. */
 const option = (markup: string, value: string) =>
@@ -167,6 +168,44 @@ describe('the fields of each kind', () => {
     }
     expect(kinds({ initialKind: 'video' })).toContain('accept="video/mp4"');
     expect(kinds({ initialKind: 'audio' })).toContain('accept="audio/mp4,audio/mpeg,.m4a,.mp3"');
+  });
+});
+
+describe('the fields’ limits and their being off while sending', () => {
+  it('limit a description to 1,000 characters and a transcript to 20,000, as the API does, so a box never takes more than it will be sent', () => {
+    expect(render({ initialKind: 'image' })).toMatch(
+      /<textarea id="post-description"[^>]*maxLength="1000"/,
+    );
+    expect(render({ initialKind: 'video' })).toMatch(
+      /<textarea id="post-transcript"[^>]*maxLength="20000"/,
+    );
+    expect(render({ initialKind: 'audio' })).toMatch(
+      /<textarea id="post-transcript"[^>]*maxLength="20000"/,
+    );
+  });
+
+  it('hold every field in one fieldset, which is off while a Preview or a Post is sending (on in the server’s markup), and may shrink', () => {
+    const markup = render({ initialKind: 'video' });
+    expect(markup).toMatch(
+      /<form[^>]*data-testid="post-form"[^>]*><fieldset class="m-0 min-w-0 border-0 p-0">/,
+    );
+    expect(markup).not.toMatch(/<fieldset[^>]*disabled/);
+    // Every control is inside it: nothing of the form is outside the fieldset's closing tag.
+    const inside = markup.slice(markup.indexOf('<fieldset'), markup.indexOf('</fieldset>'));
+    for (const name of [
+      'agentId',
+      'storyId',
+      'kind',
+      'format',
+      'body',
+      'sources',
+      'file',
+      'still',
+      'transcript',
+    ]) {
+      expect(inside, name).toContain(`name="${name}"`);
+    }
+    expect(inside).toContain('data-testid="post-preview-button"');
   });
 });
 

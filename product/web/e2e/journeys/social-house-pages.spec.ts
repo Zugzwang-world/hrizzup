@@ -27,9 +27,11 @@ import { adminState } from '../support/states.ts';
  *   the bucket's CORS rule from the preview) and shows the post as it will look, its picture drawn from the media
  *   host's resize; Post answers "Posted", a link to the story's page and the card. The desk (the public read) holds the
  *   post, by the run's agent, with its media and description.
- * - A video with its still image and a transcript, the same way: two real `PUT`s, the still first; the preview shows the
- *   still image under a button that says what it plays, with no `<video>` and no request for the file itself (nothing is
- *   tapped here: the player is `social-media-pages.spec.ts`'s); the post's own page holds the transcript.
+ * - A video with its still image and a transcript, the same way: two real `PUT`s, the still first. A transcript the API
+ *   refuses (a control character) is told under its box with the fields kept; once mended, the still image is not sent
+ *   again and the video is. The preview shows the still image under a button that says what it plays, with no `<video>`
+ *   and no request for the file itself (nothing is tapped here: the player is `social-media-pages.spec.ts`'s); the post's
+ *   own page holds the transcript.
  * - The page fits at every size of the screen check (the 13 widths, sideways, the phone widths at 200% text) with the
  *   form open, with each kind's fields, with a preview shown and with the post's card shown.
  *
@@ -374,14 +376,32 @@ test.describe('the console’s post page', () => {
       await page
         .locator('#post-still')
         .setInputFiles({ name: 'journey-still.png', mimeType: 'image/png', buffer: png });
-      await page.locator('#post-transcript').fill(transcript);
+      // The API's own refusal of a transcript (a control character in it) comes back under the transcript's box, and
+      // not only as a line above the fields; the still image and the video have been sent by then.
+      await page.locator('#post-transcript').fill('Nothing is said\u0007 in the test video.');
+      await expect(page.locator('#post-transcript')).toHaveAttribute('maxlength', '20000');
       await fitsEverywhere(page, 'the post page, with a video’s fields filled in');
+      await page.getByTestId('post-preview-button').click();
+      await expect(page.getByTestId('console-refusal')).toHaveText(
+        'Not previewed: see the lines under the fields.',
+        { timeout: 120_000 },
+      );
+      await expect(page.locator('#post-transcript-problem')).toBeVisible();
+      await expect(page.getByTestId('post-preview-section')).toHaveCount(0);
+      await expect(page.locator('#post-body')).toHaveValue(videoCaption);
+      await expect.poll(() => puts.length, 'the still image and the video were sent').toBe(3);
+      await fitsEverywhere(page, 'the post page, with the transcript refused');
+
+      // The words mended: the still image (ready) is not sent again, the video, whose words changed, is a new upload.
+      await page.locator('#post-transcript').fill(transcript);
       await page.getByTestId('post-preview-button').click();
       const videoPreview = page.getByTestId('post-preview-section');
       await expect(videoPreview).toBeVisible({ timeout: 120_000 });
-      await expect.poll(() => puts.length, 'the still image and the video are sent').toBe(3);
-      expect(puts.slice(1), 'both PUTs are answered, as the types they were signed for').toEqual([
+      await expect(page.locator('#post-transcript-problem')).toHaveCount(0);
+      await expect.poll(() => puts.length, 'only the video is sent again').toBe(4);
+      expect(puts.slice(1), 'every PUT is answered, as the type it was signed for').toEqual([
         { status: 200, type: 'image/png' },
+        { status: 200, type: 'video/mp4' },
         { status: 200, type: 'video/mp4' },
       ]);
       const shownVideo = videoPreview.locator('[data-testid="preview-media"][data-kind="video"]');
@@ -426,7 +446,10 @@ test.describe('the console’s post page', () => {
       );
       expect(direct, 'no file of the media host was asked for').toEqual([]);
       expect(resized.length, 'the pictures were resized by the media host').toBeGreaterThan(0);
-      expect(puts.length, 'the image, the still image and the video were each sent once').toBe(3);
+      expect(
+        puts.length,
+        'the image and the still image were sent once, the video twice (its transcript was mended)',
+      ).toBe(4);
     } finally {
       // The run's console agent is retired (it can post no more, and has no key to revoke), whatever happened. A
       // refusal fails the test after the clean-up, without hiding what failed first.

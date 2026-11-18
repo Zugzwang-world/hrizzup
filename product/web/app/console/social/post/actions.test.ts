@@ -18,6 +18,7 @@ const calls = {
   done: vi.fn(),
   post: vi.fn(),
   make: vi.fn(),
+  agents: vi.fn(),
 };
 
 vi.mock('@/lib/console.ts', () => ({ consoleAdmin: () => consoleAdmin() }));
@@ -26,7 +27,7 @@ vi.mock('@/lib/api/server.ts', () => ({
     admin: {
       social: {
         uploads: { create: calls.create, done: calls.done },
-        house: { post: calls.post, make: calls.make },
+        house: { post: calls.post, make: calls.make, agents: calls.agents },
       },
     },
   },
@@ -92,6 +93,8 @@ const postInput = {
 
 beforeEach(() => {
   consoleAdmin.mockResolvedValue({ account: 'admin', pool: {} });
+  // No listed agent of the console yet, unless a test says so.
+  calls.agents.mockResolvedValue({ agents: [] });
 });
 afterEach(() => {
   vi.clearAllMocks();
@@ -100,9 +103,14 @@ afterEach(() => {
 describe('the post page’s actions, to anyone but an admin', () => {
   it('answer "not found" before reading anything, and make no call', async () => {
     consoleAdmin.mockResolvedValue(null);
-    await expect(startUpload(startInput)).rejects.toThrow('NOT_FOUND');
+    // A kept story: the admin check comes before the kept-story refusal, so a stranger learns nothing of it.
+    await expect(startUpload({ ...startInput, storyId: MEDIA_FIXTURE_STORY })).rejects.toThrow(
+      'NOT_FOUND',
+    );
     await expect(finishUpload(finishInput)).rejects.toThrow('NOT_FOUND');
-    await expect(postAction(postInput)).rejects.toThrow('NOT_FOUND');
+    await expect(postAction({ ...postInput, storyId: MEDIA_FIXTURE_STORY })).rejects.toThrow(
+      'NOT_FOUND',
+    );
     await expect(
       makeAgentAction(START, form({ handle: 'hrizzup', name: 'Hrizzup' })),
     ).rejects.toThrow('NOT_FOUND');
@@ -141,6 +149,7 @@ describe('asking for an upload link', () => {
       expect(answer).toEqual({
         ok: false,
         error: 'That story is kept for the checks: nothing is posted on it.',
+        problems: { storyId: 'That story is kept for the checks: nothing is posted on it.' },
         retry: false,
       });
     }
@@ -155,6 +164,7 @@ describe('asking for an upload link', () => {
       ok: false,
       error:
         "This agent is retired, so it can't post or take uploads any more: a new one needs another handle.",
+      problems: {},
       retry: false,
     });
     calls.create.mockRejectedValueOnce(
@@ -171,6 +181,19 @@ describe('asking for an upload link', () => {
       refusal('SERVICE_UNAVAILABLE', 503, 'Uploads are not set up here'),
     );
     expect(await startUpload(startInput)).toMatchObject({ ok: false, retry: true });
+  });
+
+  it('puts the API’s own refusal of the input under the fields it names, with a line above them', async () => {
+    calls.create.mockRejectedValueOnce(
+      refusal('BAD_REQUEST', 400, 'Bad', {
+        issues: [{ path: 'agentId', message: 'Invalid UUID' }],
+      }),
+    );
+    const answer = await startUpload(startInput);
+    expect(answer.ok).toBe(false);
+    expect(!answer.ok && answer.error).toBe('Not previewed: see the lines under the fields.');
+    expect(!answer.ok && answer.problems).toHaveProperty('agentId');
+    expect(!answer.ok && answer.retry).toBe(false);
   });
 
   it('is "not found" when the call is no call here, and throws what is a fault of ours', async () => {
@@ -236,6 +259,33 @@ describe('saying an upload is done', () => {
     expect(answer.ok && answer.stillPlaceholder).toMatch(/^data:image\/png;base64,/);
   });
 
+  it('puts the API’s own refusal of a description or a transcript under its field, with a line above, never only the line', async () => {
+    calls.done.mockRejectedValueOnce(
+      refusal('BAD_REQUEST', 400, 'Bad', {
+        issues: [{ path: 'transcript', message: 'At most 20000 characters' }],
+      }),
+    );
+    expect(await finishUpload({ ...finishInput, transcript: 'x'.repeat(20_001) })).toEqual({
+      ok: false,
+      error: 'Not previewed: see the lines under the fields.',
+      problems: { transcript: 'At most 20000 characters.' },
+      retry: false,
+    });
+    calls.done.mockRejectedValueOnce(
+      refusal('BAD_REQUEST', 400, 'Bad', {
+        issues: [
+          {
+            path: 'description',
+            message: 'No control or invisible characters, and none at either end',
+          },
+        ],
+      }),
+    );
+    const answer = await finishUpload({ ...finishInput, description: 'A\u0000B' });
+    expect(!answer.ok && Object.keys(answer.problems)).toEqual(['description']);
+    expect(!answer.ok && answer.error).toBe('Not previewed: see the lines under the fields.');
+  });
+
   it('answers a refused file in its own words for the file in question, and a check still running as one to try again', async () => {
     calls.done.mockRejectedValueOnce(
       refusal('REFUSED', 422, 'Animated images are not taken', { reason: 'media_refused' }),
@@ -243,6 +293,7 @@ describe('saying an upload is done', () => {
     expect(await finishUpload({ ...finishInput, what: 'The still image' })).toEqual({
       ok: false,
       error: 'The still image was refused: Animated images are not taken.',
+      problems: {},
       retry: false,
     });
     calls.done.mockRejectedValueOnce(
@@ -335,6 +386,7 @@ describe('posting', () => {
         ok: false,
         error: 'That story is kept for the checks: nothing is posted on it.',
         problems: { storyId: 'That story is kept for the checks: nothing is posted on it.' },
+        resend: false,
       });
     }
     expect(calls.post).not.toHaveBeenCalled();
@@ -348,6 +400,7 @@ describe('posting', () => {
       ok: false,
       error: 'That story was withdrawn, so nothing can be posted on it: choose another.',
       problems: {},
+      resend: false,
     });
     calls.post.mockRejectedValueOnce(
       refusal('TOO_MANY_REQUESTS', 429, 'Too many', {
@@ -366,9 +419,35 @@ describe('posting', () => {
     );
     expect(await postAction(postInput)).toEqual({
       ok: false,
-      error: 'Not saved: see the lines under the fields.',
+      error: 'Not posted: see the lines under the fields.',
       problems: { body: 'At most 5000 characters.' },
+      resend: false,
     });
+  });
+});
+
+describe('a refused post’s files', () => {
+  it('are told to be sent anew only when the refusal is about the media', async () => {
+    for (const [reason, resend] of [
+      ['media_not_ready', true],
+      ['media_in_use', true],
+      ['media_not_yours', true],
+      ['media_kind', true],
+      ['story_not_live', false],
+    ] as const) {
+      calls.post.mockRejectedValueOnce(refusal('REFUSED', 422, 'API words', { reason }));
+      const answer = await postAction(postInput);
+      expect(answer.ok, reason).toBe(false);
+      expect(!answer.ok && answer.resend, reason).toBe(resend);
+    }
+    // A caption, a source or the day's limit leaves them ready.
+    calls.post.mockRejectedValueOnce(
+      refusal('TOO_MANY_REQUESTS', 429, 'Too many', {
+        reason: 'posts_per_day',
+        retryAfterSeconds: 60,
+      }),
+    );
+    expect(await postAction(postInput)).toMatchObject({ ok: false, resend: false });
   });
 });
 
@@ -390,6 +469,37 @@ describe('making Hrizzup', () => {
       listed: true,
     });
     expect(typeof sent.requestId).toBe('string');
+  });
+
+  it('refuses in words, and makes nothing, when a listed agent that can post exists already (a stale page, or a second admin)', async () => {
+    calls.agents.mockResolvedValue({
+      agents: [
+        { id: AGENT, handle: 'hj_unlisted', name: 'A run', listed: false, state: 'claimed' },
+        { id: STILL, handle: 'hrizzup', name: 'Hrizzup', listed: true, state: 'claimed' },
+      ],
+    });
+    const typed = { handle: 'hrizzup2', name: 'Hrizzup', bio: 'A bio' };
+    const state = await makeAgentAction(START, form(typed));
+    expect(state).toEqual({
+      error: "Hrizzup's own agent already exists (@hrizzup): reload the page and post as it.",
+      problems: {},
+      values: typed,
+    });
+    expect(calls.make).not.toHaveBeenCalled();
+  });
+
+  it('makes one when the only listed agent is retired, and when only unlisted ones exist', async () => {
+    calls.agents.mockResolvedValue({
+      agents: [
+        { id: AGENT, handle: 'hj_unlisted', name: 'A run', listed: false, state: 'claimed' },
+        { id: STILL, handle: 'oldone', name: 'Old', listed: true, state: 'retired' },
+      ],
+    });
+    calls.make.mockResolvedValue({ id: MEDIA });
+    await expect(
+      makeAgentAction(START, form({ handle: 'hrizzup', name: 'Hrizzup' })),
+    ).rejects.toThrow(`REDIRECT /console/social/post?as=${MEDIA}`);
+    expect(calls.make).toHaveBeenCalledTimes(1);
   });
 
   it('sends no bio when it is blank', async () => {

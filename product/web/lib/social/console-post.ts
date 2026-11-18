@@ -27,7 +27,13 @@ export const POST_FIELDS: ReadonlySet<string> = new Set([
 export const MAKE_FIELDS: ReadonlySet<string> = new Set(['handle', 'name', 'bio']);
 
 /** What a refusal of the page's calls says, and whether saying the same again may work. */
-export type Refusal = { error: string; problems: Record<string, string>; retry: boolean };
+export type Refusal = {
+  error: string;
+  problems: Record<string, string>;
+  retry: boolean;
+  /** The refusal was about the media (`media_*`, `still_*`): what was sent can't be trusted, so the files are sent anew. */
+  media: boolean;
+};
 
 /** The step a refusal came from: asking for the link, saying the file is done, posting, or making an agent. */
 export type Step = 'link' | 'done' | 'post' | 'make';
@@ -68,6 +74,14 @@ const BY_STEP: Partial<Record<Step, Record<string, string>>> = {
   },
 };
 
+/** What a step says above the lines under the fields when the API's own check refused the input. */
+const NOT_DONE: Record<Step, string> = {
+  link: 'Not previewed: see the lines under the fields.',
+  done: 'Not previewed: see the lines under the fields.',
+  post: 'Not posted: see the lines under the fields.',
+  make: 'Not made: see the lines under the fields.',
+};
+
 /** Whether saying the same again later may work: a check still running (a busy store is told by its status). */
 const RETRIES = new Set(['media_checking']);
 
@@ -92,10 +106,13 @@ export function pageRefusal(
   if (error.code === 'NOT_FOUND' && error.message === 'No such call') return null;
   const data = (error.data ?? {}) as { reason?: unknown; retryAfterSeconds?: unknown };
   const reason = typeof data.reason === 'string' ? data.reason : undefined;
+  const media =
+    reason !== undefined && (reason.startsWith('media_') || reason.startsWith('still_'));
   const say = (words: string, retry = false): Refusal => ({
     error: words,
     problems: {},
     retry: retry || (reason !== undefined && RETRIES.has(reason)),
+    media,
   });
 
   if (error.code === 'TOO_MANY_REQUESTS') {
@@ -128,13 +145,19 @@ export function pageRefusal(
         error: 'Not made: see the line under the handle.',
         problems: { handle: words },
         retry: false,
+        media: false,
       };
     }
     if (words !== undefined) return say(words);
   }
   const shared = refusalOf(error, {}, fields);
   if (shared === null) return null;
-  return { error: shared.error ?? '', problems: shared.problems, retry: false };
+  // The shared line says "Not saved"; each step says what it did not do.
+  const words = (shared.error ?? '').replace(
+    'Not saved: see the lines under the fields.',
+    NOT_DONE[step],
+  );
+  return { error: words, problems: shared.problems, retry: false, media: false };
 }
 
 // ---------------------------------------------------------------------------------------------

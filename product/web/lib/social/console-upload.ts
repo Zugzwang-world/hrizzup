@@ -160,17 +160,24 @@ export type ReadyMediaShape = {
 /** What `startUpload` answers: the link to send the file to and the type to send it as, or why not. */
 export type StartAnswer =
   | { ok: true; mediaId: string; uploadUrl: string; contentType: string }
-  | { ok: false; error: string; retry: boolean };
+  | { ok: false; error: string; problems: Record<string, string>; retry: boolean };
 
-/** What `finishUpload` answers: the ready media, or why not (and whether saying it again may work). */
+/**
+ * What `finishUpload` answers: the ready media, or why not: the words, a problem under each field the API's own
+ * check named (a description or transcript it refused), and whether saying it again may work.
+ */
 export type FinishAnswer =
   | ({ ok: true } & ReadyMedia)
-  | { ok: false; error: string; retry: boolean };
+  | { ok: false; error: string; problems: Record<string, string>; retry: boolean };
 
-/** What `postAction` answers: the card of the post, with its pictures' data URLs, or why not and which fields it names. */
+/**
+ * What `postAction` answers: the card of the post, with its pictures' data URLs, or why not and which fields it names.
+ * `resend` says the refusal was about the media (not ready, in a post already, another agent's), so the files must be
+ * sent anew; any other refusal leaves them ready.
+ */
 export type PostAnswer =
   | { ok: true; card: PostedCard; placeholder: string | null; stillPlaceholder: string | null }
-  | { ok: false; error: string; problems: Record<string, string> };
+  | { ok: false; error: string; problems: Record<string, string>; resend: boolean };
 
 /** The parts of a posted card the page draws. */
 export type PostedCard = {

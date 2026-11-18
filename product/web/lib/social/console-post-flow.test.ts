@@ -3,15 +3,22 @@ import {
   type Fields,
   type FileLike,
   type FlowDeps,
-  type Memory,
+  forgetPost,
   NOT_PREVIEWED,
+  newMemory,
   postedPost,
   previewOf,
   problemsOf,
   Stop,
   sendFile,
 } from './console-post-flow.ts';
-import type { FinishAnswer, PostAnswer, ReadyMediaShape, UploadRules } from './console-upload.ts';
+import type {
+  FinishAnswer,
+  PostAnswer,
+  ReadyMediaShape,
+  StartAnswer,
+  UploadRules,
+} from './console-upload.ts';
 
 /**
  * What the post page does when Preview and Post are pressed (docs/social/media-design.md, section 9.2 and 10), with
@@ -72,16 +79,22 @@ function stand() {
   let uploads = 0;
   const log: string[] = [];
   const deps = {
-    startUpload: vi.fn(async (input: { kind: string; contentType: string; requestId: string }) => {
-      uploads += 1;
-      log.push(`link ${input.kind}`);
-      return {
-        ok: true as const,
-        mediaId: `media-${uploads}`,
-        uploadUrl: `https://uploads.example.test/${uploads}`,
-        contentType: `${input.contentType}`,
-      };
-    }),
+    startUpload: vi.fn(
+      async (input: {
+        kind: string;
+        contentType: string;
+        requestId: string;
+      }): Promise<StartAnswer> => {
+        uploads += 1;
+        log.push(`link ${input.kind}`);
+        return {
+          ok: true as const,
+          mediaId: `media-${uploads}`,
+          uploadUrl: `https://uploads.example.test/${uploads}`,
+          contentType: `${input.contentType}`,
+        };
+      },
+    ),
     finishUpload: vi.fn(
       async (input: {
         requestId: string;
@@ -104,7 +117,7 @@ function stand() {
     newId: vi.fn(() => `id-${++ids}`),
     progress: vi.fn(),
   } satisfies FlowDeps<FileLike>;
-  return { deps, log, memory: new Map() as Memory };
+  return { deps, log, memory: newMemory() };
 }
 
 describe('the checks made before anything is sent', () => {
@@ -158,6 +171,20 @@ describe('the checks made before anything is sent', () => {
       file: 'The file must be an MP4 video: choose another.',
       still: 'The still image must be a JPEG, PNG or WebP picture: choose another.',
     });
+  });
+
+  it('refuses a source that is not an https address, naming its line', () => {
+    expect(
+      problemsOf(fields({ sources: ['https://example.com/a', 'http://example.com/b'] }), RULES),
+    ).toEqual({ sources: 'Line 2: Must be a web address starting https://, with no spaces.' });
+    expect(problemsOf(fields({ sources: ['example.com/a'] }), RULES).sources).toContain('Line 1');
+    expect(problemsOf(fields({ sources: ['https://exa mple.com'] }), RULES).sources).toContain(
+      'Line 1',
+    );
+    expect(problemsOf(fields({ sources: ['https://'] }), RULES).sources).toContain('Line 1');
+    expect(
+      problemsOf(fields({ sources: ['https://example.com/a', 'HTTPS://example.com/b'] }), RULES),
+    ).toEqual({});
   });
 
   it('says what a stopped Preview says above the fields', () => {
@@ -282,8 +309,8 @@ describe('a Preview', () => {
     expect(deps.put).toHaveBeenCalledTimes(1);
     expect(deps.finishUpload).toHaveBeenCalledTimes(1);
     expect(second.snapshot.mediaId).toBe(first.snapshot.mediaId);
-    // The post's own request ID is new each time: only the previewed post is posted.
-    expect(second.snapshot.requestId).not.toBe(first.snapshot.requestId);
+    // The same post again is the same request (see "a post's request ID").
+    expect(second.snapshot.requestId).toBe(first.snapshot.requestId);
   });
 
   it('sends a new upload when the words, the agent or the file differ (a ready media’s words never change)', async () => {
@@ -351,12 +378,13 @@ describe('a Preview', () => {
     deps.finishUpload.mockResolvedValueOnce({
       ok: false,
       error: 'The file was refused: Animated.',
+      problems: {},
       retry: false,
     });
     await expect(previewOf(deps, memory, RULES, input)).rejects.toThrow(
       'The file was refused: Animated.',
     );
-    expect(memory.size).toBe(0);
+    expect(memory.uploads.size).toBe(0);
     await previewOf(deps, memory, RULES, input);
     expect(deps.startUpload).toHaveBeenCalledTimes(2);
 
@@ -364,12 +392,13 @@ describe('a Preview', () => {
     again.deps.finishUpload.mockResolvedValueOnce({
       ok: false,
       error: 'Still being checked.',
+      problems: {},
       retry: true,
     });
     await expect(previewOf(again.deps, again.memory, RULES, input)).rejects.toThrow(
       'Still being checked.',
     );
-    expect(again.memory.size).toBe(1);
+    expect(again.memory.uploads.size).toBe(1);
     await previewOf(again.deps, again.memory, RULES, input);
     // The file is not sent again, only said done again with the same request ID.
     expect(again.deps.startUpload).toHaveBeenCalledTimes(1);
@@ -385,12 +414,59 @@ describe('a Preview', () => {
     deps.startUpload.mockResolvedValueOnce({
       ok: false,
       error: 'This agent is retired.',
+      problems: {},
       retry: false,
-    } as never);
+    });
     const input = { ...fields({ kind: 'image', file: file('a.png', 'image/png') }), agent };
     await expect(previewOf(deps, memory, RULES, input)).rejects.toBeInstanceOf(Stop);
-    expect(memory.size).toBe(0);
+    expect(memory.uploads.size).toBe(0);
     expect(deps.put).not.toHaveBeenCalled();
+  });
+
+  it('carries the lines the server put under fields, from a refused link and from a refused description or transcript, to the page', async () => {
+    const input = { ...fields({ kind: 'image', file: file('a.png', 'image/png') }), agent };
+    const link = stand();
+    link.deps.startUpload.mockResolvedValueOnce({
+      ok: false,
+      error: 'Not previewed: see the lines under the fields.',
+      problems: { storyId: 'That story is kept for the checks: nothing is posted on it.' },
+      retry: false,
+    });
+    const refusedLink = await previewOf(link.deps, link.memory, RULES, input).catch(
+      (error: unknown) => error,
+    );
+    expect(refusedLink).toBeInstanceOf(Stop);
+    expect((refusedLink as Stop).problems).toEqual({
+      storyId: 'That story is kept for the checks: nothing is posted on it.',
+    });
+
+    const done = stand();
+    // The still image is said done and ready; the file's own `done` is refused.
+    done.deps.finishUpload.mockResolvedValueOnce({
+      ok: true,
+      media: mediaOf('media-still', 'image'),
+      placeholder: null,
+      stillPlaceholder: null,
+    });
+    done.deps.finishUpload.mockResolvedValueOnce({
+      ok: false,
+      error: 'Not previewed: see the lines under the fields.',
+      problems: { transcript: 'At most 20000 characters.' },
+      retry: false,
+    });
+    const refusedDone = await previewOf(done.deps, done.memory, RULES, {
+      ...fields({
+        kind: 'audio',
+        file: file('a.mp3', 'audio/mpeg'),
+        still: file('s.png', 'image/png'),
+        transcript: 'x'.repeat(20_001),
+      }),
+      agent,
+    }).catch((error: unknown) => error);
+    // The still image went through; the file's own refusal names the transcript's box.
+    expect(done.deps.finishUpload).toHaveBeenCalledTimes(2);
+    expect((refusedDone as Stop).problems).toEqual({ transcript: 'At most 20000 characters.' });
+    expect((refusedDone as Stop).message).toBe('Not previewed: see the lines under the fields.');
   });
 
   it('refuses a file of a type the kind does not take without asking for a link', async () => {
@@ -408,6 +484,49 @@ describe('a Preview', () => {
       ),
     ).rejects.toThrow("The file isn't a type that is taken: choose another.");
     expect(deps.startUpload).not.toHaveBeenCalled();
+  });
+});
+
+describe('a post’s request ID', () => {
+  const text = (body: string) => ({ ...fields({ body }), agent });
+
+  it('is kept by a new Preview of the same post until the answer is known, so a Post whose answer was lost posts once', async () => {
+    const { deps, memory } = stand();
+    const first = await previewOf(deps, memory, RULES, text('Same words'));
+    const second = await previewOf(deps, memory, RULES, text('Same words'));
+    expect(second.snapshot.requestId).toBe(first.snapshot.requestId);
+    // Other words are another post, with its own request ID.
+    const other = await previewOf(deps, memory, RULES, text('Other words'));
+    expect(other.snapshot.requestId).not.toBe(first.snapshot.requestId);
+    // The first post's ID is still the first post's.
+    expect((await previewOf(deps, memory, RULES, text('Same words'))).snapshot.requestId).toBe(
+      first.snapshot.requestId,
+    );
+  });
+
+  it('is new once the answer is known, a card or a refusal', async () => {
+    const { deps, memory } = stand();
+    const first = await previewOf(deps, memory, RULES, text('Same words'));
+    forgetPost(memory, first.snapshot);
+    const again = await previewOf(deps, memory, RULES, text('Same words'));
+    expect(again.snapshot.requestId).not.toBe(first.snapshot.requestId);
+  });
+
+  it('is kept for a media post only while its media is the same one', async () => {
+    const { deps, memory } = stand();
+    const image = {
+      ...fields({ kind: 'image', file: file('a.png', 'image/png'), description: 'One' }),
+      agent,
+    };
+    const first = await previewOf(deps, memory, RULES, image);
+    // The same file and words are the same upload, so the same media and the same post.
+    expect((await previewOf(deps, memory, RULES, image)).snapshot.requestId).toBe(
+      first.snapshot.requestId,
+    );
+    // A new description is a new upload (a ready media's words never change), so a new media and a new post.
+    const changed = await previewOf(deps, memory, RULES, { ...image, description: 'Two' });
+    expect(changed.snapshot.mediaId).not.toBe(first.snapshot.mediaId);
+    expect(changed.snapshot.requestId).not.toBe(first.snapshot.requestId);
   });
 });
 

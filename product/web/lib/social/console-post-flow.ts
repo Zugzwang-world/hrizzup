@@ -51,11 +51,24 @@ export type FlowDeps<F extends FileLike> = {
   progress(text: string): void;
 };
 
-/** A line the flow stops on, said to the person at the console. */
-export class Stop extends Error {}
+/** A line the flow stops on, said to the person at the console, with a line under each field the server named. */
+export class Stop extends Error {
+  readonly problems: Record<string, string>;
+  constructor(message: string, problems: Record<string, string> = {}) {
+    super(message);
+    this.problems = problems;
+  }
+}
 
-/** What the page has sent so far, by what makes an upload the same one (`uploadKey`). */
-export type Memory = Map<string, KeptUpload>;
+/**
+ * What the page has done so far while it is open: each upload by what makes it the same one (`uploadKey`), so a second
+ * Preview sends nothing twice; and each previewed post's request ID by what the post is, kept until the post's answer
+ * is known, so a Post whose answer was lost and then a new Preview of the same post is the same request (it answers the
+ * same card, never a second post).
+ */
+export type Memory = { uploads: Map<string, KeptUpload>; posts: Map<string, string> };
+
+export const newMemory = (): Memory => ({ uploads: new Map(), posts: new Map() });
 
 /** The agent the post is as. */
 export type Poster = { id: string; handle: string; name: string };
@@ -90,13 +103,35 @@ export type Snapshot = {
 export const isClip = (kind: Kind): kind is 'video' | 'audio' =>
   kind === 'video' || kind === 'audio';
 
+/** What makes one post the same as another, for its request ID: everything it sends but that ID. */
+const postKey = (snapshot: Omit<Snapshot, 'requestId'>): string =>
+  JSON.stringify([
+    snapshot.agentId,
+    snapshot.storyId,
+    snapshot.kind,
+    snapshot.body,
+    snapshot.sources,
+    snapshot.format,
+    snapshot.mediaId,
+    snapshot.transcript,
+  ]);
+
+/** Forgets a post's request ID once its answer is known (a card, or a refusal), so the next post of the same words is a new request. */
+export function forgetPost(memory: Memory, snapshot: Snapshot): void {
+  const { requestId: _requestId, ...content } = snapshot;
+  memory.posts.delete(postKey(content));
+}
+
 /** The line shown above the fields when a Preview stops before sending anything. */
 export const NOT_PREVIEWED = 'Not previewed: see the lines under the fields.';
 
+/** A source's shape as the page checks it before asking the server (which checks it fully): https, no spaces, at most 2,048 characters. */
+const WEB_ADDRESS = /^https:\/\/\S{1,2040}$/i;
+
 /**
  * What is wrong with the form before anything is sent, by field, in words: no agent or story chosen, no words, a file
- * that can't go up (nothing chosen, empty, the wrong type, too big), a video or audio with no still image or no
- * transcript. Empty when the form is good. Checked in the browser, so a wrong choice costs no upload link (the day's
+ * that can't go up (nothing chosen, empty, the wrong type, too big), a source that isn't an https address, a video or audio
+ * with no still image or no transcript. Empty when the form is good. Checked in the browser, so a wrong choice costs no upload link (the day's
  * uploads are limited).
  */
 export function problemsOf<F extends FileLike>(
@@ -107,6 +142,10 @@ export function problemsOf<F extends FileLike>(
   if (!fields.agent) found.agentId = 'Choose who posts.';
   if (fields.storyId === '') found.storyId = 'Choose a story.';
   if (fields.body === '') found.body = 'Write the post.';
+  const badSource = fields.sources.findIndex((source) => !WEB_ADDRESS.test(source));
+  if (badSource >= 0) {
+    found.sources = `Line ${badSource + 1}: Must be a web address starting https://, with no spaces.`;
+  }
   if (fields.kind !== 'text') {
     const why = fileRefusal(fields.file, fields.kind, rules, 'The file');
     if (why) found.file = why;
@@ -138,7 +177,7 @@ export async function sendFile<F extends FileLike>(
   what: string,
 ): Promise<ReadyMedia> {
   const key = uploadKey(context.agentId, kind, file, extra);
-  let kept = memory.get(key);
+  let kept = memory.uploads.get(key);
   if (kept === undefined) {
     kept = {
       createId: deps.newId(),
@@ -147,7 +186,7 @@ export async function sendFile<F extends FileLike>(
       sent: false,
       ready: null,
     };
-    memory.set(key, kept);
+    memory.uploads.set(key, kept);
   }
   if (kept.ready !== null) return kept.ready;
   if (!kept.sent) {
@@ -163,8 +202,8 @@ export async function sendFile<F extends FileLike>(
       bytes: file.size,
     });
     if (!link.ok) {
-      if (!link.retry) memory.delete(key);
-      throw new Stop(link.error);
+      if (!link.retry) memory.uploads.delete(key);
+      throw new Stop(link.error, link.problems);
     }
     kept.mediaId = link.mediaId;
     let status: number;
@@ -188,8 +227,8 @@ export async function sendFile<F extends FileLike>(
     what,
   });
   if (!done.ok) {
-    if (!done.retry) memory.delete(key);
-    throw new Stop(done.error);
+    if (!done.retry) memory.uploads.delete(key);
+    throw new Stop(done.error, done.problems);
   }
   const { ok: _ok, ...media } = done;
   kept.ready = media;
@@ -241,6 +280,20 @@ export async function previewOf<F extends FileLike>(
     );
   }
   const transcript = isClip(kind) ? fields.transcript : null;
+  const content = {
+    agentId: agent.id,
+    storyId: fields.storyId,
+    kind,
+    body: fields.body,
+    sources: fields.sources,
+    format: fields.format || null,
+    mediaId: media?.media.id ?? null,
+    transcript,
+  };
+  // The same post again (the same words and media) is the same request until its answer is known.
+  const key = postKey(content);
+  const requestId = memory.posts.get(key) ?? deps.newId();
+  memory.posts.set(key, requestId);
   return {
     post: {
       agent: { handle: agent.handle, name: agent.name, house: true, ownerName: null },
@@ -254,17 +307,7 @@ export async function previewOf<F extends FileLike>(
       transcript,
       postedAt: null,
     },
-    snapshot: {
-      requestId: deps.newId(),
-      agentId: agent.id,
-      storyId: fields.storyId,
-      kind,
-      body: fields.body,
-      sources: fields.sources,
-      format: fields.format || null,
-      mediaId: media?.media.id ?? null,
-      transcript,
-    },
+    snapshot: { requestId, ...content },
   };
 }
 
