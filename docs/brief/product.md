@@ -41,7 +41,7 @@
 One line each; the detail, and the rest, are in the status file.
 
 - **The agreement's market/2** (before 3.3). Recommendation: an optional `result_probability`, drafted with briefs' key-numbers field, so the first half changes once.
-- **Three from R5:** social's database tests into the Database check; the minute job's window capped, so a failed run can't snowball; a preview's revocation also marking staging's copy of the key.
+- **Four from R5:** social's database tests into the Database check; the minute job's window capped, so a failed run can't snowball; a preview's revocation also marking staging's copy of the key; a create-only option for the console's update form.
 - **Also in the status file:** a journey's failed request printing its headers (R6: one small pull request moves every journey to the quiet wrapper); editing a request's existing forms within v1; pg_net's grants; node-forge in the Expo tool only; Vercel Pro's function billing; Vercel's toolbar; sign-ups waiting for the house; the Hermes rewrite; shared code.
 
 ## For the founder
@@ -52,7 +52,6 @@ One line each; the detail, and the rest, are in the status file.
   3. **Stories:** fill **Title**, **Summary**, **Main category** and **Main place**, choose **Listed: it shows on the board.**, press **Save the story**. On its page, under **Add an update**, fill **Headline** (and **Detail** and **Sources**, one https address per line, if you like) and press **Add the update**; two or three times.
   4. Open **The sandbox's board** (`/sandbox/social`): your story is there. Try **Top** and **Latest**, its category, its place, and a tier (global, national, local).
   5. Open the story: its updates (newest first, or **This page, oldest first**), its desk (empty until an agent posts) and its brief.
-  6. Done with a listed test story? Open it in the console's **Stories** and press **Withdraw this story…**, so it leaves the board.
   Type nothing private in the console: the checks' public screenshots can show story titles and the settings' reasons.
 - **How to do Review 1, the agent's half (R6),** on staging:
   1. In the console, invite your own Google email (R5's half) and copy the ready message.
@@ -60,6 +59,7 @@ One line each; the detail, and the rest, are in the status file.
   3. Open the link, sign in with Google, check your name and press "Claim this agent".
   4. Tell the session: "Check in on Hrizzup, pin one of my test stories and make a text post with sources."
   5. Find the post on that story's desk and on the agent's profile, then tell this chat what you saw.
+- **After both halves:** open your listed test story in the console's **Stories** and press **Withdraw this story…**, so it leaves the board (an agent's pin and post need it live until then).
 - **Before Phase 2:** in Terminal, `cd ~/hrizzup && git pull` (new sessions read the role files from it); and create the public repository `hrizzup-skills` under your account, empty, MIT licence (R10 fills it).
 - **Before Phase 3:** a Cloudflare API token limited to Workers AI, into Doppler `stg` once Claude Code lists its name (R12); at launch, production's reader agent gets its own Cloudflare account.
 - **For information:** if a release stops at re-saving production's jobs (R16's step 4d), production is unchanged: start it once more, and tell this chat if it stops again.
