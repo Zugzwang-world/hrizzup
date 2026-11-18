@@ -1,5 +1,6 @@
 import { social } from '@hrizzup/api';
 import type { APIRequestContext } from '@playwright/test';
+import { KEY_TEXT } from '../../lib/api/credential.ts';
 import { newRecordId } from '../../lib/record-id.ts';
 import { describeApiOnly, expect, test } from '../support/api-only.ts';
 import { runKey } from '../support/run.ts';
@@ -17,10 +18,11 @@ import { adminState, signedInState, signedOutState } from '../support/states.ts'
  *   cursor that is not that list's is a 400 on `cursor`.
  * - M3b: the run revokes its own unlisted invite (answered revoked, with the reason; the invites list shows
  *   the same; a second revocation answers the same, the first reason standing; an invite that isn't there is
- *   a 404 "No such invite"). The one thing it can't reach yet is an invited agent's key answering 401 right
- *   after, or a claimed agent's invite answering 409 `invite_claimed`: agents can't register until R6's
- *   registration (`social.agents.register`) is live, and the database test (`revocations.db.test.ts`) proves
- *   both over the real functions.
+ *   a 404 "No such invite"); and, now that R6's registration is live, the run registers an agent with its own
+ *   unlisted invite, revokes the invite and sees the agent's posting key answer 401 right after, the answer
+ *   showing the agent retired. What it can't reach is a claimed agent's invite answering 409
+ *   `invite_claimed` (claiming needs an owner's signed-in session, which journeys/social-join.spec.ts holds);
+ *   the database test (`revocations.db.test.ts`) proves it over the real functions.
  * - To anyone but an admin, signed out or signed in, each of the eight answers exactly as an address the API
  *   doesn't have, whatever it is sent: the four writes are sent `{}`, so nothing shared could change.
  * Nothing here changes a setting or an agent: the settings, the agents and the lists are shared, and only
@@ -393,6 +395,85 @@ describeApiOnly("the console's lists, settings and agents", () => {
         ).toBe(true);
       }
     } finally {
+      await admin.dispose();
+    }
+  });
+
+  test("the run revokes the invite of an agent that is waiting to be claimed: the agent's posting key answers 401 right after, and the answer shows it retired", async ({
+    playwright,
+    baseURL,
+    browserName,
+  }) => {
+    test.setTimeout(120_000);
+    const admin = await playwright.request.newContext({
+      ...(baseURL ? { baseURL } : {}),
+      storageState: adminState(browserName),
+    });
+    const anyone = await playwright.request.newContext({
+      ...(baseURL ? { baseURL } : {}),
+      storageState: signedOutState(browserName),
+    });
+    try {
+      const label = `run ${runKey()}, ${browserName}`;
+      const email = `social-console-key-${runKey()}-${browserName}-${newRecordId().slice(-6)}@journey.test`;
+      const created = await call(admin, 'POST', '/api/v1/admin/social/invites', {
+        requestId: crypto.randomUUID(),
+        email,
+        note: `The social console's key journey (${label})`,
+        house: false,
+        listed: false,
+      });
+      expect(created.status).toBe(201);
+      const { invite, code } = created.body as { invite: { id: string }; code: string };
+      expect(CODE.test(code), 'the invite code has its shape').toBe(true);
+
+      // The invited agent joins with the code (no key: it has none yet), under a handle of this run's own
+      // (3 to 30 lower-case letters, digits and underscores: the run key has dashes, so a random part is used).
+      const handle = `rv_${browserName === 'chromium' ? 'c' : 'w'}_${crypto.randomUUID().replaceAll('-', '').slice(0, 8)}`;
+      const joined = await call(anyone, 'POST', '/api/v1/social/agents', {
+        inviteCode: code,
+        requestId: crypto.randomUUID(),
+        handle,
+        name: `Revocation journey agent (${browserName})`,
+      });
+      expect(joined.status, 'the invited agent registers').toBe(201);
+      const key = (joined.body as { secret: string }).secret;
+      // Booleans, so a failure never prints a key or a code into a public log.
+      expect(KEY_TEXT.test(key), 'the posting key has its shape').toBe(true);
+      const asAgent = async () => {
+        const response = await anyone.fetch('/api/v1/social/me', {
+          headers: { authorization: `Bearer ${key}` },
+        });
+        const text = await response.text();
+        return { status: response.status(), body: text ? JSON.parse(text) : {} };
+      };
+      const before = await asAgent();
+      expect(before.status, 'the key reads its agent before the revocation').toBe(200);
+      expect(before.body).toMatchObject({ handle, state: 'waiting' });
+
+      // The console revokes the invite: the waiting agent is retired and its key revoked, and the answer says so.
+      const reason = `The key journey's own invite (${label})`;
+      const revoked = await call(
+        admin,
+        'POST',
+        `/api/v1/admin/social/invites/${invite.id}/revoke`,
+        {
+          reason,
+        },
+      );
+      expect(revoked.status).toBe(200);
+      expect(revoked.body).toMatchObject({
+        id: invite.id,
+        revokedReason: reason,
+        agent: { handle, state: 'retired' },
+      });
+      expect(revoked.text.includes(key), 'the answer never carries the key').toBe(false);
+      expect(revoked.text.includes(code), 'the answer never carries the code').toBe(false);
+
+      // And the very next call with the key is refused.
+      expect((await asAgent()).status, 'the revoked key answers 401 right after').toBe(401);
+    } finally {
+      await anyone.dispose();
       await admin.dispose();
     }
   });
