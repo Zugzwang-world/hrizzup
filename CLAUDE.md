@@ -149,7 +149,7 @@ Label every change with its size at the start of the commit message and the pull
 
 - **Small** (text, colours, spacing, simple fixes): quick checks, plus the screen check and screenshots (see "Screens fit every device") if a screen changed.
 - **Normal:** quick checks, plus the tests for the parts the change touches.
-- **Risky** (market maths, play money, login, database structure, the core of the news engine, payments): the full test suite plus AI review, except that **a change that only touches the database skips the checks run against the preview** (the Screen and Speed checks' work: they pass at once with a record, `.github/scripts/affected.py`), since a preview can't see a database change that hasn't merged; the Database check and Quick checks still run in full (the founder, 18 November 2026, approved with R4's faster-checks cuts).
+- **Risky** (market maths, play money, login, database structure, the core of the news engine, payments): the full test suite plus AI review, except that **a change that only touches the database skips the checks run against the preview** (the Screen and Speed checks' work: they pass at once with a record, `.github/scripts/affected.py`; App journeys too, as for any change that doesn't reach the app), since a preview can't see a database change that hasn't merged; the Database check, Quick checks and the Secret check still run in full (the founder, 18 November 2026, approved with R4's faster-checks cuts).
 - **Production release:** everything, once.
 
 ## How checks behave (founder's decisions, 10 November 2026; blueprint section 11)
