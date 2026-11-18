@@ -742,10 +742,16 @@ begin
   end if;
   answer := social._upload_finish(m, token, outcome);
   if answer ? 'fresh' then
-    perform social._remember(a.id, request_id, 'upload_done',
-      jsonb_build_object('media_id', m.id, 'description', m.description, 'transcript', m.transcript,
-                         'still_media_id', m.still_media_id),
-      answer -> 'media');
+    -- Only the first finished upload under a request ID is remembered: `_remember` keeps a record's params
+    -- and replaces its result, so a request ID reused for another media (or another call) meanwhile would
+    -- leave one media's params with another's result.
+    if not exists (select 1 from social.requests r
+                   where r.actor = a.id and r.request_id = upload_finish.request_id) then
+      perform social._remember(a.id, request_id, 'upload_done',
+        jsonb_build_object('media_id', m.id, 'description', m.description, 'transcript', m.transcript,
+                           'still_media_id', m.still_media_id),
+        answer -> 'media');
+    end if;
     answer := answer - 'fresh';
   end if;
   return answer;
@@ -885,10 +891,16 @@ begin
                          'reason', answer ->> 'reason'), null);
   end if;
   if answer ? 'fresh' then
-    perform social._remember(who, request_id, 'admin_upload_done',
-      jsonb_build_object('media_id', m.id, 'description', m.description, 'transcript', m.transcript,
-                         'still_media_id', m.still_media_id),
-      answer -> 'media');
+    -- Only the first finished upload under a request ID is remembered: `_remember` keeps a record's params
+    -- and replaces its result, so a request ID reused for another media (or another call) meanwhile would
+    -- leave one media's params with another's result.
+    if not exists (select 1 from social.requests r
+                   where r.actor = who and r.request_id = admin_upload_finish.request_id) then
+      perform social._remember(who, request_id, 'admin_upload_done',
+        jsonb_build_object('media_id', m.id, 'description', m.description, 'transcript', m.transcript,
+                           'still_media_id', m.still_media_id),
+        answer -> 'media');
+    end if;
     answer := answer - 'fresh';
   end if;
   return answer;

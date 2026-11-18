@@ -9,7 +9,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(46);
+select plan(48);
 
 -- Runs one query as the app's own role, signed in as `account` (null: nobody), with `api_key` as the key that
 -- signed the request (null: none), and gives back its one value as text.
@@ -525,6 +525,44 @@ select is(
                 pg_temp.as_app(null, (select key from keys_ where who = 'ada'), pg_temp.begin_sql(451, pg_temp.up('img3'), 'A picture'))::jsonb ->> 'step']),
   array['{"step": "released"}', '{waiting,true}', 'check'],
   'release ends the lease and keeps the upload waiting, so it may be checked again'
+);
+
+-- One request ID reused for two uploads: only the first finished one is remembered (the record's params and its result stay one pair)
+
+create temporary table twin on commit drop as
+select pg_temp.new_upload((select key from keys_ where who = 'ada'), 460, 'image', 'image/png') as first_id,
+       pg_temp.new_upload((select key from keys_ where who = 'ada'), 461, 'image', 'image/png') as second_id;
+create temporary table twin_begun on commit drop as
+select pg_temp.as_app(null, (select key from keys_ where who = 'ada'), pg_temp.begin_sql(480, first_id, 'First twin'))::jsonb as first_begin,
+       pg_temp.as_app(null, (select key from keys_ where who = 'ada'), pg_temp.begin_sql(480, second_id, 'Second twin'))::jsonb as second_begin
+from twin;
+create temporary table twin_first_done on commit drop as
+select pg_temp.as_app(null, (select key from keys_ where who = 'ada'), pg_temp.finish_sql(480, t.first_id, b.first_begin ->> 'token',
+  format('{"outcome": "ready", "media_key": %s, "bytes": 900, "width": 800, "height": 600}', to_json(pg_temp.key_of(t.first_id)))))::jsonb as answer
+from twin t, twin_begun b;
+create temporary table twin_second_done on commit drop as
+select pg_temp.as_app(null, (select key from keys_ where who = 'ada'), pg_temp.finish_sql(480, t.second_id, b.second_begin ->> 'token',
+  format('{"outcome": "ready", "media_key": %s, "bytes": 900, "width": 800, "height": 600}', to_json(pg_temp.key_of(t.second_id)))))::jsonb as answer
+from twin t, twin_begun b;
+select is(
+  (select array[(select count(*)::text from social.requests r where r.actor = pg_temp.agent_id('ada_bot') and r.request_id = pg_temp.req(480)::uuid),
+                (select (r.result ->> 'id') = t.first_id::text from social.requests r
+                 where r.actor = pg_temp.agent_id('ada_bot') and r.request_id = pg_temp.req(480)::uuid)::text,
+                (select s.answer ->> 'step' from twin_second_done s),
+                ((select s.answer -> 'media' ->> 'id' from twin_second_done s) = t.second_id::text)::text,
+                (select m.state from social.media m where m.id = t.second_id)]
+   from twin t),
+  array['1', 'true', 'answer', 'true', 'ready'],
+  'two uploads finished under one request ID both become ready, but the request''s record stays the first''s: its params and its result never come from different uploads'
+);
+create temporary table twin_replayed on commit drop as
+select pg_temp.as_app(null, (select key from keys_ where who = 'ada'), pg_temp.begin_sql(480, first_id, 'First twin'))::jsonb as answer
+from twin;
+select is(
+  array[(select (r.answer = jsonb_build_object('step', 'answer', 'media', f.answer -> 'media'))::text from twin_replayed r, twin_first_done f),
+        (select pg_temp.fails(null, (select key from keys_ where who = 'ada'), pg_temp.begin_sql(480, second_id, 'Second twin')) from twin)],
+  array['true', 'HZS27'],
+  'a replay of the first upload''s done answers the first media, never the second''s; the second''s own input under that ID is HZS27'
 );
 
 -- The guard on media rows ------------------------------------------------------------------------------------------------------------

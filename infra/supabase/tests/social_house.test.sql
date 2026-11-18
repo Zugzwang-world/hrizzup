@@ -10,7 +10,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(35);
+select plan(37);
 
 -- Runs one query as the app's own role, signed in as `account` (null: nobody), with `api_key` as the key that
 -- signed the request (null: none) and `console` as the transaction's console-agent setting (null: leave the
@@ -496,6 +496,48 @@ select is(
    from agent_video_refused r, agent_video_image i),
   array['refused', 'too_long', 'refused:too_long', '1'],
   'a refused check is written and logged with its reason'
+);
+
+-- One request ID reused for two console uploads: only the first finished one is remembered
+
+create temporary table twin on commit drop as
+select (pg_temp.admin(pg_temp.up_sql(66, 'console', pg_temp.agent_id('hrizzup'), 'image', 'image/png')) -> 'media' ->> 'id')::uuid as first_id,
+       (pg_temp.admin(pg_temp.up_sql(67, 'console', pg_temp.agent_id('hrizzup'), 'image', 'image/png')) -> 'media' ->> 'id')::uuid as second_id;
+create function pg_temp.twin_key(media uuid)
+returns text
+language sql
+as $$ select 'social/' || m.agent_id || '/' || m.id || '.png' from social.media m where m.id = twin_key.media $$;
+create temporary table twin_begun on commit drop as
+select pg_temp.admin(format('select social.admin_upload_begin(%L, %L, ''First twin'', null, null)::text', pg_temp.req(68), first_id)) as first_begin,
+       pg_temp.admin(format('select social.admin_upload_begin(%L, %L, ''Second twin'', null, null)::text', pg_temp.req(68), second_id)) as second_begin
+from twin;
+create temporary table twin_first_done on commit drop as
+select pg_temp.admin(format('select social.admin_upload_finish(%L, %L, %L, %L::jsonb)::text', pg_temp.req(68), t.first_id, b.first_begin ->> 'token',
+  format('{"outcome": "ready", "media_key": %s, "bytes": 900, "width": 800, "height": 600}', to_json(pg_temp.twin_key(t.first_id))))) as answer
+from twin t, twin_begun b;
+create temporary table twin_second_done on commit drop as
+select pg_temp.admin(format('select social.admin_upload_finish(%L, %L, %L, %L::jsonb)::text', pg_temp.req(68), t.second_id, b.second_begin ->> 'token',
+  format('{"outcome": "ready", "media_key": %s, "bytes": 900, "width": 800, "height": 600}', to_json(pg_temp.twin_key(t.second_id))))) as answer
+from twin t, twin_begun b;
+select is(
+  (select array[(select count(*)::text from social.requests r where r.actor = '00000000-0000-4000-8000-00000000d0a1' and r.request_id = pg_temp.req(68)::uuid),
+                (select (r.result ->> 'id') = t.first_id::text from social.requests r
+                 where r.actor = '00000000-0000-4000-8000-00000000d0a1' and r.request_id = pg_temp.req(68)::uuid)::text,
+                (select s.answer ->> 'step' from twin_second_done s),
+                ((select s.answer -> 'media' ->> 'id' from twin_second_done s) = t.second_id::text)::text,
+                (select m.state from social.media m where m.id = t.second_id)]
+   from twin t),
+  array['1', 'true', 'answer', 'true', 'ready'],
+  'two console uploads finished under one request ID both become ready, but the request''s record stays the first''s: its params and its result never come from different uploads'
+);
+create temporary table twin_replayed on commit drop as
+select pg_temp.admin(format('select social.admin_upload_begin(%L, %L, ''First twin'', null, null)::text', pg_temp.req(68), first_id)) as answer
+from twin;
+select is(
+  array[(select (r.answer = jsonb_build_object('step', 'answer', 'media', f.answer -> 'media'))::text from twin_replayed r, twin_first_done f),
+        (select pg_temp.admin_fails(format('select social.admin_upload_begin(%L, %L, ''Second twin'', null, null)::text', pg_temp.req(68), second_id)) from twin)],
+  array['true', 'HZS27'],
+  'a replay of the first console upload''s done answers the first media, never the second''s; the second''s own input under that ID is HZS27'
 );
 
 -- Nothing reaches a console agent but the console ----------------------------------------------------------------------------------
