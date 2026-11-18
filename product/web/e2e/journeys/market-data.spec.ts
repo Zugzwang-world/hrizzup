@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { expect, test } from '@playwright/test';
 import { newRecordId } from '../../lib/record-id.ts';
+import { describeApiOnly, expect, test } from '../support/api-only.ts';
 import { call, micros, settleAndCheckBooks } from '../support/books.ts';
 import { newRunTrader, runKey } from '../support/run.ts';
 import { adminState, signedOutState } from '../support/states.ts';
@@ -14,11 +14,14 @@ import { type Engine, stagingKeys } from '../support/test-accounts.ts';
  * sale of those shares, then the sale; one market, its history, its resting orders and its latest
  * trades, each answering, naming nobody; our own Bitcoin price and its history; the perp's quote; and
  * the market's books adding up. Each run on its own (CLAUDE.md, "How checks behave").
+ *
+ * It only calls the API and never opens a page, so it is tagged `@api-only` and runs once, in
+ * Chromium; the journeys that open a page run in both browsers (support/api-only.ts).
  */
 
 const environment = () => process.env.SCREEN_CHECK_ENVIRONMENT;
 
-test.describe('the market data', () => {
+describeApiOnly('the market data', () => {
   test.skip(() => environment() === 'production', "Production's API opens at launch");
 
   test('a quote matches its trade to the millionth; every read answers anyone, naming nobody; the books add up', async ({

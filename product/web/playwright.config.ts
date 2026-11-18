@@ -7,12 +7,14 @@ runKey();
 
 /**
  * The Screen check: the screen sizes (e2e/screens.spec.ts) and the journeys (e2e/journeys/),
- * in Chromium and WebKit. It runs against BASE_URL: a pull request's preview (in CI),
- * staging, or this Mac (default, http://localhost:3000). On a protected Vercel deployment,
- * global-setup.ts trades the protection bypass for automation (VERCEL_AUTOMATION_BYPASS_SECRET)
- * for Vercel's bypass cookie, which each browser starts with, so the secret itself never
- * travels with the browsers' requests (e2e/support/bypass.ts). Traces, screenshots on failure
- * and video are off, because they would record the cookies.
+ * in Chromium and WebKit. Every test that opens a page runs in both, at every size; a journey that
+ * only calls the API and never opens a page is tagged `@api-only` and runs once, in Chromium (the
+ * WebKit project leaves the tag out; e2e/support/api-only.ts guards it). It runs against BASE_URL:
+ * a pull request's preview (in CI), staging, or this Mac (default, http://localhost:3000). On a
+ * protected Vercel deployment, global-setup.ts trades the protection bypass for automation
+ * (VERCEL_AUTOMATION_BYPASS_SECRET) for Vercel's bypass cookie, which each browser starts with, so
+ * the secret itself never travels with the browsers' requests (e2e/support/bypass.ts). Traces,
+ * screenshots on failure and video are off, because they would record the cookies.
  */
 export default defineConfig({
   testDir: './e2e',
@@ -44,6 +46,11 @@ export default defineConfig({
       name: 'chromium',
       use: { browserName: 'chromium', storageState: signedOutState('chromium') },
     },
-    { name: 'webkit', use: { browserName: 'webkit', storageState: signedOutState('webkit') } },
+    {
+      name: 'webkit',
+      // The journeys that never open a page run once, in Chromium (e2e/support/api-only.ts).
+      grepInvert: /@api-only/,
+      use: { browserName: 'webkit', storageState: signedOutState('webkit') },
+    },
   ],
 });

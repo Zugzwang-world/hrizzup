@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { type APIRequestContext, expect, test } from '@playwright/test';
+import type { APIRequestContext } from '@playwright/test';
 import { runBot } from '../../../../examples/bot/bot.ts';
 import { newRecordId } from '../../lib/record-id.ts';
+import { describeApiOnly, expect, test } from '../support/api-only.ts';
 import { call, decimal, micros, settleAndCheckBooks } from '../support/books.ts';
 import { runPerp, SUBSIDY } from '../support/perps.ts';
 import { newRunTrader, runKey } from '../support/run.ts';
@@ -18,6 +19,9 @@ import { type Engine, stagingKeys } from '../support/test-accounts.ts';
  * the bot's trades are marked as a key's, the market's books add up once it settles, the perp's pools
  * hold the house's subsidy plus exactly what the bot put in less what it took out, and the account's
  * balance is what all the answers say. Each run on its own (CLAUDE.md, "How checks behave").
+ *
+ * It only calls the API and never opens a page, so it is tagged `@api-only` and runs once, in
+ * Chromium; the journeys that open a page run in both browsers (support/api-only.ts).
  */
 
 const environment = () => process.env.SCREEN_CHECK_ENVIRONMENT;
@@ -37,7 +41,7 @@ function fetchThrough(context: APIRequestContext): typeof fetch {
   };
 }
 
-test.describe('the example bot', () => {
+describeApiOnly('the example bot', () => {
   test.skip(() => environment() === 'production', 'Keys work only on staging until launch');
   test.skip(
     () => environment() === 'staging',
