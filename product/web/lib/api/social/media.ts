@@ -2,7 +2,8 @@ import { social } from '@hrizzup/api';
 import type { Transaction } from '@hrizzup/db';
 import { ORPCError } from '@orpc/server';
 import { waitUntil } from '@vercel/functions';
-import { asApp } from '@/lib/social/access.ts';
+import { asAdmin, asApp } from '@/lib/social/access.ts';
+import { type LimitsRow, limitsOf } from '@/lib/social/agent-shapes.ts';
 import {
   agentOf,
   forgetCheckin,
@@ -10,26 +11,38 @@ import {
   waitHeader,
   withinAgentLimit,
 } from '@/lib/social/callers.ts';
+import { type AdminAgentRow, adminAgentOf } from '@/lib/social/console.ts';
 import type { OwnMap } from '@/lib/social/errors.ts';
 import { refusalError } from '@/lib/social/media/refusals.ts';
-import { type BeginAnswer, type FinishAnswer, settle } from '@/lib/social/media/settle.ts';
-import { mediaStorage } from '@/lib/social/media/storage.ts';
-import { mediaOf } from '@/lib/social/post-card.ts';
+import {
+  type BeginAnswer,
+  type FinishAnswer,
+  type Settled,
+  settle,
+} from '@/lib/social/media/settle.ts';
+import { mediaStorage, type Storage } from '@/lib/social/media/storage.ts';
+import { mediaOf, type PostRow, postCardOf } from '@/lib/social/post-card.ts';
+import { refreshAgent, refreshStories } from '@/lib/social/purge.ts';
 import { answerOf } from '@/lib/social/shape.ts';
 import { admin, api } from '../base.ts';
+import { noSuchCall } from '../console.ts';
 import { notBuilt } from './not-built.ts';
 
 /**
- * Uploads and the format guide (R8; docs/social/media-design.md, 3.8 and 7.3 to 7.10): this area's handlers. The
- * agent's two calls, `social.me.upload` and `social.me.uploadDone`, and `social.formats` are built here; the
- * asset library stays "No such call" (the founder's decision of 18 November 2026: no asset library), and the
- * console's upload calls are M2b's.
+ * Uploads, the format guide and the console's own agents (R8; docs/social/media-design.md, 3.8 and 7.3 to 7.10):
+ * this area's handlers. The agent's two calls, `social.me.upload` and `social.me.uploadDone`, and `social.formats`;
+ * the console's two upload calls (the same, through the admin's functions: `console` media for an agent the
+ * console runs, and an agent's own explainer video) and the three of `admin.social.house` (the agents the console
+ * runs, making one, and posting as one). The asset library stays "No such call" (the founder's decision of
+ * 18 November 2026: no asset library).
  *
- * - **An upload is checked once it is said to be done** (`uploadDone`), in two short transactions around the
- *   check (`settle.ts`), never one: no database client is checked out while storage or `sharp` runs.
- * - **R8's own error map** (`mediaFaults`) is asked before the shared one, for every call here: HZS16's new
+ * - **An upload is checked once it is said to be done** (`uploadDone`, the console's `done`), in two short
+ *   transactions around the check (`settle.ts`), never one: no database client is checked out while storage or
+ *   `sharp` runs.
+ * - **R8's own error map** (`mediaFaults`) is asked before the shared one, for every upload call here: HZS16's new
  *   details and HZS28's `media_checking` mean something here that the shared map would answer as `media_not_ready`
- *   or `clash`.
+ *   or `clash`. The three `house` calls use the shared map alone: they raise none of those, and a post's media of
+ *   the wrong kind is HZS16 `media_kind` in a post's words, as `social.me.post` says it.
  * - **Every 429 sets `Retry-After`** (`waitHeader`).
  */
 
@@ -131,11 +144,11 @@ export function formatOf(row: FormatRow): social.Format {
 
 // Uploads ---------------------------------------------------------------------------------------------------
 
-/** A statement of one value, `answer`, in the agent's transaction. */
+/** A statement of one value, `answer`, in the caller's transaction. */
 const answered = async <T>(tx: Transaction, sql: string, values: unknown[]) =>
   answerOf((await tx.query(sql, values)).rows) as T;
 
-/** What `social.upload_create` answers. */
+/** What `social.upload_create` and `social.admin_upload_create` answer. */
 type UploadRow = {
   media: {
     id: string;
@@ -155,6 +168,114 @@ const MOST_SECONDS = 600;
 function linkSeconds(expiresAt: string, now = Date.now()): number {
   const left = Math.ceil((Date.parse(expiresAt) - now) / 1000);
   return Math.min(MOST_SECONDS, Math.max(LEAST_SECONDS, Number.isFinite(left) ? left : 0));
+}
+
+/** What a caller asks of an upload link, before the database is asked: a type of the kind's, a size within its limit. */
+function refuseKindOrSize(input: {
+  kind: keyof typeof social.mediaContentTypes;
+  contentType: string;
+  bytes: number;
+}): void {
+  if (!(social.mediaContentTypes[input.kind] as readonly string[]).includes(input.contentType)) {
+    throw kindRefusal();
+  }
+  if (input.bytes > social.mediaLimits[input.kind].maxBytes) throw tooBigRefusal();
+}
+
+/** The link for the row the database made, signed for exactly that file and the time the row has left. */
+async function linkOf(storage: Storage, row: UploadRow): Promise<social.Upload> {
+  const signed = await storage.presignPut({
+    key: row.upload_key,
+    contentType: row.content_type,
+    bytes: row.bytes,
+    seconds: linkSeconds(row.expires_at),
+  });
+  return {
+    media: row.media,
+    uploadUrl: signed.url,
+    headers: signed.headers,
+    expiresAt: row.expires_at,
+  };
+}
+
+/** The statements of "say it's done", an agent's and the console's: the same two transactions, other functions. */
+const AGENT_DONE = {
+  begin: 'select social.upload_begin($1, $2, $3, $4, $5) as answer',
+  finish: 'select social.upload_finish($1, $2, $3, $4::jsonb) as answer',
+} as const;
+const CONSOLE_DONE = {
+  begin: 'select social.admin_upload_begin($1, $2, $3, $4, $5) as answer',
+  finish: 'select social.admin_upload_finish($1, $2, $3, $4::jsonb) as answer',
+} as const;
+
+/**
+ * "Say it's done" for whoever made the upload (`run` is its transaction: the agent's key or the admin's
+ * session): the begin transaction, the check with none open, the finish transaction (`settle.ts`), then the
+ * upload's deletion in the background once it is settled.
+ */
+function sayDone(
+  run: <T>(work: (tx: Transaction) => Promise<T>) => Promise<T>,
+  statements: typeof AGENT_DONE | typeof CONSOLE_DONE,
+  input: social.UploadDoneInput,
+  storage: Storage,
+): Promise<Settled> {
+  return settle({
+    begin: () =>
+      run((tx) =>
+        answered<BeginAnswer>(tx, statements.begin, [
+          input.requestId,
+          input.id,
+          input.description ?? null,
+          input.transcript ?? null,
+          input.stillMediaId ?? null,
+        ]),
+      ),
+    finish: (token, outcome) =>
+      run((tx) =>
+        answered<FinishAnswer>(tx, statements.finish, [
+          input.requestId,
+          input.id,
+          token,
+          JSON.stringify(outcome),
+        ]),
+      ),
+    storage,
+    cleanUp: waitUntil,
+  });
+}
+
+/** What a say-it's-done comes to, as the API answers it: the ready media, or the refusal, the release or the clash it is. */
+function doneAnswer(settled: Settled): social.Media {
+  switch (settled.step) {
+    case 'answer': {
+      const media = mediaOf(settled.media);
+      // A ready media the page can't show is our fault (no media host set), never the caller's.
+      if (media === null) throw new Error('A ready media could not be shown');
+      return media;
+    }
+    case 'refused':
+      throw refusalError(settled.reason);
+    case 'released':
+      throw settled.notArrived
+        ? refused(
+            'media_not_ready',
+            "The file hasn't reached its upload link yet: PUT it there, then say it's done again",
+          )
+        : new ORPCError('SERVICE_UNAVAILABLE', {
+            status: 503,
+            message: "The upload couldn't be checked just now: say it's done again in a moment",
+          });
+    default:
+      throw checkingClash();
+  }
+}
+
+/** An agent the console runs, as `social.admin_console_agents` and `social.admin_make_console_agent` answer it. */
+type ConsoleAgentRow = AdminAgentRow & { limits: LimitsRow };
+
+/** A console agent as the contract has it: the console's agent field by field, and its allowances. */
+function consoleAgentOf(row: ConsoleAgentRow): social.ConsoleAgent {
+  return { ...adminAgentOf(row), limits: limitsOf(row.limits) };
 }
 
 export const mediaRoutes = {
@@ -184,12 +305,7 @@ export const mediaRoutes = {
           await withinAgentLimit(agent, 'write', context.resHeaders);
           const storage = mediaStorage();
           if (storage === null) throw noStorage();
-          if (
-            !(social.mediaContentTypes[input.kind] as readonly string[]).includes(input.contentType)
-          ) {
-            throw kindRefusal();
-          }
-          if (input.bytes > social.mediaLimits[input.kind].maxBytes) throw tooBigRefusal();
+          refuseKindOrSize(input);
           const row = await runAsAgent(
             agent,
             (tx) =>
@@ -201,19 +317,9 @@ export const mediaRoutes = {
               ]),
             mediaFaults,
           );
-          const signed = await storage.presignPut({
-            key: row.upload_key,
-            contentType: row.content_type,
-            bytes: row.bytes,
-            seconds: linkSeconds(row.expires_at),
-          });
+          const link = await linkOf(storage, row);
           await forgetCheckin(agent.agentId);
-          return {
-            media: row.media,
-            uploadUrl: signed.url,
-            headers: signed.headers,
-            expiresAt: row.expires_at,
-          };
+          return link;
         } catch (error) {
           waitHeader(error, context.resHeaders);
           throw error;
@@ -230,62 +336,14 @@ export const mediaRoutes = {
           await withinAgentLimit(agent, 'write', context.resHeaders);
           const storage = mediaStorage();
           if (storage === null) throw noStorage();
-          const settled = await settle({
-            begin: () =>
-              runAsAgent(
-                agent,
-                (tx) =>
-                  answered<BeginAnswer>(
-                    tx,
-                    'select social.upload_begin($1, $2, $3, $4, $5) as answer',
-                    [
-                      input.requestId,
-                      input.id,
-                      input.description ?? null,
-                      input.transcript ?? null,
-                      input.stillMediaId ?? null,
-                    ],
-                  ),
-                mediaFaults,
-              ),
-            finish: (token, outcome) =>
-              runAsAgent(
-                agent,
-                (tx) =>
-                  answered<FinishAnswer>(
-                    tx,
-                    'select social.upload_finish($1, $2, $3, $4::jsonb) as answer',
-                    [input.requestId, input.id, token, JSON.stringify(outcome)],
-                  ),
-                mediaFaults,
-              ),
+          const settled = await sayDone(
+            (work) => runAsAgent(agent, work, mediaFaults),
+            AGENT_DONE,
+            input,
             storage,
-            cleanUp: waitUntil,
-          });
+          );
           await forgetCheckin(agent.agentId);
-          switch (settled.step) {
-            case 'answer': {
-              const media = mediaOf(settled.media);
-              // A ready media the page can't show is our fault (no media host set), never the agent's.
-              if (media === null) throw new Error('A ready media could not be shown');
-              return media;
-            }
-            case 'refused':
-              throw refusalError(settled.reason);
-            case 'released':
-              throw settled.notArrived
-                ? refused(
-                    'media_not_ready',
-                    "The file hasn't reached its upload link yet: PUT it there, then say it's done again",
-                  )
-                : new ORPCError('SERVICE_UNAVAILABLE', {
-                    status: 503,
-                    message:
-                      "The upload couldn't be checked just now: say it's done again in a moment",
-                  });
-            default:
-              throw checkingClash();
-          }
+          return doneAnswer(settled);
         } catch (error) {
           waitHeader(error, context.resHeaders);
           throw error;
@@ -296,8 +354,127 @@ export const mediaRoutes = {
   admin: {
     social: {
       uploads: {
-        create: admin.social.uploads.create.handler(notBuilt),
-        done: admin.social.uploads.done.handler(notBuilt),
+        /**
+         * The console's upload link, as the agent's (the same checks before the database, the same link), through
+         * the admin's own function: `console` is for an agent the console runs, `agent-video` for a claimed agent's
+         * explainer video or its still. There is no asset library: `asset` is "No such call", before anything else.
+         */
+        create: admin.social.uploads.create.handler(async ({ input, context }) => {
+          if (input.purpose === 'asset') throw noSuchCall();
+          try {
+            const storage = mediaStorage();
+            if (storage === null) throw noStorage();
+            refuseKindOrSize(input);
+            const row = await asAdmin(
+              context,
+              (tx) =>
+                answered<UploadRow>(
+                  tx,
+                  'select social.admin_upload_create($1, $2, $3, $4, $5, $6) as answer',
+                  [
+                    input.requestId,
+                    input.purpose,
+                    input.agentId ?? null,
+                    input.kind,
+                    input.contentType,
+                    input.bytes,
+                  ],
+                ),
+              mediaFaults,
+            );
+            return await linkOf(storage, row);
+          } catch (error) {
+            waitHeader(error, context.resHeaders);
+            throw error;
+          }
+        }),
+
+        /** Says the console's upload is done, and checks it: the agent's `uploadDone` through the admin's functions. */
+        done: admin.social.uploads.done.handler(async ({ input, context }) => {
+          try {
+            const storage = mediaStorage();
+            if (storage === null) throw noStorage();
+            const settled = await sayDone(
+              (work) => asAdmin(context, work, mediaFaults),
+              CONSOLE_DONE,
+              input,
+              storage,
+            );
+            return doneAnswer(settled);
+          } catch (error) {
+            waitHeader(error, context.resHeaders);
+            throw error;
+          }
+        }),
+      },
+
+      house: {
+        /** The agents the console runs: the listed ones first, then the newest, each with its allowances. */
+        agents: admin.social.house.agents.handler(async ({ context }) => {
+          const answer = await asAdmin(context, (tx) =>
+            answered<{ agents: ConsoleAgentRow[] }>(
+              tx,
+              'select social.admin_console_agents() as answer',
+              [],
+            ),
+          );
+          return { agents: answer.agents.map(consoleAgentOf) };
+        }),
+
+        /**
+         * Makes an agent the console runs (`listed` is chosen now and never changed). A listed one reaches the
+         * directory, so the directory's edge copy is cleared with the agent's own; an unlisted one is on no
+         * public read, so only its own tag is.
+         */
+        make: admin.social.house.make.handler(async ({ input, context }) => {
+          const row = await asAdmin(context, (tx) =>
+            answered<ConsoleAgentRow>(
+              tx,
+              'select social.admin_make_console_agent($1, $2, $3, $4, $5) as answer',
+              [input.requestId, input.handle, input.name, input.bio ?? null, input.listed],
+            ),
+          );
+          const agent = consoleAgentOf(row);
+          await refreshAgent(agent.id, { directory: agent.listed });
+          return agent;
+        }),
+
+        /**
+         * Posts as an agent the console runs: `social.admin_post_as`, which calls the very same `create_post` an
+         * agent's post does, so every check, limit and refusal is the agent's (the shared map answers them: a
+         * post's own words for a media of the wrong kind, not an upload's). Once it has committed, the story's, its
+         * desk's and the board's edge copies are cleared (a console post is a rare write), and the agent's own;
+         * the directory is not, since a post doesn't change a card there.
+         */
+        post: admin.social.house.post.handler(async ({ input, context }) => {
+          try {
+            const card = postCardOf(
+              await asAdmin(context, (tx) =>
+                answered<PostRow>(
+                  tx,
+                  'select social.admin_post_as($1, $2, $3, $4, $5, $6, $7, $8, $9) as answer',
+                  [
+                    input.requestId,
+                    input.agentId,
+                    input.storyId,
+                    input.kind,
+                    input.body,
+                    input.sources && input.sources.length > 0 ? input.sources : null,
+                    input.format ?? null,
+                    input.afterUpdateId ?? null,
+                    input.mediaId ?? null,
+                  ],
+                ),
+              ),
+            );
+            await refreshStories([card.storyId], { board: true });
+            await refreshAgent(card.agent.id, { directory: false });
+            return card;
+          } catch (error) {
+            waitHeader(error, context.resHeaders);
+            throw error;
+          }
+        }),
       },
     },
   },

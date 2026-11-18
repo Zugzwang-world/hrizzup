@@ -1,3 +1,4 @@
+import { agentTag, deskTag, familyTags, storyTag } from '@hrizzup/social/tags';
 import { createRouterClient } from '@orpc/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { type MemoryStorage, memoryStorage } from '@/lib/social/media/memory-storage.ts';
@@ -14,6 +15,11 @@ import { sampleJpeg, sampleMp4, samplePng } from '@/lib/social/media/samples.ts'
  */
 
 const signedIn = vi.fn();
+const isAdmin = vi.fn();
+/** Vercel's purge, stood in for: every tag the console's calls ask the edge to refresh, one call at a time. */
+const invalidate = vi.fn(async (_tags: string[]) => {
+  events.push('purge');
+});
 const findKey = vi.fn();
 const allowKeyRead = vi.fn();
 const allowAgentWrite = vi.fn();
@@ -38,11 +44,16 @@ vi.mock('@/lib/social/limits.ts', async (original) => ({
   ...(await original<typeof import('@/lib/social/limits.ts')>()),
   allowAgentWrite: (key: string) => allowAgentWrite(key),
 }));
+vi.mock('@hrizzup/markets', async (original) => ({
+  ...(await original<typeof import('@hrizzup/markets')>()),
+  isAdmin: (...args: unknown[]) => isAdmin(...args),
+}));
 vi.mock('@vercel/functions', async (original) => ({
   ...(await original<typeof import('@vercel/functions')>()),
   waitUntil: (promise: Promise<unknown>) => {
     background.push(promise);
   },
+  invalidateByTag: (tags: string[]) => invalidate(tags),
 }));
 
 /** The storage the handlers get: the memory one, none, or (when null) the real one made from the environment. */
@@ -144,6 +155,11 @@ beforeEach(() => {
   vi.stubEnv('R2_SECRET_ACCESS_KEY', 'secret-for-tests');
   held.storage = 'real';
   signedIn.mockResolvedValue(null);
+  isAdmin.mockResolvedValue(false);
+  invalidate.mockReset();
+  invalidate.mockImplementation(async () => {
+    events.push('purge');
+  });
   findKey.mockImplementation(async (text: string) =>
     text === POST_KEY ? { id: KEY_ID, kind: 'post', agentId: AGENT_ID } : null,
   );
@@ -875,5 +891,697 @@ describe('social.me.post with media', () => {
       placeholder: null,
       description: 'A test picture',
     });
+  });
+});
+
+// The console's calls (7.9, 7.10) ---------------------------------------------------------------------------
+
+const ADMIN = { id: '019a7b10-0000-7000-8000-0000000000a1', email: 'ada@console.test' };
+const HOUSE_ID = '019a7b10-0000-7000-8000-0000000000b9';
+const POST_ID = '019a7b10-0000-7000-8000-0000000000d1';
+
+/** The console's own session: signed in, and an admin by the database's own check. */
+function asConsole() {
+  signedIn.mockResolvedValue(ADMIN);
+  isAdmin.mockResolvedValue(true);
+  return api({});
+}
+
+/** What `social.admin_console_agents` and `social.admin_make_console_agent` answer for one agent the console runs. */
+const consoleRow = (changes: Record<string, unknown> = {}) => ({
+  id: HOUSE_ID,
+  handle: 'hrizzup',
+  name: 'Hrizzup',
+  picture: null,
+  house: true,
+  owner_name: null,
+  state: 'claimed',
+  bio: "Hrizzup's own agent: posts written by Hrizzup's team in the console.",
+  video: null,
+  repository_url: null,
+  categories: [],
+  places: [],
+  standing: 0,
+  counts: {
+    posts: 0,
+    replies: 0,
+    replies_received: 0,
+    upvotes_received: 0,
+    views: 0,
+    unique_views: 0,
+    file_reads: 0,
+    unique_file_reads: 0,
+  },
+  registered_at: '2026-11-19T08:00:00Z',
+  claimed_at: '2026-11-19T08:00:00Z',
+  retired_reason: null,
+  listed: true,
+  invite_email: 'console-agents@hrizzup.invalid',
+  posts_per_day: null,
+  replies_per_hour: null,
+  keys: [],
+  limits: {
+    posts_per_day: 50,
+    posts_left: 50,
+    next_post_at: null,
+    replies_per_hour: 30,
+    replies_left: 30,
+    next_reply_at: null,
+  },
+  ...changes,
+});
+
+/** What `social.create_post` answers, as the console's agent's post card. */
+const houseCard = (changes: Record<string, unknown> = {}) => ({
+  id: POST_ID,
+  story_id: STORY_ID,
+  agent: {
+    id: HOUSE_ID,
+    handle: 'hrizzup',
+    name: 'Hrizzup',
+    picture: null,
+    house: true,
+    owner_name: null,
+  },
+  kind: 'image',
+  body: 'A picture.',
+  sources: [],
+  format: 'meme',
+  after_update_id: null,
+  media: imageRow(),
+  created_at: '2026-11-19T08:10:00Z',
+  counts: { replies: 0, upvotes: 0, views: 0, unique_views: 0 },
+  ...changes,
+});
+
+/** The tags the edge was asked to refresh, in the order they were asked. */
+const purged = () => invalidate.mock.calls.flatMap(([tags]) => tags);
+
+describe('the console’s upload calls: admin.social.uploads.create and .done', () => {
+  const create = {
+    requestId: REQUEST,
+    purpose: 'console',
+    agentId: HOUSE_ID,
+    kind: 'image',
+    contentType: 'image/jpeg',
+    bytes: 184_320,
+  } as const;
+  const row = (changes: Record<string, unknown> = {}) => ({
+    media: { id: MEDIA_ID, kind: 'image', state: 'waiting' },
+    content_type: 'image/jpeg',
+    bytes: 184_320,
+    upload_key: UPLOAD_KEY,
+    expires_at: new Date(Date.now() + 600_000).toISOString(),
+    ...changes,
+  });
+
+  it('answers the asset library’s purpose "No such call", before storage or the database is touched', async () => {
+    held.storage = null;
+    await expect(
+      asConsole().call.admin.social.uploads.create({ ...create, purpose: 'asset' }),
+    ).rejects.toMatchObject({ status: 404, message: 'No such call' });
+    expect(asked).toHaveLength(0);
+  });
+
+  it('asks the database as the admin with its six values in order, and signs the very link an agent’s upload gets', async () => {
+    const created = row();
+    database({ admin_upload_create: () => created });
+    const { call, resHeaders } = asConsole();
+    const result = await call.admin.social.uploads.create(create);
+
+    expect(asked).toHaveLength(1);
+    expect(asked[0]?.text).toBe(
+      'select social.admin_upload_create($1, $2, $3, $4, $5, $6) as answer',
+    );
+    expect(asked[0]?.values).toEqual([
+      REQUEST,
+      'console',
+      HOUSE_ID,
+      'image',
+      'image/jpeg',
+      184_320,
+    ]);
+    // Set up as the admin's account, with no key.
+    expect(setUp[0]).toContain(ADMIN.id);
+    expect(setUp[0]).not.toContain(KEY_ID);
+    expect(result.media).toEqual({ id: MEDIA_ID, kind: 'image', state: 'waiting' });
+    expect(result.headers).toEqual({ 'Content-Type': 'image/jpeg', 'Content-Length': '184320' });
+    const link = new URL(result.uploadUrl);
+    expect(link.pathname).toBe(`/uploads-for-tests/${UPLOAD_KEY}`);
+    expect(link.searchParams.get('X-Amz-SignedHeaders')).toBe('content-length;content-type;host');
+    expect(result.expiresAt).toBe(created.expires_at);
+    expect(JSON.stringify(result)).not.toContain('secret-for-tests');
+    expect(resHeaders.get('Retry-After')).toBeNull();
+    // No agent's check-in is stale (a console agent has none), so nothing is deleted from Redis.
+    expect(events.filter((event) => event.startsWith('redis del'))).toEqual([]);
+  });
+
+  it('sends an agent’s video upload as `agent-video`, and a missing agent on to the database to answer 404', async () => {
+    database({
+      admin_upload_create: () =>
+        row({
+          media: { id: MEDIA_ID, kind: 'video', state: 'waiting' },
+          content_type: 'video/mp4',
+          bytes: 1000,
+        }),
+    });
+    const { call } = asConsole();
+    await call.admin.social.uploads.create({
+      requestId: REQUEST,
+      purpose: 'agent-video',
+      agentId: AGENT_ID,
+      kind: 'video',
+      contentType: 'video/mp4',
+      bytes: 1000,
+    });
+    expect(asked[0]?.values).toEqual([
+      REQUEST,
+      'agent-video',
+      AGENT_ID,
+      'video',
+      'video/mp4',
+      1000,
+    ]);
+    // No agent ID at all reaches the database as null, which answers "No such agent".
+    database({ admin_upload_create: () => fault('P0002', 'No such agent') });
+    await expect(
+      call.admin.social.uploads.create({ ...create, agentId: undefined }),
+    ).rejects.toMatchObject({ status: 404, message: 'No such agent' });
+    expect(asked.at(-1)?.values?.[2]).toBeNull();
+  });
+
+  it('refuses a type that isn’t the kind’s and a size over its limit before the database, and a place with no storage with a 503', async () => {
+    const { call } = asConsole();
+    await expect(
+      call.admin.social.uploads.create({ ...create, contentType: 'video/mp4' }),
+    ).rejects.toMatchObject({ status: 422, data: { reason: 'media_kind' } });
+    // An asset's type (a font) is a type of no media kind.
+    await expect(
+      call.admin.social.uploads.create({ ...create, contentType: 'font/woff2' }),
+    ).rejects.toMatchObject({ status: 422, data: { reason: 'media_kind' } });
+    await expect(
+      call.admin.social.uploads.create({ ...create, bytes: 10_485_761 }),
+    ).rejects.toMatchObject({ status: 422, data: { reason: 'media_too_big' } });
+    expect(asked).toHaveLength(0);
+    held.storage = null;
+    await expect(call.admin.social.uploads.create(create)).rejects.toMatchObject({
+      status: 503,
+      message: 'Uploads are not set up here',
+    });
+    expect(asked).toHaveLength(0);
+  });
+
+  it.each([
+    ['an agent that isn’t there', fault('P0002', 'No such agent'), 404, 'No such agent'],
+    ['a retired agent', fault('HZS02', 'retired'), 403, undefined],
+    [
+      'a purpose that doesn’t fit',
+      fault('22023', 'A console upload is for an agent the console runs'),
+      400,
+      undefined,
+    ],
+    [
+      'a type the database refuses',
+      fault('HZS16', 'type', { detail: 'media_kind' }),
+      422,
+      undefined,
+    ],
+    ['a non-admin the database turns away', fault('42501', 'Not an admin'), 404, 'No such call'],
+  ])(
+    'maps %s as an agent’s upload does, through R8’s map',
+    async (_name, error, status, message) => {
+      database({ admin_upload_create: () => error });
+      const failed = await asConsole()
+        .call.admin.social.uploads.create(create)
+        .then(
+          () => null,
+          (e: unknown) => e as { status: number; message: string },
+        );
+      expect(failed?.status).toBe(status);
+      if (message !== undefined) expect(failed?.message).toBe(message);
+    },
+  );
+
+  it('answers the day’s uploads used as 429 with `Retry-After`', async () => {
+    database({
+      admin_upload_create: () =>
+        fault('HZS16', 'used', { detail: 'uploads_per_day', hint: '1800' }),
+    });
+    const { call, resHeaders } = asConsole();
+    await expect(call.admin.social.uploads.create(create)).rejects.toMatchObject({
+      status: 429,
+      data: { reason: 'uploads_per_day', retryAfterSeconds: 1800 },
+    });
+    expect(resHeaders.get('Retry-After')).toBe('1800');
+  });
+
+  const done = { id: MEDIA_ID, requestId: REQUEST, description: 'A test picture' } as const;
+  const check = (png: Uint8Array) => ({
+    step: 'check',
+    token: TOKEN,
+    upload: upload({ bytes: png.length }),
+  });
+
+  it('says an upload is done as the agent’s does, through the admin’s functions: begin, the check with no client checked out, finish', async () => {
+    const png = await samplePng({ width: 30, height: 20 });
+    const storage = stored(png, 'image/png');
+    const openDuringStorage: number[] = [];
+    storage.onCall = (name) => {
+      events.push(name === 'removeUpload' ? 'removeUpload' : 'storage');
+      openDuringStorage.push(open);
+    };
+    database({
+      admin_upload_begin: () => check(png),
+      admin_upload_finish: () => ({ step: 'answer', media: imageRow() }),
+    });
+    const media = await asConsole().call.admin.social.uploads.done(done);
+
+    expect(asked.map((statement) => nameOf(statement.text))).toEqual([
+      'admin_upload_begin',
+      'admin_upload_finish',
+    ]);
+    expect(asked[0]?.text).toBe('select social.admin_upload_begin($1, $2, $3, $4, $5) as answer');
+    expect(asked[0]?.values).toEqual([REQUEST, MEDIA_ID, 'A test picture', null, null]);
+    expect(asked[1]?.values?.slice(0, 3)).toEqual([REQUEST, MEDIA_ID, TOKEN]);
+    expect(JSON.parse(String(asked[1]?.values?.[3]))).toMatchObject({
+      outcome: 'ready',
+      media_key: `${UPLOAD_KEY}.png`,
+    });
+    // (The event names the statement's first 32 characters.)
+    const begin = events.findIndex((event) => event.includes('social.admin_upload_begi'));
+    const finish = events.findIndex((event) => event.includes('social.admin_upload_fini'));
+    expect(begin).toBeLessThan(events.indexOf('commit'));
+    expect(events.indexOf('commit')).toBeLessThan(events.indexOf('storage'));
+    expect(finish).toBeGreaterThan(events.lastIndexOf('storage'));
+    // The upload is deleted only once finish's transaction has committed.
+    expect(events.indexOf('removeUpload')).toBeGreaterThan(events.lastIndexOf('commit'));
+    expect(openDuringStorage.length).toBeGreaterThan(0);
+    expect(openDuringStorage.every((count) => count === 0)).toBe(true);
+    expect(open).toBe(0);
+    expect(setUp.every((account) => account.includes(ADMIN.id))).toBe(true);
+    expect(media).toMatchObject({ id: MEDIA_ID, kind: 'image', width: 30, height: 20 });
+    expect(storage.media.has(`${UPLOAD_KEY}.png`)).toBe(true);
+    await Promise.all(background);
+    expect(storage.uploads.has(UPLOAD_KEY)).toBe(false);
+    // The console's upload is no agent's: nothing in Redis changes.
+    expect(events.filter((event) => event.startsWith('redis del'))).toEqual([]);
+  });
+
+  it('answers a ready upload from begin alone, and a refusal in the same words every time', async () => {
+    const storage = memoryStorage();
+    held.storage = storage;
+    database({ admin_upload_begin: () => ({ step: 'answer', media: imageRow() }) });
+    const { call } = asConsole();
+    expect((await call.admin.social.uploads.done(done)).id).toBe(MEDIA_ID);
+    expect(asked).toHaveLength(1);
+    expect(storage.log).toEqual([]);
+    database({ admin_upload_begin: () => ({ step: 'refused', reason: 'too_long' }) });
+    for (let again = 0; again < 2; again++) {
+      await expect(call.admin.social.uploads.done(done)).rejects.toMatchObject({
+        status: 422,
+        message: 'Video is at most 60 seconds and audio 5 minutes: cut it',
+        data: { reason: 'media_too_long' },
+      });
+    }
+  });
+
+  it('answers the file not arrived as 422 media_not_ready, a storage failure as 503 and another check’s lease as 409, each releasing or leaving the lease as the agent’s does', async () => {
+    const png = await samplePng({ width: 30, height: 20 });
+    // Not arrived: nothing at the upload's key.
+    held.storage = memoryStorage();
+    database({
+      admin_upload_begin: () => check(png),
+      admin_upload_finish: () => ({ step: 'released' }),
+    });
+    const { call } = asConsole();
+    await expect(call.admin.social.uploads.done(done)).rejects.toMatchObject({
+      status: 422,
+      data: { reason: 'media_not_ready' },
+    });
+    expect(JSON.parse(String(asked.at(-1)?.values?.[3]))).toMatchObject({ outcome: 'release' });
+    // Another call holds the lease.
+    database({
+      admin_upload_begin: () => fault('HZS28', 'checking', { detail: 'media_checking' }),
+    });
+    await expect(call.admin.social.uploads.done(done)).rejects.toMatchObject({
+      status: 409,
+      data: { reason: 'media_checking' },
+    });
+    database({
+      admin_upload_begin: () => ({
+        step: 'check',
+        token: TOKEN,
+        upload: upload({ bytes: png.length }),
+      }),
+      admin_upload_finish: () => ({ step: 'waiting' }),
+    });
+    stored(png, 'image/png');
+    await expect(call.admin.social.uploads.done(done)).rejects.toMatchObject({
+      status: 409,
+      data: { reason: 'media_checking' },
+    });
+  });
+
+  it('maps an upload that is no admin’s as "No such upload", and refuses with a 503 before begin where there is no storage', async () => {
+    held.storage = memoryStorage();
+    database({ admin_upload_begin: () => fault('P0002', 'No such upload') });
+    const { call } = asConsole();
+    await expect(call.admin.social.uploads.done(done)).rejects.toMatchObject({
+      status: 404,
+      message: 'No such upload',
+    });
+    asked.length = 0;
+    held.storage = null;
+    await expect(call.admin.social.uploads.done(done)).rejects.toMatchObject({ status: 503 });
+    expect(asked).toHaveLength(0);
+  });
+});
+
+describe('the console’s own agents: admin.social.house', () => {
+  it('lists the agents the console runs, each as the console shows an agent with its allowances', async () => {
+    database({
+      admin_console_agents: () => ({
+        agents: [consoleRow(), consoleRow({ id: AGENT_ID, handle: 'run_agent', listed: false })],
+      }),
+    });
+    const { agents } = await asConsole().call.admin.social.house.agents();
+    expect(asked).toHaveLength(1);
+    expect(asked[0]?.text).toBe('select social.admin_console_agents() as answer');
+    expect(agents.map((agent) => [agent.handle, agent.listed])).toEqual([
+      ['hrizzup', true],
+      ['run_agent', false],
+    ]);
+    expect(agents[0]).toMatchObject({
+      id: HOUSE_ID,
+      house: true,
+      ownerName: null,
+      claimed: true,
+      retired: false,
+      state: 'claimed',
+      inviteEmail: 'console-agents@hrizzup.invalid',
+      keys: [],
+      limits: {
+        postsPerDay: 50,
+        postsLeft: 50,
+        nextPostAt: null,
+        repliesPerHour: 30,
+        repliesLeft: 30,
+        nextReplyAt: null,
+      },
+    });
+    // Nothing is purged, kept or deleted by a read.
+    expect(invalidate).not.toHaveBeenCalled();
+    database({ admin_console_agents: () => ({ agents: [] }) });
+    expect(await asConsole().call.admin.social.house.agents()).toEqual({ agents: [] });
+  });
+
+  it('makes one with the values in order and a bio of null when none is sent, answering it with its limits', async () => {
+    database({ admin_make_console_agent: () => consoleRow() });
+    const made = await asConsole().call.admin.social.house.make({
+      requestId: REQUEST,
+      handle: 'hrizzup',
+      name: 'Hrizzup',
+      listed: true,
+    });
+    expect(asked[0]?.text).toBe(
+      'select social.admin_make_console_agent($1, $2, $3, $4, $5) as answer',
+    );
+    expect(asked[0]?.values).toEqual([REQUEST, 'hrizzup', 'Hrizzup', null, true]);
+    expect(made).toMatchObject({
+      id: HOUSE_ID,
+      handle: 'hrizzup',
+      listed: true,
+      limits: { postsPerDay: 50 },
+    });
+    expect(setUp[0]).toContain(ADMIN.id);
+  });
+
+  it('clears the agent’s edge copy and, when it is listed, the directory’s; an unlisted one touches the agent’s alone', async () => {
+    const { call } = asConsole();
+    database({ admin_make_console_agent: () => consoleRow({ listed: true }) });
+    await call.admin.social.house.make({
+      requestId: REQUEST,
+      handle: 'hrizzup',
+      name: 'Hrizzup',
+      bio: 'Its bio',
+      listed: true,
+    });
+    expect(asked[0]?.values?.[3]).toBe('Its bio');
+    expect(purged()).toEqual([agentTag(HOUSE_ID), familyTags.agents]);
+    invalidate.mockClear();
+    database({
+      admin_make_console_agent: () => consoleRow({ listed: false, handle: 'run_agent' }),
+    });
+    await call.admin.social.house.make({
+      requestId: REQUEST,
+      handle: 'run_agent',
+      name: 'Run agent',
+      listed: false,
+    });
+    expect(purged()).toEqual([agentTag(HOUSE_ID)]);
+    // A purge that fails never fails the call.
+    invalidate.mockRejectedValue(new Error('the edge refused'));
+    await expect(
+      call.admin.social.house.make({
+        requestId: REQUEST,
+        handle: 'run_agent',
+        name: 'Run agent',
+        listed: false,
+      }),
+    ).resolves.toMatchObject({ handle: 'run_agent' });
+  });
+
+  it('refuses a handle that is taken (409 handle_taken), a bad one before the database (400) and a request ID used for another request', async () => {
+    const { call } = asConsole();
+    database({ admin_make_console_agent: () => fault('HZS07', 'taken') });
+    await expect(
+      call.admin.social.house.make({
+        requestId: REQUEST,
+        handle: 'hrizzup',
+        name: 'Hrizzup',
+        listed: true,
+      }),
+    ).rejects.toMatchObject({ status: 409, data: { reason: 'handle_taken' } });
+    database({ admin_make_console_agent: () => fault('HZS27', 'reused') });
+    await expect(
+      call.admin.social.house.make({
+        requestId: REQUEST,
+        handle: 'hrizzup',
+        name: 'Hrizzup',
+        listed: true,
+      }),
+    ).rejects.toMatchObject({ status: 409, data: { reason: 'request_reused' } });
+    asked.length = 0;
+    for (const handle of ['Hrizzup', 'hz', 'has space', '9lives']) {
+      await expect(
+        call.admin.social.house.make({ requestId: REQUEST, handle, name: 'Hrizzup', listed: true }),
+      ).rejects.toMatchObject({ status: 400 });
+    }
+    await expect(
+      call.admin.social.house.make({
+        requestId: REQUEST,
+        handle: 'hrizzup',
+        name: 'Hrizzup',
+      } as never),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(asked).toHaveLength(0);
+    expect(invalidate).not.toHaveBeenCalled();
+  });
+
+  const post = {
+    requestId: REQUEST,
+    agentId: HOUSE_ID,
+    storyId: STORY_ID,
+    kind: 'image',
+    body: 'A picture.',
+    format: 'meme',
+    mediaId: MEDIA_ID,
+  } as const;
+
+  it('posts as the agent through admin_post_as with the nine values in order, answering the card with its media and the agent', async () => {
+    database({ admin_post_as: () => houseCard() });
+    const card = await asConsole().call.admin.social.house.post(post);
+    expect(asked).toHaveLength(1);
+    expect(asked[0]?.text).toBe(
+      'select social.admin_post_as($1, $2, $3, $4, $5, $6, $7, $8, $9) as answer',
+    );
+    expect(asked[0]?.values).toEqual([
+      REQUEST,
+      HOUSE_ID,
+      STORY_ID,
+      'image',
+      'A picture.',
+      null,
+      'meme',
+      null,
+      MEDIA_ID,
+    ]);
+    expect(card).toMatchObject({
+      id: POST_ID,
+      storyId: STORY_ID,
+      agent: { id: HOUSE_ID, handle: 'hrizzup', house: true, ownerName: null },
+      kind: 'image',
+      media: { id: MEDIA_ID, kind: 'image', url: `${MEDIA_HOST}/${UPLOAD_KEY}.png` },
+      createdAt: '2026-11-19T08:10:00.000Z',
+    });
+    // Sources are sent as a list, or as none when there are none.
+    database({ admin_post_as: () => houseCard({ sources: ['https://example.com/a'] }) });
+    await asConsole().call.admin.social.house.post({
+      ...post,
+      sources: ['https://example.com/a'],
+      afterUpdateId: STORY_ID,
+    });
+    expect(asked.at(-1)?.values?.[5]).toEqual(['https://example.com/a']);
+    expect(asked.at(-1)?.values?.[7]).toBe(STORY_ID);
+    await asConsole().call.admin.social.house.post({ ...post, sources: [] });
+    expect(asked.at(-1)?.values?.[5]).toBeNull();
+  });
+
+  it('clears the story’s, its desk’s and the board’s edge copies and the agent’s own, never the directory’s, once it has committed', async () => {
+    database({ admin_post_as: () => houseCard() });
+    await asConsole().call.admin.social.house.post(post);
+    const tags = purged();
+    expect(tags).toEqual(
+      expect.arrayContaining([
+        storyTag(STORY_ID),
+        deskTag(STORY_ID),
+        familyTags.board,
+        agentTag(HOUSE_ID),
+      ]),
+    );
+    expect(tags).not.toContain(familyTags.agents);
+    // After the commit, never before: the edge is told only of what the database holds.
+    expect(events.indexOf('purge')).toBeGreaterThan(events.lastIndexOf('commit'));
+    // A purge that fails never fails the post.
+    invalidate.mockRejectedValue(new Error('the edge refused'));
+    await expect(asConsole().call.admin.social.house.post(post)).resolves.toMatchObject({
+      id: POST_ID,
+    });
+  });
+
+  it.each([
+    [
+      'an agent the console doesn’t run',
+      fault('P0002', 'No such agent'),
+      404,
+      'No such agent',
+      undefined,
+    ],
+    ['a story that isn’t there', fault('HZS13', 'story'), 404, 'No such story', undefined],
+    ['a retired agent', fault('HZS02', 'retired'), 403, undefined, 'retired'],
+    ['a story withdrawn', fault('HZS22', 'withdrawn'), 422, undefined, 'story_not_live'],
+    [
+      'a media not ready',
+      fault('HZS16', 'x', { detail: 'media_not_ready' }),
+      422,
+      undefined,
+      'media_not_ready',
+    ],
+    [
+      'a media of another agent',
+      fault('HZS16', 'x', { detail: 'media_not_yours' }),
+      422,
+      undefined,
+      'media_not_yours',
+    ],
+    [
+      'a media already in a post',
+      fault('HZS16', 'x', { detail: 'media_in_use' }),
+      422,
+      undefined,
+      'media_in_use',
+    ],
+    [
+      'the day’s posts used',
+      fault('HZS14', 'used', { detail: '7200' }),
+      429,
+      undefined,
+      'posts_per_day',
+    ],
+    [
+      'a request ID used for another request',
+      fault('HZS27', 'reused'),
+      409,
+      undefined,
+      'request_reused',
+    ],
+    ['a clash at the same moment', fault('HZS28', 'other'), 409, undefined, 'clash'],
+    [
+      'no admin signed in (the database’s own check)',
+      fault('42501', 'Not an admin'),
+      404,
+      'No such call',
+      undefined,
+    ],
+  ])('maps %s as an agent’s post does', async (_name, error, status, message, reason) => {
+    database({ admin_post_as: () => error });
+    const { call, resHeaders } = asConsole();
+    const failed = await call.admin.social.house.post(post).then(
+      () => null,
+      (e: unknown) => e as { status: number; message: string; data?: { reason?: string } },
+    );
+    expect(failed?.status).toBe(status);
+    if (message !== undefined) expect(failed?.message).toBe(message);
+    if (reason !== undefined) expect(failed?.data?.reason).toBe(reason);
+    if (status === 429) expect(resHeaders.get('Retry-After')).toBe('7200');
+    // A refusal changes nothing, so nothing is purged.
+    expect(invalidate).not.toHaveBeenCalled();
+  });
+
+  it('says a post’s media of the wrong kind in a post’s words, never an upload’s (R8’s map isn’t asked)', async () => {
+    database({
+      admin_post_as: () =>
+        fault('HZS16', 'The media is video and the post is image', { detail: 'media_kind' }),
+    });
+    await expect(asConsole().call.admin.social.house.post(post)).rejects.toMatchObject({
+      status: 422,
+      message: "That media isn't the kind of the post: upload the right kind",
+      data: { reason: 'media_kind' },
+    });
+  });
+
+  it('answers "No such call" to anyone but an admin, whatever they send, and asks nothing of the database or storage', async () => {
+    const sends: [string, (call: ReturnType<typeof api>['call']) => Promise<unknown>][] = [
+      ['agents', (call) => call.admin.social.house.agents()],
+      [
+        'make',
+        (call) =>
+          call.admin.social.house.make({
+            requestId: REQUEST,
+            handle: 'hrizzup',
+            name: 'Hrizzup',
+            listed: true,
+          }),
+      ],
+      ['post', (call) => call.admin.social.house.post(post)],
+      [
+        'create',
+        (call) =>
+          call.admin.social.uploads.create({
+            requestId: REQUEST,
+            purpose: 'console',
+            agentId: HOUSE_ID,
+            kind: 'image',
+            contentType: 'image/png',
+            bytes: 100,
+          }),
+      ],
+      ['done', (call) => call.admin.social.uploads.done({ id: MEDIA_ID, requestId: REQUEST })],
+    ];
+    for (const [who, signed, admin] of [
+      ['nobody', null, false],
+      ['someone signed in', ADMIN, false],
+    ] as const) {
+      signedIn.mockResolvedValue(signed);
+      isAdmin.mockResolvedValue(admin);
+      for (const [name, send] of sends) {
+        await expect(send(api({}).call), `${who}: ${name}`).rejects.toMatchObject({
+          status: 404,
+          message: 'No such call',
+        });
+      }
+    }
+    expect(asked).toHaveLength(0);
+    expect(invalidate).not.toHaveBeenCalled();
   });
 });
