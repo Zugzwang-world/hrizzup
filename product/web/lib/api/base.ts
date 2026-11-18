@@ -1,4 +1,4 @@
-import { contract } from '@hrizzup/api';
+import { contract, isSocialCall, printTimes } from '@hrizzup/api';
 import { implement } from '@orpc/server';
 import type { ResponseHeadersPluginContext } from '@orpc/server/plugins';
 import { cacheHeaders, EdgeExpiry, EdgeTags } from './caching.ts';
@@ -6,6 +6,36 @@ import { asAdmin, noSuchCall } from './console.ts';
 import type { ApiContext } from './context.ts';
 import { inOneFormat } from './ground-rules.ts';
 import { isReachable } from './reachable.ts';
+
+/** The implementer's start: the contract, and the context every call is given. */
+const implementer = implement(contract).$context<ApiContext & ResponseHeadersPluginContext>();
+
+/** The middleware every call passes through: `everyCall`'s own type. */
+type EveryCall = Parameters<typeof implementer.use<{ expiry: EdgeExpiry; tags: EdgeTags }>>[0];
+
+/**
+ * What every call does around its handler, in the order a call meets it (it is the first
+ * middleware of every call, so a test can find it there).
+ */
+export const everyCall: EveryCall = async ({ context, path, procedure, next }) => {
+  if (!isReachable(path, procedure)) throw noSuchCall();
+  const expiry = new EdgeExpiry();
+  const tags = new EdgeTags();
+  try {
+    const result = await next({ context: { expiry, tags } });
+    for (const [name, value] of Object.entries(
+      cacheHeaders(procedure['~orpc'].meta.caching, expiry.at, Date.now(), tags.list),
+    )) {
+      context.resHeaders?.set(name, value);
+    }
+    // The one place times are printed: three decimals, whichever way a package wrote them.
+    return isSocialCall(path)
+      ? result
+      : { ...result, output: printTimes(procedure['~orpc'].outputSchema, result.output) };
+  } catch (error) {
+    throw inOneFormat(error);
+  }
+};
 
 /**
  * The implementer every handler of the typed API is made from (the contract is in
@@ -23,26 +53,12 @@ import { isReachable } from './reachable.ts';
  *   what it shows, told through `context.tags`;
  * - **answers a refused input in the one format** (ground-rules.ts), whoever refused it. A read
  *   that shows a market as open is told by the call, through `context.expiry`, when it closes, and
- *   its copy at the edge ends by then (caching.ts).
+ *   its copy at the edge ends by then (caching.ts);
+ * - **prints every time with three decimals** (`@hrizzup/api`'s `printTimes`), found by the call's
+ *   own output schema, after the output has been checked: the website's route, the MCP server and
+ *   `serverApi` all answer it. Social's calls are left as they are until social adopts it.
  */
-export const api = implement(contract)
-  .$context<ApiContext & ResponseHeadersPluginContext>()
-  .use(async ({ context, path, procedure, next }) => {
-    if (!isReachable(path, procedure)) throw noSuchCall();
-    const expiry = new EdgeExpiry();
-    const tags = new EdgeTags();
-    try {
-      const result = await next({ context: { expiry, tags } });
-      for (const [name, value] of Object.entries(
-        cacheHeaders(procedure['~orpc'].meta.caching, expiry.at, Date.now(), tags.list),
-      )) {
-        context.resHeaders?.set(name, value);
-      }
-      return result;
-    } catch (error) {
-      throw inOneFormat(error);
-    }
-  });
+export const api = implementer.use(everyCall);
 
 /**
  * The market console's calls and social's (`admin.*`): admins only. The admin check wraps the whole

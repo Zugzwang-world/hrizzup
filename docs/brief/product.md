@@ -20,7 +20,7 @@
 - **R4 Leftovers and faster checks:** done. `GET /me/orders` shows closed markets ([#145](https://github.com/Zugzwang-world/hrizzup/pull/145), [#147](https://github.com/Zugzwang-world/hrizzup/pull/147)); the market page's first-run Speed warning fixed ([#149](https://github.com/Zugzwang-world/hrizzup/pull/149)); the stand-in seed retired ([#146](https://github.com/Zugzwang-world/hrizzup/pull/146), [#148](https://github.com/Zugzwang-world/hrizzup/pull/148)); the faster-checks research ([#150](https://github.com/Zugzwang-world/hrizzup/pull/150)); Next 16.4.6 ([#152](https://github.com/Zugzwang-world/hrizzup/pull/152)); the two flaky database tests ([#154](https://github.com/Zugzwang-world/hrizzup/pull/154)); your six cuts ([#156](https://github.com/Zugzwang-world/hrizzup/pull/156), [#158](https://github.com/Zugzwang-world/hrizzup/pull/158), [#159](https://github.com/Zugzwang-world/hrizzup/pull/159), [#162](https://github.com/Zugzwang-world/hrizzup/pull/162), [#164](https://github.com/Zugzwang-world/hrizzup/pull/164), [#165](https://github.com/Zugzwang-world/hrizzup/pull/165)). For the founder: nothing to decide.
 - **R5 Board, stories and the console:** in progress. M0: social's published calls and MCP tools follow each call's live mark, so R5's and R6's first live calls pass, [#167](https://github.com/Zugzwang-world/hrizzup/pull/167). Next: the board's six reads (M1), the minute job (M2), the console's calls and pages, the sandbox's board and story pages. For the founder: nothing yet.
 - **R6 Join and first post:** ready to start, side by side with R5: each fills only its own files (build.md, section 8.2), and neither needs a migration. Then Review 1, the founder's.
-- **R16 Scheduled jobs and records** (a side relay in Phase 1, beside R5, R6 and R10): in progress. M3, your three decisions recorded ([#166](https://github.com/Zugzwang-world/hrizzup/pull/166)); next M1 (scheduled jobs re-saved and checked after every database change) and M2 (three decimals in every API time). For the founder: one step (below).
+- **R16 Scheduled jobs and records** (a side relay in Phase 1, beside R5, R6 and R10): in progress. M3, your three decisions recorded ([#166](https://github.com/Zugzwang-world/hrizzup/pull/166)); M2, every time the API prints has three decimals ([#169](https://github.com/Zugzwang-world/hrizzup/pull/169)); next M1 (scheduled jobs re-saved and checked after every database change; the cause found). For the founder: one step (below).
 - **R7 to R15:** not started (Phases 2 to 4, the reviews, the closing record).
 - **Carried, unnumbered:** the market page (3.1), then the perp's page (3.4c), and the board (2.1), each when the design chat approves its design; live updates for bots (3.5e), later.
 
@@ -35,14 +35,15 @@
 
 ## What changed in the latest session
 
-**R16 recorded your three decisions of 18 November** ([#166](https://github.com/Zugzwang-world/hrizzup/pull/166)): the database-only skip in PLAN.md and CLAUDE.md; the advisor's moments in CLAUDE.md and the four role files; your yes to social's six questions in the spec, build.md and every brief. The role files changed (For the founder).
+**R16 recorded your three decisions of 18 November** ([#166](https://github.com/Zugzwang-world/hrizzup/pull/166)): the database-only skip, the advisor's moments, and your yes to social's six questions; the role files changed (For the founder). **Then every time the API prints got exactly three decimals** ([#169](https://github.com/Zugzwang-world/hrizzup/pull/169)): one printer in the API's output layer, finding times only by each call's declared shape, so free text never changes; HTTP and MCP alike; the database, the contract and every call's shape unchanged. Social's beta calls print as before until they're locked into v1 (open question).
 
 ## Open questions
 
 One line each; the detail, and the rest, are in the status file.
 
 - **The agreement's market/2** (before 3.3). Recommendation: an optional `result_probability`, drafted together with briefs' key-numbers field if Sourcing's pipeline design is ready by then, so the first half changes once.
-- **The API prints one instant two ways** (R4): database-made times drop trailing zeros (`.3Z`), JavaScript-made ones keep three decimals (`.300Z`); both valid. Recommendation: as R16's M2 is doing, three decimals everywhere.
+- **Social's times, three decimals too** (R16, M2): social's beta calls still print the database's form, since two relays are building them now. Recommendation: R14 adds them to the printer when it locks social into v1 (and says so in the MCP instructions); no database change.
+- **A package's tests don't re-run when a package it uses changes** (R16's review): Turbo replays them from cache. Recommendation: `dependsOn: ["transit"]` on `test`, as `bundle-size` does.
 - **Supabase Cron can miss a migration's new schedules** (R3): social's new jobs didn't run on staging until re-saved; cause unknown; R3's setup script heals and detects it for social. Recommendation: as R16's M1 is doing, re-save every job after migrations and check the every-minute ones run.
 - **Also in the status file:** editing a request's existing forms within v1; pg_net's grants; node-forge in the Expo tool only; Vercel Pro's function billing; Vercel's toolbar; sign-ups waiting for the house; the Hermes rewrite; shared code.
 

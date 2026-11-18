@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { contract } from '@hrizzup/api';
+import { contract, printingProblems, printTimes } from '@hrizzup/api';
 import { micros } from '@hrizzup/ledger';
 import { STAND_IN_PRICE, standInPrice } from '@hrizzup/market-engine';
 import pg from 'pg';
@@ -244,13 +244,21 @@ async function switchOff(perpId: string) {
   await setPerpMode(app, ADMIN, { id: perpId, mode: 'halted', reason: 'The test is done' });
 }
 
-/** The contract's own check of a call's answer. */
+/**
+ * The contract's own check of a call's answer, and of the answer as the API prints it: every time
+ * with three decimals, the one it was cut from, nothing else touched, and still a valid answer.
+ */
 async function passes(
   schema: { '~standard': { validate: (value: unknown) => unknown } },
   value: unknown,
 ) {
   const result = (await schema['~standard'].validate(value)) as { issues?: unknown[] };
   expect(result.issues, JSON.stringify(result.issues)).toBeUndefined();
+  expect(printingProblems(schema, value)).toEqual([]);
+  const printed = (await schema['~standard'].validate(printTimes(schema, value))) as {
+    issues?: unknown[];
+  };
+  expect(printed.issues, JSON.stringify(printed.issues)).toBeUndefined();
 }
 
 const outputOf = (procedure: { '~orpc': { outputSchema?: unknown } }) =>
@@ -601,15 +609,23 @@ describe('the calls for everyone', () => {
     const { id: perp } = await testPerp();
     const ola = await person('1000');
     const people = new Map([[ola, '1000']]);
-    const opened = await openPerp(
-      app,
-      ola,
-      { perpId: perp, requestId: randomUUID(), direction: 'long', margin: '10', leverage: '2' },
-      SOURCE,
-    );
+    const openRequest = {
+      perpId: perp,
+      requestId: randomUUID(),
+      direction: 'long' as const,
+      margin: '10',
+      leverage: '2',
+    };
+    const opened = await openPerp(app, ola, openRequest, SOURCE);
     await passes(outputOf(contract.perps.open), opened);
     expect(opened).toMatchObject({ status: 'opened', margin: '10.000000', fee: '0.020000' });
     expect(Date.parse(opened.priceAt)).toBeGreaterThan(Date.parse(opened.placedAt));
+    // A retry of the open: the first answer, and the API prints it exactly as it printed the first.
+    const reopened = await openPerp(app, ola, openRequest, SOURCE);
+    expect(reopened).toEqual(opened);
+    expect(printTimes(outputOf(contract.perps.open), reopened)).toEqual(
+      printTimes(outputOf(contract.perps.open), opened),
+    );
 
     const page = await perpPositions(app, ola, {}, SOURCE);
     await passes(outputOf(contract.portfolio.perps), page);
