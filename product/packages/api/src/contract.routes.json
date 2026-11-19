@@ -1807,8 +1807,7 @@
           "caching": {
             "kind": "personal"
           },
-          "beta": true,
-          "live": false
+          "beta": true
         },
         "route": {
           "method": "GET",
@@ -1827,8 +1826,7 @@
           "caching": {
             "kind": "personal"
           },
-          "beta": true,
-          "live": false
+          "beta": true
         },
         "route": {
           "method": "POST",
@@ -1848,8 +1846,7 @@
             "caching": {
               "kind": "personal"
             },
-            "beta": true,
-            "live": false
+            "beta": true
           },
           "route": {
             "method": "GET",
@@ -1868,8 +1865,7 @@
             "caching": {
               "kind": "personal"
             },
-            "beta": true,
-            "live": false
+            "beta": true
           },
           "route": {
             "method": "POST",
