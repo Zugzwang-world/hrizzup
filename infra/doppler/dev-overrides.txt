@@ -7,3 +7,5 @@
 REDIS_KEY_PREFIX   # local runs share staging's Redis database; "dev" keeps their keys apart from staging's "stg" (blueprint section 14, Redis)
 PERP_JOBS_SECRET   # local runs use the slot's own database, whose schedule never calls staging: their own secret, never staging's
 SOCIAL_JOBS_SECRET # local runs use the slot's own database, whose schedule never calls staging: their own secret, never staging's
+WORKERS_AI_TOKEN   # empty on purpose: with no token the reader agent's provider is the local stub, so this Mac never spends the shared free allowance (build.md 7.7)
+WORKERS_AI_ACCOUNT_ID # dev's token can't write a reference to a new staging key; local runs never call Workers AI (no token), so dev holds its own copy of the same account ID

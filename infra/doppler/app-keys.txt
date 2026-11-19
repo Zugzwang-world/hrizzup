@@ -41,3 +41,5 @@ TURNSTILE_SECRET_KEY        # the bot check's secret; Supabase Auth keeps a copy
 TURNSTILE_SITE_KEY          # the bot check's widget key, shown in the page
 UPSTASH_REDIS_REST_TOKEN    # the website's own Redis (Upstash) access token
 UPSTASH_REDIS_REST_URL      # Redis (Upstash) address
+WORKERS_AI_ACCOUNT_ID       # the Cloudflare account whose Workers AI runs the reader agent (product/web/lib/social/reader-ai); its own name, since hrizzup-tools holds CLOUDFLARE_ACCOUNT_ID
+WORKERS_AI_TOKEN            # the reader agent's Workers AI token (product/web/lib/social/reader-ai); dev holds it empty (dev-overrides.txt), so this Mac never spends the free allowance
