@@ -1259,6 +1259,19 @@ class EveryWorkflow(unittest.TestCase):
         # The Screen check's four parts (one matrix job, "screen-part") install them; its joining job ("screens") doesn't.
         self.assertEqual(sorted(found), [("checks.yml", "screen-part"), ("tools.yml", "browser-libraries")])
 
+    def test_the_browser_installs_fail_fast_when_they_hang(self):
+        # R7's finding (18 November 2026): a Screen check part stalled 22 to 37 minutes installing its
+        # browsers' libraries until the job's 40-minute limit (each time the mirrors' fallback on a new
+        # machine image, at 58 to 70 kB/s). Each install has its own 10-minute limit; healthy, they take
+        # seconds, and the fallback a minute or two.
+        steps = jobs(read("checks.yml"))["screen-part"]
+        browsers = [s for s in steps if "playwright install chromium webkit" in s]
+        libraries = [s for s in steps if "tools.py libraries install" in s]
+        self.assertEqual((len(browsers), len(libraries)), (1, 1))
+        for step in (browsers[0], libraries[0]):
+            self.assertIn("\n        timeout-minutes: 10\n", step)
+        self.assertNotIn("libraries install", browsers[0], "one install, one limit")
+
     def test_install_deps_is_only_ever_the_fallback_after_the_cached_libraries(self):
         fallbacks = dry_runs = 0
         for file in workflow_files():

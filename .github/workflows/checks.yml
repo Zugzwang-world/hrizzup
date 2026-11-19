@@ -305,13 +305,22 @@ jobs:
         with:
           path: ${{ steps.libraries-key.outputs.browser_libraries_file }}
           key: ${{ steps.libraries-key.outputs.browser_libraries_key }}
+      # Each install has a 10-minute limit, so a stall on GitHub's side fails in minutes and is
+      # re-run as an outage instead of holding the part to the job's 40. Healthy, each takes
+      # seconds, and the mirrors' fallback about a minute (126 MB at their usual 2.4 MB/s). The three
+      # stalls of 18 November 2026 (#195, #197, #196: 22 to 37 minutes) were all that fallback on a
+      # new machine image the cache had no set for yet, fetching at 58 to 70 kB/s; the Tool cache
+      # workflow saves each new image's set (daily, or at once when started on main by hand).
       - name: Browsers (Chromium and WebKit)
         if: steps.affected.outputs.website == 'true'
+        timeout-minutes: 10
         working-directory: product/web
-        run: |
-          set -euo pipefail
-          python3 ../../.github/scripts/tools.py retry -- pnpm exec playwright install chromium webkit
-          python3 ../../.github/scripts/tools.py libraries install || pnpm exec playwright install-deps chromium webkit
+        run: python3 ../../.github/scripts/tools.py retry -- pnpm exec playwright install chromium webkit
+      - name: The browsers' system libraries
+        if: steps.affected.outputs.website == 'true'
+        timeout-minutes: 10
+        working-directory: product/web
+        run: python3 ../../.github/scripts/tools.py libraries install || pnpm exec playwright install-deps chromium webkit
 
       # Before any key is loaded: every name in stg_preview must be one of the app's keys
       # (infra/doppler/app-keys.txt), so a tool token there stops this job before it sits

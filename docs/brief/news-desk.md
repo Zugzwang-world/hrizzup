@@ -2,14 +2,14 @@
 
 **This brief replaces Claude Code's report:** read it after clicking **Sync now**, instead of asking the founder for a report, and attach the files under "Read for detail" from GitHub when you need more.
 
-> Rewritten 18 November 2026 by Round 6's relay R7, The desk, at its first milestone ([#192](https://github.com/Zugzwang-world/hrizzup/pull/192)), whose change to PLAN.md (step 2.8: the founder's four decisions of 18 November) rewrites every brief. The News Desk project's only file from the repository, rewritten at the end of every session that touches its part. PLAN.md wins any disagreement.
+> Rewritten 19 November 2026 by Round 6's relay R17, The test cast, at its first milestone ([#203](https://github.com/Zugzwang-world/hrizzup/pull/203)), whose change to PLAN.md (step 2.8: the founder's decisions of 19 November) rewrites every brief. The News Desk project's only file from the repository, rewritten at the end of every session that touches its part. PLAN.md wins any disagreement.
 
 **Hrizzup** is a news app built around creators, plus a website with play-money prediction markets. Our AI finds news as it breaks on X and turns it into developing stories that readers see through creators' takes. **News Desk's job:** make our own content from the sourced pool and onboard creators; in social's V1 beta, that means making and running Hrizzup's own AI agents, which post on every story's desk like any invited agent. **News Desk is on hold until the founder sets it up.**
 
 ## Where things stand
 
 - **On hold** (the founder's decision, 5 November 2026) until the founder sets News Desk up; social's design leaves the hold as it is. No News Desk work has started; the `news-desk/` folder holds only its README.
-- **Social is designed and planned** (the founder, 16 and 17 November 2026): the design is `docs/social/spec.md`; its build (Product's step 2.8, "Social's build plan") runs in four phases, plus the creator tools later, with the skills track, each phase ending with the founder's review of the sandbox. In Phase 1 an agent can first join, pin a story and post text with sources (R6, with an example agent); nothing of it is built yet.
+- **Social is designed and planned** (the founder, 16 and 17 November 2026): the design is `docs/social/spec.md`; its build (Product's step 2.8, "Social's build plan") runs in four phases, the creator tools in Wave 2 before the last, then one end-to-end test by the founder. Phases 1 and 2 have built the join, the claim, pins, briefs, posts in text, images, video and audio, replies and upvotes; Phase 2 ends with R17's test cast: six of Hrizzup's own **test** agents on staging, one per starter agent, run by a Claude Code session when the founder asks (sandbox data, not step 1.3's agents).
 - **The agreement's first half is Agreed** (9 November 2026): the founder approved it in News Desk's place, after Sourcing's review ([#37](https://github.com/Zugzwang-world/hrizzup/pull/37), [#42](https://github.com/Zugzwang-world/hrizzup/pull/42), [#45](https://github.com/Zugzwang-world/hrizzup/pull/45)) and the market change ([#52](https://github.com/Zugzwang-world/hrizzup/pull/52)). Its creation shape and sourced item are fixed at format version 1; News Desk reviews it once it's set up. Social doesn't change it.
 - **The tables exist, on Product's side** (step 1.9, [#72](https://github.com/Zugzwang-world/hrizzup/pull/72)): stories, updates, sourced items and creations, with the agreement's rules as database rules. Empty: nothing writes to them yet.
 - **The shared setup is finished** (Phase 0): the content store on staging (the Supabase database, and Cloudflare R2 for media). Production is parked until launch. The repository is public until launch, so nothing secret or personal goes in it.
@@ -37,14 +37,14 @@
 
 ## What changed in the latest session
 
-On 18 November 2026, Round 6's relay R7 ([#192](https://github.com/Zugzwang-world/hrizzup/pull/192)) recorded the founder's four decisions in PLAN.md step 2.8: Phase 2 is what readers see (the desk and media, then a test cast of Hrizzup's own test agents), the creator tools move to later, with the skills track, and story tiles get a picture by the agreement's rule D5, built by R8. The creation shape, the agreement and News Desk's hold don't change.
+On 19 November 2026, Round 6's relay R17, The test cast ([#203](https://github.com/Zugzwang-world/hrizzup/pull/203)), recorded the founder's decisions in PLAN.md step 2.8: the test cast, signals and readers run side by side now; the creator tools (files, the owner's chat, the marketplace) follow, before the beta's end-to-end relay (R14); one end-to-end test by the founder after R14 replaces his three phase reviews; the whole product is dark mode only. R17's six test agents use R10's starter agents and skills as they are, so they show how Hrizzup's own agents will look on a desk. The creation shape, the agreement and News Desk's hold don't change.
 
 ## Open questions
 
 - **Whether Hrizzup's own agents' posts also travel as creations.** Recommendation: no; they post through the front door like any agent, so their posts are agent posts in Product's tables, and the creation shape stays in the agreement, unchanged, for anything else News Desk hands over.
 - **Which of Hrizzup's own agents run first** (step 1.3). Recommendation: three of the starter agents, reshaped in Hrizzup's voice: the Explainer, the Analyst and the Source checker, covering a video, a written breakdown with a chart, and the links behind each claim; the Meme maker and the Translator once the desks have readers.
 - **Which owners to invite first** (step 4.4, the founder's whitelist). Recommendation: creators already making explainers, memes or charts on the launch categories, who run their own AI setups; a handful first, so the founder can watch the desks in the sandbox.
-- **When News Desk is set up** (the founder; optional after Review 1). Recommendation: right after Review 1, once an agent can join and post text in the sandbox, so Hrizzup's own agents grow with media from Phase 2 and skills with the skills track, and are posting when invited owners arrive, before the Android closed test (2.6).
+- **When News Desk is set up** (the founder; optional). Recommendation: once R17's test cast has run on staging, so the founder has seen the starter agents on real desks, and Hrizzup's own agents grow with media from Phase 2 and skills with the skills track, and are posting when invited owners arrive, before the Android closed test (2.6).
 
 ## What's next
 
