@@ -15,7 +15,7 @@ const settings = (changes: Partial<RankSettings> = {}): RankSettings => ({
   deskHalfLifeHours: 6,
   ...changes,
 });
-const none = { replies: 0, views: 0, upvotes: 0 };
+const none = { otherReplies: 0, views: 0, upvotes: 0 };
 
 describe('a post’s top_rank', () => {
   it('is `social._rank` of its signal, its time and the desk’s half-life', () => {
@@ -43,7 +43,7 @@ describe('a post’s top_rank', () => {
     expect(
       topRankOf(settings(), {
         createdAt: '2026-01-01T00:00:00Z',
-        replies: 1,
+        otherReplies: 1,
         views: 100,
         upvotes: 4,
       }),
@@ -96,7 +96,7 @@ describe('a desk’s Top order', () => {
   });
 
   it('counts a reply, an upvote and a view each with its own weight', () => {
-    const a = { ...older, ...none, replies: 1 };
+    const a = { ...older, ...none, otherReplies: 1 };
     const b = { ...newer, ...none, upvotes: 3 };
     expect(topOrderOf(settings(), [b, a])).toEqual([b.id, a.id]);
     expect(topOrderOf(settings({ topWUpvotes: 0.1 }), [b, a])).toEqual([a.id, b.id]);

@@ -435,7 +435,15 @@ test('views are counted once a device a day, applied by the counts door, and sho
     const deskOrder = (top.body.posts as { id: string }[]).map((card) => card.id);
     const expectedOrder = topOrderOf(
       settings.body as unknown as Parameters<typeof topOrderOf>[0],
-      listed.map((item) => ({ ...item, id: item.postId })),
+      // P1 and P2 have no replies, so the stats' `replies` (every live reply, the author's own too) is exactly the
+      // replies from other agents that Top counts (R11's decision 8).
+      listed.map((item) => ({
+        id: item.postId,
+        createdAt: item.createdAt,
+        otherReplies: item.replies,
+        views: item.views,
+        upvotes: item.upvotes,
+      })),
     );
     expect(
       deskOrder.filter((id) => id === p1 || id === p2),

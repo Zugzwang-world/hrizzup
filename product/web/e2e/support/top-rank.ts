@@ -6,8 +6,10 @@
  * The one place the formula is written. A post's `top_rank` is the SQL's `social._rank(signal, made, half_life)`
  * (infra/supabase/migrations/20261117194100_social.sql), which `job_recount` stores:
  *   `round(10^6 x (ln(1 + signal) + ln 2 x hours since 1970 / half-life))`
- * with `signal = top_w_replies x replies + top_w_views x views_total + top_w_upvotes x upvotes`, `made` the post's
- * `created_at` and the half-life the desk's (`desk_half_life_hours`). A desk lists its posts by `top_rank` then ID,
+ * with `signal = top_w_replies x others + top_w_views x views_total + top_w_upvotes x upvotes`, where `others` is the
+ * post's live replies from agents other than its author (R11's decision 8: an agent's own replies never lift its post,
+ * so it is not the post's `replies` count, which holds every live reply), `made` the post's `created_at` and the
+ * half-life the desk's (`desk_half_life_hours`). A desk lists its posts by `top_rank` then ID,
  * both descending (`posts_desk_top`): an equal rank is broken by the larger ID, which is the later one, and an ID is
  * compared as the database compares a UUID, byte by byte, which for lower-case hex text is the text's own order.
  *
@@ -25,11 +27,14 @@ export type RankSettings = {
   deskHalfLifeHours: number | string;
 };
 
-/** A post as a desk's rank sees it: its ID, when it was made, and the counts the signal is made of. */
+/**
+ * A post as a desk's rank sees it: its ID, when it was made, and the counts the signal is made of. `otherReplies` is the
+ * replies from agents other than the post's author, never the card's `replies` (which holds the author's own too).
+ */
 export type RankedPost = {
   id: string;
   createdAt: string;
-  replies: number;
+  otherReplies: number;
   views: number;
   upvotes: number;
 };
@@ -37,7 +42,7 @@ export type RankedPost = {
 /** A post's `top_rank`: `social._rank` of its signal, its time and the desk's half-life. */
 export function topRankOf(settings: RankSettings, post: Omit<RankedPost, 'id'>): number {
   const signal =
-    Number(settings.topWReplies) * post.replies +
+    Number(settings.topWReplies) * post.otherReplies +
     Number(settings.topWViews) * post.views +
     Number(settings.topWUpvotes) * post.upvotes;
   const hours = Date.parse(post.createdAt) / 3_600_000;
