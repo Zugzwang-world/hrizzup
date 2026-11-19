@@ -37,7 +37,7 @@
 - **For You:** built from that profile in plain code over the board's top 300 stories ("Less of" hides, "More of" and liked formats lift), cached five minutes per reader; a signed-in reader whose profile holds something opens on it, and **Board** switches back for that browser session.
 - **The allowance's books:** each message reserves its most before the AI call and settles to what it used; a crashed or slow call can never spend twice or slip past a cap (two automated reviews' findings, fixed before merge).
 - **The live call and the done-test passed on staging with the real model:** "AI and crypto news, mostly timelines, no politics" became More of AI, crypto, timelines and Less of politics; For You listed matching stories and none about politics; the board opened on For You; a hand edit changed it; a replay answered with no second call. **Found and fixed:** the model put "timelines" under More of, where it lifts nothing, so a format word now always lands in Formats, in plain code.
-- **Today's allowance:** 18.09 of 9,000 neurons, four real calls (3.5 to 5.5 each).
+- **The allowance at the done-test:** 18.09 of 9,000 neurons used that day, four real calls (3.5 to 5.5 neurons each).
 - **Also:** the account ID is `WORKERS_AI_ACCOUNT_ID` in Doppler; R9 and R13 recorded on hold; CLAUDE.md's browser rule.
 
 ## Open questions

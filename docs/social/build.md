@@ -812,9 +812,10 @@ Errors: a relay's new SQLSTATE (HZS30 and up) is mapped in its own `W/lib/api/so
 - GitHub tightened unauthenticated limits in May 2025, raw files included ([changelog](https://github.blog/changelog/2025-05-08-updated-rate-limits-for-unauthenticated-requests/)).
 - `pg_trigger_depth()` reports how deep the running triggers are nested, not why, and misleads with deferred constraints ([Tom Lane, pgsql-bugs](https://www.postgresql.org/message-id/12406.1496242511@sss.pgh.pa.us)), so the append-only rule checks the parent row instead.
 
+**Verified live** (R12, 19 November 2026, one call on staging, [#215](https://github.com/Zugzwang-world/hrizzup/pull/215)): Workers AI's answer for `@cf/meta/llama-3.2-3b-instruct` carries `usage` with `prompt_tokens` and `completion_tokens` (540 and 34 for a short message, settling to 3.53365 neurons), and the 3B model's JSON, asked for in the prompt with JSON mode off, parsed whole (`docs/social/r12-design.md`, decisions 5 and 12).
+
 **Assumed** (each checked by the relay named):
 - `invalidateByTag` takes up to 16 tags a call, as the REST bulk call does (R5 keeps to it either way).
-- Workers AI's `usage` holds `prompt_tokens` and `completion_tokens`, and its JSON output works on the 3B model (R12, with a live call on staging).
 - R2 honours `x-amz-copy-source-if-match` on a copy (R8; if not, it downloads what it checked and stores those bytes, as for images).
 - Inside an `on delete cascade`, the child's trigger no longer sees the deleted parent row (Postgres runs the cascade after the parent's delete, in the same transaction); M2's `social_accounts.test.sql` proves the account deletion and the refused direct delete on Postgres 17. If it doesn't, the fallback is `pg_trigger_depth() > 1` (a cascade's delete runs one trigger deeper), kept to these tables.
 - The preview bypass header the journeys send also lets a check run's POST reach its preview's job door (R11).
