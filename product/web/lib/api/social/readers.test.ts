@@ -643,6 +643,7 @@ describe('reader.chat.send', () => {
       });
       await api().call.reader.chat.send({ requestId: REQUEST, body: 'no memes' });
       expect(settledWith()).toMatchObject({
+        reply: "(Stand-in, Workers AI isn't set up here.) Removed from Formats: memes",
         profile: { base_number: 1, body: profileWith(['AI']) },
       });
     });
@@ -1134,6 +1135,33 @@ describe('reader.chat.send', () => {
       expect(events.filter((event) => event === `redis get ${BOARD_TOP_COPY}`)).toHaveLength(1);
       expect(statementsOf('foryou_candidates')).toHaveLength(0);
       expect(fetcher).toHaveBeenCalledTimes(1);
+    });
+
+    it('moves a format the profile already holds under More of or Less of, instead of copying it', async () => {
+      fetcher.mockResolvedValueOnce(
+        cloudflare({
+          response: {
+            reply: 'Done: timelines, and no memes.',
+            edits: [
+              { op: 'add', list: 'more', item: 'timelines' },
+              { op: 'add', list: 'less', item: 'memes' },
+            ],
+          },
+        }),
+      );
+      keepFormats();
+      database({
+        begin: reserved({
+          profile: {
+            body: profileWith(['AI', 'timelines'], ['crypto', 'memes'], ['Meme']),
+            number: 6,
+          },
+        }),
+      });
+      await send().run();
+      expect(settledWith()).toMatchObject({
+        profile: { base_number: 6, body: profileWith(['AI'], ['crypto'], ['timelines']) },
+      });
     });
 
     it('loads a cold copy from the database, as For You does, and keeps it for a minute for everyone', async () => {

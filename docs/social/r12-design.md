@@ -115,6 +115,7 @@ An answered call is always settled, never failed. That includes a 200 whose `res
   - an **add to More of** whose item is a format is an add to Formats, the item as the reader wrote it;
   - an **add to Less of** whose item is a format is a remove from Formats, and is never added to Less of (a format a reader doesn't want is not lifted; it never hides a story, decision 15);
   - a **remove** from More of or Less of also removes the item from Formats;
+  - **a format word never stays under More of or Less of:** each of the three also takes that format, in any spelling, out of both, so a profile that already holds "timelines" under More of has it moved to Formats, not duplicated (an add that is dropped, as one to a full Formats list is, moves nothing);
   - an operation naming Formats, and any item that isn't a format, are as the model gave them; with no names (the candidates can't be read) nothing is rerouted, and the send never fails for it.
 
 **12. JSON is asked for in the prompt only; JSON mode stays off.**
@@ -484,9 +485,10 @@ After the lines:
 - **`remove`:** removes the case-insensitive match from that list; an item that isn't there is a no-op.
 - **What it answers:** `{profile, applied, dropped}`. When `writeProfile(profile)` passes 2,000 characters, the old profile stays and every operation counts as dropped.
 - **The formats' names** (`options.formatNames`, optional; decision 11): when given, an operation on `more` or `less` whose item is a format is rerouted before the rules above run. An item is a format when its `words` are one name's `words`, the same number in the same order, each the name's word or that word with a final `s` or `es` (`holds`): so "timelines", "Memes" and "audio briefs" are formats, and "AI", "brief" and "memes and timelines" are not.
-  - **add to `more`:** an add to `formats`, the item as the reader wrote it. An add of a format already in `formats` (under another spelling: "Meme" for "memes") is a no-op; a full list drops it, as it does any add.
-  - **add to `less`:** a remove from `formats` of every item that is the same format; never added to `less`. A format that isn't there is a no-op, not dropped.
-  - **remove from `more` or `less`:** removes the item there as before, and the same format from `formats`; applied once if either changed the profile.
+  - **add to `more`:** an add to `formats`, the item as the reader wrote it, and the same format (in any spelling) taken out of `more` and `less`. An add of a format already in `formats` (under another spelling: "Meme" for "memes") only clears `more` and `less`; a full list drops it, as it does any add, and then moves nothing.
+  - **add to `less`:** a remove of every item that is the same format from `formats`, `more` and `less`; never added to `less`. A format that isn't anywhere is a no-op, not dropped.
+  - **remove from `more` or `less`:** the same remove, from all three lists.
+  - Each is applied once if it changed the profile.
   - An operation naming `formats`, a non-format item, and any call with no names or an empty list are read exactly as above.
 
 ### 3.5 Reading the model's answer (`readAnswer`, `cleanReply`)
@@ -531,7 +533,7 @@ After the lines:
 
 ### 3.7 The stub (`stub.ts`)
 
-The stub is deterministic and takes no time. Its usage is `{prompt_tokens: 0, completion_tokens: 0}`, its provider `stub`, and its `answer_form` null. Its edits go through the same `applyEdits`.
+The stub is deterministic and takes no time. Its usage is `{prompt_tokens: 0, completion_tokens: 0}`, its provider `stub`, and its `answer_form` null. Its edits go through the same `applyEdits`, with its own format names (decision 11), and its reply names what that changed in the profile, list by list ("More of: …", then "Removed from Formats: memes"), never what its edits said: "no memes" is a remove from Formats, not an add to Less of.
 
 **How it reads the message:**
 1. Split the message into clauses on `,`, `;`, `.`, `!`, `?`, new lines, and the words `and`, `but`, `from`, `in` and `about`.
@@ -541,7 +543,7 @@ The stub is deterministic and takes no time. Its usage is `{prompt_tokens: 0, co
    3. **Formats:** it names a format: timeline, meme, explainer, breakdown, infographic, audio brief, translation or source check, each with or without a final `s`. Each found becomes `add formats <the plural name>`.
    4. **More:** otherwise, after stripping a leading `more`, `mostly`, `some`, `i want`, `i like` or `show me`, the rest becomes `add more <rest>`, if any is left.
 
-**What it replies:** "(Stand-in, Workers AI isn't set up here.) More of: …; Less of: …; Formats: …", naming only what changed. With nothing to change: "(Stand-in, Workers AI isn't set up here.) I didn't find anything to change: try "more cricket, no crypto"."
+**What it replies:** "(Stand-in, Workers AI isn't set up here.) More of: …; Less of: …; Formats: …", then "Removed from More of: …", "Removed from Less of: …" and "Removed from Formats: …" for what went out for good, each naming only what changed in the profile (an item that moved to another list is told where it landed). So "no memes" on a profile that likes memes replies "Removed from Formats: memes". With nothing to change: "(Stand-in, Workers AI isn't set up here.) I didn't find anything to change: try "more cricket, no crypto"."
 
 **Example.** "AI news from the Philippines, mostly timelines and memes, no crypto" gives:
 - More of: `AI news`, `the Philippines`;

@@ -159,6 +159,74 @@ describe('applyEdits, with the formats’ names: a format word always goes to Fo
     });
   });
 
+  it('moves a format word the profile already holds under More of or Less of, in any spelling, and never copies it', () => {
+    // "timelines" under More of, the model adds it to More of: Formats holds it, More of no longer does.
+    expect(apply(profileOf(['AI', 'timelines']), [add('more', 'timelines')])).toEqual({
+      profile: profileOf(['AI'], [], ['timelines']),
+      applied: 1,
+      dropped: 0,
+    });
+    // Another spelling of it, under both lists, and in Formats already: only the two others go.
+    expect(
+      apply(profileOf(['Timeline'], ['timelines'], ['TIMELINES']), [add('more', 'timeline')]),
+    ).toEqual({ profile: profileOf([], [], ['TIMELINES']), applied: 1, dropped: 0 });
+    // "memes" under Less of and "no memes": gone from both, whichever spelling Formats holds.
+    expect(apply(profileOf(['AI'], ['crypto', 'memes']), [add('less', 'memes')])).toEqual({
+      profile: profileOf(['AI'], ['crypto']),
+      applied: 1,
+      dropped: 0,
+    });
+    expect(apply(profileOf([], ['memes'], ['Meme']), [add('less', 'Memes')])).toEqual({
+      profile: profileOf(),
+      applied: 1,
+      dropped: 0,
+    });
+    // "memes" under More of and a "no memes": gone from More of too.
+    expect(apply(profileOf(['memes', 'AI']), [add('less', 'memes')]).profile).toEqual(
+      profileOf(['AI']),
+    );
+    // A remove names one list and takes the format out of all three.
+    expect(apply(profileOf(['memes'], ['Meme'], ['memes']), [remove('more', 'memes')])).toEqual({
+      profile: profileOf(),
+      applied: 1,
+      dropped: 0,
+    });
+    // More of's own adds are unchanged: an item that is no format stays, and moves from Less of as before.
+    expect(apply(profileOf(['timelines'], ['crypto']), [add('more', 'crypto')]).profile).toEqual(
+      profileOf(['timelines', 'crypto'], [], []),
+    );
+  });
+
+  it('moves nothing when the add is dropped: a full Formats list leaves the item under More of', () => {
+    const full = profileOf(
+      ['timelines'],
+      [],
+      Array.from({ length: 20 }, (_, i) => `format ${i}`),
+    );
+    expect(apply(full, [add('more', 'timelines')])).toEqual({
+      profile: full,
+      applied: 0,
+      dropped: 1,
+    });
+    // But when Formats already holds the format, the add is no drop: it clears More of.
+    const holds = profileOf(
+      ['timelines'],
+      [],
+      ['Timeline', ...Array.from({ length: 19 }, (_, i) => `format ${i}`)],
+    );
+    expect(apply(holds, [add('more', 'timelines')])).toMatchObject({
+      profile: { ...holds, more: [] },
+      applied: 1,
+      dropped: 0,
+    });
+  });
+
+  it('leaves an operation that names Formats as it is, even over a format held under More of', () => {
+    expect(apply(profileOf(['timelines']), [add('formats', 'timelines')]).profile).toEqual(
+      profileOf(['timelines'], [], ['timelines']),
+    );
+  });
+
   it('applies the edits as they come with no format names, or an empty list, as before', () => {
     const edits = [add('more', 'timelines'), add('less', 'memes'), remove('more', 'x')];
     const as = applyEdits(emptyProfile(), edits);
@@ -183,9 +251,18 @@ describe('applyEdits, with the formats’ names: a format word always goes to Fo
   });
 
   it('drops a rerouted add the stored form refuses, and keeps the old profile when the result is too long', () => {
-    expect(apply(emptyProfile(), [add('more', `Time${ZWSP}lines`)]).profile).toEqual(
-      emptyProfile(),
-    );
+    // "timelines" and a joiner after it: still the format's one word, so it is the rerouted add that the stored form
+    // refuses, on its own (a plain drop keeps the rest; the whole-profile check would drop every operation).
+    expect(
+      apply(profileOf(['timelines']), [add('more', `timelines${ZWJ}`), add('more', 'cricket')]),
+    ).toEqual({
+      profile: profileOf(['timelines', 'cricket']),
+      applied: 1,
+      dropped: 1,
+    });
+    expect(apply(emptyProfile(), [add('more', 'timelines')]).profile.formats).toEqual([
+      'timelines',
+    ]);
     const near = profileOf(
       Array.from({ length: 20 }, (_, i) => `${String(i).padStart(2, '0')}${'x'.repeat(30)}`),
       Array.from({ length: 20 }, (_, i) => `${String(i).padStart(2, '0')}${'y'.repeat(30)}`),

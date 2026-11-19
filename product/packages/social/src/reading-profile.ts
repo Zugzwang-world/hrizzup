@@ -338,13 +338,17 @@ function formatOf(item: string, formats: readonly (readonly string[])[]): number
  * under More of, and More of matches a story's own words, so only Formats lifts what a desk makes. An operation
  * on More of or Less of whose item is a format is therefore read like this, whatever list the model named:
  * - **add to More of** is an add to Formats, the item as the reader wrote it;
- * - **add to Less of** is a remove from Formats (every item there that is the same format: "no memes" takes
- *   out "Meme" too) and is never added to Less of: a format a reader doesn't want is not lifted, and never hides
- *   a story (decision 15);
- * - **remove** from More of or Less of takes the item out of there and out of Formats as well.
- * An add to Formats of a format already there under another spelling is a no-op. An operation naming Formats, or an item that isn't a format, is read as it is, and with no `formatNames` every
- * operation is. What was rerouted is counted as any operation is: applied when it changed the profile, dropped
- * when the add didn't fit (a full list, an item the stored form refuses), a no-op otherwise.
+ * - **add to Less of** is a remove from Formats, and is never added to Less of: a format a reader doesn't want is
+ *   not lifted, and never hides a story (decision 15);
+ * - **remove** from More of or Less of takes the format out of Formats as well;
+ * - **a format word never stays under More of or Less of:** each of the three also takes that format, in any
+ *   spelling ("Meme" for "memes", by the word rule below), out of More of and Less of, so a profile that already
+ *   holds "timelines" under More of has it moved, not duplicated. An add that is dropped (Formats full, an item the
+ *   stored form refuses) moves nothing.
+ * An add to Formats of a format already there under another spelling is a no-op (More of and Less of are still
+ * cleared). An operation naming Formats, or an item that isn't a format, is read as it is, and with no
+ * `formatNames` every operation is. What was rerouted is counted as any operation is: applied when it changed the
+ * profile, dropped when the add didn't fit, a no-op otherwise.
  */
 export function applyEdits(
   profile: ReadingProfile,
@@ -367,22 +371,38 @@ export function applyEdits(
     const key = keyOf(item);
     // Which format the item is, when the model didn't name Formats (-1: it isn't one).
     const format = edit.list === 'formats' ? -1 : formatOf(item, formats);
-    if (format >= 0 && (edit.op === 'remove' || edit.list === 'less')) {
-      // The reader doesn't want this format lifted: out of Formats (every item that is the same format), and,
-      // for a remove, out of the list the model named too. Never added to Less of.
-      let changed =
-        edit.op === 'remove' ? takeOut(next[edit.list], (held) => keyOf(held) === key) : false;
-      changed =
-        takeOut(
-          next.formats,
-          (held) => keyOf(held) === key || formatOf(held, formats) === format,
-        ) || changed;
+    if (format >= 0) {
+      // A format word never stays under More of or Less of: whatever the model named, the format (in any
+      // spelling) leaves both, and only an add to More of puts it in Formats.
+      const same = (held: string) => keyOf(held) === key || formatOf(held, formats) === format;
+      if (edit.op === 'remove' || edit.list === 'less') {
+        // The reader doesn't want this format lifted: out of all three lists, and never added to Less of.
+        let changed = takeOut(next.more, same);
+        changed = takeOut(next.less, same) || changed;
+        changed = takeOut(next.formats, same) || changed;
+        if (changed) applied++;
+        continue;
+      }
+      if (checkItem(item) !== null) {
+        dropped++;
+        continue;
+      }
+      const there = next.formats.some(same);
+      if (!there && next.formats.length >= MAX_ITEMS_A_LIST) {
+        dropped++;
+        continue;
+      }
+      // Moved, not copied: an add that is dropped leaves the item where it was.
+      let changed = takeOut(next.more, same);
+      changed = takeOut(next.less, same) || changed;
+      if (!there) {
+        next.formats.push(item);
+        changed = true;
+      }
       if (changed) applied++;
       continue;
     }
-    // An add to More of that is a format goes to Formats.
-    const target = format >= 0 ? 'formats' : edit.list;
-    const list = next[target];
+    const list = next[edit.list];
     if (edit.op === 'remove') {
       const at = list.findIndex((held) => keyOf(held) === key);
       if (at >= 0) {
@@ -395,18 +415,12 @@ export function applyEdits(
       dropped++;
       continue;
     }
-    // Already there: the item, or, for a format, the same format under another spelling ("Meme" for "memes").
-    if (
-      list.some(
-        (held) => keyOf(held) === key || (format >= 0 && formatOf(held, formats) === format),
-      )
-    )
-      continue;
+    if (list.some((held) => keyOf(held) === key)) continue;
     if (list.length >= MAX_ITEMS_A_LIST) {
       dropped++;
       continue;
     }
-    const other = OPPOSITE[target];
+    const other = OPPOSITE[edit.list];
     if (other !== undefined) {
       const opposite = next[other];
       const at = opposite.findIndex((held) => keyOf(held) === key);
