@@ -1,6 +1,9 @@
 import { createHash } from 'node:crypto';
 import { categoryNames, placeNames } from './lists.ts';
 import type { ReadingProfile } from './reading-profile.ts';
+import { allIn, itemWords, words } from './words.ts';
+
+export { itemWords, matches, words } from './words.ts';
 
 /**
  * For You's build (docs/social/r12-design.md, decisions 14 and 15, and section 4.1; build.md 7.7): the board's top
@@ -27,38 +30,8 @@ import type { ReadingProfile } from './reading-profile.ts';
  * structural type of this package's own: it can't import the contract's, and the website's mapping fits it.
  */
 
-/** The fewest words that carry nothing and so never count for or against a story. */
-const STOP_WORDS: ReadonlySet<string> = new Set(['the', 'a', 'an', 'of', 'and', 'news']);
-
 /** The most stories a build ranks, the database's own candidate limit. */
 export const MOST_CANDIDATES = 300;
-
-/** The words of a text: lower case, NFKC, cut at anything but letters (with marks) and digits, stop words dropped. */
-export function words(text: string): string[] {
-  return text
-    .normalize('NFKC')
-    .toLowerCase()
-    .split(/[^\p{L}\p{M}\p{N}]+/u)
-    .filter((word) => word !== '' && !STOP_WORDS.has(word));
-}
-
-/** An item's words: what `words` makes of it. An item with none left matches nothing. */
-export const itemWords = (item: string): string[] => words(item);
-
-/** Whether a set holds a word, or the word without a final `es`, or without a final `s`. */
-function holds(set: ReadonlySet<string>, word: string): boolean {
-  if (set.has(word)) return true;
-  if (word.endsWith('es') && set.has(word.slice(0, -2))) return true;
-  return word.endsWith('s') && set.has(word.slice(0, -1));
-}
-
-/** Whether every word of an item (already cut into words) is in the set; never an item with no words. */
-const allIn = (own: readonly string[], set: ReadonlySet<string>): boolean =>
-  own.length > 0 && own.every((word) => holds(set, word));
-
-/** Whether an item matches a set of words: every one of its words is in the set, as `holds` reads it; never an item with no words. */
-export const matches = (item: string, set: ReadonlySet<string>): boolean =>
-  allIn(itemWords(item), set);
 
 /** What of a story's tile its words come from: the contract's tile has all of these. */
 export type StoryText = {

@@ -12,7 +12,9 @@ import {
  * zeros, its provider is `stub`), and it says so: every reply begins "(Stand-in, Workers AI isn't set up here".
  *
  * It makes small rule-based edits so the whole profile path (`apply, check, version (agent)`) is exercised
- * before the token exists. Its edits go through the same `applyEdits` as the model's.
+ * before the token exists. Its edits go through the same `applyEdits` as the model's, and its reply tells what that
+ * changed in the profile (with its own format names, which are Hrizzup's: a format word is never put under More of
+ * or Less of, so "no memes" says memes came out of Formats, not that they went into Less of).
  *
  * How it reads a message: it splits it into clauses on `, ; . ! ?`, new lines and the words `and`, `but`,
  * `from`, `in` and `about`, and reads each clause (kept as the reader wrote it; lower case only for matching):
@@ -28,7 +30,8 @@ import {
 /** What every stub reply begins with. */
 export const STUB_LABEL = "(Stand-in, Workers AI isn't set up here.)";
 
-const FORMATS = [
+/** The formats the stand-in names, the same eight Hrizzup has (`social.formats`): also what the handler reads a format word by when the stand-in answered and the database's names can't be read. */
+export const STUB_FORMATS = [
   'timeline',
   'meme',
   'explainer',
@@ -78,7 +81,7 @@ export function stubEdits(message: string): ProfileEdit[] {
       continue;
     }
     const lower = clause.toLowerCase();
-    const named = FORMATS.filter((format) => new RegExp(`\\b${format}s?\\b`, 'u').test(lower));
+    const named = STUB_FORMATS.filter((format) => new RegExp(`\\b${format}s?\\b`, 'u').test(lower));
     if (named.length > 0) {
       for (const format of named) add('formats', `${format}s`);
       continue;
@@ -91,7 +94,7 @@ export function stubEdits(message: string): ProfileEdit[] {
 
 const keyOf = (item: string) => item.normalize('NFKC').toLowerCase();
 
-/** What changed between two profiles, in the words of the reply: items added to each list, and items taken out for good. */
+/** What changed between two profiles, in the words of the reply: items added to each list, then items taken out of each for good. */
 function changesBetween(before: ReadingProfile, after: ReadingProfile): string[] {
   const held = (profile: ReadingProfile, list: ProfileList) =>
     new Set(profile[list].map((item) => keyOf(item)));
@@ -108,14 +111,14 @@ function changesBetween(before: ReadingProfile, after: ReadingProfile): string[]
     for (const item of added) addedKeys.add(keyOf(item));
     if (added.length > 0) parts.push(`${name}: ${added.join(', ')}`);
   }
-  const removed: string[] = [];
-  for (const [list] of names) {
+  // What went out of a list for good, list by list: an item that landed in another list is told there instead.
+  for (const [list, name] of names) {
     const now = held(after, list);
-    for (const item of before[list]) {
-      if (!now.has(keyOf(item)) && !addedKeys.has(keyOf(item))) removed.push(item);
-    }
+    const removed = before[list].filter(
+      (item) => !now.has(keyOf(item)) && !addedKeys.has(keyOf(item)),
+    );
+    if (removed.length > 0) parts.push(`Removed from ${name}: ${removed.join(', ')}`);
   }
-  if (removed.length > 0) parts.push(`Removed: ${removed.join(', ')}`);
   return parts;
 }
 
@@ -125,7 +128,12 @@ export function stubAnswer(
   profile: ReadingProfile,
 ): { reply: string; edits: ProfileEdit[] } {
   const edits = stubEdits(message);
-  const changes = changesBetween(profile, applyEdits(profile, edits).profile);
+  // The same rules as the handler's: with the formats' names, a format word goes to Formats (decision 11), and
+  // the reply tells what that did to the profile, never what the stand-in's edits said.
+  const changes = changesBetween(
+    profile,
+    applyEdits(profile, edits, { formatNames: STUB_FORMATS }).profile,
+  );
   const reply =
     changes.length > 0
       ? `${STUB_LABEL} ${changes.join('; ')}`

@@ -13,6 +13,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { newRecordId } from '@/lib/record-id.ts';
 import { resetSocialCache } from '@/lib/social/cache.ts';
 import { localDatabaseOrThrow } from '@/lib/social/local-database.ts';
+import { STUB_FORMATS } from '@/lib/social/reader-ai/stub.ts';
 
 /**
  * The reader agent's calls against a real database (docs/social/r12-design.md, sections 3.8 and 6.2): the real
@@ -730,6 +731,11 @@ describe.skipIf(!url)('the profile in the code and in the database', () => {
     }
     return profiles;
   }
+
+  it('has the stand-in’s eight formats the same as the database’s, so a new format can not make its reply disagree with the saved profile', async () => {
+    const { rows } = await owner.query('select lower(name) as name from social.formats');
+    expect([...STUB_FORMATS].sort()).toEqual(rows.map((row) => String(row.name)).sort());
+  });
 
   it('accepts every profile the code writes, from a generated set and the edges', async () => {
     const edges: ReadingProfile[] = [

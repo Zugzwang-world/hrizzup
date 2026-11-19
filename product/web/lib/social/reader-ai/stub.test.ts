@@ -55,6 +55,53 @@ describe('the stand-in', () => {
     );
   });
 
+  it('tells the truth about a format word: "no memes" takes memes out of Formats, and says so, never "Less of: memes"', () => {
+    // The stand-in's edit is a plain add to Less of; `applyEdits` reads it as the format it is (decision 11).
+    expect(stubEdits('no memes')).toEqual([{ op: 'add', list: 'less', item: 'memes' }]);
+    const liked = { more: ['AI'], less: [], formats: ['timelines', 'memes'] };
+    expect(stubAnswer('no memes', liked).reply).toBe(`${STUB_LABEL} Removed from Formats: memes`);
+    // Nothing to take out: it says it found nothing, rather than a change that didn't happen.
+    expect(stubAnswer('no memes', { more: ['AI'], less: [], formats: [] }).reply).toBe(
+      `${STUB_LABEL} I didn't find anything to change: try "more cricket, no crypto".`,
+    );
+    // Whatever spelling Formats holds, and wherever else the format sat: out of every list, each told.
+    expect(
+      stubAnswer('less memes', { more: [], less: ['memes'], formats: ['Meme', 'timelines'] }).reply,
+    ).toBe(`${STUB_LABEL} Removed from Less of: memes; Removed from Formats: Meme`);
+    // Beside a real addition: the additions are told first, then what came out.
+    expect(stubAnswer('no memes, no crypto', liked).reply).toBe(
+      `${STUB_LABEL} Less of: crypto; Removed from Formats: memes`,
+    );
+    // Removal words say where it came out of, list by list.
+    expect(
+      stubAnswer('forget crypto', { more: ['crypto'], less: ['crypto'], formats: [] }).reply,
+    ).toBe(`${STUB_LABEL} Removed from More of: crypto; Removed from Less of: crypto`);
+    // The reply tells what the handler's `applyEdits` (with the same names) does to the profile.
+    const done = applyEdits(liked, stubEdits('no memes, no crypto'), {
+      formatNames: [
+        'timeline',
+        'meme',
+        'explainer',
+        'breakdown',
+        'infographic',
+        'audio brief',
+        'translation',
+        'source check',
+      ],
+    });
+    expect(done.profile).toEqual({ more: ['AI'], less: ['crypto'], formats: ['timelines'] });
+  });
+
+  it('moves a format the profile holds under More of into Formats, and says it landed there', () => {
+    expect(
+      stubAnswer('timelines', { more: ['AI', 'timelines'], less: [], formats: [] }).reply,
+    ).toBe(`${STUB_LABEL} Formats: timelines`);
+    // Said again with it already in Formats, only the stale copy under More of goes.
+    expect(
+      stubAnswer('timelines', { more: ['timelines'], less: [], formats: ['timelines'] }).reply,
+    ).toBe(`${STUB_LABEL} Removed from More of: timelines`);
+  });
+
   it('reads each kind of clause: less words, remove words, formats and more words', () => {
     expect(stubEdits('no more crypto')).toEqual([{ op: 'add', list: 'less', item: 'crypto' }]);
     expect(

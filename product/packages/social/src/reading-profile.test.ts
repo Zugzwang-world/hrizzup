@@ -13,6 +13,395 @@ import {
   writeProfile,
 } from './reading-profile.ts';
 
+describe('applyEdits, with the formats’ names: a format word always goes to Formats', () => {
+  const formatNames = [
+    'Breakdown',
+    'Timeline',
+    'Explainer',
+    'Meme',
+    'Audio brief',
+    'Infographic',
+    'Translation',
+    'Source check',
+  ];
+  const add = (list: 'more' | 'less' | 'formats', item: string) => ({ op: 'add', list, item });
+  const remove = (list: 'more' | 'less' | 'formats', item: string) => ({
+    op: 'remove',
+    list,
+    item,
+  });
+  const apply = (start: ReadingProfile, edits: unknown[]) =>
+    applyEdits(start, edits, { formatNames });
+
+  it('sends a format added to More of to Formats, as the reader wrote it', () => {
+    expect(apply(profileOf(['AI']), [add('more', 'timelines'), add('more', 'Memes')])).toEqual({
+      profile: profileOf(['AI'], [], ['timelines', 'Memes']),
+      applied: 2,
+      dropped: 0,
+    });
+    // The founder's own sentence, the way a small model answers it.
+    expect(
+      apply(emptyProfile(), [
+        add('more', 'AI news'),
+        add('more', 'the Philippines'),
+        add('more', 'timelines'),
+        add('more', 'memes'),
+        add('less', 'crypto'),
+      ]),
+    ).toEqual({
+      profile: profileOf(['AI news', 'the Philippines'], ['crypto'], ['timelines', 'memes']),
+      applied: 5,
+      dropped: 0,
+    });
+  });
+
+  it('reads a format of two words, and the plural by an s or an es, as For You does', () => {
+    expect(apply(emptyProfile(), [add('more', 'Audio briefs')]).profile).toEqual(
+      profileOf([], [], ['Audio briefs']),
+    );
+    expect(apply(emptyProfile(), [add('more', 'the source check')]).profile).toEqual(
+      profileOf([], [], ['the source check']),
+    );
+    expect(apply(emptyProfile(), [add('more', 'ＴＩＭＥＬＩＮＥＳ')]).profile.formats).toHaveLength(
+      1,
+    );
+    // An "es" plural: a name that ends in "x" or "ch" is read both ways.
+    expect(
+      applyEdits(emptyProfile(), [add('more', 'matches')], { formatNames: ['Match'] }).profile,
+    ).toEqual(profileOf([], [], ['matches']));
+  });
+
+  it('leaves an item that is not a format where it was named: a word alone, an extra word, two formats in one item', () => {
+    for (const item of [
+      'AI',
+      'brief',
+      'audio',
+      'check',
+      'timeline stories',
+      'memes and timelines',
+    ]) {
+      expect(apply(emptyProfile(), [add('more', item)]).profile).toEqual(profileOf([item]));
+    }
+    expect(apply(emptyProfile(), [add('less', 'audio')]).profile).toEqual(profileOf([], ['audio']));
+    // An item with no words left (only stop words) is no format.
+    expect(apply(emptyProfile(), [add('more', 'the news')]).profile).toEqual(
+      profileOf(['the news']),
+    );
+  });
+
+  it('turns a format added to Less of into a remove from Formats, and never adds it to Less of or More of', () => {
+    expect(
+      apply(profileOf(['AI'], ['crypto'], ['timelines', 'memes']), [add('less', 'memes')]),
+    ).toEqual({
+      profile: profileOf(['AI'], ['crypto'], ['timelines']),
+      applied: 1,
+      dropped: 0,
+    });
+    // The same format under another spelling goes too: "no memes" takes out "Meme".
+    expect(apply(profileOf([], [], ['Meme', 'timelines']), [add('less', 'memes')]).profile).toEqual(
+      profileOf([], [], ['timelines']),
+    );
+    // A format the profile doesn't hold is a no-op, not dropped, and Less of stays as it was.
+    expect(apply(profileOf(['AI'], ['crypto']), [add('less', 'memes')])).toEqual({
+      profile: profileOf(['AI'], ['crypto']),
+      applied: 0,
+      dropped: 0,
+    });
+  });
+
+  it('takes a format removed from More of or Less of out of Formats too', () => {
+    expect(
+      apply(profileOf(['AI', 'timelines'], [], ['timelines', 'memes']), [
+        remove('more', 'timelines'),
+      ]),
+    ).toEqual({
+      profile: profileOf(['AI'], [], ['memes']),
+      applied: 1,
+      dropped: 0,
+    });
+    expect(apply(profileOf([], ['memes'], ['memes']), [remove('less', 'Memes')]).profile).toEqual(
+      profileOf(),
+    );
+    // Only from Formats: one operation, applied once.
+    expect(apply(profileOf([], [], ['memes']), [remove('more', 'memes')])).toEqual({
+      profile: profileOf(),
+      applied: 1,
+      dropped: 0,
+    });
+    expect(apply(profileOf(['AI']), [remove('more', 'memes')])).toEqual({
+      profile: profileOf(['AI']),
+      applied: 0,
+      dropped: 0,
+    });
+  });
+
+  it('reads an operation that names Formats as it is, but for a format word added there, and any item that is not a format', () => {
+    const start = profileOf(['AI'], ['crypto'], ['memes']);
+    expect(apply(start, [add('formats', 'timelines'), remove('formats', 'memes')])).toEqual({
+      profile: profileOf(['AI'], ['crypto'], ['timelines']),
+      applied: 2,
+      dropped: 0,
+    });
+    expect(
+      apply(start, [add('more', 'cricket'), add('less', 'golf'), remove('more', 'AI')]),
+    ).toEqual(
+      applyEdits(start, [add('more', 'cricket'), add('less', 'golf'), remove('more', 'AI')]),
+    );
+    // Naming Formats directly is read as it is for an item that is no format name, and for a remove.
+    expect(apply(start, [add('formats', 'AI')]).profile.formats).toEqual(['memes', 'AI']);
+  });
+
+  it('counts the same format under another spelling as already there', () => {
+    expect(apply(profileOf([], [], ['Meme']), [add('more', 'memes')])).toEqual({
+      profile: profileOf([], [], ['Meme']),
+      applied: 0,
+      dropped: 0,
+    });
+  });
+
+  it('moves a format word the profile already holds under More of or Less of, in any spelling, and never copies it', () => {
+    // "timelines" under More of, the model adds it to More of: Formats holds it, More of no longer does.
+    expect(apply(profileOf(['AI', 'timelines']), [add('more', 'timelines')])).toEqual({
+      profile: profileOf(['AI'], [], ['timelines']),
+      applied: 1,
+      dropped: 0,
+    });
+    // Another spelling of it, under both lists, and in Formats already: only the two others go.
+    expect(
+      apply(profileOf(['Timeline'], ['timelines'], ['TIMELINES']), [add('more', 'timeline')]),
+    ).toEqual({ profile: profileOf([], [], ['TIMELINES']), applied: 1, dropped: 0 });
+    // "memes" under Less of and "no memes": gone from both, whichever spelling Formats holds.
+    expect(apply(profileOf(['AI'], ['crypto', 'memes']), [add('less', 'memes')])).toEqual({
+      profile: profileOf(['AI'], ['crypto']),
+      applied: 1,
+      dropped: 0,
+    });
+    expect(apply(profileOf([], ['memes'], ['Meme']), [add('less', 'Memes')])).toEqual({
+      profile: profileOf(),
+      applied: 1,
+      dropped: 0,
+    });
+    // "memes" under More of and a "no memes": gone from More of too.
+    expect(apply(profileOf(['memes', 'AI']), [add('less', 'memes')]).profile).toEqual(
+      profileOf(['AI']),
+    );
+    // A remove names one list and takes the format out of all three.
+    expect(apply(profileOf(['memes'], ['Meme'], ['memes']), [remove('more', 'memes')])).toEqual({
+      profile: profileOf(),
+      applied: 1,
+      dropped: 0,
+    });
+    // More of's own adds are unchanged: an item that is no format stays, and moves from Less of as before.
+    expect(apply(profileOf(['timelines'], ['crypto']), [add('more', 'crypto')]).profile).toEqual(
+      profileOf(['timelines', 'crypto'], [], []),
+    );
+  });
+
+  it('moves nothing when the add is dropped: a full Formats list leaves the item under More of', () => {
+    const full = profileOf(
+      ['timelines'],
+      [],
+      Array.from({ length: 20 }, (_, i) => `format ${i}`),
+    );
+    expect(apply(full, [add('more', 'timelines')])).toEqual({
+      profile: full,
+      applied: 0,
+      dropped: 1,
+    });
+    // But when Formats already holds the format, the add is no drop: it clears More of.
+    const holds = profileOf(
+      ['timelines'],
+      [],
+      ['Timeline', ...Array.from({ length: 19 }, (_, i) => `format ${i}`)],
+    );
+    expect(apply(holds, [add('more', 'timelines')])).toMatchObject({
+      profile: { ...holds, more: [] },
+      applied: 1,
+      dropped: 0,
+    });
+  });
+
+  it('moves a format word added to Formats itself too, as an add to More of does: out of More of and Less of, never copied', () => {
+    // The old behaviour kept "timelines" under More of as well as in Formats.
+    expect(apply(profileOf(['AI', 'timelines']), [add('formats', 'timelines')])).toEqual({
+      profile: profileOf(['AI'], [], ['timelines']),
+      applied: 1,
+      dropped: 0,
+    });
+    // Any spelling, from both lists; the format already in Formats under another spelling is kept as it is.
+    expect(
+      apply(profileOf(['Timeline'], ['timelines'], ['TIMELINES']), [add('formats', 'timeline')]),
+    ).toEqual({ profile: profileOf([], [], ['TIMELINES']), applied: 1, dropped: 0 });
+    // A format already in Formats and nowhere else is a no-op, as ever.
+    expect(apply(profileOf([], [], ['memes']), [add('formats', 'memes')])).toEqual({
+      profile: profileOf([], [], ['memes']),
+      applied: 0,
+      dropped: 0,
+    });
+    // An add that is dropped moves nothing: a full Formats list, or an item the stored form refuses.
+    const full = profileOf(
+      ['timelines'],
+      [],
+      Array.from({ length: 20 }, (_, i) => `format ${i}`),
+    );
+    expect(apply(full, [add('formats', 'timelines')])).toEqual({
+      profile: full,
+      applied: 0,
+      dropped: 1,
+    });
+    expect(
+      apply(profileOf(['timelines']), [add('formats', `timelines${ZWJ}`), add('formats', 'memes')]),
+    ).toEqual({ profile: profileOf(['timelines'], [], ['memes']), applied: 1, dropped: 1 });
+    // A remove naming Formats is read as it is: only that list, only that item.
+    expect(
+      apply(profileOf(['timelines'], ['timelines'], ['timelines']), [
+        remove('formats', 'timelines'),
+      ]).profile,
+    ).toEqual(profileOf(['timelines'], ['timelines']));
+    // With no names, an add to Formats is as it was.
+    expect(applyEdits(profileOf(['timelines']), [add('formats', 'timelines')]).profile).toEqual(
+      profileOf(['timelines'], [], ['timelines']),
+    );
+  });
+
+  it('gives the same profile whichever order the model removes and adds the same format: a move is not undone', () => {
+    const both = (start: ReadingProfile, edits: unknown[]) => {
+      const forward = apply(start, edits).profile;
+      const backward = apply(start, [...edits].reverse()).profile;
+      expect(backward).toEqual(forward);
+      return forward;
+    };
+    // The prompt's way to move an item: remove it from one list, add it to the other.
+    expect(
+      both(profileOf(['AI', 'timelines']), [
+        remove('more', 'timelines'),
+        add('formats', 'timelines'),
+      ]),
+    ).toEqual(profileOf(['AI'], [], ['timelines']));
+    expect(
+      both(profileOf(['AI', 'timelines']), [remove('more', 'timelines'), add('more', 'timelines')]),
+    ).toEqual(profileOf(['AI'], [], ['timelines']));
+    // From Less of, and in another spelling; Formats already holding it keeps it.
+    expect(
+      both(profileOf([], ['memes'], ['Meme']), [remove('less', 'memes'), add('formats', 'Memes')]),
+    ).toEqual(profileOf([], [], ['Meme']));
+    expect(
+      both(profileOf(['timelines'], [], ['timelines']), [
+        remove('more', 'timelines'),
+        add('formats', 'timelines'),
+      ]),
+    ).toEqual(profileOf([], [], ['timelines']));
+    // The mirror: a move from Formats to More of. The remove of what the answer adds is nothing, in either order.
+    expect(
+      both(profileOf([], [], ['timelines']), [
+        remove('formats', 'timelines'),
+        add('more', 'timelines'),
+      ]),
+    ).toEqual(profileOf([], [], ['timelines']));
+    expect(
+      both(profileOf([], [], ['Timeline']), [
+        remove('formats', 'Timeline'),
+        add('more', 'timelines'),
+      ]),
+    ).toEqual(profileOf([], [], ['Timeline']));
+    expect(
+      both(profileOf([], [], ['timelines']), [
+        remove('formats', 'timelines'),
+        add('formats', 'timelines'),
+      ]),
+    ).toEqual(profileOf([], [], ['timelines']));
+    expect(
+      both(profileOf(['AI'], [], ['memes']), [
+        remove('formats', 'memes'),
+        add('more', 'timelines'),
+      ]),
+    ).toEqual(profileOf(['AI'], [], ['timelines']));
+    // An add of a different format does not shield the remove: only the format the answer adds is kept.
+    expect(
+      both(profileOf(['memes'], [], ['memes']), [
+        remove('more', 'memes'),
+        add('formats', 'timelines'),
+      ]),
+    ).toEqual(profileOf([], [], ['timelines']));
+    // The remove alone, with no add of that format in the answer, still takes it out of all three.
+    expect(
+      both(profileOf(['timelines', 'AI'], [], ['timelines']), [
+        remove('more', 'timelines'),
+        remove('more', 'AI'),
+      ]),
+    ).toEqual(profileOf());
+    // The profile is the same in either order; only the count differs, as a count of operations that changed
+    // something always does: the add that comes first has already moved the item, so the remove finds nothing.
+    const edits = [add('formats', 'timelines'), remove('more', 'timelines')];
+    expect(apply(profileOf(['timelines']), edits)).toMatchObject({ applied: 1, dropped: 0 });
+    expect(apply(profileOf(['timelines']), [...edits].reverse())).toMatchObject({
+      applied: 2,
+      dropped: 0,
+    });
+    // An add to Less of is not an add that keeps Formats: "no timelines" still takes it out.
+    expect(
+      apply(profileOf(['timelines'], [], ['timelines']), [
+        remove('more', 'timelines'),
+        add('less', 'timelines'),
+      ]).profile,
+    ).toEqual(profileOf());
+  });
+
+  it('applies the edits as they come with no format names, or an empty list, as before', () => {
+    const edits = [add('more', 'timelines'), add('less', 'memes'), remove('more', 'x')];
+    const as = applyEdits(emptyProfile(), edits);
+    expect(as.profile).toEqual(profileOf(['timelines'], ['memes']));
+    expect(applyEdits(emptyProfile(), edits, {})).toEqual(as);
+    expect(applyEdits(emptyProfile(), edits, { formatNames: [] })).toEqual(as);
+    // A name with no words in it is never a match.
+    expect(applyEdits(emptyProfile(), edits, { formatNames: ['', 'the'] })).toEqual(as);
+  });
+
+  it('drops the rerouted add as any add is when Formats is full, and leaves the rest', () => {
+    const full = profileOf(
+      ['AI'],
+      [],
+      Array.from({ length: 20 }, (_, i) => `format ${i}`),
+    );
+    expect(apply(full, [add('more', 'timelines'), add('more', 'cricket')])).toEqual({
+      profile: { ...full, more: ['AI', 'cricket'] },
+      applied: 1,
+      dropped: 1,
+    });
+  });
+
+  it('drops a rerouted add the stored form refuses, and keeps the old profile when the result is too long', () => {
+    // "timelines" and a joiner after it: still the format's one word, so it is the rerouted add that the stored form
+    // refuses, on its own (a plain drop keeps the rest; the whole-profile check would drop every operation).
+    expect(
+      apply(profileOf(['timelines']), [add('more', `timelines${ZWJ}`), add('more', 'cricket')]),
+    ).toEqual({
+      profile: profileOf(['timelines', 'cricket']),
+      applied: 1,
+      dropped: 1,
+    });
+    expect(apply(emptyProfile(), [add('more', 'timelines')]).profile.formats).toEqual([
+      'timelines',
+    ]);
+    // 1,908 characters: one more 60-character item fits (1,971), two do not (2,034). More of has room for one.
+    const near = profileOf(
+      Array.from({ length: 19 }, (_, i) => `${String(i).padStart(2, '0')}${'x'.repeat(30)}`),
+      Array.from({ length: 20 }, (_, i) => `${String(i).padStart(2, '0')}${'y'.repeat(30)}`),
+      Array.from({ length: 14 }, (_, i) => `${String(i).padStart(2, '0')}${'z'.repeat(30)}`),
+    );
+    expect(writeProfile(near)).toHaveLength(1908);
+    const edits = [add('more', 'a'.repeat(60)), add('more', 'b'.repeat(60))];
+    // Without the names both go to More of: the first fits, the second finds More of full.
+    const plain = applyEdits(near, edits);
+    expect(plain.profile.more).toHaveLength(20);
+    expect(plain).toMatchObject({ applied: 1, dropped: 1 });
+    // With them both go to Formats, which has room: it is the whole profile's length that refuses them.
+    const done = applyEdits(near, edits, { formatNames: ['a'.repeat(60), 'b'.repeat(60)] });
+    expect(done.profile).toEqual(near);
+    expect(done).toMatchObject({ applied: 0, dropped: 2 });
+  });
+});
+
 /**
  * The profiles in the reader agent's examples (the contract's `social/examples/readers.json`, which its own tests
  * hold to the contract's shapes; `readers.test.ts` of the website parses the examples themselves through this

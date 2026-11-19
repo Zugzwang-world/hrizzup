@@ -94,6 +94,7 @@ const redis = {
 const { router } = await import('../router.ts');
 const { resetSocialCache } = await import('@/lib/social/cache.ts');
 const { secondsToDayEnd, stateSeconds } = await import('./readers.ts');
+const { STUB_FORMATS } = await import('@/lib/social/reader-ai/stub.ts');
 
 const ORIGIN = 'https://abc-preview.hrizzup.test';
 const READER = '019a7b10-0000-7000-8000-0000000000a1';
@@ -247,6 +248,30 @@ const dels = () => redis.del.mock.calls.map((keys) => [...keys]);
 /** The answer that the settle was given, parsed back from what it was sent. */
 const settledWith = (index = 0) =>
   statementsOf('reader_chat_settle')[index]?.values?.[2] as Record<string, unknown>;
+
+/**
+ * The shared candidates' copy as Redis keeps it, holding Hrizzup's formats: a send that edits More of or Less of
+ * reads the formats' names from it (a cold copy is loaded from the database, as For You loads it).
+ */
+const FORMATS = {
+  breakdown: 'Breakdown',
+  timeline: 'Timeline',
+  explainer: 'Explainer',
+  meme: 'Meme',
+  'audio-brief': 'Audio brief',
+  infographic: 'Infographic',
+  translation: 'Translation',
+  'source-check': 'Source check',
+};
+const keepFormats = () =>
+  stored.set(BOARD_TOP_COPY, {
+    asOf: '2026-11-18T08:00:00.000Z',
+    halfLifeHours: '12',
+    matchHours: '24',
+    formatHours: '6',
+    formats: FORMATS,
+    stories: [],
+  });
 
 /** The database as it answers the five calls of a send, each by its function's name. */
 function database(
@@ -580,6 +605,7 @@ describe('reader.chat.send', () => {
   describe('with the stand-in (no token or no account)', () => {
     it('reserves, asks the stand-in, settles with explicit zeros and the edits it made, and answers the contract’s reply', async () => {
       database({ begin: reserved() });
+      keepFormats();
       const { run } = send();
       const reply = await run();
       expect(asked.map((statement) => statement.text)).toEqual([
@@ -609,6 +635,43 @@ describe('reader.chat.send', () => {
       expect(reply.usage.messagesToday).toBe(1);
       expect(reply.allowance.neuronsUsed).toBe('5.365375');
       expect(reply.holdsSomething).toBe(true);
+    });
+
+    it('reroutes a format word as it does for the model: "no memes" takes memes out of Formats and never into Less of', async () => {
+      keepFormats();
+      database({
+        begin: reserved({ profile: { body: profileWith(['AI'], [], ['memes']), number: 1 } }),
+      });
+      await api().call.reader.chat.send({ requestId: REQUEST, body: 'no memes' });
+      expect(settledWith()).toMatchObject({
+        reply: "(Stand-in, Workers AI isn't set up here.) Removed from Formats: memes",
+        profile: { base_number: 1, body: profileWith(['AI']) },
+      });
+    });
+
+    it('has the stand-in’s list of formats the same as the eight in this file’s copy of the migration’s `social.formats`', () => {
+      expect([...STUB_FORMATS].sort()).toEqual(
+        Object.values(FORMATS)
+          .map((name) => name.toLowerCase())
+          .sort(),
+      );
+    });
+
+    it('reads a format word by its own list when the candidates can not be read, so its reply and the saved profile agree', async () => {
+      database({
+        begin: reserved({ profile: { body: profileWith(['AI'], [], ['memes']), number: 1 } }),
+      });
+      const settle = answer;
+      answer = (statement) =>
+        statement.text.includes('foryou_candidates')
+          ? fault('57014', 'canceling statement due to statement timeout')
+          : settle(statement);
+      await api().call.reader.chat.send({ requestId: REQUEST, body: 'no memes' });
+      expect(settledWith()).toMatchObject({
+        reply: "(Stand-in, Workers AI isn't set up here.) Removed from Formats: memes",
+        profile: { base_number: 1, body: profileWith(['AI']) },
+      });
+      expect(console.error).toHaveBeenCalledWith('{"event":"reader_format_names_failed"}');
     });
 
     it('is the stand-in when only the token is missing, or only the account ID, or one is empty', async () => {
@@ -1063,6 +1126,276 @@ describe('reader.chat.send', () => {
     });
   });
 
+  describe('a format word always goes to Formats, whatever list the model named (decision 11)', () => {
+    beforeEach(withWorkersAi);
+
+    /** The model's answer as the 3B model gives it on staging: the formats under More of. */
+    const SLIPPED = {
+      reply: 'Done: more AI and crypto, mostly timelines, no politics.',
+      edits: [
+        { op: 'add', list: 'more', item: 'AI' },
+        { op: 'add', list: 'more', item: 'crypto' },
+        { op: 'add', list: 'more', item: 'timelines' },
+        { op: 'add', list: 'less', item: 'politics' },
+        { op: 'add', list: 'less', item: 'memes' },
+      ],
+    };
+
+    it('settles the formats the model put under More of or Less of as Formats, reading the names from the shared candidates’ copy', async () => {
+      fetcher.mockResolvedValueOnce(cloudflare({ response: SLIPPED }));
+      keepFormats();
+      database({
+        begin: reserved({ profile: { body: profileWith([], [], ['memes']), number: 4 } }),
+      });
+      const reply = await send().run();
+      expect(settledWith()).toMatchObject({
+        reply: SLIPPED.reply,
+        // "timelines" is in Formats, not More of; "memes" under Less of took Formats' "memes" out and is not in Less of.
+        profile: {
+          base_number: 4,
+          body: profileWith(['AI', 'crypto'], ['politics'], ['timelines']),
+        },
+      });
+      expect(reply.profileChanged).toBe(true);
+      // The copy was warm: one read of it, and no trip to the database for it.
+      expect(events.filter((event) => event === `redis get ${BOARD_TOP_COPY}`)).toHaveLength(1);
+      expect(statementsOf('foryou_candidates')).toHaveLength(0);
+      expect(fetcher).toHaveBeenCalledTimes(1);
+    });
+
+    it('moves a format the profile already holds under More of or Less of, instead of copying it', async () => {
+      fetcher.mockResolvedValueOnce(
+        cloudflare({
+          response: {
+            reply: 'Done: timelines, and no memes.',
+            edits: [
+              { op: 'add', list: 'more', item: 'timelines' },
+              { op: 'add', list: 'less', item: 'memes' },
+            ],
+          },
+        }),
+      );
+      keepFormats();
+      database({
+        begin: reserved({
+          profile: {
+            body: profileWith(['AI', 'timelines'], ['crypto', 'memes'], ['Meme']),
+            number: 6,
+          },
+        }),
+      });
+      await send().run();
+      expect(settledWith()).toMatchObject({
+        profile: { base_number: 6, body: profileWith(['AI'], ['crypto'], ['timelines']) },
+      });
+    });
+
+    it('loads a cold copy from the database, as For You does, and keeps it for a minute for everyone', async () => {
+      fetcher.mockResolvedValueOnce(cloudflare({ response: SLIPPED }));
+      database({ begin: reserved() });
+      const settle = answer;
+      answer = (statement) =>
+        statement.text.includes('foryou_candidates') ? candidatesRow() : settle(statement);
+      await send().run();
+      expect(settledWith()).toMatchObject({
+        profile: { body: profileWith(['AI', 'crypto'], ['politics'], ['timelines']) },
+      });
+      expect(statementsOf('foryou_candidates')).toHaveLength(1);
+      expect(events).toContain(`redis set ${BOARD_TOP_COPY} ex 60`);
+      expect(JSON.stringify(stored.get(BOARD_TOP_COPY))).not.toContain(READER);
+      // The model's call, then the read, then the settle: nothing is held across the provider's call.
+      expect(
+        asked.map((statement) => statement.text.match(/reader_chat_\w+|foryou_candidates/)?.[0]),
+      ).toEqual(['reader_chat_begin', 'foryou_candidates', 'reader_chat_settle']);
+    });
+
+    it('still settles when the candidates can not be read, applying the edits as the model gave them, with one line that holds nothing of the reader', async () => {
+      fetcher.mockResolvedValueOnce(cloudflare({ response: SLIPPED }));
+      database({ begin: reserved() });
+      const settle = answer;
+      answer = (statement) =>
+        statement.text.includes('foryou_candidates')
+          ? fault('57014', 'canceling statement due to statement timeout')
+          : settle(statement);
+      const reply = await send().run();
+      expect(settledWith()).toMatchObject({
+        profile: {
+          body: profileWith(['AI', 'crypto', 'timelines'], ['politics', 'memes']),
+        },
+      });
+      expect(reply.profileChanged).toBe(true);
+      expect(statementsOf('reader_chat_fail')).toHaveLength(0);
+      expect(console.error).toHaveBeenCalledWith('{"event":"reader_format_names_failed"}');
+    });
+
+    it('still settles when the copy Redis holds is not a copy of the candidates', async () => {
+      fetcher.mockResolvedValueOnce(cloudflare({ response: SLIPPED }));
+      stored.set(BOARD_TOP_COPY, { formats: 'timeline, meme' });
+      database({ begin: reserved() });
+      await send().run();
+      expect(settledWith()).toMatchObject({
+        profile: { body: profileWith(['AI', 'crypto', 'timelines'], ['politics', 'memes']) },
+      });
+    });
+
+    it('moves a format the model did put under Formats too, when the profile holds it under More of', async () => {
+      fetcher.mockResolvedValueOnce(
+        cloudflare({
+          response: {
+            reply: 'Done: mostly timelines.',
+            edits: [{ op: 'add', list: 'formats', item: 'timelines' }],
+          },
+        }),
+      );
+      keepFormats();
+      database({
+        begin: reserved({ profile: { body: profileWith(['AI', 'timelines']), number: 7 } }),
+      });
+      await send().run();
+      expect(settledWith()).toMatchObject({
+        profile: { base_number: 7, body: profileWith(['AI'], [], ['timelines']) },
+      });
+      expect(events.filter((event) => event === `redis get ${BOARD_TOP_COPY}`)).toHaveLength(1);
+    });
+
+    it('reads nothing when every operation is a remove from Formats, which is read as it is', async () => {
+      fetcher.mockResolvedValueOnce(
+        cloudflare({
+          response: {
+            reply: 'Done: no more timelines.',
+            edits: [{ op: 'remove', list: 'formats', item: 'timelines' }],
+          },
+        }),
+      );
+      database({
+        begin: reserved({
+          profile: { body: profileWith(['timelines'], [], ['timelines']), number: 2 },
+        }),
+      });
+      await send().run();
+      expect(settledWith()).toMatchObject({
+        profile: { base_number: 2, body: profileWith(['timelines']) },
+      });
+      expect(events.filter((event) => event.includes(BOARD_TOP_COPY))).toEqual([]);
+      expect(statementsOf('foryou_candidates')).toHaveLength(0);
+    });
+
+    it.each([
+      ['remove, then add', 'remove-first'],
+      ['add, then remove', 'add-first'],
+    ])(
+      'moves an item the same way in either order, and again on a stale re-apply (%s)',
+      async (_name, order) => {
+        const moveUp = [
+          { op: 'remove', list: 'more', item: 'timelines' },
+          { op: 'add', list: 'formats', item: 'timelines' },
+        ];
+        fetcher.mockResolvedValueOnce(
+          cloudflare({
+            response: {
+              reply: 'Done: timelines are a format now.',
+              edits: order === 'remove-first' ? moveUp : [...moveUp].reverse(),
+            },
+          }),
+        );
+        keepFormats();
+        database({
+          begin: reserved({ profile: { body: profileWith(['AI', 'timelines']), number: 3 } }),
+          settle: [
+            {
+              state: 'stale',
+              profile: { body: profileWith(['golf', 'timelines'], [], ['Timeline']), number: 5 },
+            },
+            { state: 'done', answer: answerRow() },
+          ],
+        });
+        await send().run();
+        expect(settledWith(0)).toMatchObject({
+          profile: { base_number: 3, body: profileWith(['AI'], [], ['timelines']) },
+        });
+        // The profile it moved to held "Timeline" in Formats already, and "timelines" under More of.
+        expect(settledWith(1)).toMatchObject({
+          profile: { base_number: 5, body: profileWith(['golf'], [], ['Timeline']) },
+        });
+      },
+    );
+
+    it.each([
+      ['remove, then add', 'remove-first'],
+      ['add, then remove', 'add-first'],
+    ])(
+      'moves an item from Formats to More of the same way in either order, stale re-apply included (%s)',
+      async (_name, order) => {
+        const moveDown = [
+          { op: 'remove', list: 'formats', item: 'timelines' },
+          { op: 'add', list: 'more', item: 'timelines' },
+        ];
+        fetcher.mockResolvedValueOnce(
+          cloudflare({
+            response: {
+              reply: 'Done: timelines.',
+              edits: order === 'remove-first' ? moveDown : [...moveDown].reverse(),
+            },
+          }),
+        );
+        keepFormats();
+        database({
+          // It holds the word in both lists, as a profile from before the rule may: the move clears More of only.
+          begin: reserved({
+            profile: { body: profileWith(['AI', 'timelines'], [], ['timelines']), number: 3 },
+          }),
+          settle: [
+            {
+              state: 'stale',
+              profile: {
+                body: profileWith(['golf', 'timelines'], [], ['Timeline', 'memes']),
+                number: 5,
+              },
+            },
+            { state: 'done', answer: answerRow() },
+          ],
+        });
+        await send().run();
+        // Formats keeps it (a format word is moved to Formats, never to More of), in either order.
+        expect(settledWith(0)).toMatchObject({
+          profile: { base_number: 3, body: profileWith(['AI'], [], ['timelines']) },
+        });
+        expect(settledWith(1)).toMatchObject({
+          profile: { base_number: 5, body: profileWith(['golf'], [], ['Timeline', 'memes']) },
+        });
+      },
+    );
+
+    it('reads once and gives the same names to every re-apply after a stale settle', async () => {
+      fetcher.mockResolvedValueOnce(cloudflare({ response: SLIPPED }));
+      keepFormats();
+      database({
+        begin: reserved({ profile: { body: profileWith(['golf']), number: 3 } }),
+        settle: [
+          { state: 'stale', profile: { body: profileWith(['golf'], [], ['Meme']), number: 5 } },
+          { state: 'done', answer: answerRow() },
+        ],
+      });
+      await send().run();
+      expect(statementsOf('reader_chat_settle')).toHaveLength(2);
+      expect(settledWith(0)).toMatchObject({
+        profile: {
+          base_number: 3,
+          body: profileWith(['golf', 'AI', 'crypto'], ['politics'], ['timelines']),
+        },
+      });
+      // The profile it moved to held "Meme": "no memes" took that out, and "timelines" went to Formats again.
+      expect(settledWith(1)).toMatchObject({
+        profile: {
+          base_number: 5,
+          body: profileWith(['golf', 'AI', 'crypto'], ['politics'], ['timelines']),
+        },
+      });
+      expect(events.filter((event) => event === `redis get ${BOARD_TOP_COPY}`)).toHaveLength(1);
+      expect(fetcher).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('every reserved call is ended exactly once, whatever goes wrong after the reserve', () => {
     it('a bug of ours (a throw in the settle) ends the call as kept before the error goes out, with the reader’s copy forgotten', async () => {
       database({ begin: reserved(), settle: () => new Error('boom') });
@@ -1125,6 +1458,7 @@ describe('reader.chat.send', () => {
 
   it('leaves no statement holding the provider: the reserve and the settle are separate transactions', async () => {
     database({ begin: reserved() });
+    keepFormats();
     await send().run();
     // begin, commit, settle, commit: the provider (the stand-in here) ran between two commits.
     expect(events.filter((event) => event === 'commit')).toHaveLength(2);

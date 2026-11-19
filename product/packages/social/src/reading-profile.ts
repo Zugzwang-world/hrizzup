@@ -1,4 +1,5 @@
 import common from '@hrizzup/agreement/definitions/common.schema.json' with { type: 'json' };
+import { holds, itemWords, words } from './words.ts';
 
 /**
  * The reader's reading profile (docs/social/r12-design.md, sections 1.3, 2.3, 3.2 and 3.4; build.md 7.7):
@@ -292,6 +293,37 @@ const copyOf = (profile: ReadingProfile): ReadingProfile => ({
 /** The list an item moves out of when it is added to this one: More of and Less of exclude each other. */
 const OPPOSITE: Partial<Record<ProfileList, ProfileList>> = { more: 'less', less: 'more' };
 
+/** What else `applyEdits` is told: the names of the formats Hrizzup has ("Timeline", "Meme", "Audio brief"), so a format word is always read as one. */
+export type EditOptions = { formatNames?: readonly string[] };
+
+/** Takes every item `matching` out of a list; whether any went. */
+function takeOut(list: string[], matching: (held: string) => boolean): boolean {
+  let removed = false;
+  for (let at = list.length - 1; at >= 0; at--) {
+    if (matching(list[at] as string)) {
+      list.splice(at, 1);
+      removed = true;
+    }
+  }
+  return removed;
+}
+
+/**
+ * Whether an item is a format: its words are one format name's words, the same number in the same order, each
+ * one the name's word or that word with a final `s` or `es` (`holds`' rule, the one For You matches by). So
+ * "timelines", "Memes" and "audio briefs" are formats; "AI", "brief" and "memes and timelines" are not. Answers
+ * which format (its place in the list) so two items that are the same format can be told, or -1.
+ */
+function formatOf(item: string, formats: readonly (readonly string[])[]): number {
+  const own = itemWords(item);
+  if (own.length === 0) return -1;
+  return formats.findIndex(
+    (name) =>
+      name.length === own.length &&
+      own.every((word, at) => holds(new Set([name[at] as string]), word)),
+  );
+}
+
 /**
  * The agent's operations on a profile, in order, the first 10 only. Each is checked on its own:
  * - **add** tidies the item and applies the item rules; an item already in that list (compared without case)
@@ -301,12 +333,50 @@ const OPPOSITE: Partial<Record<ProfileList, ProfileList>> = { more: 'less', less
  * - anything that isn't an operation of this form is dropped.
  * When the result is over 2,000 characters (or isn't in the stored form), the old profile stays and every
  * operation counts as dropped.
+ *
+ * **A format word always goes to Formats** (`options.formatNames`; decision 11): a small model puts "timelines"
+ * under More of, and More of matches a story's own words, so only Formats lifts what a desk makes. An operation
+ * on More of or Less of whose item is a format is therefore read like this, whatever list the model named:
+ * - **add to More of** is an add to Formats, the item as the reader wrote it;
+ * - **add to Less of** is a remove from Formats, and is never added to Less of: a format a reader doesn't want is
+ *   not lifted, and never hides a story (decision 15);
+ * - **remove** from More of or Less of takes the format out of Formats as well, unless this answer adds that format
+ *   (to More of or to Formats): then it only clears More of and Less of; and a **remove from Formats** of a format
+ *   this answer adds does nothing. So "remove it from one list, add it to the other", the model's way to move an
+ *   item, gives the same profile in either order;
+ * - **a format word never stays under More of or Less of:** each of these, and an **add to Formats** of a format
+ *   word (the one case where the model named Formats), also takes that format, in any spelling ("Meme" for "memes",
+ *   by the word rule below), out of More of and Less of, so a profile that already holds "timelines" under More of
+ *   has it moved, not duplicated. An add that is dropped (Formats full, an item the stored form refuses) moves
+ *   nothing.
+ * An add to Formats of a format already there under another spelling is a no-op (More of and Less of are still
+ * cleared). A **remove from Formats** (but for a format this answer adds), and an item that isn't a format, are
+ * read as they are, and with no
+ * `formatNames` every operation is. What was rerouted is counted as any operation is: applied when it changed the
+ * profile, dropped when the add didn't fit, a no-op otherwise.
  */
-export function applyEdits(profile: ReadingProfile, edits: readonly unknown[]): EditsApplied {
+export function applyEdits(
+  profile: ReadingProfile,
+  edits: readonly unknown[],
+  options: EditOptions = {},
+): EditsApplied {
   const next = copyOf(profile);
+  const formats = (options.formatNames ?? [])
+    .map((name) => words(name))
+    .filter((own) => own.length > 0);
   let applied = 0;
   let dropped = 0;
   const read = edits.slice(0, MAX_EDITS);
+  // The formats this answer adds (to More of or to Formats): a remove of one of them leaves Formats alone, so
+  // "remove it from More of, add it to Formats" and "remove it from Formats, add it to More of" give the same
+  // profile in either order.
+  const adding = new Set<number>();
+  for (const edit of read) {
+    if (isEdit(edit) && edit.op === 'add' && edit.list !== 'less') {
+      const format = formatOf(cleanItem(edit.item), formats);
+      if (format >= 0) adding.add(format);
+    }
+  }
   for (const edit of read) {
     if (!isEdit(edit)) {
       dropped++;
@@ -314,6 +384,46 @@ export function applyEdits(profile: ReadingProfile, edits: readonly unknown[]): 
     }
     const item = cleanItem(edit.item);
     const key = keyOf(item);
+    // A remove from Formats of a format this answer adds is the other half of a move to More of or Formats: nothing.
+    if (edit.list === 'formats' && edit.op === 'remove' && adding.has(formatOf(item, formats))) {
+      continue;
+    }
+    // Which format the item is (-1: it isn't one). A remove from Formats is read as it is.
+    const format = edit.list === 'formats' && edit.op === 'remove' ? -1 : formatOf(item, formats);
+    if (format >= 0) {
+      // A format word never stays under More of or Less of: whatever the model named, the format (in any
+      // spelling) leaves both, and an add to More of or to Formats puts it in Formats.
+      const same = (held: string) => keyOf(held) === key || formatOf(held, formats) === format;
+      if (edit.op === 'remove' || edit.list === 'less') {
+        // The reader doesn't want this format lifted: out of all three lists, and never added to Less of.
+        let changed = takeOut(next.more, same);
+        changed = takeOut(next.less, same) || changed;
+        // A remove of a format this answer adds leaves Formats alone (it is the "move" half of the model's move).
+        if (edit.op === 'add' || !adding.has(format)) {
+          changed = takeOut(next.formats, same) || changed;
+        }
+        if (changed) applied++;
+        continue;
+      }
+      if (checkItem(item) !== null) {
+        dropped++;
+        continue;
+      }
+      const there = next.formats.some(same);
+      if (!there && next.formats.length >= MAX_ITEMS_A_LIST) {
+        dropped++;
+        continue;
+      }
+      // Moved, not copied: an add that is dropped leaves the item where it was.
+      let changed = takeOut(next.more, same);
+      changed = takeOut(next.less, same) || changed;
+      if (!there) {
+        next.formats.push(item);
+        changed = true;
+      }
+      if (changed) applied++;
+      continue;
+    }
     const list = next[edit.list];
     if (edit.op === 'remove') {
       const at = list.findIndex((held) => keyOf(held) === key);
