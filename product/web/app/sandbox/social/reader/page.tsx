@@ -16,7 +16,12 @@ export const metadata: Metadata = { title: { absolute: `Reader agent · ${brand.
 
 type Props = { searchParams: Promise<Query> };
 
-/** How many messages a page of the chat holds: small, so the page stays short at any text size. */
+/**
+ * How many messages a page of the chat holds. The chat is paged so the page's length is bounded, but twenty messages
+ * of 2,000 characters at 320 pixels and 200% text would pass 32,767 pixels (WebKit's screenshot limit). No check lays
+ * out such a page, so none reaches that limit: the Screen check opens this page signed out, and only the Chromium
+ * journey (`journeys/social-reader.spec.ts`) lays out a signed-in chat, with at most two messages of its own.
+ */
 const CHAT_PAGE = 20;
 
 /** The sandbox's primary button for a link, as My agent's sign-in link (`PRIMARY` without the disabled style). */

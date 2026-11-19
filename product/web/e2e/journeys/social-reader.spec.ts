@@ -64,7 +64,12 @@ type Tile = {
   places: string[];
 };
 
-type Usage = { messagesLeftToday: number; dailyMessages: number; resetsAt: string };
+type Usage = {
+  messagesLeftToday: number;
+  dailyMessages: number;
+  pausedUntil: string | null;
+  resetsAt: string;
+};
 type State = {
   profile: string;
   holdsSomething: boolean;
@@ -172,12 +177,17 @@ type Pick = {
 
 /**
  * What to save, from stories that are both on the board and in For You as it stands (the candidates copy may be a
- * minute behind the board, so only a story in both is picked): two that differ (a word of the first that the second's
- * words don't match is "Less of", a word of the second the first's don't match is "More of"), or one (its word is
- * "Less of"), or none ("More of cricket").
+ * minute behind the board, so only a story in both is picked, and its words are For You's own tile's, which is what
+ * the build reads): two that differ (a word of the first that the second's words don't match is "Less of", a word
+ * of the second the first's don't match is "More of"), or one (its word is "Less of"), or none ("More of cricket").
  */
 function pickProfile(board: Tile[], inForYou: Map<string, Tile>): Pick {
-  const both = board.filter((story) => inForYou.has(story.id)).slice(0, 12);
+  const both = board
+    .flatMap((story) => {
+      const tile = inForYou.get(story.id);
+      return tile === undefined ? [] : [tile];
+    })
+    .slice(0, 12);
   const sets = both.map((story) => storyWords(story));
   for (let i = 0; i < both.length; i++) {
     for (let j = 0; j < both.length; j++) {
@@ -341,12 +351,14 @@ test('a reader saves a profile and For You follows it, opens on it, remembers th
     if (after.ids.length === 0) {
       await expect(page.getByTestId('for-you-empty')).toBeVisible();
     } else {
+      // A story is told by its tile's own link, never by its title (two stories may share words).
       const list = page.getByTestId('story-list');
+      const tileOf = (id: string) => list.locator(`a[href="/sandbox/social/stories/${id}"]`);
       await expect(list.getByTestId('story-tile').first()).toBeVisible();
-      if (pick.hidden !== null) await expect(list).not.toContainText(pick.hidden.title);
+      if (pick.hidden !== null) await expect(tileOf(pick.hidden.id)).toHaveCount(0);
       const raised = pick.raised;
       if (raised !== null && after.ids.indexOf(raised.id) < 20) {
-        await expect(list).toContainText(raised.title);
+        await expect(tileOf(raised.id).first()).toBeVisible();
       }
     }
 
@@ -404,57 +416,80 @@ test('a reader saves a profile and For You follows it, opens on it, remembers th
       });
     }
 
-    // ---- 7. One chat message (Chromium only: a check run makes at most one call to the AI) ----
+    // ---- 7. One chat message (Chromium only, and only on a first try: a check run makes at most one call to the AI) ----
     await page.goto(READER);
     let outcome = 'not sent (this engine sends none)';
     if (browserName === 'chromium') {
       const beforeChat = await stateOf(as);
-      await hydrated(page, '#reader-message');
-      await page.locator('#reader-message').fill('More cricket, no crypto');
-      await page.getByRole('button', { name: 'Send', exact: true }).click();
-      const said = page.getByTestId('reader-chat-answer');
-      await expect(said).toBeVisible({ timeout: 90_000 });
-      const afterChat = await stateOf(as);
-      const sameDay = beforeChat.usage.resetsAt === afterChat.usage.resetsAt;
-      const worked = (await said.getAttribute('data-ok')) === 'true';
-      const words = ((await said.textContent()) ?? '').toLowerCase();
-      if (worked) {
-        outcome = '201, answered';
-        // 201: the reply is in the chat, its neurons are decimal text, and the count went down by one.
-        const messages = page.getByTestId('reader-message');
-        await expect(messages).toHaveCount(2);
-        await expect(messages.first()).toHaveAttribute('data-author', 'agent');
-        await expect(messages.last()).toHaveAttribute('data-author', 'reader');
-        const used = /used (\d+(?:\.\d+)?) neurons/.exec(
-          (await messages.first().textContent()) ?? '',
+      const send = page.getByRole('button', { name: 'Send', exact: true });
+      const today = page.getByTestId('reader-today');
+      const paused = beforeChat.usage.pausedUntil !== null;
+      const used = beforeChat.usage.messagesLeftToday === 0;
+      if (test.info().retry > 0) {
+        // A retry is a new account, and the first try may already have sent its message: no second call to the AI.
+        // (A test that passes only on its retry fails the check anyway, so nothing is lost.)
+        outcome = 'not sent (a retry: the first try may have sent its message)';
+        test.info().annotations.push({
+          type: 'chat',
+          description: 'not sent: this is a retry, and a retry never sends a second message',
+        });
+      } else if (paused || used) {
+        // Chat is paused (Hrizzup's day is spent, or Workers AI said its allocation is) or the reader's messages are used:
+        // the page says so and Send is disabled. Nothing is sent, and the rest of the journey carries on.
+        outcome = paused ? 'paused before sending' : 'the day’s messages used before sending';
+        test.info().annotations.push({ type: 'chat', description: outcome });
+        await expect(today).toContainText(
+          paused ? 'Chat pauses until 05:30 IST' : "You've used today's messages",
         );
-        expect(used, 'the reply says its neurons as decimal text').not.toBeNull();
-        expect(afterChat.profile, 'a reply leaves a profile that still reads').toContain(
-          '# Reading profile',
-        );
-        if (sameDay) {
-          expect(afterChat.usage.messagesLeftToday).toBe(beforeChat.usage.messagesLeftToday - 1);
-          expect(millionths(afterChat.allowance.neuronsUsed)).toBeGreaterThanOrEqual(
-            millionths(beforeChat.allowance.neuronsUsed),
-          );
-        }
-      } else if (words.includes('allowance') || words.includes('pauses until')) {
-        outcome = '429, chat paused for the day';
-        // 429: Hrizzup's day is spent: the page says chat pauses, and nothing was used.
-        await expect(page.getByTestId('reader-today')).toContainText('Chat pauses until 05:30 IST');
-      } else if (/busy|isn't available|took too long/.test(words)) {
-        outcome = '503, the agent could not answer';
-        // 503: nothing was answered; a released call gives its slot back, a kept one doesn't.
-        if (sameDay) {
-          expect(afterChat.usage.messagesLeftToday).toBeGreaterThanOrEqual(
-            beforeChat.usage.messagesLeftToday - 1,
-          );
-          expect(afterChat.usage.messagesLeftToday).toBeLessThanOrEqual(
-            beforeChat.usage.messagesLeftToday,
-          );
-        }
+        await expect(send).toBeDisabled();
       } else {
-        throw new Error('The reader agent answered with something this journey does not know');
+        await hydrated(page, '#reader-message');
+        await page.locator('#reader-message').fill('More cricket, no crypto');
+        await send.click();
+        const said = page.getByTestId('reader-chat-answer');
+        await expect(said).toBeVisible({ timeout: 90_000 });
+        const afterChat = await stateOf(as);
+        const sameDay = beforeChat.usage.resetsAt === afterChat.usage.resetsAt;
+        const worked = (await said.getAttribute('data-ok')) === 'true';
+        const words = ((await said.textContent()) ?? '').toLowerCase();
+        if (worked) {
+          outcome = '201, answered';
+          // 201: the reply is in the chat, its neurons are decimal text, and the count went down by one.
+          const messages = page.getByTestId('reader-message');
+          await expect(messages).toHaveCount(2);
+          await expect(messages.first()).toHaveAttribute('data-author', 'agent');
+          await expect(messages.last()).toHaveAttribute('data-author', 'reader');
+          const neurons = /used (\d+(?:\.\d+)?) neurons/.exec(
+            (await messages.first().textContent()) ?? '',
+          );
+          expect(neurons, 'the reply says its neurons as decimal text').not.toBeNull();
+          expect(afterChat.profile, 'a reply leaves a profile that still reads').toContain(
+            '# Reading profile',
+          );
+          if (sameDay) {
+            expect(afterChat.usage.messagesLeftToday).toBe(beforeChat.usage.messagesLeftToday - 1);
+            expect(millionths(afterChat.allowance.neuronsUsed)).toBeGreaterThanOrEqual(
+              millionths(beforeChat.allowance.neuronsUsed),
+            );
+          }
+        } else if (words.includes('allowance') || words.includes('pauses until')) {
+          outcome = '429, chat paused for the day';
+          // 429: Hrizzup's day was spent just now: the page says chat pauses, and nothing was used.
+          await expect(today).toContainText('Chat pauses until 05:30 IST');
+        } else if (/busy|isn't available|took too long/.test(words)) {
+          outcome = '503, the agent could not answer';
+          // 503: nothing was answered; a released call gives its slot back, a kept one doesn't.
+          if (sameDay) {
+            expect(afterChat.usage.messagesLeftToday).toBeGreaterThanOrEqual(
+              beforeChat.usage.messagesLeftToday - 1,
+            );
+            expect(afterChat.usage.messagesLeftToday).toBeLessThanOrEqual(
+              beforeChat.usage.messagesLeftToday,
+            );
+          }
+        } else {
+          throw new Error('The reader agent answered with something this journey does not know');
+        }
       }
     }
     // One line, nothing of the reader's: which way each branch went.

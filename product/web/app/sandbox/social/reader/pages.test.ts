@@ -261,7 +261,43 @@ describe('the For You page', () => {
     expect(markup).not.toContain('First page');
   });
 
-  it('says another cursor’s refusal in its own words, and throws on any other failure', async () => {
+  it('keeps the tab strip, with its Board button, when a failure other than the cursor stops it, and says so in a plain line', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const strip = (markup: string) => {
+      expect(markup).toMatch(/<span aria-current="true"[^>]*>For You<\/span>/);
+      expect(markup).toMatch(/<button type="submit"[^>]*>Board<\/button>/);
+      expect(markup).toContain('data-testid="for-you-failed"');
+      expect(markup).toContain('Your For You can&#x27;t be shown right now');
+      expect(markup).not.toContain('data-testid="story-list"');
+    };
+    // For You itself failing, with a first page and with a cursor of a page that is not a cursor refusal.
+    reader.forYou.mockRejectedValue(new Error('the database is down'));
+    strip(await draw(ForYou));
+    strip(await draw(ForYou, { cursor: 'x' }));
+    // The reader's state failing.
+    reader.forYou.mockReset();
+    reader.forYou.mockResolvedValue({ stories: [], next: null });
+    reader.get.mockRejectedValue(new Error('the database is down'));
+    strip(await draw(ForYou));
+    // The first page after a refused cursor failing too.
+    reader.get.mockReset();
+    reader.get.mockResolvedValue(state());
+    reader.forYou.mockReset();
+    reader.forYou.mockRejectedValueOnce(
+      Object.assign(new Error('rebuilt'), {
+        status: 400,
+        data: { issues: [{ path: 'cursor', message: 'rebuilt' }] },
+      }),
+    );
+    reader.forYou.mockRejectedValueOnce(new Error('the database is down'));
+    strip(await draw(ForYou, { cursor: 'x' }));
+    // Logged by its code only, never anything of the reader's.
+    expect(console.error).toHaveBeenCalledWith(
+      JSON.stringify({ event: 'for_you_page_failed', code: 'unknown' }),
+    );
+  });
+
+  it('says another cursor’s refusal in its own words, and treats a 400 that is not about the cursor as a failure', async () => {
     const refused = Object.assign(new Error('This cursor is not from this list'), {
       status: 400,
       data: { issues: [{ path: 'cursor', message: 'This cursor is not from this list' }] },
@@ -272,14 +308,14 @@ describe('the For You page', () => {
     expect(markup).toContain(
       'That page link isn&#x27;t one of your For You pages: showing the first page',
     );
-    reader.forYou.mockReset();
-    reader.forYou.mockRejectedValue(new Error('the database is down'));
-    await expect(draw(ForYou)).rejects.toThrow('the database is down');
-    // A 400 that is not about the cursor is not turned into a note either.
+    // A 400 that is not about the cursor is not turned into a note either: it is a failure.
+    vi.spyOn(console, 'error').mockImplementation(() => {});
     reader.forYou.mockReset();
     reader.forYou.mockRejectedValue(
       Object.assign(new Error('x'), { status: 400, data: { issues: [{ path: 'limit' }] } }),
     );
-    await expect(draw(ForYou, { cursor: 'x' })).rejects.toThrow('x');
+    const failed = await draw(ForYou, { cursor: 'x' });
+    expect(failed).toContain('data-testid="for-you-failed"');
+    expect(failed).not.toContain('showing the first page');
   });
 });

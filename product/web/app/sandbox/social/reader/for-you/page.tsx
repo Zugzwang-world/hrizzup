@@ -1,4 +1,5 @@
 import { brand } from '@hrizzup/core';
+import { ORPCError } from '@orpc/server';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { BoardTabs } from '@/components/sandbox/social/for-you-tab.tsx';
@@ -44,7 +45,8 @@ function cursorRefused(error: unknown): string | null {
  * plain code from their reading profile and the board's top 300 stories, a page at a time. R5's own tile for each
  * story, used as it is. The tab strip has For You current and Board, which remembers the reader's choice of the board
  * for the browser session. A cursor from a build that has changed is shown as the first page with a note, never an
- * error. Signed out, a link to sign in. Plain stock components; the real screens come from the design chat.
+ * error, and any other failure is a plain line under the tab strip, so a reader (whom every address of the board
+ * sends here) can always press Board. Signed out, a link to sign in. Plain stock components; the real screens come from the design chat.
  */
 export default async function ForYou({ searchParams }: Props) {
   sandboxOnly();
@@ -74,22 +76,44 @@ export default async function ForYou({ searchParams }: Props) {
     serverApi.reader.forYou({ ...(cursor ? { cursor } : {}), limit: FOR_YOU_PAGE });
   let note: string | null = null;
   let page: Awaited<ReturnType<typeof asked>>;
-  const [state, first] = await Promise.all([
-    serverApi.reader.get(),
-    asked(raw).then(
-      (answer) => ({ answer }),
-      (error: unknown) => {
-        const said = raw === undefined ? null : cursorRefused(error);
-        if (said === null) throw error;
-        return { said };
-      },
-    ),
-  ]);
-  if ('answer' in first) {
-    page = first.answer;
-  } else {
-    note = first.said;
-    page = await asked();
+  let state: Awaited<ReturnType<typeof serverApi.reader.get>>;
+  try {
+    const [held, first] = await Promise.all([
+      serverApi.reader.get(),
+      asked(raw).then(
+        (answer) => ({ answer }),
+        (error: unknown) => {
+          const said = raw === undefined ? null : cursorRefused(error);
+          if (said === null) throw error;
+          return { said };
+        },
+      ),
+    ]);
+    state = held;
+    if ('answer' in first) {
+      page = first.answer;
+    } else {
+      note = first.said;
+      page = await asked();
+    }
+  } catch (error) {
+    // A failure (the database busy, say) never leaves the reader without the tab strip: every address of the board
+    // sends a reader whose profile holds something here, and this page is then the only way back to the board.
+    console.error(
+      JSON.stringify({
+        event: 'for_you_page_failed',
+        code: error instanceof ORPCError ? error.code : 'unknown',
+      }),
+    );
+    return (
+      <>
+        <h1 className="text-3xl font-semibold">For You</h1>
+        <BoardTabs current="for-you" />
+        <p className="mt-4 max-w-2xl" data-testid="for-you-failed">
+          Your For You can't be shown right now: reload in a moment, or press Board.
+        </p>
+      </>
+    );
   }
   // What the page is built from: the reader's profile, or the board's Top when it holds nothing.
   const cursor = note === null ? raw : undefined;
