@@ -11,7 +11,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(139);
+select plan(148);
 
 -- Today's allowance rows are shared by every reader in this file and the clock can't be moved, so a run never straddles the
 -- turn of the UTC day: with under 60 seconds left of it, wait past 00:00 UTC.
@@ -117,12 +117,38 @@ returns jsonb
 language sql
 as $$ select pg_temp.j(pg_temp.acct(n), format('select social.reader_save_profile(%L, %L)::text', pg_temp.req(rq), body)) $$;
 
+-- The fence of each call a begin reserved: begin's `call.message_id`, by reader and request number. Every settle and fail the
+-- tests send names it, as the handler does.
+create temporary table fence_ (who_n integer, rq_n integer, mid text, primary key (who_n, rq_n)) on commit drop;
+
+create function pg_temp.fence(n integer, rq integer)
+returns text
+language sql
+as $$ select f.mid from fence_ f where f.who_n = n and f.rq_n = rq $$;
+
 create function pg_temp.rbegin(n integer, rq integer, body text)
 returns jsonb
-language sql
-as $$ select pg_temp.j(pg_temp.acct(n), format('select social.reader_chat_begin(%L, %L)::text', pg_temp.req(rq), body)) $$;
+language plpgsql
+as $$
+declare
+  b jsonb := pg_temp.j(pg_temp.acct(n), format('select social.reader_chat_begin(%L, %L)::text', pg_temp.req(rq), body));
+begin
+  if b #>> '{call,message_id}' is not null then
+    insert into fence_ values (n, rq, b #>> '{call,message_id}') on conflict (who_n, rq_n) do update set mid = excluded.mid;
+  end if;
+  return b;
+end;
+$$;
 
+-- A settle that names the call it settles (the latest reserved under that request number).
 create function pg_temp.rsettle(n integer, rq integer, body text, answer jsonb)
+returns jsonb
+language sql
+as $$ select pg_temp.j(pg_temp.acct(n), format('select social.reader_chat_settle(%L, %L, %L::jsonb)::text', pg_temp.req(rq), body,
+                       (answer || jsonb_build_object('message_id', pg_temp.fence(n, rq)))::text)) $$;
+
+-- A settle sent exactly as given (to try another call's ID, or none).
+create function pg_temp.rsettle_raw(n integer, rq integer, body text, answer jsonb)
 returns jsonb
 language sql
 as $$ select pg_temp.j(pg_temp.acct(n), format('select social.reader_chat_settle(%L, %L, %L::jsonb)::text', pg_temp.req(rq), body, answer::text)) $$;
@@ -130,13 +156,35 @@ as $$ select pg_temp.j(pg_temp.acct(n), format('select social.reader_chat_settle
 create function pg_temp.rfail(n integer, rq integer, body text, kind text)
 returns jsonb
 language sql
-as $$ select pg_temp.j(pg_temp.acct(n), format('select social.reader_chat_fail(%L, %L, %L)::text', pg_temp.req(rq), body, kind)) $$;
+as $$ select pg_temp.j(pg_temp.acct(n), format('select social.reader_chat_fail(%L, %L, %L, %L)::text', pg_temp.req(rq), body, kind, pg_temp.fence(n, rq))) $$;
 
--- The SQLSTATE and detail of a settle that is refused; `answer` is SQL text (so a non-object can be tried).
-create function pg_temp.settle_fails(n integer, rq integer, body text, answer text)
+-- A fail that names another call (or none: a null `mid`).
+create function pg_temp.rfail_id(n integer, rq integer, body text, kind text, mid text)
+returns jsonb
+language sql
+as $$ select pg_temp.j(pg_temp.acct(n), format('select social.reader_chat_fail(%L, %L, %L, %L)::text', pg_temp.req(rq), body, kind, mid)) $$;
+
+-- What a fail refuses with (its SQLSTATE and the detail after a colon), or 'ok'.
+create function pg_temp.fail_fails(n integer, rq integer, body text, kind text, mid text)
 returns text
 language sql
-as $$ select pg_temp.fails_detail(pg_temp.acct(n), null, format('select social.reader_chat_settle(%L, %L, %s)::text', pg_temp.req(rq), body, answer)) $$;
+as $$ select pg_temp.fails_detail(pg_temp.acct(n), null, format('select social.reader_chat_fail(%L, %L, %L, %L)::text', pg_temp.req(rq), body, kind, mid)) $$;
+
+-- The SQLSTATE and detail of a settle that is refused; `answer` is SQL text (so a non-object can be tried). It names the call
+-- it settles unless `fenced` is false (an object answer gets the message ID, anything else is sent as it is).
+create function pg_temp.settle_fails(n integer, rq integer, body text, answer text, fenced boolean default true)
+returns text
+language plpgsql
+as $$
+begin
+  if fenced then
+    return pg_temp.fails_detail(pg_temp.acct(n), null, format(
+      'select social.reader_chat_settle(%L, %L, (select case when pg_catalog.jsonb_typeof(t.a) = ''object'' then t.a || jsonb_build_object(''message_id'', %L::text) else t.a end from (select %s::jsonb as a) t))::text',
+      pg_temp.req(rq), body, pg_temp.fence(n, rq), answer));
+  end if;
+  return pg_temp.fails_detail(pg_temp.acct(n), null, format('select social.reader_chat_settle(%L, %L, %s)::text', pg_temp.req(rq), body, answer));
+end;
+$$;
 
 -- A provider's answer: tokens null when none are given.
 create function pg_temp.ans(pt integer, ct integer, reply text, profile jsonb default null,
@@ -341,7 +389,7 @@ select is(
     pg_temp.fails(null, null, 'select social.reader_chat(null, 10)::text'),
     pg_temp.fails(null, null, format('select social.reader_chat_begin(%L, %L)::text', pg_temp.req(1), 'Hello')),
     pg_temp.fails(null, null, format('select social.reader_chat_settle(%L, %L, %L::jsonb)::text', pg_temp.req(1), 'Hello', '{}')),
-    pg_temp.fails(null, null, format('select social.reader_chat_fail(%L, %L, %L)::text', pg_temp.req(1), 'Hello', 'kept'))
+    pg_temp.fails(null, null, format('select social.reader_chat_fail(%L, %L, %L, %L)::text', pg_temp.req(1), 'Hello', 'kept', pg_temp.req(1)))
   ],
   array_fill('42501'::text, array[6]),
   'each of the six reader calls is refused (42501) with nobody signed in'
@@ -353,7 +401,7 @@ select is(
     pg_temp.fails(pg_temp.acct(1), pg_temp.req(77), 'select social.reader_chat(null, 10)::text'),
     pg_temp.fails(pg_temp.acct(1), pg_temp.req(77), format('select social.reader_chat_begin(%L, %L)::text', pg_temp.req(1), 'Hello')),
     pg_temp.fails(pg_temp.acct(1), pg_temp.req(77), format('select social.reader_chat_settle(%L, %L, %L::jsonb)::text', pg_temp.req(1), 'Hello', '{}')),
-    pg_temp.fails(pg_temp.acct(1), pg_temp.req(77), format('select social.reader_chat_fail(%L, %L, %L)::text', pg_temp.req(1), 'Hello', 'kept'))
+    pg_temp.fails(pg_temp.acct(1), pg_temp.req(77), format('select social.reader_chat_fail(%L, %L, %L, %L)::text', pg_temp.req(1), 'Hello', 'kept', pg_temp.req(1)))
   ],
   array_fill('42501'::text, array[6]),
   'and with an acting key, even of a signed-in account: readers are never served through a key'
@@ -566,11 +614,11 @@ select is(
 select is(
   array[
     pg_temp.fails(pg_temp.acct(2), null, format('select social.reader_chat_begin(%L, %L)::text', pg_temp.req(1), 'Another message')),
-    pg_temp.rsettle(2, 1, 'More cricket, no crypto', pg_temp.ans(1, 1, 'Late')) ->> 'state',
-    pg_temp.rfail(2, 1, 'More cricket, no crypto', 'kept') ->> 'state'
+    pg_temp.rsettle_raw(2, 1, 'More cricket, no crypto', pg_temp.ans(1, 1, 'Late') || jsonb_build_object('message_id', gen_random_uuid())) ->> 'state',
+    pg_temp.rfail_id(2, 1, 'More cricket, no crypto', 'kept', gen_random_uuid()::text) ->> 'state'
   ],
   array['HZS27', 'done', 'done'],
-  'another body under the same request ID is refused (HZS27); settling or failing a finished send answers it, changing nothing'
+  'another body under the same request ID is refused (HZS27); settling or failing a finished send answers it, changing nothing, whatever call it names'
 );
 select is(
   (select array[trim_scale(neurons_reserved)::text, trim_scale(neurons_used)::text] from social.ai_days where day = social._reader_today()),
@@ -653,6 +701,17 @@ select is(
   ],
   array_fill('22023:answer'::text, array[26]),
   'an answer that isn''t in the form settle takes is refused (22023, detail answer), whatever is wrong with it'
+);
+select is(
+  array[
+    pg_temp.settle_fails(8, 1, 'Hello', $a$'{"provider": "workers-ai", "reply": "Hi"}'::jsonb$a$, false),
+    pg_temp.settle_fails(8, 1, 'Hello', $a$'{"provider": "workers-ai", "reply": "Hi", "message_id": 5}'::jsonb$a$, false),
+    pg_temp.settle_fails(8, 1, 'Hello', $a$'{"provider": "workers-ai", "reply": "Hi", "message_id": "not-a-uuid"}'::jsonb$a$, false),
+    pg_temp.settle_fails(8, 1, 'Hello', $a$'{"provider": "workers-ai", "reply": "Hi", "message_id": null}'::jsonb$a$, false),
+    pg_temp.settle_fails(8, 1, 'Hello', format($a$'{"provider": "workers-ai", "reply": "Hi", "message_id": "%s"}'::jsonb$a$, gen_random_uuid()), false)
+  ],
+  array['22023:answer', '22023:answer', '22023:answer', '22023:answer', 'P0002'],
+  'a settle must name the call (message_id, a UUID as text): none, a number, a non-UUID and null are 22023 (detail answer); another call''s ID is P0002'
 );
 select is(
   (select array[(select trim_scale(neurons_reserved)::text from social.ai_days where day = social._reader_today()),
@@ -796,6 +855,54 @@ select is(
   'the abandoned try is charged as a kept failure (18.3925 from reserved into used, and into the reader''s day), its slot stays taken, and the retry makes a new reservation (22), a new slot (2 messages), a new call and a new message ID'
 );
 select is(pg_temp.books(), '{}'::text[], 'the books balance after the takeover: used is the readers'' sum, reserved is the open marker');
+
+-- The abandoned try was still alive and answers late, naming its own (the old) message ID: the live call under the same
+-- request ID is never touched.
+create function pg_temp.state13()
+returns jsonb
+language sql
+as $$
+  select jsonb_build_object(
+    'marker', (select result from social.requests where actor = pg_temp.acct(13)::uuid and request_id = pg_temp.req(1)::uuid),
+    'days', (select jsonb_agg(to_jsonb(a) order by a.day) from social.ai_days a),
+    'readers', (select jsonb_agg(to_jsonb(d) order by d.day) from social.reader_days d where d.user_id = pg_temp.acct(13)::uuid),
+    'messages', (select count(*) from social.reader_messages where user_id = pg_temp.acct(13)::uuid))
+$$;
+insert into memo_ select 'state13', pg_temp.state13();
+select is(
+  array[
+    pg_temp.fails(pg_temp.acct(13), null, format('select social.reader_chat_settle(%L, %L, %L::jsonb)::text', pg_temp.req(1), 'Hello',
+      (pg_temp.ans(600, 85, 'A late reply') || jsonb_build_object('message_id', (select v ->> 'message_id' from memo_ where k = 'marker13')))::text)),
+    pg_temp.fails(pg_temp.acct(13), null, format('select social.reader_chat_settle(%L, %L, %L::jsonb)::text', pg_temp.req(1), 'Hello',
+      (pg_temp.ans(null, null, 'A late reply', null, 'workers-ai', null) || jsonb_build_object('message_id', (select v ->> 'message_id' from memo_ where k = 'marker13')))::text)),
+    pg_temp.fail_fails(13, 1, 'Hello', 'released', (select v ->> 'message_id' from memo_ where k = 'marker13')),
+    pg_temp.fail_fails(13, 1, 'Hello', 'exhausted', (select v ->> 'message_id' from memo_ where k = 'marker13')),
+    pg_temp.fail_fails(13, 1, 'Hello', 'kept', (select v ->> 'message_id' from memo_ where k = 'marker13'))
+  ],
+  array_fill('P0002'::text, array[5]),
+  'a late settle (with usage, and without) or fail (released, exhausted, kept) from the abandoned try, naming its old message ID, is P0002'
+);
+select is(
+  pg_temp.state13(),
+  (select v from memo_ where k = 'state13'),
+  'and wrote nothing: the live marker, every allowance row, the reader''s days and messages are exactly as they were'
+);
+select is(
+  (select array[trim_scale(neurons_reserved)::text, trim_scale(neurons_used)::text, (select messages::text from social.reader_days where user_id = pg_temp.acct(13)::uuid),
+                (select count(*)::text from social.ai_days where exhausted_at is not null)]
+   from social.ai_days where day = social._reader_today()),
+  array['22', '18.3925', '2', '0'],
+  'in particular the new reservation (22), the one abandoned try charged (18.3925), both slots and no day marked exhausted'
+);
+select is(
+  array[
+    pg_temp.settle_fails(13, 1, 'Hello', $a$'{"provider": "workers-ai", "prompt_tokens": 600, "completion_tokens": 85, "reply": "Hi"}'::jsonb$a$, false),
+    pg_temp.settle_fails(13, 1, 'Hello', $a$'{"provider": "workers-ai", "prompt_tokens": 600, "completion_tokens": 85, "reply": "Hi", "message_id": 7}'::jsonb$a$, false),
+    pg_temp.settle_fails(13, 1, 'Hello', $a$'{"provider": "workers-ai", "prompt_tokens": 600, "completion_tokens": 85, "reply": "Hi", "message_id": "not-a-uuid"}'::jsonb$a$, false)
+  ],
+  array_fill('22023:answer'::text, array[3]),
+  'a settle that names no call, or names it wrongly, is 22023 (detail answer)'
+);
 select is(
   (select array[st ->> 'state', st #>> '{answer,reply,neurons}'] from (select pg_temp.rsettle(13, 1, 'Hello', pg_temp.ans(600, 85, 'Hi')) st) q),
   array['done', '6.4'],
@@ -853,6 +960,18 @@ select is(
   'the abandoned try is charged, the refusal is counted once, no new reservation is made (still one call) and the marker is gone'
 );
 select is(pg_temp.books(), '{}'::text[], 'the books balance after the takeover with the allowance spent');
+-- The allowance is back, and the same request ID is sent again: the abandoned try is not charged twice
+update social.settings set reader_ai_daily_neurons = 9000;
+select is(pg_temp.rbegin(30, 1, 'Hello') ->> 'state', 'reserved', 'the same request ID again, with the allowance back, reserves anew');
+select is(
+  (select array[trim_scale(neurons_reserved)::text, trim_scale(neurons_used)::text, calls::text, refused::text,
+                (select messages::text from social.reader_days where user_id = pg_temp.acct(30)::uuid),
+                (select trim_scale(neurons)::text from social.reader_days where user_id = pg_temp.acct(30)::uuid)]
+   from social.ai_days where day = social._reader_today()),
+  array['18.3925', '18.3925', '2', '1', '2', '18.3925'],
+  'the abandoned try is charged once (18.3925 used, not 36.785), the new reservation is 18.3925, with two calls, two slots and the one refusal'
+);
+select is(pg_temp.books(), '{}'::text[], 'the books balance after the refused takeover is retried');
 
 -- A takeover of a marker dated yesterday: yesterday is charged, today is reserved
 select pg_temp.reset_day();
@@ -889,14 +1008,24 @@ select pg_temp.reset_day();
 select pg_temp.rbegin(14, 1, 'Hello');
 select is(
   array[
-    pg_temp.fails_detail(pg_temp.acct(14), null, format('select social.reader_chat_fail(%L, %L, %L)::text', pg_temp.req(1), 'Hello', 'bogus')),
-    pg_temp.fails_detail(pg_temp.acct(14), null, format('select social.reader_chat_fail(%L, %L, %L)::text', pg_temp.req(1), 'Hello', null::text)),
-    pg_temp.fails(pg_temp.acct(14), null, format('select social.reader_chat_fail(%L, %L, %L)::text', pg_temp.req(1), 'Another body', 'kept')),
-    pg_temp.fails(pg_temp.acct(14), null, format('select social.reader_chat_fail(%L, %L, %L)::text', pg_temp.req(2), 'Hello', 'kept')),
-    pg_temp.fails(pg_temp.acct(14), null, format('select social.reader_chat_settle(%L, %L, %L::jsonb)::text', pg_temp.req(2), 'Hello', '{}'))
+    pg_temp.fail_fails(14, 1, 'Hello', 'bogus', pg_temp.fence(14, 1)),
+    pg_temp.fail_fails(14, 1, 'Hello', null, pg_temp.fence(14, 1)),
+    pg_temp.fail_fails(14, 1, 'Another body', 'kept', pg_temp.fence(14, 1)),
+    pg_temp.fail_fails(14, 2, 'Hello', 'kept', pg_temp.fence(14, 1)),
+    pg_temp.fails(pg_temp.acct(14), null, format('select social.reader_chat_settle(%L, %L, %L::jsonb)::text', pg_temp.req(2), 'Hello', '{}')),
+    pg_temp.fail_fails(14, 1, 'Hello', 'bogus', gen_random_uuid()::text),
+    pg_temp.fail_fails(14, 1, 'Hello', 'kept', null),
+    pg_temp.fail_fails(14, 1, 'Hello', 'kept', gen_random_uuid()::text)
   ],
-  array['22023:kind', '22023:kind', 'HZS27', 'P0002', 'P0002'],
-  'a failure''s kind is released, exhausted or kept (22023, detail kind); another body is HZS27; nothing reserved under an ID is P0002, for a fail and for a settle'
+  array['22023:kind', '22023:kind', 'HZS27', 'P0002', 'P0002', 'P0002', 'P0002', 'P0002'],
+  'a failure''s kind is released, exhausted or kept (22023, detail kind); another body is HZS27; nothing reserved under an ID is P0002, for a fail and for a settle; a fail naming another call, or none, is P0002 even before its kind is looked at'
+);
+select is(
+  (select array[trim_scale(neurons_reserved)::text, calls::text, (select (result ? 'pending')::text from social.requests where actor = pg_temp.acct(14)::uuid and request_id = pg_temp.req(1)::uuid),
+                (select messages::text from social.reader_days where user_id = pg_temp.acct(14)::uuid)]
+   from social.ai_days where day = social._reader_today()),
+  array['18.3925', '1', 'true', '1'],
+  'and a refused failure wrote nothing: the reservation, the marker and the slot stand'
 );
 select is(
   pg_temp.rfail(14, 1, 'Hello', 'released') #>> '{view,usage,messages_left_today}',
@@ -1156,10 +1285,10 @@ select is(
 );
 select is(
   array[
-    pg_temp.fails(pg_temp.acct(24), null, format('select social.reader_chat_settle(%L, %L, %L::jsonb)::text', pg_temp.req(1), 'Alice''s private message', pg_temp.ans(1, 1, 'x'))),
-    pg_temp.fails(pg_temp.acct(24), null, format('select social.reader_chat_fail(%L, %L, %L)::text', pg_temp.req(1), 'Alice''s private message', 'kept')),
-    pg_temp.fails(pg_temp.acct(24), null, format('select social.reader_chat_settle(%L, %L, %L::jsonb)::text', pg_temp.req(2), 'Alice''s second message', pg_temp.ans(1, 1, 'x'))),
-    pg_temp.fails(pg_temp.acct(24), null, format('select social.reader_chat_fail(%L, %L, %L)::text', pg_temp.req(2), 'Alice''s second message', 'released'))
+    pg_temp.fails(pg_temp.acct(24), null, format('select social.reader_chat_settle(%L, %L, %L::jsonb)::text', pg_temp.req(1), 'Alice''s private message', (pg_temp.ans(1, 1, 'x') || jsonb_build_object('message_id', pg_temp.fence(23, 1)))::text)),
+    pg_temp.fail_fails(24, 1, 'Alice''s private message', 'kept', pg_temp.fence(23, 1)),
+    pg_temp.fails(pg_temp.acct(24), null, format('select social.reader_chat_settle(%L, %L, %L::jsonb)::text', pg_temp.req(2), 'Alice''s second message', (pg_temp.ans(1, 1, 'x') || jsonb_build_object('message_id', pg_temp.fence(23, 2)))::text)),
+    pg_temp.fail_fails(24, 2, 'Alice''s second message', 'released', pg_temp.fence(23, 2))
   ],
   array_fill('P0002'::text, array[4]),
   'settling or failing with Alice''s request IDs, the finished one and the one in flight, is P0002 for the other reader'

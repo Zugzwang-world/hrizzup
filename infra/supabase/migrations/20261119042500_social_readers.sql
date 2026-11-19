@@ -348,7 +348,9 @@ comment on function social.reader_save_profile(uuid, text) is
 --   {state: 'done', answer}           this request ID finished before: the same two messages, no new call
 --   {state: 'in_progress', ...}       the first try is still inside its 60-second lease
 --   {state: 'refused', reason: 'daily_cap' | 'allowance_used', ...}
---   {state: 'reserved', call, ai, profile, history}
+--   {state: 'reserved', call {day, reserved, message_id, lease_until}, ai, profile, history}
+-- `call.message_id` is the call's fence: settle and fail must name it, so a late answer from a try that was taken
+-- over can never end the try that holds the marker now.
 -- The request's own row in social.requests holds the reservation until settle or fail: {pending: {day, reserved,
 -- in, out, message_id, started_at, lease_until}}. After a crash past the lease, a retry is never free: the
 -- abandoned try, which may have run, is charged as a kept failure is (its reservation moves into used, on the
@@ -463,7 +465,8 @@ begin
   from (select m.id, m.author, m.body from social.reader_messages m where m.user_id = who order by m.id desc limit 10) h;
   return jsonb_build_object(
     'state', 'reserved',
-    'call', jsonb_build_object('day', p -> 'day', 'reserved', p -> 'reserved', 'lease_until', p -> 'lease_until'),
+    'call', jsonb_build_object('day', p -> 'day', 'reserved', p -> 'reserved', 'message_id', p -> 'message_id',
+                               'lease_until', p -> 'lease_until'),
     'ai', jsonb_build_object('provider', s.reader_ai_provider, 'model', s.reader_ai_model,
                              'max_input_tokens', 2000, 'max_output_tokens', 300),
     'profile', jsonb_build_object('body', coalesce(v_profile, ''), 'number', coalesce(v_number, 0)),
@@ -528,6 +531,18 @@ begin
   end if;
   p := stored -> 'pending';
   if p is null then
+    raise exception 'No such message' using errcode = 'no_data_found';
+  end if;
+
+  -- The fence: the answer names the call it is for (`call.message_id` of the begin that made it), and it must be the
+  -- marker's own. A late answer from a try that a takeover replaced finds another message ID: P0002, nothing written,
+  -- and the live call is untouched.
+  if answer is null or pg_catalog.jsonb_typeof(answer) <> 'object'
+     or pg_catalog.jsonb_typeof(answer -> 'message_id') is distinct from 'string'
+     or answer ->> 'message_id' !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
+    raise exception 'The answer isn''t in the form settle takes' using errcode = 'invalid_parameter_value', detail = 'answer';
+  end if;
+  if (answer ->> 'message_id')::uuid <> (p ->> 'message_id')::uuid then
     raise exception 'No such message' using errcode = 'no_data_found';
   end if;
 
@@ -655,16 +670,19 @@ end;
 $$;
 comment on function social.reader_chat_settle(uuid, text, jsonb) is
   'Settles a reserved call with the provider''s answer: the reader''s message, the reply, the profile version (author '
-  'agent), the neurons used (the reservation stands without usage). {state: done | stale}; P0002 when nothing was '
-  'reserved; 22023 (detail answer); a profile not in its stored form leaves the old one (profile_refused); HZS27.';
+  'agent), the neurons used (the reservation stands without usage). The answer names the call (message_id, from begin''s '
+  'call): another call''s is P0002 and writes nothing. {state: done | stale}; P0002 when nothing was reserved or the '
+  'call isn''t the marker''s; 22023 (detail answer); a profile not in its stored form leaves the old one '
+  '(profile_refused); HZS27.';
 
 -- Ends a reserved call that got no answer, by what the provider did:
 --   released   it didn't run: the reservation and the reader's message slot come back
 --   exhausted  as released, and the marker's own day is marked: chat pauses until 00:00 UTC (Workers AI's 3036)
 --   kept       it may have run: the reservation counts as used and the slot stays taken, so one reader's failures
 --              can never use more than the daily cap's worth of the shared allowance
--- The marker goes, so the request ID is free to try again.
-create function social.reader_chat_fail(request_id uuid, body text, kind text)
+-- The marker goes, so the request ID is free to try again. `message_id` is the call's fence (begin's `call.message_id`):
+-- a late failure from a try that a takeover replaced, or none, is P0002 and writes nothing (checked before the kind).
+create function social.reader_chat_fail(request_id uuid, body text, kind text, message_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -688,6 +706,9 @@ begin
   end if;
   p := stored -> 'pending';
   if p is null then
+    raise exception 'No such message' using errcode = 'no_data_found';
+  end if;
+  if reader_chat_fail.message_id is null or reader_chat_fail.message_id <> (p ->> 'message_id')::uuid then
     raise exception 'No such message' using errcode = 'no_data_found';
   end if;
   if kind is null or kind not in ('released', 'exhausted', 'kept') then
@@ -717,11 +738,12 @@ begin
     greatest(1, ceil(extract(epoch from social._reader_day_end(social._reader_today()) - pg_catalog.clock_timestamp())))::integer);
 end;
 $$;
-comment on function social.reader_chat_fail(uuid, text, text) is
+comment on function social.reader_chat_fail(uuid, text, text, uuid) is
   'Ends a reserved call that got no answer: released (it didn''t run: the reservation and the reader''s message slot '
   'come back), exhausted (as released, and chat pauses for the marker''s UTC day: 3036) or kept (it may have run: the '
   'reservation counts as used and the slot stays taken). {state: failed, kind, view, retry_after_seconds (to 00:00 UTC)}; '
-  'the request ID is free again. P0002, 22023 (detail kind), HZS27.';
+  'the request ID is free again. message_id is begin''s call.message_id: another call''s, or none, is P0002 and writes '
+  'nothing. P0002, 22023 (detail kind), HZS27.';
 
 
 -- 6. For You's candidates ------------------------------------------------------------------------------------------------
@@ -779,9 +801,9 @@ revoke all on function social._reader_today(), social._reader_day_end(date), soc
   from public, anon, authenticated, service_role, hrizzup_app;
 revoke all on function social.reader_state(), social.reader_save_profile(uuid, text), social.reader_chat(uuid, integer),
   social.reader_chat_begin(uuid, text), social.reader_chat_settle(uuid, text, jsonb),
-  social.reader_chat_fail(uuid, text, text), social.foryou_candidates()
+  social.reader_chat_fail(uuid, text, text, uuid), social.foryou_candidates()
   from public, anon, authenticated, service_role;
 grant execute on function social.reader_state(), social.reader_save_profile(uuid, text), social.reader_chat(uuid, integer),
   social.reader_chat_begin(uuid, text), social.reader_chat_settle(uuid, text, jsonb),
-  social.reader_chat_fail(uuid, text, text), social.foryou_candidates()
+  social.reader_chat_fail(uuid, text, text, uuid), social.foryou_candidates()
   to hrizzup_app;

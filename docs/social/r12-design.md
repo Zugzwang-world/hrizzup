@@ -88,6 +88,7 @@ An answered call is always settled, never failed. That includes a 200 whose `res
    - **So every AI call that goes out passes the cap and the allowance,** and one reader's failures are bounded by their daily cap: each costs at most R and a slot. A takeover that kept the reservation would let one marker be retaken every 60 seconds with no check, about 1,440 calls (26,000 neurons) a day, past Hrizzup's 9,000 and the shared free allowance.
    - **If nobody ever retries,** the reservation stays open for that day, which is conservative.
 4. **After a failure:** the marker is gone, so the same request ID tries again with a new reservation.
+5. **A late answer from a try a takeover replaced is fenced out.** The abandoned try may still be alive, and finish after the takeover's new `begin` made a new marker under the same request ID. Each reservation's own message ID is its fence: `begin`'s `call.message_id` (the marker's `message_id`), which `settle` (in its `answer`) and `fail` (a fourth argument) must name. One that isn't the marker's is P0002 "No such message" and writes nothing, so a late settle can't save a wrong reply under the new message ID, a late `released` can't free the live call's slot, a late `exhausted` can't pause a fresh UTC day on a stale 3036, and a late `kept` can't lose the live reply. A fenced late call can only over-charge: the abandoned try was already charged at the takeover. A stored `done` still answers `done` whatever call is named, since the replay comes first.
 
 - *Rejected:* refusing the retry of a crashed try for good. That would strand the reader's message.
 - *Rejected:* a takeover that keeps the old reservation and slot (this note's first form). It was a free call past the cap and the allowance, repeatable every 60 seconds.
@@ -278,11 +279,11 @@ Comment: "The signed-in reader's chat with their reader agent, newest first: {me
 11. Answer:
 
 ```
-{state: 'reserved', call: {day, reserved, lease_until},
+{state: 'reserved', call: {day, reserved, message_id, lease_until},
  ai: {provider: s.reader_ai_provider, model: s.reader_ai_model, max_input_tokens: 2000, max_output_tokens: 300},
  profile: {body, number}, history: [{author, body}]}
 ```
-`history` is the reader's last 10 messages, oldest first. The cap is checked before the allowance, so a reader past their own cap is never counted as an allowance refusal.
+`call.message_id` is the call's fence (decision 8): the marker's own `message_id`, as text. `history` is the reader's last 10 messages, oldest first. The cap is checked before the allowance, so a reader past their own cap is never counted as an allowance refusal.
 
 Comment: "Reserves one reader-agent call (D8). Answers {state: reserved | done | in_progress | refused}, never raising for the cap or the allowance, since the allowance's refusal is counted. 22023 (detail body), HZS27."
 
@@ -293,7 +294,7 @@ Comment: "Reserves one reader-agent call (D8). Answers {state: reserved | done |
    - `? 'message_id'`: answer `{state: 'done', answer: _reader_answer(who, stored)}`.
 
    `p := stored -> 'pending'`.
-3. **Check `answer`.** Anything else is 22023, detail `answer`:
+3. **The fence, then `answer`'s form.** `answer ->> 'message_id'` must be a string UUID, else 22023, detail `answer`; if it isn't the pending marker's `message_id`, P0002 "No such message" and nothing is written (the call it names isn't the one the marker holds). Then anything else wrong is 22023, detail `answer`:
    - `provider` matches `^[a-z0-9-]{1,40}$`;
    - `prompt_tokens` and `completion_tokens` are both null, or both whole numbers from 0 to 1,000,000;
    - `provider = 'stub'` requires both to be 0;
@@ -316,22 +317,23 @@ Comment: "Reserves one reader-agent call (D8). Answers {state: reserved | done |
 7. **Remember the call:** `done := {message_id, reply_id, profile_changed, facts: {provider, prompt_tokens, completion_tokens, answer_form, neurons, reserved}}`, through `_remember`, which replaces the marker.
 8. Answer `{state: 'done', answer: _reader_answer(who, done)}`.
 
-Comment: "Settles a reserved call with the provider's answer: the reader's message, the reply, the profile version (author agent), the neurons used (the reservation stands without usage). {state: done | stale}; P0002 when nothing was reserved; 22023 (detail answer); a profile not in its stored form leaves the old one (profile_refused); HZS27."
+Comment: "Settles a reserved call with the provider's answer: the reader's message, the reply, the profile version (author agent), the neurons used (the reservation stands without usage). The answer names the call (message_id, from begin's call): another call's is P0002 and writes nothing. {state: done | stale}; P0002 when nothing was reserved or the call isn't the marker's; 22023 (detail answer); a profile not in its stored form leaves the old one (profile_refused); HZS27."
 
-**`social.reader_chat_fail(request_id uuid, body text, kind text) → jsonb`** (session)
+**`social.reader_chat_fail(request_id uuid, body text, kind text, message_id uuid) → jsonb`** (session)
 1. `who`, the reader's lock, the replay:
    - `null`: P0002 (a null `request_id` too);
    - `? 'message_id'`: answer `{state: 'done', answer}`.
-2. `kind` is one of `released`, `exhausted`, `kept`; otherwise 22023, detail `kind`.
-3. **Writes:**
+2. **The fence:** a null `message_id`, or one that isn't the pending marker's, is P0002 "No such message" and nothing is written. It is checked **before** `kind`.
+3. `kind` is one of `released`, `exhausted`, `kept`; otherwise 22023, detail `kind`.
+4. **Writes:**
    - `released` and `exhausted`: `ai_days(p.day).neurons_reserved − p.reserved`; `reader_days(who, p.day).messages − 1`.
    - `exhausted` also sets `exhausted_at = coalesce(exhausted_at, clock)` on the marker's own day's row (`p.day`, whose row exists since the reservation made it), never on a fresh day that began after the call.
    - `kept`: `ai_days(p.day)`: `neurons_reserved − p.reserved`, `neurons_used + p.reserved`; `reader_days(who, p.day)`: `neurons + p.reserved`. `messages` is unchanged: the slot stays taken (decision 7).
    - `calls` is never lowered by a failure: it counts the reservations made.
-4. Delete the marker: `delete from social.requests where actor = who and request_id = …`.
-5. Answer `{state: 'failed', kind, view: _reader_view(who), retry_after_seconds}`, where `retry_after_seconds` is the seconds to the end of today's UTC day on the database's clock, counted exactly as begin's refusal counts them (decision 10), so the handler's 429 after `exhausted` needs no clock of its own.
+5. Delete the marker: `delete from social.requests where actor = who and request_id = …`.
+6. Answer `{state: 'failed', kind, view: _reader_view(who), retry_after_seconds}`, where `retry_after_seconds` is the seconds to the end of today's UTC day on the database's clock, counted exactly as begin's refusal counts them (decision 10), so the handler's 429 after `exhausted` needs no clock of its own.
 
-Comment: "Ends a reserved call that got no answer: released (it didn't run: the reservation and the reader's message slot come back), exhausted (as released, and chat pauses for the marker's UTC day: 3036) or kept (it may have run: the reservation counts as used and the slot stays taken). {state: failed, kind, view, retry_after_seconds}; the request ID is free again. P0002, 22023 (detail kind), HZS27."
+Comment: "Ends a reserved call that got no answer: released (it didn't run: the reservation and the reader's message slot come back), exhausted (as released, and chat pauses for the marker's UTC day: 3036) or kept (it may have run: the reservation counts as used and the slot stays taken). {state: failed, kind, view, retry_after_seconds}; the request ID is free again. message_id is begin's call.message_id: another call's, or none, is P0002 and writes nothing. P0002, 22023 (detail kind), HZS27."
 
 **`social.foryou_candidates() → jsonb`** (app/none, `stable`)
 - **The stories:** the top 300 rows of `social.stories` that are `listed and state = 'live'`, ordered by `top_rank desc, story_id desc` (`stories_board_top`), joined to `content.stories` and the latest update as `social.board` does.
@@ -514,6 +516,7 @@ After the lines:
 - **On any throw while `ended` is false** (a bug in our code, settle's 22023, a database error), it calls `reader_chat_fail(…, 'kept')`, best effort, before the error goes out.
 - **It never calls `fail` twice.** If that `fail` itself throws, P0002 included (nothing pending any more), the throw is swallowed and logged, and the first error goes out.
 - **If the settle had committed** before the throw, `fail` answers `done` and changes nothing.
+- **Both name the call** (decision 8's fence): `settle` carries `begun.call.message_id` as `answer.message_id`, and `fail` takes it as its fourth argument. A P0002 from either after a takeover means another try owns the call now: the guard swallows it, as it does any `fail` that throws, and the first error goes out. A fenced late call can only over-charge, since the abandoned try was charged at the takeover.
 
 ### 3.7 The stub (`stub.ts`)
 
@@ -561,8 +564,8 @@ Everything else is the shared map: HZS27 is a 409 `request_reused`, and 42501 th
       - `in_progress`: 409 `clash`, "Your reader agent is still answering this message: try again in a few seconds", with `Retry-After`.
    2. `readerAi(env, begun.ai)`: the stub when the token or the account ID is missing, else Workers AI.
    3. `buildPrompt`, call the provider, `readAnswer`, then `applyEdits` to `parseProfile(begun.profile.body)`.
-   4. **On a failure:** `reader_chat_fail(…, kind)`, `forget([reader key])`, then the answer from 3.6.
-   5. **Otherwise, settle:** `reader_chat_settle(requestId, body, {provider, prompt_tokens, completion_tokens, answer_form, reply, profile: changed ? {base_number, body: writeProfile(…)} : null})`. On `stale`, apply the same edits to the profile it returned and settle again, three times at most; then settle with `profile: null` and the note (3.5).
+   4. **On a failure:** `reader_chat_fail(requestId, body, kind, begun.call.message_id)`, `forget([reader key])`, then the answer from 3.6.
+   5. **Otherwise, settle:** `reader_chat_settle(requestId, body, {message_id: begun.call.message_id, provider, prompt_tokens, completion_tokens, answer_form, reply, profile: changed ? {base_number, body: writeProfile(…)} : null})`. On `stale`, apply the same edits to the profile it returned and settle again, three times at most; then settle with `profile: null` and the note (3.5).
    6. **After it commits:** `forget([reader key, …(profile_changed ? [forYou key] : [])])`, then answer `201`.
    7. Log one line (decision 18).
 5. **`reader.forYou`:** section 4.2.
@@ -750,6 +753,7 @@ Nothing here sends a second message. A replay with the same request ID is proven
 | The same request ID after the first finished | The same two messages; no AI call; the books unchanged |
 | The same request ID with another body | 409 `request_reused` (HZS27) |
 | The function dies, or the client disconnects, between reserve and settle; the reader retries the same ID after 60 s | A new request, never a free retry: the abandoned try is charged as kept (`reserved −= 18.3925`, `used += 18.3925`, its slot stays taken), the marker goes, and the retry goes through the cap and the allowance (it may be refused as `daily_cap` or `allowance_used`) to a new reservation and slot. Repeated every minute, it runs out the reader's cap, not the day's allowance |
+| The abandoned try was only slow, and answers or fails after the takeover's new `begin` | Fenced out: its `settle` or `fail` names the old message ID, so it is P0002 and writes nothing (the live call's marker, reply, slot and the day's rows are untouched); a late `exhausted` can't pause a fresh day. It can only over-charge: the abandoned try was charged at the takeover |
 | The function dies and nobody retries | The reservation stays open for its day and its slot stays taken; the budget is conservative |
 | The reservation is made at 23:59:59 UTC and settled at 00:00:02 | Settled on the marker's day, not the new one |
 | An admin changes the rates during a call | The settle uses the marker's rates |
@@ -805,7 +809,7 @@ Nothing here sends a second message. A replay with the same request ID is proven
 | Settle without usage, and the stub | `used += 18.3925`; the stub's zeros give 0, with `reserved` back to 0 |
 | Profile at settle | A version with author `agent`, the number + 1, holds recomputed; a stale `base_number` answers `stale` with the current profile and writes nothing (`ai_days`, `reader_days`, messages and the marker unchanged) |
 | Replay | Begin after settle answers `done` with the same IDs; `ai_days` unchanged |
-| In flight | A second begin while the lease lives is `in_progress`. With the lease backdated (the test edits the marker), begin charges the abandoned try as kept at the marker's R (`neurons_reserved −= 18.3925`, `neurons_used` and the reader's `neurons` each `+= 18.3925`, `messages` unchanged) and reserves anew at today's R (rates changed before the retry: `reserved += 22`, `calls + 1`, `messages + 1`, a new message ID); its answer holds `ai.provider`, `ai.model`, `profile` and `history`, read fresh, and the books balance. The same takeover with the reader at their cap answers `refused daily_cap`; with the allowance spent, `refused allowance_used` (counted); each with the abandoned try charged, the marker gone and no new reservation. A marker dated yesterday charges yesterday and reserves today |
+| In flight | A second begin while the lease lives is `in_progress`. With the lease backdated (the test edits the marker), begin charges the abandoned try as kept at the marker's R (`neurons_reserved −= 18.3925`, `neurons_used` and the reader's `neurons` each `+= 18.3925`, `messages` unchanged) and reserves anew at today's R (rates changed before the retry: `reserved += 22`, `calls + 1`, `messages + 1`, a new message ID); its answer holds `ai.provider`, `ai.model`, `profile` and `history`, read fresh, and the books balance. The same takeover with the reader at their cap answers `refused daily_cap`; with the allowance spent, `refused allowance_used` (counted); each with the abandoned try charged, the marker gone and no new reservation. A marker dated yesterday charges yesterday and reserves today. A refused takeover (the allowance spent), sent again once the allowance is back, charges the abandoned try once, not twice. A late settle (with usage and without) or fail (released, exhausted, kept) naming the old message ID is P0002 and changes nothing (the marker, `neurons_reserved`, `neurons_used`, `messages` and every `exhausted_at` as they were); a settle naming none, or a non-UUID, is 22023 (detail answer); a fail naming none or another call is P0002 before its kind is looked at; every test settle and fail names the call from `begin`'s `call.message_id`; a stored `done` answers `done` whatever call is named |
 | Fail | `released`: reserved and slot back, the marker gone, a new begin reserves again. `kept`: `used += 18.3925`, and the slot stays taken (`messages` unchanged). `exhausted`: released and `exhausted_at` set on the call's own day, the answer's `retry_after_seconds` the database's, then the next begin is `refused allowance_used`, `refused = 1`, no reservation |
 | The cap holds through failures | With `reader_daily_messages = 2`: two begins, each failed `kept`; the third begin is `refused daily_cap` |
 | Allowance | With `reader_ai_daily_neurons` set to **42.150375**, two begins reserve (`0 + 18.3925 + 18.3925 = 36.785` fits). The third is refused (`36.785 + 18.3925 = 55.1775` is over), counted as `refused = 1`, with `retry_after_seconds` in 1 to 86,400 and `paused_until` at the next 00:00 UTC. After one settles at 5.365375, a new begin fits exactly at the boundary (`5.365375 + 18.3925 + 18.3925 = 42.150375`, equal, not over), which proves the comparison is exact to the last decimal |
