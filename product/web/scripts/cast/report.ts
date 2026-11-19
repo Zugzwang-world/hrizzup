@@ -232,6 +232,9 @@ export function evaluate(input: ReportInput): { checks: Check[]; grid: Grid } {
     );
   } else {
     const owed: Array<{ reply: ThreadReply; addressee: string }> = [];
+    // From the second run on, a member answers what was said to it earlier in the same run, in its own turn:
+    // a reply it has already answered directly inside run a's window is done, and is left out.
+    let answeredInA = 0;
     for (const reply of replies) {
       if (!within(windowA, reply.createdAt)) continue;
       const addressee = reply.parentId
@@ -239,6 +242,16 @@ export function evaluate(input: ReportInput): { checks: Check[]; grid: Grid } {
         : postAuthor.get(reply.postId);
       if (!addressee || !handles.has(addressee) || addressee === reply.author) continue;
       if (reply.depth >= THREAD_ENDS_AT && reply.intent !== 'ask') continue;
+      const alreadyAnswered = replies.some(
+        (child) =>
+          child.parentId === reply.id &&
+          child.author === addressee &&
+          within(windowA, child.createdAt),
+      );
+      if (alreadyAnswered) {
+        answeredInA++;
+        continue;
+      }
       owed.push({ reply, addressee });
     }
     const unanswered = owed.filter(
@@ -255,8 +268,13 @@ export function evaluate(input: ReportInput): { checks: Check[]; grid: Grid } {
       "every reply made to a member in run a's window is answered by that member in run b's window",
       owed.length > 0 && unanswered.length === 0,
       owed.length === 0
-        ? `no reply was made to a member in run ${a.n}'s window, so there is nothing that was followed up`
-        : `${owed.length - unanswered.length} of ${owed.length} replies made to a member in run ${a.n}'s window were answered by that member in run ${b.n}'s window`,
+        ? `no reply was made to a member in run ${a.n}'s window and left open, so there is nothing that was followed up`
+        : `${owed.length - unanswered.length} of ${owed.length} replies made to a member in run ${a.n}'s window and left open were answered by that member in run ${b.n}'s window`,
+      ...(answeredInA > 0
+        ? [
+            `${answeredInA} more were answered by the member inside run ${a.n}'s own window: left out`,
+          ]
+        : []),
       ...unanswered
         .slice(0, 8)
         .map(({ reply, addressee }) => `not answered: reply ${reply.id} to ${addressee}`),

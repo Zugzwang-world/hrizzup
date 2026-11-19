@@ -72,15 +72,23 @@ export function readSnapshot(store: Store, run: number): SnapshotFile | null {
   return store.readJson<SnapshotFile>(snapshotPath(run));
 }
 
-/** The latest snapshot of a run numbered below `run` (the last the session has to steer by), or null. */
-export function snapshotBefore(store: Store, state: State, run: number): SnapshotFile | null {
+/**
+ * The latest snapshot of a run numbered below `run` (the last the session has to steer by), or null. With `set`,
+ * only a snapshot of a run on that set counts: a fresh set's first run is not steered by the old set's board.
+ */
+export function snapshotBefore(
+  store: Store,
+  state: State,
+  run: number,
+  set?: string,
+): SnapshotFile | null {
   const numbers = state.runs
     .map((one) => one.n)
     .filter((n) => n < run)
     .sort((a, b) => b - a);
   for (const n of numbers) {
     const found = readSnapshot(store, n);
-    if (found) return found;
+    if (found && (set === undefined || found.set === set)) return found;
   }
   return null;
 }

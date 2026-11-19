@@ -603,6 +603,9 @@ describe('the helpers', () => {
     expect(snapshotBefore(h.store, state, 1)).toBeNull();
     h.store.writeJson('snapshots/after-run-2.json', { ...base, label: 'after-run-2', run: 2 });
     expect(snapshotBefore(h.store, state, 3)?.label).toBe('after-run-2');
+    // Only a snapshot of the same set counts when a set is named.
+    expect(snapshotBefore(h.store, state, 3, 'set.json')?.label).toBe('after-run-2');
+    expect(snapshotBefore(h.store, state, 3, 'fresh.json')).toBeNull();
   });
 
   it("projectTop() orders by replies, keeps ties in the snapshot's order, and says whether the order changed", () => {

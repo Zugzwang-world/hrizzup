@@ -71,9 +71,15 @@ async function revokeOpenInvites(ctx: Ctx, email: string): Promise<void> {
 }
 
 /** Steps 2 and 3: the invite, then its code in `codes/` and its id in `cast.json`. */
-async function makeInvite(ctx: Ctx, member: Member, entry: Entry, save: () => void): Promise<void> {
+async function makeInvite(
+  ctx: Ctx,
+  member: Member,
+  entry: Entry,
+  save: () => void,
+  from = 1,
+): Promise<number> {
   const path = '/admin/social/invites';
-  for (let attempt = 1; attempt <= MAX_ATTEMPT; attempt++) {
+  for (let attempt = from; attempt <= MAX_ATTEMPT; attempt++) {
     const body = {
       email: entry.email,
       note: inviteNoteOf(member),
@@ -107,7 +113,7 @@ async function makeInvite(ctx: Ctx, member: Member, entry: Entry, save: () => vo
     entry.retiredAt = null;
     save();
     say(ctx, member, 'invite made');
-    return;
+    return attempt;
   }
   throw refuse(
     `${member.key}: its invite requests were all used or revoked: run \`retire ${member.key}\`, then \`make\``,
@@ -215,7 +221,9 @@ export async function makeMember(ctx: Ctx, member: Member): Promise<void> {
   say(ctx, member, 'account ready');
 
   let claimed = entry.claimedAt !== null && ctx.store.exists(keyFile(entry.handle));
-  // A dead invite (expired or revoked before the claim) is replaced once; a second one needs a new generation.
+  // A dead invite (expired or revoked before the claim) is replaced once, by a new request (the next attempt, never
+  // the one that made the dead invite again); a second one needs a new generation.
+  let attempt = 1;
   for (let invites = 0; !claimed; invites++) {
     if (invites > 1) throw refuse(`${member.key}: its invite kept expiring: ${retireAdvice}`);
     const haveKey = ctx.store.exists(keyFile(entry.handle));
@@ -243,7 +251,7 @@ export async function makeMember(ctx: Ctx, member: Member): Promise<void> {
     } else {
       // Steps 2 to 5.
       if (entry.inviteId === null || !ctx.store.exists(codeFile(entry.handle))) {
-        await makeInvite(ctx, member, entry, save);
+        attempt = await makeInvite(ctx, member, entry, save, attempt);
       }
       await checkSkill(ctx);
       const first = await register(ctx, member, entry, save);
@@ -251,6 +259,7 @@ export async function makeMember(ctx: Ctx, member: Member): Promise<void> {
         ctx.store.remove(codeFile(entry.handle));
         entry.inviteId = null;
         save();
+        attempt += 1;
         continue;
       }
       claimUrl = first;

@@ -13,6 +13,7 @@ import {
   seedMember,
   seedSet,
 } from './harness.ts';
+import { requestIdFor } from './ids.ts';
 import { readLog } from './log.ts';
 import { main } from './main.ts';
 import { LIMITS, sniffFile, uploadCommand } from './upload.ts';
@@ -73,6 +74,8 @@ describe('upload', () => {
   /** Which request IDs the fake has seen, and what each made. */
   let links: Map<string, string>;
   let counter: number;
+  /** Each media's row: when its link runs out, and whether it was finished (a replay answers what the row is now). */
+  let rows: Map<string, { expires: string; state: string }>;
   let linkFor: () => { url: string; headers?: Record<string, string>; expiresAt?: string };
   let doneStatus: Array<{ status: number; reason?: string }>;
 
@@ -81,6 +84,7 @@ describe('upload', () => {
     member = seedMember(h, 'meme-maker');
     seedSet(h, [idOf(10)], { run: 1 });
     links = new Map();
+    rows = new Map();
     counter = 1;
     doneStatus = [];
     linkFor = () => ({ url: fakeUploadUrl() });
@@ -99,14 +103,19 @@ describe('upload', () => {
         links.set(body.requestId, id);
       }
       const link = linkFor();
+      const row = rows.get(id) ?? {
+        expires: link.expiresAt ?? new Date(h.clock.now() + 600_000).toISOString(),
+        state: 'waiting',
+      };
+      rows.set(id, row);
       return json(201, {
-        media: { id, kind: body.kind, state: 'waiting' },
+        media: { id, kind: body.kind, state: row.state },
         uploadUrl: link.url,
         headers: link.headers ?? {
           'Content-Type': body.contentType,
           'Content-Length': String(body.bytes),
         },
-        expiresAt: link.expiresAt ?? new Date(h.clock.now() + 600_000).toISOString(),
+        expiresAt: row.expires,
       });
     });
     h.server.on('POST', /^\/api\/v1\/social\/me\/uploads\/([0-9a-f-]{36})\/done$/, (req, match) => {
@@ -119,6 +128,8 @@ describe('upload', () => {
           body: { code: 'REFUSED', data: { reason: planned.reason } },
         };
       }
+      const row = rows.get(match[1] ?? '');
+      if (row) row.state = 'ready';
       return json(200, { id: match[1], kind: 'image', url: 'https://media.example/x' });
     });
   });
@@ -287,6 +298,74 @@ describe('upload', () => {
       expect(await upload('meme.png', '--description', 'meme.txt')).toBe(2);
       expect(h.server.puts).toEqual([]);
       expect(h.printed()).not.toContain('X-Amz');
+    });
+  });
+
+  describe('a run again after the media was finished', () => {
+    const setUp = () => {
+      put('meme.png', PNG);
+      text('meme.txt', 'A description');
+    };
+
+    it('after more than 10 minutes sends only the done call, with the same ID, makes no second media and prints the same id', async () => {
+      setUp();
+      expect(await upload('meme.png', '--description', 'meme.txt')).toBe(0);
+      const firstPuts = h.server.puts.length;
+      const firstDone = h.server.to('POST', /done$/)[0];
+      expect(h.printed()).toBe(`${idOf(901)}\n`);
+
+      // The command is run again after the link has run out: the row says the media is ready.
+      h.clock.advance(11 * 60_000);
+      h.writes.length = 0;
+      h.server.requests.length = 0;
+      expect(await upload('meme.png', '--description', 'meme.txt')).toBe(0);
+      expect(h.printed()).toBe(`${idOf(901)}\n`);
+      expect(h.server.puts).toHaveLength(firstPuts);
+      const asked = h.server.to('POST', /me\/uploads$/);
+      expect(asked).toHaveLength(1);
+      const dones = h.server.to('POST', /done$/);
+      expect(dones).toHaveLength(1);
+      expect(dones[0]?.path).toBe(firstDone?.path);
+      expect(dones[0]?.body).toEqual(firstDone?.body);
+      expect(links.size).toBe(1);
+      expect(rows.size).toBe(1);
+    });
+
+    it('a media that is ready is never moved on to the next attempt, even when its link has run out', async () => {
+      setUp();
+      await upload('meme.png', '--description', 'meme.txt');
+      h.clock.advance(60 * 60_000);
+      h.server.requests.length = 0;
+      expect(await upload('meme.png', '--description', 'meme.txt')).toBe(0);
+      const ids = h.server.to('POST', /me\/uploads$/).map((req) => req.body?.requestId);
+      expect(new Set(ids).size).toBe(1);
+    });
+
+    it('a media that was refused still takes the next attempt: no file is sent to its link, and a new media is made', async () => {
+      setUp();
+      // Attempt 1's request already reached a media that was refused when it was checked (its row says so).
+      const first = requestIdFor({
+        subject: member.handle,
+        run: 1,
+        method: 'POST',
+        path: '/social/me/uploads',
+        body: { kind: 'image', contentType: 'image/png', bytes: PNG.length },
+        fileSha256: createHash('sha256').update(PNG).digest('hex'),
+        attempt: 1,
+      });
+      links.set(first, idOf(950));
+      rows.set(idOf(950), {
+        expires: new Date(h.clock.now() - 60_000).toISOString(),
+        state: 'refused',
+      });
+      doneStatus = [{ status: 422, reason: 'media_refused' }];
+      expect(await upload('meme.png', '--description', 'meme.txt')).toBe(0);
+      expect(h.printed()).toBe(`${idOf(901)}\n`);
+      expect(h.server.puts).toHaveLength(1);
+      const ids = h.server.to('POST', /me\/uploads$/).map((req) => req.body?.requestId);
+      expect(ids).toHaveLength(2);
+      expect(ids[0]).toBe(first);
+      expect(new Set(ids).size).toBe(2);
     });
   });
 

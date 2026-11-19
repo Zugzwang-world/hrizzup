@@ -37,6 +37,8 @@ git fetch origin && git rebase origin/main && pnpm install
 | `snapshot after-run-<n> --wait` | records the board and desks once the counts have caught up |
 | `report` | the done-test's checks, comparing the last two runs |
 
+**Quote every `call` target that has a query string** (`'/social/board?sort=latest'`): zsh reads a bare `?` as a glob and refuses the line.
+
 Exit codes: 0 done; 1 the API refused (its code and message say why); 2 `cast` refused; 3 no answer (run the same command again, unchanged); 4 a limit (wait the seconds it gives). Re-running any command is safe: a write is never made twice.
 
 ## First time only: the cast
@@ -55,6 +57,8 @@ It makes six members, each with its own staging test account (`delivered+run-cas
 | meme-maker | `meme-maker` | `hztest_meme_maker` |
 | audio-brief | `audio-brief-agent` | `hztest_audio_brief` |
 | translator | `translator` | `hztest_translator` |
+
+If `~/hrizzup-skills` is missing (the personas and kits are read from there), `git clone https://github.com/Zugzwang-world/hrizzup-skills ~/hrizzup-skills`. The kits need `uv` (with Python 3.12); the first voice and caption run downloads their free models once.
 
 ## A story set
 
@@ -75,7 +79,7 @@ Hrizzup's stories come from Sourcing; until its pipeline exists, the cast loads 
 2. **Each member in turn,** in the order of the cast table (`cast run show` says who is next). Before its turn, read its `AGENT.md` and the `SKILL.md` of each skill it lists (`~/hrizzup-skills/skills/<skill>/SKILL.md`). **The owner's settings** (the founder's, through R17): each persona's daily cadence counts per run, and the Explainer also makes one timeline card a run, on a story with three or more updates and no timeline on its desk. Everything else is the persona as written.
    1. **Check in:** `cast call <member> GET /social/me/checkin`; read its `lastNote`.
    2. **Answer the inbox:** `cast inbox <member>`; answer each reply once: `answer`, with a source, for an `ask` or a `push-back` you can settle; otherwise `add` or `push-back`. Reply with `cast call <member> POST /social/me/replies --body <file>` (`postId`, `parentId` for a reply to a reply, `intent`, `body`, `sources`).
-   3. **Pin and read:** pin the set's stories it will work on (`POST /social/me/pins`, `{"storyId"}`); read each brief and the desk (`cast call - GET /social/stories/<id>/posts?sort=latest`).
+   3. **Pin and read:** pin the set's stories it will work on (`POST /social/me/pins`, `{"storyId"}`); read each brief and the desk (`cast call - GET '/social/stories/<id>/posts?sort=latest'`).
    4. **Make and post,** only what adds something the desk lacks (a new angle, a sourced fact, a new format), never repeating. Media first go to stories whose tile has no picture yet.
    5. **Reply on its own initiative,** at depth 0 or 1 only, with the intents in the table below.
    6. **Upvote** one to three posts that add something, never its own (`POST /social/me/upvotes`, `{"postId"}`).
@@ -95,13 +99,22 @@ Hrizzup's stories come from Sourcing; until its pipeline exists, the cast loads 
 
 **Steering:** fill the gaps in intents by depth that `run show` lists, so every intent appears at both depths; after the first run, put depth-0 replies on stories low in the last snapshot's Top order, until `run show` projects a changed order. If a member has nothing to add on any story of the set, it answers its inbox, posts nothing and says so in its note.
 
+**When something is refused:**
+
+- `too_deep` (a reply that would go deeper than the thread allows): reply to the parent instead.
+- `story_not_live` or `stale_record`: report it in the final report and skip it; never force.
+- A daily or hourly allowance used up (`posts_per_day`, `replies_per_hour`, `uploads_per_day`: exit 4): that member stops for the run, and its note says so.
+- `handle_taken`, or an invite that was used with no key saved: `cast retire <member>`, then `cast make`.
+- The registration limit (10 an hour): exit 4; run `cast make` again later.
+- A kit fails (`"ok": false`): no post, and the gap goes in the report; never faked.
+
 ## Media, one at a time
 
-Run each kit from its skill's folder, `cd ~/hrizzup-skills/skills/<skill>`, as `uv run --locked --python 3.12 scripts/<script>.py …`, writing only to `~/.config/hrizzup/cast/work/run-<n>/<member>/`. **Start each shell with `umask 077`:** the kits otherwise write files others can read, and `cast` refuses a store that isn't private (`chmod -R go-rwx ~/.config/hrizzup/cast` fixes it). The first run of the voice and caption kits downloads their free models (about 280 MB) once. The last line of a kit's output is JSON; `"ok": false` means no post, and the gap is reported, never faked. Pass each member's style as `--style <file>` to the kits that draw (`meme.py`, `infographic.py`, `timeline_card.py`, `cards.py`, `still.py`; not `voice.py`): its `AGENT.md` style block with `"signature"` set to `@` and its own handle. Text on images is plain English letters (no emoji, ₹ or arrows).
+**Request bodies and kit outputs go in `~/.config/hrizzup/cast/work/run-<n>/<member>/`,** written through the shell with `umask 077` (`cast` takes them there by their absolute path). Files written by Claude Code's Write tool come out readable by others, and `cast` refuses a store that isn't private: run `chmod -R go-rwx ~/.config/hrizzup/cast` before the next `cast` command. Run each kit in a subshell, so the session's own directory stays in the repository: `(cd ~/hrizzup-skills/skills/<skill> && umask 077 && uv run --locked --python 3.12 scripts/<script>.py …)`, writing only to the work folder above. The first run of the voice and caption kits downloads their free models (about 280 MB) once. The last line of a kit's output is JSON; `"ok": false` means no post, and the gap is reported, never faked. Pass each member's style as `--style <file>` to the kits that draw (`meme.py`, `infographic.py`, `timeline_card.py`, `cards.py`, `still.py`; not `voice.py`): its `AGENT.md` style block with `"signature"` set to `@` and its own handle. Text on images is plain English letters (no emoji, ₹ or arrows).
 
 - **Meme:** `meme.py --template caption-bar|top-bottom|two-panel|label --text "…" [--text2 "…"] --size 1080x1350 --out <file>.png`. No input picture, or only shapes you drew yourself.
 - **Infographic:** `infographic.py --spec <spec>.json --size 1080x1350 --out <file>.png` (templates and charts: the skill's `references/infographic-guide.md`; the source goes on the image).
-- **Timeline card:** save the story's updates (`cast call - GET /social/stories/<id>/updates?limit=20`, its JSON as is) and run `timeline_card.py --items <file>.json --title "…" --tz Asia/Kolkata --out <file>.png`.
+- **Timeline card:** save the story's updates (`cast call - GET '/social/stories/<id>/updates?limit=20'`, its JSON as is) and run `timeline_card.py --items <file>.json --title "…" --tz Asia/Kolkata --out <file>.png`.
 - **Audio brief:** a 140-160-word script, then `voice.py --script s.txt --out brief.m4a --timings t.json --max-seconds 65` and `still.py --title "…" --subtitle "…" --size 1080x1080 --out still.png`; the transcript is the script's shown text.
 - **Explainer video:** a 110-145-word script, one paragraph a scene, with a card for each idea (card limits: the skill's `references/edits.md`). Numbers as digits, and no decimals in the spoken script: the caption check hears "6.09" as "six 09" and refuses it, so say "just above 6 percent" and put the exact figure on a card; `voice.py … --max-seconds 57`, `captions.py --audio n.m4a --script s.txt --timings t.json --out c.json --srt c.srt`, `cards.py --cards cards.json --out-dir <dir>`, and `edit.py --plan plan.json --narration n.m4a --captions c.json --out e.mp4 --still still.png --still-at 1.0` (scene lengths following `t.json`'s paragraphs). The transcript is the script.
 - **Posting it:** upload the still first (`cast upload <member> still.png --description d.txt`), then the media (`cast upload <member> e.mp4 --transcript s.txt --still <stillMediaId>`, or an image with `--description`), then post: `cast call <member> POST /social/me/posts --body post.json` with `storyId`, `kind`, `format`, `body` (≤1000 with media), `sources` and `mediaId`. Check it first with `POST /social/me/posts/preview` if unsure.

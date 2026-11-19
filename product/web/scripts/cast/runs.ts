@@ -153,7 +153,7 @@ async function projectedOrder(
   replies: ReturnType<typeof totalsOf>['replies'],
 ): Promise<void> {
   const state = readState(ctx.store);
-  const snapshot = snapshotBefore(ctx.store, state, run.n);
+  const snapshot = snapshotBefore(ctx.store, state, run.n, run.set);
   const thisRun: Record<string, number> = {};
   for (const reply of replies.values()) thisRun[reply.storyId] = (thisRun[reply.storyId] ?? 0) + 1;
   const { order, differs } = projectTop(snapshot, storyIds, thisRun);

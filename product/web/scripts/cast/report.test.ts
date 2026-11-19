@@ -442,15 +442,89 @@ describe('a failing fixture for each check', () => {
     if (second) second.parentId = idOf(402);
     expect(check(notDirect, 'R8').pass).toBe(false);
 
-    const early = fixture();
-    const third = early.replies.find((reply) => reply.id === idOf(411));
-    if (third) third.createdAt = at(10, 30);
-    expect(check(early, 'R8').pass).toBe(false);
-
     const late = fixture();
     const fourth = late.replies.find((reply) => reply.id === idOf(411));
     if (fourth) fourth.createdAt = at(11, 59);
     expect(check(late, 'R8').pass).toBe(false);
+  });
+
+  it("R8: a reply the member already answered directly inside run 1's own window is left out, not owed", () => {
+    const input = fixture();
+    // The explainer answers reply 401 in run 1 itself, at 10:30, inside the window. That answer is a reply to the
+    // source-checker, so it is owed in its turn: the source-checker follows it up in run 2 (reply 414).
+    const answer = input.replies.find((reply) => reply.id === idOf(411));
+    if (answer) answer.createdAt = at(10, 30);
+    const followUp: ThreadReply = {
+      id: idOf(414),
+      postId: POSTS.explainerVideo,
+      parentId: idOf(411),
+      author: handle('source-checker'),
+      intent: 'add',
+      depth: 2,
+      createdAt: at(11, 10),
+    };
+    input.replies.push(followUp);
+    const result = check(input, 'R8');
+    expect(result.pass).toBe(true);
+    // 402, 403 and the answer itself are owed and were answered in run 2; 401 was answered inside run 1 and is left out.
+    expect(result.evidence[0]).toContain('3 of 3');
+    expect(result.evidence[1]).toContain('1 more were answered by the member inside run 1');
+
+    // Without that follow-up the answer is itself an unanswered reply to a member.
+    input.replies = input.replies.filter((reply) => reply.id !== followUp.id);
+    expect(check(input, 'R8').pass).toBe(false);
+    expect(check(input, 'R8').evidence.join(' ')).toContain(
+      `reply ${idOf(411)} to ${handle('source-checker')}`,
+    );
+
+    // Only the addressee's own, direct answer counts: another member's answer, or one not under the reply, does not.
+    const byOther = fixture();
+    const other = byOther.replies.find((reply) => reply.id === idOf(411));
+    if (other) {
+      other.createdAt = at(10, 30);
+      other.author = handle('analyst');
+    }
+    expect(check(byOther, 'R8').evidence.join(' ')).toContain(
+      `reply ${idOf(401)} to ${handle('explainer')}`,
+    );
+    const elsewhere = fixture();
+    const under = elsewhere.replies.find((reply) => reply.id === idOf(411));
+    if (under) {
+      under.createdAt = at(10, 30);
+      under.parentId = idOf(402);
+    }
+    expect(check(elsewhere, 'R8').evidence.join(' ')).toContain(
+      `reply ${idOf(401)} to ${handle('explainer')}`,
+    );
+  });
+
+  it("R8: fails when every reply in run 1's window was answered inside it, since nothing then shows a follow-up in run 2", () => {
+    const input = fixture();
+    input.replies = [
+      {
+        id: idOf(470),
+        postId: POSTS.explainerVideo,
+        parentId: null,
+        author: handle('analyst'),
+        intent: 'add',
+        depth: 0,
+        createdAt: at(10, 12),
+      },
+      // The answer sits at the end of a thread (depth 3, not an ask): nobody owes it one.
+      {
+        id: idOf(471),
+        postId: POSTS.explainerVideo,
+        parentId: idOf(470),
+        author: handle('explainer'),
+        intent: 'add',
+        depth: 3,
+        createdAt: at(10, 20),
+      },
+    ];
+    const result = check(input, 'R8');
+    expect(result.pass).toBe(false);
+    expect(result.evidence[0]).toContain('nothing that was followed up');
+    expect(result.evidence[1]).toContain('1 more were answered');
   });
 
   it("R8: takes a post's author from the cast's log when the desks do not hold the post", () => {

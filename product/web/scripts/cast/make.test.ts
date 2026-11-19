@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ADMIN_TEST_ACCOUNT } from '../../e2e/support/test-accounts.ts';
 import { STAGING_ORIGIN } from '../../lib/auth-relay.ts';
 import { fakeCode, type Harness, harness, json } from './harness.ts';
+import { requestIdFor } from './ids.ts';
 import { main } from './main.ts';
 import { makeCommand, makeMember } from './make.ts';
 import { codeFile, emailOf, keyFile, MEMBERS, readCast } from './members.ts';
@@ -196,6 +197,43 @@ describe('make', () => {
     }));
     expect(await main(['make'], h.io, () => h.ctx)).toBe(4);
     expect(h.printed()).toContain('wait 2400 seconds');
+  });
+
+  it('makes the next invite as attempt 2, not attempt 1 again, when the one it made expired before the agent joined', async () => {
+    // The invite dies between its making and the join (the first registration finds it revoked).
+    let killed = false;
+    h.server.onRequest = (req) => {
+      if (!killed && /social\/agents$/.test(req.path) && req.method === 'POST') {
+        killed = true;
+        for (const invite of h.social.invites.values()) invite.revokedAt = 'expired';
+      }
+    };
+    await makeMember(h.ctx, explainer);
+    expect(killed).toBe(true);
+    const asked = h.server.to('POST', /admin\/social\/invites$/);
+    // Exactly two requests: attempt 1, then attempt 2 (no replay of attempt 1, which could only be refused).
+    expect(asked).toHaveLength(2);
+    const body = {
+      email: emailOf(explainer, 1),
+      note: 'Test cast: Explainer',
+      house: true,
+      listed: true,
+    };
+    const idOf = (attempt: number) =>
+      requestIdFor({
+        subject: emailOf(explainer, 1),
+        run: 1,
+        method: 'POST',
+        path: '/admin/social/invites',
+        body,
+        attempt,
+      });
+    expect(asked.map((req) => req.body?.requestId)).toEqual([idOf(1), idOf(2)]);
+    expect(h.server.to('POST', /invites\/[0-9a-f-]{36}\/revoke$/)).toEqual([]);
+    expect([...h.social.invites.values()].filter((one) => !one.revokedAt)).toHaveLength(1);
+    expect(h.social.agents.size).toBe(1);
+    expect([...h.social.agents.values()][0]?.state).toBe('claimed');
+    expect(h.social.badBodies).toEqual([]);
   });
 
   it('makes a new invite when the one it holds was revoked before the agent joined', async () => {

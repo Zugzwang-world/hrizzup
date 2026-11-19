@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { QUERY_FIELDS, RULES, ruleFor, splitTarget } from './allow.ts';
 import { callCommand } from './call.ts';
 import { CastError } from './errors.ts';
@@ -256,6 +256,24 @@ describe('`call`', () => {
     h.ctx.cwd = '/somewhere/else';
     expect(await run('explainer', 'POST', '/social/me/pins', '--body', 'work/body.json')).toBe(2);
     expect(await run('explainer', 'POST', '/social/me/pins', '--body', 'body.json')).toBe(0);
+  });
+
+  it('sends `{}` for a POST with no --body, and never reads standard input unless it is `--body -`', async () => {
+    const stdin = vi.fn(async () => JSON.stringify({ storyId: STORY }));
+    h.ctx.stdin = stdin;
+    h.server.on('POST', /\/social\/me\/pins\/[0-9a-f-]{36}\/unpin$/, () =>
+      json(200, { pin: { storyId: STORY } }),
+    );
+    expect(await run('explainer', 'POST', `/social/me/pins/${STORY}/unpin`)).toBe(0);
+    expect(stdin).not.toHaveBeenCalled();
+    const [sent] = h.server.requests;
+    expect(Object.keys(sent?.body ?? {})).toEqual(['requestId']);
+    // A POST that needs a story but was given no body is refused by the scope, not by waiting on a terminal.
+    expect(await run('explainer', 'POST', '/social/me/pins')).toBe(2);
+    expect(stdin).not.toHaveBeenCalled();
+    // `--body -` is the one way to read it.
+    expect(await run('explainer', 'POST', '/social/me/pins', '--body', '-')).toBe(0);
+    expect(stdin).toHaveBeenCalledTimes(1);
   });
 
   it('reads a body from standard input when it is `-`', async () => {

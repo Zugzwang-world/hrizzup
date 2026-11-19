@@ -7,7 +7,7 @@ import { inFolder } from './files.ts';
 import { type Call, refusedBy, send, sendRaw } from './http.ts';
 import { list, object, text } from './lenient.ts';
 import { keyFile, MEMBERS, readCast } from './members.ts';
-import { openRun, readState, type State, writeState } from './state.ts';
+import { openRun, readState, type State, withdrawnNames, writeState } from './state.ts';
 
 /**
  * The story sets (rules 13 and 14): a set file in `<store>/stories/`, written by the session, is
@@ -123,7 +123,8 @@ export function prepareSet(input: SetFile, nowMs: number, newId: () => string): 
     }
     const storyId = entry.story.id || newId();
     if (!entry.story.id) {
-      entry.story = { id: storyId, ...entry.story };
+      // The id goes after the spread: an `"id": ""` or `null` in the file cannot overwrite the one filled in.
+      entry.story = { ...entry.story, id: storyId };
       changed = true;
     }
     unique(storyId, where);
@@ -136,10 +137,9 @@ export function prepareSet(input: SetFile, nowMs: number, newId: () => string): 
     entry.updates.forEach((given, at) => {
       const place = `${where}, update ${at + 1}`;
       problems.push(...unknownKeys(object(given), UPDATE_KEYS, place));
-      // A fresh id goes first in the record, so the file reads well.
       const update = { ...given, id: given.id || newId() };
       if (!given.id) {
-        entry.updates[at] = { id: update.id, ...given };
+        entry.updates[at] = { ...given, id: update.id };
         changed = true;
       }
       unique(update.id, place);
@@ -223,6 +223,11 @@ export async function loadCommand(ctx: Ctx, name: string): Promise<void> {
   const file = rel.slice('stories/'.length);
   if (state.current && state.current.file !== file) {
     throw refuse(`${state.current.file} is the current set: \`stories withdraw\` it first`);
+  }
+  if (!state.current && withdrawnNames(state).has(file)) {
+    throw refuse(
+      `${file} was the name of a set that has been withdrawn: write the fresh set under a new file name`,
+    );
   }
   const { prepared } = readyToSend(ctx, name);
   for (const warning of prepared.warnings) ctx.io.out(`warning: ${warning}`);
@@ -326,6 +331,7 @@ export async function withdrawCommand(ctx: Ctx): Promise<void> {
     });
     ctx.io.out(`story withdrawn (${savedOf(saved.body)}): ${String(one.story.title)}`);
   }
+  state.withdrawn = [...new Set([...state.withdrawn, state.current.file])];
   state.current = null;
   writeState(ctx.store, state);
 }

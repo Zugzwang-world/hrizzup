@@ -274,6 +274,25 @@ describe('run show: the projected Top order', () => {
     expect(last()).toContain("replies: after-run-1's snapshot");
   });
 
+  it("does not steer a fresh set's first run by the old set's snapshot", async () => {
+    // Run 1 was on set.json (snapshot saved); run 2 is the first on fresh.json, which is now the current set.
+    h.store.writeJson('snapshots/after-run-1.json', snapshot([S[0], S[1], S[2]], [5, 3, 1]));
+    const state = readState(h.store);
+    state.runs = [
+      { n: 1, set: 'set.json', open: false, startedAt: 'a', endedAt: 'b' },
+      { n: 2, set: 'fresh.json', open: true, startedAt: 'c', endedAt: null },
+    ];
+    state.current = { file: 'fresh.json', storyIds: S, loadedAt: 'c' };
+    h.store.writeJson('state.json', state);
+    at(reply(1, S[1]));
+    await run('run', 'show');
+    const text = last();
+    expect(text).toContain('no earlier snapshot');
+    expect(text).toContain(`1. ${S[1]}: 1 replies (0 + 1)`);
+    expect(text).not.toContain('the projected order');
+    expect(text).not.toContain('after-run-1');
+  });
+
   it("with no earlier snapshot, projects from this run's replies alone, ties in the set file's order, with no verdict", async () => {
     at(reply(1, S[2]));
     await run('run', 'show');

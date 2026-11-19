@@ -67,7 +67,9 @@ export async function callCommand(ctx: Ctx, args: CallArgs): Promise<void> {
 
   const state = readState(ctx.store);
   const run = method === 'POST' ? needOpenRun(state) : openRun(state);
-  const body = method === 'POST' ? await readBody(ctx, args.body ?? '-') : undefined;
+  // A POST with no `--body` sends an empty body (`{}`, and the request ID): standard input is read only for `--body -`.
+  const body =
+    method === 'POST' ? (args.body === undefined ? {} : await readBody(ctx, args.body)) : undefined;
   if (body && 'requestId' in body)
     throw refuse('A body holding requestId is refused: the cast makes it');
 

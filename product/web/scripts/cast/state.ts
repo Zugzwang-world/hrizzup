@@ -23,17 +23,37 @@ export type RunRecord = {
   endedAt: string | null;
 };
 
-export type State = { current: Current | null; runs: RunRecord[] };
+export type State = {
+  current: Current | null;
+  runs: RunRecord[];
+  /** The file names of sets that were withdrawn (an older `state.json` has none: it reads as an empty list). */
+  withdrawn: string[];
+};
 
 const FILE = 'state.json';
 
 export function readState(store: Store): State {
   const saved = store.readJson<Partial<State>>(FILE);
-  return { current: saved?.current ?? null, runs: saved?.runs ?? [] };
+  return {
+    current: saved?.current ?? null,
+    runs: saved?.runs ?? [],
+    withdrawn: saved?.withdrawn ?? [],
+  };
 }
 
 export function writeState(store: Store, state: State): void {
   store.writeJson(FILE, state);
+}
+
+/**
+ * The file names of sets that were withdrawn: those recorded, and any a run was made on that is not the
+ * current set (a store from before `withdrawn` was kept). A set is known only by its file name, so a name
+ * that an earlier set used is never loaded again.
+ */
+export function withdrawnNames(state: State): Set<string> {
+  const names = new Set(state.withdrawn);
+  for (const run of state.runs) if (run.set !== state.current?.file) names.add(run.set);
+  return names;
 }
 
 export const openRun = (state: State): RunRecord | null =>

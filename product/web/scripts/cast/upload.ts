@@ -163,19 +163,27 @@ export async function uploadCommand(ctx: Ctx, args: UploadArgs): Promise<void> {
     const mediaId = text(media.id);
     const uploadUrl = text(link.body.uploadUrl);
     const sent = object(link.body.headers);
-    if (!mediaId || !uploadUrl) throw refuse('The upload answer has no link: refused');
-    learn(uploadUrl);
-    const headers: Record<string, string> = {};
-    for (const [name, value] of Object.entries(sent))
-      if (typeof value === 'string') headers[name] = value;
-    const expires = Date.parse(text(link.body.expiresAt) ?? '');
-    if (Number.isFinite(expires) && expires <= ctx.clock.now()) continue;
-    assertUploadLink(uploadUrl, headers);
+    // A media that is no longer waiting (a run again after the first run finished it, or its answer was lost)
+    // needs no file and no link: only the done call, with the same ID. Never a second media for it.
+    const settled = text(media.state) !== null && text(media.state) !== 'waiting';
+    if (!mediaId || (!settled && !uploadUrl))
+      throw refuse('The upload answer has no link: refused');
+    if (!settled && uploadUrl) {
+      learn(uploadUrl);
+      const headers: Record<string, string> = {};
+      for (const [name, value] of Object.entries(sent))
+        if (typeof value === 'string') headers[name] = value;
+      const expires = Date.parse(text(link.body.expiresAt) ?? '');
+      if (Number.isFinite(expires) && expires <= ctx.clock.now()) continue;
+      assertUploadLink(uploadUrl, headers);
 
-    // 2. The file, to the link, with exactly the headers the API gave.
-    const status = await put(ctx, uploadUrl, headers, bytes as Uint8Array<ArrayBuffer>);
-    if (status === 403 || status === 400) continue; // the link has run out, or was refused
-    if (status < 200 || status >= 300) throw refuse(`PUT upload link was refused (${status})`);
+      // 2. The file, to the link, with exactly the headers the API gave.
+      const status = await put(ctx, uploadUrl, headers, bytes as Uint8Array<ArrayBuffer>);
+      if (status === 403 || status === 400) continue; // the link has run out, or was refused
+      if (status < 200 || status >= 300) throw refuse(`PUT upload link was refused (${status})`);
+    } else if (uploadUrl) {
+      learn(uploadUrl);
+    }
 
     // 3. Say it is done, so it is checked.
     const finish = {

@@ -71,6 +71,41 @@ describe('a set file', () => {
     expect(second.file).toEqual(first.file);
   });
 
+  it('fills in the id even where the file has an empty or null one, and keeps it on the next read', async () => {
+    const set = setOf(8);
+    const [first] = set.stories;
+    if (!first) throw new Error('no story');
+    (first.story as { id?: unknown }).id = '';
+    (first.updates[0] as { id?: unknown }).id = null;
+    (first.updates[1] as { id?: unknown }).id = '';
+    const prepared = prepareSet(set, h.clock.now(), counter());
+    expect(prepared.changed).toBe(true);
+    expect(prepared.problems).toEqual([]);
+    const filled = prepared.file.stories[0];
+    expect(filled?.story.id).toMatch(/^01900000-0000-7000-8000-/);
+    expect(filled?.updates.map((update) => update.id)).toEqual([
+      expect.stringMatching(/^01900000-/),
+      expect.stringMatching(/^01900000-/),
+    ]);
+    // The records carry the same ids the file will hold.
+    expect(prepared.records[0]?.story.id).toBe(filled?.story.id);
+    expect(prepared.records[0]?.updates.map((record) => record.id)).toEqual(
+      filled?.updates.map((update) => update.id),
+    );
+
+    // Through the command: the file is written back with the ids, and the next check changes nothing.
+    write('empty-ids.json', set);
+    checkCommand(h.ctx, 'empty-ids.json');
+    const written = JSON.parse(h.store.readText('stories/empty-ids.json') ?? '{}') as SetFile;
+    expect(written.stories[0]?.story.id).toMatch(/^01a/);
+    expect(written.stories[0]?.updates.every((update) => /^01a/.test(String(update.id)))).toBe(
+      true,
+    );
+    const text = h.store.readText('stories/empty-ids.json');
+    checkCommand(h.ctx, 'empty-ids.json');
+    expect(h.store.readText('stories/empty-ids.json')).toBe(text);
+  });
+
   it('makes the records as the rule says: the times, the state, and what the agreement checks', () => {
     const set = setOf(8);
     const added = iso(h.clock.now() - 90 * 60_000);
@@ -415,5 +450,60 @@ describe('stories withdraw', () => {
     expect(await main(['stories', 'load', 'fresh.json'], h.io, () => h.ctx)).toBe(0);
     expect(readState(h.store).current?.file).toBe('fresh.json');
     expect(h.store.exists(keyFile('hztest_explainer'))).toBe(false);
+  });
+
+  it('refuses to load a file name that an earlier, withdrawn set used, and says to write the fresh set under a new name', async () => {
+    write('set.json', setOf(8));
+    await loadCommand(h.ctx, 'set.json');
+    await withdrawCommand(h.ctx);
+    expect(readState(h.store).withdrawn).toEqual(['set.json']);
+    expect(readState(h.store).current).toBeNull();
+    h.server.requests.length = 0;
+    h.writes.length = 0;
+    // The same file again, whatever it holds now (a fresh set written over the old name).
+    write('set.json', setOf(8));
+    expect(await main(['stories', 'load', 'set.json'], h.io, () => h.ctx)).toBe(2);
+    expect(h.printed()).toContain('write the fresh set under a new file name');
+    expect(h.server.requests).toEqual([]);
+    expect(readState(h.store).current).toBeNull();
+    // A new name is fine, and then the withdrawn one is refused as "the current set is another" as before.
+    write('fresh.json', setOf(8));
+    expect(await main(['stories', 'load', 'fresh.json'], h.io, () => h.ctx)).toBe(0);
+    expect(await main(['stories', 'load', 'set.json'], h.io, () => h.ctx)).toBe(2);
+    expect(readState(h.store).withdrawn).toEqual(['set.json']);
+  });
+
+  it('knows a withdrawn set from the runs made on it when the store is from before names were kept', async () => {
+    write('set.json', setOf(8));
+    // A store as the first pass left it: no `withdrawn`, the set gone, a run that was made on it.
+    h.store.writeJson('state.json', {
+      current: null,
+      runs: [
+        {
+          n: 1,
+          set: 'set.json',
+          open: false,
+          startedAt: iso(h.clock.now()),
+          endedAt: iso(h.clock.now()),
+        },
+      ],
+    });
+    expect(readState(h.store).withdrawn).toEqual([]);
+    expect(await main(['stories', 'load', 'set.json'], h.io, () => h.ctx)).toBe(2);
+    expect(h.printed()).toContain('new file name');
+    expect(h.server.requests).toEqual([]);
+    // The set that is current is still loaded again, as it is meant to be, and its runs do not count against it.
+    write('now.json', setOf(8));
+    await loadCommand(h.ctx, 'now.json');
+    const state = readState(h.store);
+    state.runs.push({
+      n: 2,
+      set: 'now.json',
+      open: false,
+      startedAt: iso(h.clock.now()),
+      endedAt: iso(h.clock.now()),
+    });
+    writeState(h.store, state);
+    expect(await main(['stories', 'load', 'now.json'], h.io, () => h.ctx)).toBe(0);
   });
 });
