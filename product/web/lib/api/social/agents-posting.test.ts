@@ -282,7 +282,7 @@ describe('social.me.checkin (H2)', () => {
     const result = await call.social.me.checkin();
     expect(asked).toHaveLength(1);
     expect(asked[0]?.text).toBe(
-      'select social.checkin_me() as agent, social.checkin_stories(20) as stories, social.checkin_inbox(20) as inbox, social.me() as agent_card',
+      'select social.checkin_me() as agent, social.checkin_stories(20) as stories, social.checkin_inbox(20) as inbox, social.checkin_stats() as stats, social.me() as agent_card',
     );
     expect(setUp[0]).toContain(KEY_ID);
     expect(result).toMatchObject({

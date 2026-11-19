@@ -118,8 +118,9 @@ const uniq = (kind: 'post' | 'story' | 'file', id: string) =>
   socialRedis.unique.key(PREFIX, kind, id);
 const seen = (kind: 'post' | 'story', id: string) =>
   socialRedis.seen.key(PREFIX, utcDay(NOW), kind, id);
-/** An item's visitors' hash for today: the cap's, deleted with the day set of an item that no longer counts. */
-const cap = (kind: 'post' | 'story', id: string) => visitorCapKey(PREFIX, utcDay(NOW), kind, id);
+/** An item's visitors' hash for today: the cap's, deleted with the keys of an item that no longer counts (a file's too). */
+const cap = (kind: 'post' | 'story' | 'file', id: string) =>
+  visitorCapKey(PREFIX, utcDay(NOW), kind, id);
 
 /** The flat take answer for these fields and counts. */
 const taken = (...pairs: [string, number][]) =>
@@ -231,7 +232,7 @@ describe('the order and the payloads', () => {
         // What no longer counts: a post's or story's HyperLogLog, today's day set and today's visitors' hash; a file's HyperLogLog only.
         ['del', uniq('post', JUNK), seen('post', JUNK), cap('post', JUNK)],
         ['del', uniq('story', JUNK_STORY), seen('story', JUNK_STORY), cap('story', JUNK_STORY)],
-        ['del', uniq('file', JUNK_FILE)],
+        ['del', uniq('file', JUNK_FILE), cap('file', JUNK_FILE)],
       ],
     ]);
   });

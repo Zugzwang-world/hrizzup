@@ -275,19 +275,16 @@ async function uniques(
   unions('views');
   unions('reads');
 
-  // The taken items that no longer count: a post or story's HyperLogLog, today's day set and today's visitors' hash,
-  // a file's HyperLogLog (a made-up ID's keys live about a minute).
+  // The taken items that no longer count: a post or story's HyperLogLog, today's day set and today's visitors' hash; a
+  // file's HyperLogLog and today's visitors' hash (a file has no day set: it counts at every note, up to the cap per
+  // address). A made-up ID's keys live about a minute.
   const day = utcDay(at);
   for (const [kind, itemKind] of KINDS) {
     for (const id of taken[kind].keys()) {
       if (counting[kind].has(id)) continue;
       const keys = [socialRedis.unique.key(prefix, itemKind, id)];
-      if (itemKind !== 'file') {
-        keys.push(
-          socialRedis.seen.key(prefix, day, itemKind, id),
-          visitorCapKey(prefix, day, itemKind, id),
-        );
-      }
+      if (itemKind !== 'file') keys.push(socialRedis.seen.key(prefix, day, itemKind, id));
+      keys.push(visitorCapKey(prefix, day, itemKind, id));
       pipeline.del(...keys);
       queue();
     }

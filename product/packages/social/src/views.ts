@@ -15,8 +15,9 @@ import { idOrThrow } from './uuid.ts';
  * - **One address can't make up devices to add views:** a device ID is the client's own string, so each item
  *   also keeps, for each UTC day, one hash of its visitors (`vcap:v1:<day>:<kind>-<id>`): the field is a *visitor
  *   day token* (an HMAC of the visitor key, `address.ts`: the IPv4 address, or an IPv6 address's /64 block, or
- *   one shared `none` where an address was expected), the value how many devices it has added. At 20 the
- *   visitor's new devices count nothing more for that item that day. The hash ends with the day's set, and no
+ *   one shared `none` where an address was expected), the value how many views it has added (for a file, how
+ *   many page notes it has counted). At 20 the visitor's new devices (a file's notes) count nothing more for that
+ *   item that day. The hash ends with the day's set, and no
  *   address, and no token, is in a key's name.
  * - **Every key a script touches is passed in `KEYS`** (Upstash's rule), built by `socialRedis` or
  *   `redisKey` (the cap's, `visitorCapKey`, is here: `redis.ts` is not R11's), so it starts with the
@@ -31,7 +32,10 @@ export const NOTE_SECONDS = socialRedis.note.seconds;
 export const PENDING_SECONDS = socialRedis.counts.seconds;
 /** How long a HyperLogLog lives, renewed on every use. */
 export const UNIQUE_SECONDS = socialRedis.unique.seconds;
-/** The most views one address adds to one item in one UTC day, whatever device IDs it makes up (the cap per address). */
+/**
+ * The most views one address adds to one item in one UTC day, whatever device IDs it makes up (the cap per address); for a
+ * file read through a page's note, the most notes of it that count.
+ */
 export const VISITOR_DAILY_CAP = 20;
 /** A day's set of tokens lasts until its day ends and this many seconds more (the clock's slack), and no longer. */
 export const SEEN_MARGIN_SECONDS = 600;
@@ -62,19 +66,25 @@ export type ScriptCall = { keys: string[]; args: string[] };
 
 /**
  * The note script. `KEYS[1]` is the note's key and `KEYS[2]` the pending hash; then, for item i, three keys:
- * `KEYS[3i]` its day set, `KEYS[3i + 1]` its HyperLogLog and `KEYS[3i + 2]` its visitors' hash for the day (the
- * day set and the visitors' hash are built for a file too, and never written). `ARGV[1]` is the fingerprint,
+ * `KEYS[3i]` its day set, `KEYS[3i + 1]` its HyperLogLog and `KEYS[3i + 2]` its visitors' hash for the day (a file's
+ * day set is built too, and never written: a file doesn't count once a device a day). `ARGV[1]` is the fingerprint,
  * `ARGV[2]` the note's seconds, `ARGV[3]` the pending hash's, `ARGV[4]` the `EXPIREAT` second of the day set and
  * the visitors' hash, `ARGV[5]` the HyperLogLog's seconds, `ARGV[6]` the day token, `ARGV[7]` the device token,
- * `ARGV[8]` the most devices one visitor adds to one item in a day (`0` with no visitor: no cap) and `ARGV[9]` the
+ * `ARGV[8]` the most views one visitor adds to one item in a day (`0` with no visitor: no cap) and `ARGV[9]` the
  * visitor's day token (empty with no visitor); then, for item i, `ARGV[8 + 2i]` is its field (`post:<id>`) and
  * `ARGV[9 + 2i]` its mode, `once` (a post or story: once a device a day) or `every` (a file: at every note).
  *
- * A device that is new to an item's day set is counted only while the visitor's count in the item's visitors'
- * hash is below the cap; at the cap the item counts 0 for this note: no day-set entry, no increment of the
+ * A `once` item: a device that is new to its day set is counted only while the visitor's count in the item's
+ * visitors' hash is below the cap; at the cap the item counts 0 for this note: no day-set entry, no increment of the
  * visitor, no pending increment, no HyperLogLog. Otherwise the device joins the day set, the visitor's count goes
- * up by one (the hash's expiry is set with the day set's), and the view is counted. Answers
- * `{'replay'|'reused'|'counted', counted}`.
+ * up by one (the hash's expiry is set with the day set's), and the view is counted.
+ *
+ * An `every` item (a file read through a page's note) has no day set, but the same cap: it counts at every note
+ * while the visitor's count in the item's visitors' hash is below the cap, and each one it counts raises that
+ * count, so one address can't add more than the cap to one file in a day, whatever notes and devices it makes up
+ * (file reads feed standing). With no visitor (cap `0`) it counts at every note, as before.
+ *
+ * Answers `{'replay'|'reused'|'counted', counted}`.
  */
 export const NOTE_SCRIPT = `
 local held = redis.call('GET', KEYS[1])
@@ -105,6 +115,13 @@ for i = 1, (#KEYS - 2) / 3 do
         end
         fresh = 1
       end
+    end
+  elseif cap > 0 then
+    if (tonumber(redis.call('HGET', visitors, ARGV[9])) or 0) >= cap then
+      fresh = 0
+    else
+      redis.call('HINCRBY', visitors, ARGV[9], 1)
+      redis.call('EXPIREAT', visitors, ARGV[4])
     end
   end
   if fresh == 1 then
@@ -248,7 +265,8 @@ function dayOrThrow(value: string): string {
 
 /**
  * An item's visitors' hash for a UTC day (`vcap:v1:<yyyymmdd>:<kind>-<id>`): the field is a visitor day token, the
- * value the devices that visitor has added to the item that day. No visitor, address or token is in the name.
+ * value the views that visitor has added to the item that day (a file's: the page notes counted). No visitor, address
+ * or token is in the name.
  */
 export function visitorCapKey(prefix: string, utcDay: string, kind: ViewKind, id: string): string {
   if (!VIEW_KINDS.includes(kind)) {
@@ -265,8 +283,8 @@ export function visitorCapKey(prefix: string, utcDay: string, kind: ViewKind, id
 
 /**
  * The note script's keys and arguments (see `NOTE_SCRIPT` for their order). Every name is `socialRedis`'s or
- * `visitorCapKey`'s, under the environment's prefix; the request ID is written in lower case; a file's day set and
- * visitors' hash are built but never written. Every item has three keys, with or without a visitor; with none the
+ * `visitorCapKey`'s, under the environment's prefix; the request ID is written in lower case; a file's day set is
+ * built but never written. Every item has three keys, with or without a visitor; with none the
  * cap is `0` and the visitor's token empty, so the hash is never read or written. The device and the visitor are
  * never among them, only their tokens.
  */

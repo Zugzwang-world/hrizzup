@@ -1,3 +1,4 @@
+import { createHmac } from 'node:crypto';
 import type { social } from '@hrizzup/api';
 import { visitorKeyOf } from '@hrizzup/social/address';
 import { socialRedis } from '@hrizzup/social/redis';
@@ -142,8 +143,34 @@ export async function countFileRead(read: FileRead): Promise<void> {
 export type ViewFrom = { address: string | null };
 
 /**
+ * Who a note's 30-a-minute limit (L5) counts it against: the same ID R6's `visitorOf` makes of an address (the first
+ * 32 characters of the base64url HMAC-SHA256 of `social-visitor\n<address>`, keyed with `SOCIAL_JOBS_SECRET`), but of
+ * the address *as the cap sees it* (`@hrizzup/social/address`): an IPv6 address is its /64 block, so one user can't
+ * rotate through the block's addresses to start the limit again, and an IPv4-mapped IPv6 address is the IPv4 address
+ * it carries. An IPv4 address stays whole, so an IPv4 visitor's ID is exactly `visitorOf`'s. Where addresses are
+ * expected (staging and production, `visitorLimitsApply`) a note with no address that can be told apart shares one
+ * bucket (`none`), so such notes are limited together, never unlimited. Null with no secret, as `visitorOf`'s is, and
+ * null where no address is expected and none was given (previews, this Mac). It is the name of the limit's window in
+ * Redis, never the address, and the address goes nowhere else from here.
+ */
+export function noteVisitorOf(
+  address: string | null | undefined,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): string | null {
+  // The same secret `visitorOf` reads, not trimmed, so an IPv4 visitor's ID is the same one.
+  const secret = env.SOCIAL_JOBS_SECRET;
+  if (!secret) return null;
+  const visitor = visitorKeyOf(address, visitorLimitsApply(env));
+  if (visitor === null) return null;
+  return createHmac('sha256', secret)
+    .update(`social-visitor\n${visitor}`)
+    .digest('base64url')
+    .slice(0, 32);
+}
+
+/**
  * A page's view note: each item once a device a day (a file's note counts every note), at most 20 a day an
- * address (an IPv6 /64 block) for each item, and a note whose request ID was seen in the last hour dropped whole.
+ * address (an IPv6 /64 block) for each item (a file's notes too), and a note whose request ID was seen in the last hour dropped whole.
  * Answers how many items it counted. Views count by device and by visitor; the address never reaches Redis.
  *
  * The same request ID with the same note answers 0 (a retry); with another note it throws `NoteReused`.

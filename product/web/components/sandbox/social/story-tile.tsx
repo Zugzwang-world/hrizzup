@@ -2,6 +2,7 @@ import type { social } from '@hrizzup/api';
 import { categoryNames, placeNames } from '@hrizzup/social/lists';
 import Link from 'next/link';
 import { indiaTime } from '@/lib/console-format.ts';
+import { viewsText } from '@/lib/social/views-text.ts';
 import { StoryPicture } from './story-picture.tsx';
 
 const CATEGORIES = categoryNames();
@@ -52,8 +53,8 @@ export function StoryTile({
         Updated {indiaTime(story.latestAt)}
       </p>
       <p className="mt-1 text-sm text-muted tabular-nums">
-        {counts.posts} posts, {counts.replies} replies, {counts.upvotes} upvotes, {counts.views}{' '}
-        views
+        {counts.posts} posts, {counts.replies} replies, {counts.upvotes} upvotes,{' '}
+        {viewsText(counts.views, counts.uniqueViews)}
       </p>
     </>
   );

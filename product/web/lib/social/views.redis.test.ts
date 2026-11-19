@@ -35,7 +35,8 @@ import { scriptsOf } from './counting.ts';
  * every key has an expiry (the day set's and the visitor counter's end by the next midnight plus 600 seconds);
  * take all leaves nothing and take some leaves the rest; an agent's merge counts the union; and the cap per
  * address: 21 fresh devices from one visitor on one post in a day count 20, a second visitor still counts, the
- * next UTC day counts again, a note with no visitor isn't capped, and a file isn't capped. Like the journey, it
+ * next UTC day counts again, a note with no visitor isn't capped, and a file read through a page's note is capped
+ * the same way (21 notes from one address in a day count 20, another address still counts). Like the journey, it
  * waits out the three minutes before and the two after 00:00 UTC before its once-a-day cases, so a day can't
  * end in the middle of them.
  */
@@ -404,10 +405,50 @@ describe.skipIf(!enabled)('the cap per address on a real Redis', () => {
     expect(await redis.exists(capKey(item))).toBe(0);
   });
 
-  it('does not cap a file, which counts at every note, and writes no counter for it', async () => {
+  it('caps a file read through a page’s note per address: 21 notes from one address in a day count 20, and another address still counts', async () => {
+    const item = file();
+    const results: number[] = [];
+    // A file counts at every note (D15), from the same device too: only the address's own count stops it.
+    for (let n = 1; n <= VISITOR_DAILY_CAP + 1; n++) {
+      results.push((await note([item], device(1), { visitor: VISITOR_A })).counted);
+    }
+    expect(results.filter((counted) => counted === 1)).toHaveLength(20);
+    expect(results.slice(0, 20).every((counted) => counted === 1)).toBe(true);
+    expect(results[20]).toBe(0);
+    expect(await pendingOf(item)).toBe(20);
+    expect(await capOf(item, VISITOR_A)).toBe(20);
+    // A capped note left nothing behind: no pending increment, no HyperLogLog element of its own.
+    expect((await note([item], device(2), { visitor: VISITOR_A })).counted).toBe(0);
+    expect(await pendingOf(item)).toBe(20);
+    // Another address still counts, with its own counter, and the file still keeps no day set.
+    expect((await note([item], device(3), { visitor: VISITOR_B })).counted).toBe(1);
+    expect((await note([item], device(3), { visitor: VISITOR_B })).counted).toBe(1);
+    expect(await pendingOf(item)).toBe(22);
+    expect(await capOf(item, VISITOR_B)).toBe(2);
+    expect(await redis.hlen(capKey(item))).toBe(2);
+    expect(await redis.exists(seenKey(item))).toBe(0);
+    // The counter ends with the day, like a post's.
+    const left = await redis.ttl(capKey(item));
+    const ends = secondsToDayEnd(at);
+    expect(left).toBeLessThanOrEqual(Math.ceil(ends) + 1);
+    expect(left).toBeGreaterThan(Math.floor(ends) - 30);
+  });
+
+  it('caps a file on its own: a capped file does not stop a post in the same note, and a post does not use the file’s count', async () => {
+    const [f, p] = [file(), post()];
+    for (let n = 1; n <= VISITOR_DAILY_CAP; n++) await note([f], device(n), { visitor: VISITOR_A });
+    expect(await note([f, p], device(99), { visitor: VISITOR_A })).toEqual({
+      status: 'counted',
+      counted: 1,
+    });
+    expect(await pendingOf(f)).toBe(20);
+    expect(await pendingOf(p)).toBe(1);
+  });
+
+  it('does not cap a file note with no visitor, and writes no counter for it', async () => {
     const item = file();
     for (let n = 1; n <= VISITOR_DAILY_CAP + 5; n++) {
-      expect((await note([item], device(n), { visitor: VISITOR_A })).counted, `read ${n}`).toBe(1);
+      expect((await note([item], device(n))).counted, `read ${n}`).toBe(1);
     }
     expect(await pendingOf(item)).toBe(VISITOR_DAILY_CAP + 5);
     expect(await redis.exists(capKey(item))).toBe(0);

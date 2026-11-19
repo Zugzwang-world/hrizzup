@@ -4,10 +4,12 @@ import { KEY_TEXT } from '../../lib/api/credential.ts';
 import { newRecordId } from '../../lib/record-id.ts';
 import { deviceIdOf, ENDPOINT, isDeviceId } from '../../lib/social/view-rules.ts';
 import { type NotedAgent, revokeAgentKeys } from '../support/agent-clean-up.ts';
+import { fitsEverywhere } from '../support/fits-everywhere.ts';
 import { call, callWith } from '../support/quiet-request.ts';
 import { newRunTrader, runKey } from '../support/run.ts';
 import { adminState, signedOutState } from '../support/states.ts';
 import { type Engine, stagingKeys } from '../support/test-accounts.ts';
+import { topOrderOf } from '../support/top-rank.ts';
 import { newDevice, openAndWaitForNote } from '../support/view-notes.ts';
 
 /**
@@ -31,7 +33,19 @@ import { newDevice, openAndWaitForNote } from '../support/view-notes.ts';
  * 7. The reads, each address once and after the writes it checks: P1 has 2 views and 2 unique, P2 1 and 1, S 1 and 1, and
  *    A 3 and 3, with a standing above 0 when staging's views weight gives it a whole point (formula in the step).
  * 8. The door again, then the desk (an address not read before): P1 still 2 and 2, P2 1 and 1: nothing counted twice.
- * 9. Clean-up, whatever happened: A's keys are revoked.
+ * 9. What A sees (the second part, M3; docs/social/r11-design.md, section 4, rule 7): A's `GET /social/me/stats` lists
+ *    P2 then P1, P1 at views 2 and uniqueViews 2, P2 at 1 and 1; A's check-in (read for the first time here, so no copy
+ *    of it is kept yet) holds `stats` of 2 posts, 3 views, no replies and no upvotes, with a standing equal to A's
+ *    profile's (step 7's read); and P1's thread page shows "2 views (2 readers)" in `post-views`, read as D1, which is
+ *    already counted for P1 that day, so reading it adds no view.
+ * 10. Top on the desk: `GET /social/stories/{S}/posts?sort=top` (an address not read before) lists P1 and P2 in the order
+ *    the database's own rank gives them, worked out from staging's settings (read in step 7, never written: they are
+ *    shared) and from the two posts' own numbers and times, by `support/top-rank.ts` (the rank formula of build.md, 7.3,
+ *    written once), whatever the weights are: with views worth a real weight P1 (2 views) is first, with views worth
+ *    next to nothing the newer P2 is.
+ * 11. The fit: S's desk (the story's tile and both post cards) and P1's thread page fit every width, sideways and at
+ *    large text, in both browsers.
+ * 12. Clean-up, whatever happened: A's keys are revoked.
  *
  * A device counts once a UTC day, so within three minutes before and two after 00:00 UTC the journey waits until two
  * minutes past before its device steps (a test that passes only on a retry fails its check). The jobs secret and every
@@ -104,8 +118,9 @@ test('views are counted once a device a day, applied by the counts door, and sho
   // The worst case, added up: the set-up (30 s), a wait around midnight UTC (301 s at most), the warm-up (10 s and a
   // door call), three pages that each send their note about 12 s after their load (3 x 30 s with the page and its
   // answer), the API steps (15 s), three door calls that may each wait 90 s on a busy lease (the warm-up's, the
-  // counting one and the repeat), and the reads (40 s): about 760 s.
-  test.setTimeout(840_000);
+  // counting one and the repeat), the reads (40 s), and the second part (A's two reads, then two pages with a fit pass
+  // each at all 13 widths and sideways, about 45 s apiece in WebKit): about 850 s.
+  test.setTimeout(960_000);
   const keys = stagingKeys();
   if (!keys) throw new Error("Staging's Supabase keys are missing, so no account can sign in");
   const jobsSecret = process.env.SOCIAL_JOBS_SECRET;
@@ -354,8 +369,106 @@ test('views are counted once a device a day, applied by the counts door, and sho
         [p2, 1, 1],
       ]),
     );
+    // 9. What A sees. A's stats and check-in are A's own (its key), never kept at the edge and never a view; each is read
+    // here for the first time, after the writes it checks. P1 and P2 are A's only posts.
+    const stats = await callWith(anyone, secret, 'GET', '/api/v1/social/me/stats');
+    expect(stats.status, "A's stats").toBe(200);
+    const listed = stats.body.posts as {
+      postId: string;
+      storyId: string;
+      createdAt: string;
+      views: number;
+      uniqueViews: number;
+      replies: number;
+      upvotes: number;
+    }[];
+    expect(
+      listed.map((item) => item.postId),
+      "A's stats list its posts, newest first",
+    ).toEqual([p2, p1]);
+    expect(listed[0], 'P2 in A’s stats').toMatchObject({
+      storyId,
+      views: 1,
+      uniqueViews: 1,
+      replies: 0,
+      upvotes: 0,
+    });
+    expect(listed[1], 'P1 in A’s stats').toMatchObject({
+      storyId,
+      views: 2,
+      uniqueViews: 2,
+      replies: 0,
+      upvotes: 0,
+    });
+    expect(stats.body.next, 'two posts are one page').toBeNull();
+    const checkin = await callWith(anyone, secret, 'GET', '/api/v1/social/me/checkin');
+    expect(checkin.status, "A's check-in").toBe(200);
+    expect(checkin.body.stats, "A's check-in totals: two posts, three views").toEqual({
+      posts: 2,
+      views: 3,
+      replies: 0,
+      upvotes: 0,
+      standing: expect.any(Number),
+    });
+    expect(
+      (checkin.body.stats as { standing: number }).standing,
+      "A's standing in its check-in is the one on its profile",
+    ).toBe(standing);
+    // P1's thread page, as D1 (already counted for P1 today, so this read adds no view).
+    const thread = await d1.newPage();
+    try {
+      await thread.goto(threadAddress);
+      await expect(thread.getByTestId('post-views'), "P1's views, on its thread page").toHaveText(
+        '2 views (2 readers)',
+      );
+      // 11. The fit, on P1's thread page.
+      await fitsEverywhere(thread, "P1's thread page, with its views");
+    } finally {
+      await thread.close();
+    }
+
+    // 10. Top on the desk, in the order the database's rank gives the two posts under staging's settings (read in step 7).
+    // A's stats hold each post's numbers and time; `topOrderOf` is the rank formula of docs/social/build.md, 7.3 (the
+    // SQL's `social._rank`) and the desk's tie-break, so this holds for any weights, not only "views count" or "don't".
+    const top = await call(anyone, 'GET', `/api/v1/social/stories/${storyId}/posts?sort=top`);
+    expect(top.status, "the story's desk, Top").toBe(200);
+    const deskOrder = (top.body.posts as { id: string }[]).map((card) => card.id);
+    const expectedOrder = topOrderOf(
+      settings.body as unknown as Parameters<typeof topOrderOf>[0],
+      // P1 and P2 have no replies, so the stats' `replies` (every live reply, the author's own too) is exactly the
+      // replies from other agents that Top counts (R11's decision 8).
+      listed.map((item) => ({
+        id: item.postId,
+        createdAt: item.createdAt,
+        otherReplies: item.replies,
+        views: item.views,
+        upvotes: item.upvotes,
+      })),
+    );
+    expect(
+      deskOrder.filter((id) => id === p1 || id === p2),
+      "Top lists the two posts as their rank under staging's settings orders them",
+    ).toEqual(expectedOrder);
+
+    // 11. The fit, on S's desk: the story's tile, with its views, and both posts' cards. D1 opened only P1's thread page,
+    // so it is counted for P1 and not for S or P2 (S's view came from the API device): this page may send D1's own first
+    // views of them. Nothing is asserted about a count after this, and a preview's notes land under `pre:`, never applied.
+    const deskPage = await d1.newPage();
+    try {
+      await deskPage.goto(`/sandbox/social/stories/${storyId}`);
+      await expect(deskPage.getByTestId('story-tile'), "S's tile shows its views").toContainText(
+        '1 view (1 reader)',
+      );
+      await expect(
+        deskPage.getByTestId('post-card').filter({ hasText: WORDS.p1 }).getByTestId('post-views'),
+        "P1's card on the desk",
+      ).toHaveText('2 views (2 readers)');
+      await fitsEverywhere(deskPage, "S's desk, with the tile's and the cards' views");
+    } finally {
+      await deskPage.close();
+    }
   } finally {
-    // 9. A's keys are revoked, whatever happened, so no key of the run stays live. A refusal fails the test after the
+    // 12. A's keys are revoked, whatever happened, so no key of the run stays live. A refusal fails the test after the
     // clean-up, without hiding what failed first.
     const revoked = await revokeAgentKeys(admin, noted, `The signals journey is over (${label})`);
     await Promise.all([

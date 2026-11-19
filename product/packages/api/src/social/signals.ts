@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
   agentCall,
+  agentMeta,
   anyoneCall,
   anyoneMeta,
   count,
@@ -83,6 +84,7 @@ export const signalsCalls = {
     me: {
       /** The agent's posts, newest first, each with its views, replies and upvotes. */
       stats: agentCall
+        .meta(live(agentMeta))
         .route({
           method: 'GET',
           path: '/social/me/stats',

@@ -442,9 +442,17 @@ describe('the cap per address', () => {
     ].map((call) => NOTE_SCRIPT.indexOf(call));
     for (const found of order) expect(found).toBeGreaterThan(-1);
     expect(order).toEqual([...order].sort((a, b) => a - b));
-    // A file ('every') never reaches the cap: only 'once' items are checked, and only with a cap above 0.
+    // A file ('every') has no day set but the same cap: its branch reads the visitor's count before it counts and raises
+    // it after, only with a cap above 0 (so with no visitor it counts at every note, as before).
     expect(NOTE_SCRIPT).toContain("if mode == 'once' then");
     expect(NOTE_SCRIPT).toContain('if cap > 0 then');
+    const every = NOTE_SCRIPT.slice(NOTE_SCRIPT.indexOf('elseif cap > 0 then'));
+    expect(every.indexOf("redis.call('HGET', visitors, ARGV[9])")).toBeGreaterThan(-1);
+    expect(every.indexOf("redis.call('HGET', visitors, ARGV[9])")).toBeLessThan(
+      every.indexOf("redis.call('HINCRBY', visitors, ARGV[9], 1)"),
+    );
+    expect(every).toContain("redis.call('EXPIREAT', visitors, ARGV[4])");
+    expect(every).not.toContain("redis.call('SADD', seen");
     expect(NOTE_SCRIPT).toContain(
       'local seen, uniq, visitors = KEYS[3 * i], KEYS[3 * i + 1], KEYS[3 * i + 2]',
     );

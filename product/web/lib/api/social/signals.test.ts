@@ -1,3 +1,4 @@
+import { createHmac } from 'node:crypto';
 import { createRouterClient } from '@orpc/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -11,8 +12,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const countViews = vi.fn();
 const allowVisitor = vi.fn();
-/** Who the stand-in says a visitor is; the real one needs the secret and an address. */
-const visitorOf = vi.fn<(headers: Headers) => string | null>(() => 'visitor-one');
 
 vi.mock('@/lib/social/counting.ts', async (original) => ({
   ...(await original<typeof import('@/lib/social/counting.ts')>()),
@@ -20,9 +19,9 @@ vi.mock('@/lib/social/counting.ts', async (original) => ({
 }));
 vi.mock('@/lib/social/limits.ts', async (original) => ({
   ...(await original<typeof import('@/lib/social/limits.ts')>()),
-  visitorOf: (headers: Headers) => visitorOf(headers),
   allowVisitor: (...args: unknown[]) => allowVisitor(...args),
 }));
+vi.mock('@/lib/api/context.ts', () => ({ signedIn: async () => null }));
 const query = vi.fn();
 vi.mock('@/lib/db.ts', () => ({
   database: () => ({
@@ -69,7 +68,6 @@ beforeEach(() => {
   vi.stubEnv('VERCEL_TARGET_ENV', 'staging');
   countViews.mockResolvedValue(2);
   allowVisitor.mockResolvedValue({ allowed: true });
-  visitorOf.mockImplementation(() => 'visitor-one');
 });
 
 afterEach(() => {
@@ -91,17 +89,62 @@ describe('the view note', () => {
     await expect(api().call.social.views(NOTE)).resolves.toEqual({ counted: 0 });
   });
 
-  it('counts the note against the visitor’s limit first, by visitor and never by address', async () => {
-    visitorOf.mockImplementation(() => 'visitor-two');
-    await api().call.social.views(NOTE);
-    expect(allowVisitor).toHaveBeenCalledWith('view-note', 'visitor-two', 'count');
-    expect(allowVisitor.mock.invocationCallOrder[0]).toBeLessThan(
-      countViews.mock.invocationCallOrder[0] ?? 0,
-    );
-    // A visitor who can't be told apart is still let through by the limit (it answers allowed), and counted.
-    visitorOf.mockImplementation(() => null);
-    await api().call.social.views(NOTE);
-    expect(allowVisitor).toHaveBeenLastCalledWith('view-note', null, 'count');
+  describe('the visitor the 30-a-minute limit counts a note against', () => {
+    // A made-up secret, plainly not one: the visitor is only ever a hash of the address.
+    const SECRET = 'test-secret-for-the-signals-tests';
+    /** The ID R6's `visitorOf` makes of an address: the same text, hash and format. */
+    const idOf = (address: string) =>
+      createHmac('sha256', SECRET)
+        .update(`social-visitor\n${address}`)
+        .digest('base64url')
+        .slice(0, 32);
+    const visitorOfAsked = () => allowVisitor.mock.calls.at(-1)?.[1];
+
+    it('is asked before anything is counted, by the visitor of the address and never by the address', async () => {
+      vi.stubEnv('SOCIAL_JOBS_SECRET', SECRET);
+      await api({ 'x-real-ip': '203.0.113.7' }).call.social.views(NOTE);
+      expect(allowVisitor).toHaveBeenCalledWith('view-note', idOf('203.0.113.7'), 'count');
+      expect(allowVisitor.mock.invocationCallOrder[0]).toBeLessThan(
+        countViews.mock.invocationCallOrder[0] ?? 0,
+      );
+      expect(JSON.stringify(allowVisitor.mock.calls)).not.toContain('203.0.113.7');
+    });
+
+    it('is, for an IPv4 address, exactly the ID R6’s `visitorOf` makes of it', async () => {
+      vi.stubEnv('SOCIAL_JOBS_SECRET', SECRET);
+      const { visitorOf } =
+        await vi.importActual<typeof import('@/lib/social/limits.ts')>('@/lib/social/limits.ts');
+      const headers = { 'x-real-ip': '198.51.100.20' };
+      await api(headers).call.social.views(NOTE);
+      expect(visitorOfAsked()).toBe(visitorOf(new Headers(headers)));
+    });
+
+    it('is one for every address of an IPv6 /64, and another for the next /64, so rotating through a block does not start the limit again', async () => {
+      vi.stubEnv('SOCIAL_JOBS_SECRET', SECRET);
+      await api({ 'x-real-ip': '2001:db8:1:2:aaaa:bbbb:cccc:dddd' }).call.social.views(NOTE);
+      const first = visitorOfAsked();
+      await api({ 'x-real-ip': '2001:db8:1:2:1111:2222:3333:4444' }).call.social.views(NOTE);
+      expect(visitorOfAsked()).toBe(first);
+      expect(first).toBe(idOf('2001:db8:1:2::/64'));
+      await api({ 'x-real-ip': '2001:db8:1:3:aaaa:bbbb:cccc:dddd' }).call.social.views(NOTE);
+      expect(visitorOfAsked()).not.toBe(first);
+    });
+
+    it('is none with no secret, as `visitorOf`’s is: a note is let through by the limit, and counted', async () => {
+      vi.stubEnv('SOCIAL_JOBS_SECRET', '');
+      await api({ 'x-real-ip': '203.0.113.7' }).call.social.views(NOTE);
+      expect(allowVisitor).toHaveBeenLastCalledWith('view-note', null, 'count');
+      expect(countViews).toHaveBeenCalledTimes(1);
+    });
+
+    it('is one shared bucket for a note with no address where addresses are expected (staging), and none on a preview', async () => {
+      vi.stubEnv('SOCIAL_JOBS_SECRET', SECRET);
+      await api().call.social.views(NOTE);
+      expect(allowVisitor).toHaveBeenLastCalledWith('view-note', idOf('none'), 'count');
+      vi.stubEnv('VERCEL_TARGET_ENV', 'preview');
+      await api().call.social.views(NOTE);
+      expect(allowVisitor).toHaveBeenLastCalledWith('view-note', null, 'count');
+    });
   });
 
   it('gives counting the caller’s address for the cap per address (as `ipAddress` reads it), and none when there is none', async () => {
@@ -113,8 +156,6 @@ describe('the view note', () => {
     });
     await api().call.social.views(NOTE);
     expect(countViews).toHaveBeenLastCalledWith(NOTE, { address: null });
-    // The limit stays R6's, by the visitor it makes of the address; nothing else of the address is passed on.
-    expect(allowVisitor).toHaveBeenLastCalledWith('view-note', 'visitor-one', 'count');
   });
 
   it('is 409 request_reused, in the words the API’s other writes use, when the ID was used for another note', async () => {
@@ -199,7 +240,14 @@ describe('the view note', () => {
     expect(countViews).not.toHaveBeenCalled();
   });
 
-  it('leaves an agent’s stats for later: its call is not live yet', async () => {
+  it('has an agent’s stats live (M3): with no key it asks for the posting key (401), never "No such call", and never reaches the database', async () => {
+    await expect(api().call.social.me.stats({})).rejects.toMatchObject({
+      code: 'UNAUTHORIZED',
+      status: 401,
+    });
+    expect(query).not.toHaveBeenCalled();
+    // Where social is off (production) it is an address the API does not have, as the note is.
+    vi.stubEnv('VERCEL_TARGET_ENV', 'production');
     await expect(api().call.social.me.stats({})).rejects.toMatchObject(noSuchCall);
   });
 });
