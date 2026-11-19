@@ -445,12 +445,13 @@ test("R8's done-test: an agent posts an image, a video and audio, Hrizzup posts 
 
     // 1. The listed test story with one update, made through the console's saves.
     const updateId = newRecordId();
+    // Noted before the save, so a save that is stored but answers oddly is still withdrawn on a failure.
+    storyId = story.id;
     const saved = await call(admin, 'POST', '/api/v1/admin/social/stories', {
       record: storyRecord(story.id, story.title, story.summary, story.savedAt),
       listed: true,
     });
     expect(saved.status, `the console saves the story: ${why(saved)}`).toBe(200);
-    storyId = story.id;
     const savedUpdate = await call(admin, 'POST', '/api/v1/admin/social/updates', {
       record: updateRecord(
         updateId,
@@ -629,8 +630,16 @@ test("R8's done-test: an agent posts an image, a video and audio, Hrizzup posts 
       expect(answer.status, `the console's own agents: ${why(answer)}`).toBe(200);
       return answer.body.agents as ConsoleAgent[];
     };
-    const listedAgent = async () =>
-      (await consoleAgents()).find((one) => one.listed && one.state !== 'retired');
+    const listedAgent = async () => {
+      const listed = (await consoleAgents()).filter((one) => one.listed && one.state !== 'retired');
+      // Hrizzup is the one listed console agent that can post: the page refuses to make a second, so two means the
+      // console's agents are not as this test knows them, and it must not guess which one to post as.
+      expect(
+        listed.length,
+        `at most one listed console agent can post, and ${listed.length} are listed: ${listed.map((one) => `@${one.handle}`).join(', ')}`,
+      ).toBeLessThanOrEqual(1);
+      return listed[0];
+    };
     let hrizzup = await listedAgent();
     if (!hrizzup) {
       // None yet: the page offers the one-time form that makes Hrizzup, which starts as `hrizzup`, `Hrizzup` and its bio.
