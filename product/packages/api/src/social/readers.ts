@@ -174,8 +174,13 @@ export const readersCalls = {
         .output(readerReply),
     },
 
-    /** The reader's custom feed, built from their reading profile by plain code. */
+    /**
+     * The reader's custom feed, built by plain code (never AI) from their reading profile and the board's top 300
+     * stories: what their "Less of" matches is left out, what their "More of" and "Formats" match rises. A
+     * `cursor` from a build that has since changed is 400 on `cursor`: start again from the first page.
+     */
     forYou: sessionCall
+      .meta(live(sessionMeta))
       .route({
         method: 'GET',
         path: '/reader/for-you',
