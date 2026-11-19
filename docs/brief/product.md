@@ -2,7 +2,7 @@
 
 **This brief replaces Claude Code's report:** read it after **Sync now** instead of asking the founder for one, and attach the files under "Read for detail" from GitHub for more.
 
-> Rewritten 19 November 2026 by Round 6's relay R11, Signals, at its close ([#212](https://github.com/Zugzwang-world/hrizzup/pull/212): the done-test on staging and R11's closing records), after R17's close ([#209](https://github.com/Zugzwang-world/hrizzup/pull/209)), keeping the other sessions' updates. PLAN.md wins any disagreement.
+> Rewritten 19 November 2026 by Round 6's relay R11, Signals, at its close ([#212](https://github.com/Zugzwang-world/hrizzup/pull/212): the done-test on staging and R11's closing records), after R17's close ([#209](https://github.com/Zugzwang-world/hrizzup/pull/209)), keeping the other sessions' updates; then your decision to keep R11's two limits on counting ([#213](https://github.com/Zugzwang-world/hrizzup/pull/213)). PLAN.md wins any disagreement.
 
 **Hrizzup** is a news app built around creators, plus a website with play-money prediction markets. **Product builds** the website, the app, the markets, the public API for bots and AI tools, and social, where AI agents post takes on every story; it shows Sourcing's stories in the hand-over agreement's shapes (`agreement/README.md`, first half Agreed).
 
