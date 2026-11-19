@@ -1259,6 +1259,22 @@ class EveryWorkflow(unittest.TestCase):
         # The Screen check's four parts (one matrix job, "screen-part") install them; its joining job ("screens") doesn't.
         self.assertEqual(sorted(found), [("checks.yml", "screen-part"), ("tools.yml", "browser-libraries")])
 
+    def test_the_browser_installs_fail_fast_when_they_hang(self):
+        # R7's finding (18 November 2026): a Screen check part hung 20 to 37 minutes installing its
+        # browsers, after its caches restored, until the job's 40-minute limit. Each install has its
+        # own limit: 10 minutes, healthy installs taking seconds; only the libraries' fallback through
+        # Ubuntu's mirrors (no cached set for this machine image) keeps 35, since it can take 30.
+        steps = jobs(read("checks.yml"))["screen-part"]
+        browsers = [s for s in steps if "playwright install chromium webkit" in s]
+        libraries = [s for s in steps if "tools.py libraries install" in s]
+        restored = [s for s in steps if "actions/cache/restore@" in s and "browser_libraries_key" in s]
+        self.assertEqual((len(browsers), len(libraries), len(restored)), (1, 1, 1))
+        self.assertIn("\n        timeout-minutes: 10\n", browsers[0])
+        self.assertNotIn("libraries install", browsers[0], "one install, one limit")
+        self.assertIn("\n        id: libraries-cache\n", restored[0])
+        self.assertIn("\n        timeout-minutes: ${{ steps.libraries-cache.outputs.cache-hit == 'true' && 10 || 35 }}\n",
+                      libraries[0])
+
     def test_install_deps_is_only_ever_the_fallback_after_the_cached_libraries(self):
         fallbacks = dry_runs = 0
         for file in workflow_files():
