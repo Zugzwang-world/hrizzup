@@ -2,7 +2,7 @@
 
 **This brief replaces Claude Code's report:** read it after clicking **Sync now**, instead of asking the founder for a report, and attach the files under "Read for detail" from GitHub when you need more.
 
-> Rewritten 19 November 2026 by Round 6's relay R17, The test cast, at its first milestone ([#203](https://github.com/Zugzwang-world/hrizzup/pull/203)), whose change to PLAN.md (step 2.8: the founder's decisions of 19 November) rewrites every brief. The Sourcing project's only file from the repository, rewritten at the end of every session that touches its part. PLAN.md wins any disagreement.
+> Rewritten 19 November 2026 by Round 6's relay R12, Readers, at its closing pull request, whose change to PLAN.md (step 2.8: R9 and R13 on hold, the founder, 19 November 2026) rewrites every brief. The Sourcing project's only file from the repository, rewritten at the end of every session that touches its part. PLAN.md wins any disagreement.
 
 **Hrizzup** is a news app built around creators, plus a website with play-money prediction markets. Our AI finds news as it breaks on X and turns it into developing stories that readers see through creators' takes. **Sourcing's job:** design and run the Grok bots that find news and creators' takes on X, keep everything they find in the sourced pool, and turn the news into stories and updates. Product shows what Sourcing produces, in the shapes the hand-over agreement (`agreement/README.md`) fixes.
 
@@ -10,7 +10,7 @@
 
 - **The agreement's first half is Agreed** (9 November 2026), as Sourcing agreed it in its review ([#37](https://github.com/Zugzwang-world/hrizzup/pull/37), changes [#42](https://github.com/Zugzwang-world/hrizzup/pull/42) and [#45](https://github.com/Zugzwang-world/hrizzup/pull/45)); its shapes are fixed at format version 1.
 - **Sourcing's work runs in this project, on its own schedule** (the founder, 9 November 2026), with no xAI API, never from Product's round chat.
-- **No Sourcing work has started** (`sourcing/` holds only its README); the second half isn't drafted. The tables the pipeline will write exist on Product's side (step 1.9, [#72](https://github.com/Zugzwang-world/hrizzup/pull/72)): empty and locked until 1.1 gets its own write access. Product's Round 6 is social (`docs/social/spec.md`), planned in four phases, the creator tools in Wave 2 before the last, and one end-to-end test by the founder at the end (PLAN.md step 2.8, "Social's build plan"); it needs no new work from Sourcing now, and one optional field later (briefs' key numbers, below).
+- **No Sourcing work has started** (`sourcing/` holds only its README); the second half isn't drafted. The tables the pipeline will write exist on Product's side (step 1.9, [#72](https://github.com/Zugzwang-world/hrizzup/pull/72)): empty and locked until 1.1 gets its own write access. Product's Round 6 is social (`docs/social/spec.md`), planned in four phases, the creator tools (on hold until the founder sets the next phases) before the last, and one end-to-end test by the founder at the end (PLAN.md step 2.8, "Social's build plan"); it needs no new work from Sourcing now, and one optional field later (briefs' key numbers, below).
 - **The shared setup is finished** (Phase 0): Supabase (staging, Mumbai), Cloudflare R2 and Upstash Redis; production is parked until launch. No inbox for the bots yet.
 
 ## Decisions in force
@@ -33,7 +33,7 @@
 
 ## What changed in the latest session
 
-On 19 November 2026, Round 6's relay R17, The test cast ([#203](https://github.com/Zugzwang-world/hrizzup/pull/203)), recorded the founder's decisions in PLAN.md step 2.8, the spec and `TRACKER.md`: the test cast (R17), signals (R11) and readers (R12) run side by side now; the creator tools (R9, R13) follow, before the beta's end-to-end relay (R14); one end-to-end test by the founder after R14 replaces his three phase reviews; the whole product is dark mode only. R17 also loads eight to ten listed test stories from real news of the last few days through the console, as **Sourcing's stand-in** on staging (sandbox data, through the same checked save Sourcing's pipeline will use). **Nothing changes for Sourcing:** the agreement, its first half and Sourcing's work are as they were.
+On 19 November 2026, Round 6's relay R17, The test cast ([#203](https://github.com/Zugzwang-world/hrizzup/pull/203)), recorded the founder's decisions in PLAN.md step 2.8, the spec and `TRACKER.md`: the test cast (R17), signals (R11) and readers (R12) run side by side now; the creator tools (R9, R13) follow, before the beta's end-to-end relay (R14); one end-to-end test by the founder after R14 replaces his three phase reviews; the whole product is dark mode only. R17 also loads eight to ten listed test stories from real news of the last few days through the console, as **Sourcing's stand-in** on staging (sandbox data, through the same checked save Sourcing's pipeline will use). **Nothing changes for Sourcing:** the agreement, its first half and Sourcing's work are as they were. **Since then (R12, Readers, 19 November 2026):** the founder put the creator tools (R9, R13) on hold until he sets the next phases; R14 still follows them. Nothing changes for Sourcing.
 
 ## Open questions
 
