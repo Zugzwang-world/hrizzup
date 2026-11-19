@@ -30,12 +30,12 @@ const picture = {
   description: 'The still of a video',
 };
 
-const html = (story: social.StoryTile, size: 'thumb' | 'hero') =>
-  renderToStaticMarkup(createElement(StoryPicture, { story, size }));
+const html = (story: social.StoryTile) =>
+  renderToStaticMarkup(createElement(StoryPicture, { story }));
 
 describe('a story’s picture', () => {
   it('is its picture, drawn in a box of a fixed shape, with the placeholder behind it', () => {
-    const markup = html({ ...tile, picture }, 'thumb');
+    const markup = html({ ...tile, picture });
     expect(markup).toContain('data-testid="story-picture"');
     expect(markup).toContain('data-kind="image"');
     expect(markup).toContain('aspect-video');
@@ -48,7 +48,7 @@ describe('a story’s picture', () => {
   });
 
   it('is a thumbnail on the board: small, lazy, and drawn at 10 text-sized units at most', () => {
-    const markup = html({ ...tile, picture }, 'thumb');
+    const markup = html({ ...tile, picture });
     expect(markup).toContain('sizes="10rem"');
     expect(markup).toContain('loading="lazy"');
     expect(markup).toContain('w-32');
@@ -58,34 +58,34 @@ describe('a story’s picture', () => {
     expect(markup).not.toContain('fetchPriority="high"');
   });
 
-  it('is the hero of the story’s own page: the page’s first picture, loaded at once and first', () => {
-    const markup = html({ ...tile, picture }, 'hero');
-    expect(markup).toContain('loading="eager"');
-    expect(markup).toContain('fetchPriority="high"');
-    expect(markup).toContain('sizes="(min-width: 640px) 36rem, 100vw"');
-    expect(markup).toContain('w-full max-w-xl aspect-video');
+  it('is never the page’s first picture: lazy and of normal priority, so it never competes with the page’s scripts', () => {
+    const markup = html({ ...tile, picture });
+    expect(markup).toContain('loading="lazy"');
+    expect(markup).toContain('fetchPriority="auto"');
+    expect(markup).not.toContain('loading="eager"');
+    // And never a hero: no box as wide as the page's text, so the title stays the largest content.
+    expect(markup).not.toContain('max-w-xl');
+    expect(markup).not.toContain('w-full max-w');
+    expect(markup).not.toContain('36rem');
   });
 
   it('is a stand-in naming the main category in words when the story has no picture', () => {
-    for (const size of ['thumb', 'hero'] as const) {
-      const markup = html(tile, size);
-      expect(markup).toContain('data-kind="stand-in"');
-      expect(markup).toContain('data-testid="story-picture"');
-      // The first category is the main one (agreement rule D3), in words and not as its code.
-      expect(markup).toContain('>Sports<');
-      expect(markup).not.toContain('General');
-      expect(markup).not.toContain('<img');
-      expect(markup).not.toContain('<picture');
-      expect(markup).toContain('aspect-video');
-      // A long word breaks inside the box, so the box never grows wider than its tile.
-      expect(markup).toContain('wrap-anywhere');
-    }
+    const markup = html(tile);
+    expect(markup).toContain('data-kind="stand-in"');
+    expect(markup).toContain('data-testid="story-picture"');
+    // The first category is the main one (agreement rule D3), in words and not as its code.
+    expect(markup).toContain('>Sports<');
+    expect(markup).not.toContain('General');
+    expect(markup).not.toContain('<img');
+    expect(markup).not.toContain('<picture');
+    expect(markup).toContain('aspect-video');
+    // The same small box as the picture's, and a long word breaks inside it, so it never grows wider than its tile.
+    expect(markup).toContain('w-32');
+    expect(markup).toContain('wrap-anywhere');
   });
 
   it('names a category it has no words for by its code, and a story with none as a story', () => {
-    expect(html({ ...tile, categories: ['not-a-category'] }, 'thumb')).toContain(
-      '>not-a-category<',
-    );
-    expect(html({ ...tile, categories: [] }, 'thumb')).toContain('>Story<');
+    expect(html({ ...tile, categories: ['not-a-category'] })).toContain('>not-a-category<');
+    expect(html({ ...tile, categories: [] })).toContain('>Story<');
   });
 });

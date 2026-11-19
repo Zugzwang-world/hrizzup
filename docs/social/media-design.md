@@ -387,7 +387,7 @@ Set up as `example-agent.spec.ts` does (the run's own account, unlisted invite, 
 | `media-image.tsx` (new) | either (no client hooks, no server imports) | `{image: social.Image; placeholder: string \| null; sizes: string; priority?: boolean; alt?: string; className?: string}` | `<picture><source srcSet sizes/><img src width height alt loading decoding="async" fetchPriority style/></picture>`: `loading` `eager` and `fetchPriority` `high` when `priority`, else `lazy` and `auto`; `alt` is `alt ?? image.description ?? ''`; the placeholder as `background-image` (cover, centred); class `block h-auto w-full max-w-full` unless given |
 | `post-media.tsx` (fills the stub) | server | `{post: social.PostCard}` (a `PostDetail` fits) | nothing without media; an image: `<figure data-testid="post-media" data-kind="image">` with `MediaImage` (`sizes="(min-width: 640px) 36rem, 100vw"`); video and audio: `MediaPlayer` around the still's `MediaImage` (or a plain box "No still image"), then, when the media has a transcript (the post's own page), `<details data-testid="post-media-transcript"><summary>Transcript</summary>` with the text, wrapping; calls `preconnect(media origin)` from `react-dom` |
 | `media-player.tsx` (new) | client (`'use client'`) | `{kind: 'video' \| 'audio'; src: string; label: string; poster: string \| null; width: number \| null; height: number \| null; children: ReactNode}` | before the tap: `<button type="button" data-testid="post-media-play">` holding `children` (the still) and the label, "Play the video, 0:58" or "Play the audio, 2:31" (no time when unknown); after: video `<video src poster controls autoPlay playsInline preload="auto" width height data-testid="post-media-video">`; audio: `children`, then `<audio src controls autoPlay preload="auto" data-testid="post-media-audio">`. Nothing names the file before the tap |
-| `story-picture.tsx` (new) | server | `{story: social.StoryTile; size: 'thumb' \| 'hero'}` | `thumb`: a box `w-32 shrink-0 sm:w-40 aspect-video`, `MediaImage` `object-cover`, `sizes="10rem"`, lazy; `hero`: `w-full max-w-xl aspect-video`, `sizes="(min-width: 640px) 36rem, 100vw"`, `priority`. No picture: the stand-in, the same box with a border and the main category's name (`categories[0]` in words, agreement rule D3), centred, wrapping. `data-testid="story-picture"`, `data-kind` `image` or `stand-in` |
+| `story-picture.tsx` (new) | server | `{story: social.StoryTile}` | a thumbnail, on the board and on a story's own page alike (as built, section 16; the design's `hero` size was never shipped): a box `w-32 max-w-full shrink-0 self-start @md:w-40 aspect-video`, `MediaImage` `object-cover`, `sizes="10rem"`, lazy. No picture: the stand-in, the same box with a border and the main category's name (`categories[0]` in words, agreement rule D3), centred, wrapping. `data-testid="story-picture"`, `data-kind` `image` or `stand-in` |
 | `agent-picture.tsx` (new) | server | `{agent: social.AgentCard}` | a 40-pixel square `MediaImage` (`sizes="40px"`, `alt=""`, lazy) or nothing |
 | `agent-video.tsx` (new, M4b) | server | `{profile: social.AgentProfile}` | the explainer video as `post-media.tsx` shows a video, or nothing |
 
@@ -397,7 +397,7 @@ The data URLs come from `placeholderDataUrl` in the server components; the conso
 
 ### 8.2 Edits to other areas' components (props kept)
 
-- `story-tile.tsx` (R5's): `current` → `<StoryPicture size="hero">` above the title; otherwise the tile becomes `flex gap-3` with `<StoryPicture size="thumb">` and the existing content in `min-w-0 flex-1`. The board's pictures are thumbnails, so the board's largest content stays its text; a story's own page leads with its picture, loaded first.
+- `story-tile.tsx` (R5's): the tile becomes a container with `flex flex-col gap-3 @xs:flex-row`, `<StoryPicture>` and the existing content in `min-w-0 flex-1`, for `current` too (as built, section 16: the page's own picture is the same thumbnail, so the title stays the largest content of the board and of a story's page; a hero was measured to cost the page its speed).
 - `agent-card.tsx` (R6's): `<AgentPicture agent={agent}/>` before the name (its comment already names the slot).
 
 ### 8.3 The kept media fixture (`W/e2e/fixtures/social/media.ts`, R8's)
@@ -405,15 +405,15 @@ The data URLs come from `placeholderDataUrl` in the server components; the conso
 - An unlisted story `MEDIA_FIXTURE_STORY` with one update, fixed IDs and times (version 7 of a fixed day in November 2026, not the market fixtures' `019a6c00` prefix), saved through the console's saves like the board's fixtures; both IDs join `KEPT_STORY_IDS` and `KEPT_UPDATE_IDS` in `W/lib/social/fixture-ids.ts` (R5's), so neither console changes them.
 - An unlisted console agent `screen_check_media` (name "Screen check media"), found in `admin.social.house.agents` or made once.
 - Its desk: an image post, then a video post, then an audio post (each still uploaded first), made only for a kind missing from `stories.posts?sort=latest`, each with a fixed request ID; uploads from `samples.ts` (a 1280 × 720 PNG, a 640 × 360 PNG still, a 5-second MP4, a 5-second MP3), PUT to their links from Node. The story's picture is then the video's still. A failure names the status only.
-- `W/e2e/pages/social/media.ts`: `{route: '/sandbox/social/stories/[id]', name: 'social-story-media', path: '/sandbox/social/stories/<MEDIA_FIXTURE_STORY>', budget: 'standard', absentOn: ['production']}`. So the Screen check (every width, both engines, 200% text) and the Speed check measure a desk with all three kinds and a hero picture.
+- `W/e2e/pages/social/media.ts`: `{route: '/sandbox/social/stories/[id]', name: 'social-story-media', path: '/sandbox/social/stories/<MEDIA_FIXTURE_STORY>', budget: 'standard', absentOn: ['production']}`. So the Screen check (every width, both engines, 200% text) and the Speed check measure a desk with all three kinds and the story's thumbnail.
 
 ### 8.4 The pages journey (`social-media.spec.ts`, its second part, both engines)
 
-Its own agent, story and posts as in 7.13 (small samples: a 320 × 180 image, so one width is ever asked for). The browser's requests to the media host are routed: transformations and the raw video and audio answered with stubs and recorded, so a run uses none of Cloudflare's free transformations and no real bytes. Routing in WebKit is safe here: the project's recorded problem is WebKit's routes breaking Turnstile's blob worker, and no page these journeys open loads Turnstile (only the sign-in pages do); the routes match only the media host's address. On the story's page: the hero is the video's still, eager, with `srcset` on the media host's `/cdn-cgi/image/` and a `data:image/png` placeholder, `width` and `height` set; the image post likewise, lazy; no request for the video's or the audio's address before the tap; a tap on each answers a request for exactly that address and a `<video>` (or `<audio>`) with it as `src`; the page fits at every size of the screen check. The transformation itself is proven once on the fixture's kept image (one `GET` with `Accept: image/avif`), which costs nothing new each run.
+Its own agent, story and posts as in 7.13 (small samples: a 320 × 180 image, so one width is ever asked for). The browser's requests to the media host are routed: transformations and the raw video and audio answered with stubs and recorded, so a run uses none of Cloudflare's free transformations and no real bytes. Routing in WebKit is safe here: the project's recorded problem is WebKit's routes breaking Turnstile's blob worker, and no page these journeys open loads Turnstile (only the sign-in pages do); the routes match only the media host's address. On the story's page: the story's thumbnail is the video's still, lazy and of normal priority, in a 16:9 box of at most 160 pixels, with `srcset` on the media host's `/cdn-cgi/image/` and a `data:image/png` placeholder, `width` and `height` set; the image post likewise, lazy; no request for the video's or the audio's address before the tap; a tap on each answers a request for exactly that address and a `<video>` (or `<audio>`) with it as `src`; the page fits at every size of the screen check. The transformation itself is proven once on the fixture's kept image (one `GET` with `Accept: image/avif`), which costs nothing new each run.
 
 ### 8.5 Speed
 
-The board adds no JavaScript (thumbnails are server markup, lazy) and its text stays the largest content. A story's page loads one hero image, eager and first. The player is one small client component. Every image box has its size before it loads (no layout shift). If the Speed check finds the media fixture's page over budget, the hero's size or widths change; the budget never does.
+The board adds no JavaScript (thumbnails are server markup, lazy) and its text stays the largest content. A story's page leads with its text, the picture a thumbnail beside the title (section 16): its largest content is its title, so the picture never decides its load time. The player is one small client component. Every image box has its size before it loads (no layout shift). The budget never moves.
 
 ---
 
@@ -580,7 +580,7 @@ Nothing changes in `checks.yml`, `app-keys.txt`, `dev-overrides.txt`, `firewall.
 - The console's agents are agents with `run_by = 'console'`; Hrizzup is the one the founder makes in the console; check runs make their own.
 - The upload cap is four times the agent's posts a day (at least 10) over 24 hours: data the console already sets, no new setting.
 - The format guide's kinds and words live in `social.formats` (data, one definition); the numbers in `mediaLimits` (code), pinned to the database's CHECKs.
-- The board shows thumbnails and a story's page a hero: the picture is never the board's largest content, so the board's speed doesn't hang on Cloudflare.
+- The board and a story's own page both show a thumbnail (a hero was designed for the page and not shipped, section 16): the picture is never the largest content, so no page's speed hangs on Cloudflare.
 - `durationSeconds` rounds up, so a clip never shows 0.
 - `job_recount`'s directory purge doesn't see console agents (not replaced, as R7 may replace it): Hrizzup's standing reaches the directory within its edge life, not at once.
 
@@ -627,3 +627,166 @@ The review built files that lie about their length and decoded them with FFmpeg 
   - **Uploads:** only metadata passes the server actions; the `PUT` is sent as the type the link was signed for; request IDs are made in the browser; a file's IDs and ready media are kept while the page is open, so a second Preview sends nothing twice, and a file whose words, still image, agent or kind differ is a new upload (a ready media's words never change).
   - **M4b (the founder's explainer video, section 9.6) is not built:** M4 is unproven until its preview, and a second feature on the same unproven path would put two unverified pieces behind one check; it follows M4's merge.
   - **Proven here:** `next build` builds the route and no client chunk holds the placeholder maker; the form, preview and Hrizzup's form pass the screen check's layout rules in Chromium and WebKit at every size, sideways and at 200% text; there is no Content-Security-Policy, and the staging uploads bucket's CORS rule allows previews, `PUT` and `content-type`. **Unproven until the preview:** the browser's cross-origin `PUT` in WebKit with a route on the page (the resizes only are routed), the bucket's CORS from a preview's own origin, and the Speed check's first measure of `social-story-media`. Staging's done-test (the coordinator makes Hrizzup from this page after M4 merges) is the last step.
+
+---
+
+## 16. The story page's load time (19 November 2026): a proposal, not built
+
+- **Status (the coordinator, 19 November 2026): what follows is the expert's proposal, not what is built, and no later relay may read it as a rule.** R8 built the one thing within its own files instead: a story's own page shows its picture as the board's thumbnail (`story-picture.tsx` has no `hero` size; `story-tile.tsx` lays the page's tile out as the board's), so the page's largest content is its title, drawn at the first paint (checked in Chromium at 412 × 823, 1.75×, on the real page with stand-in data: the title is the largest contentful paint; the first desk picture starts below 1,200 px; unproven for the Speed check's own numbers until its run on the pull request). The Vercel rewrite (16.2, 16.4), a photographic hero (16.5) and every rule that depends on them wait for the founder and the design chat.
+
+PR #201's Speed check measured `social-story-media` (the kept media fixture's story, signed out) at 3.49, 2.71, 2.70, 2.71 and 2.71 s for the largest content against the 2.50 s budget: the median passed only by the check's 250 ms tolerance. The board fixture's story page (no picture) read 1.25 s. Section 8.5's remedy (the hero's size or widths) can't move this number; the measurements below show what does.
+
+### 16.1 What was measured
+
+Lighthouse 13.6.0 run exactly as the Speed check runs it (mobile preset, simulated throttling, one uncounted warm-up, then 5 runs), against staging from this Mac. Then Lighthouse's own estimator (`LanternLargestContentfulPaint`, trace engine 0.0.67) was re-run on one saved trace and DevTools log, with what-ifs edited into the log (scratch scripts, not kept).
+
+- **Here and on CI.** The media page simulates at 2.18 to 2.20 s and the board story page at 0.79 s; both first paints are at 0.79 s. GitHub's runner adds about 0.5 s to both (1.25 s and 2.71 s). That is consistent with its distance from the Mumbai server counting as server time (inferred, not measured).
+- **The largest content** is the hero `<img>`, drawn 380 × 214 px.
+  - It is served as its 640 copy: 2.3 KB of AVIF, eager, `fetchpriority=high`.
+  - It is found at byte 4,013 of 65 KB of HTML (the head is 1.7 KB), and Lighthouse's discovery insight passes all three of its checks.
+  - The real load is fast: first byte 11 ms, load delay 112, load 20, render delay 32, and first paint and largest paint both at 125 ms.
+- **The simulated path, 2,138 ms:**
+  - the document, 0 to 788 ms;
+  - the stylesheet to 938 and the font to 1,088;
+  - the scripts one after another on the page's HTTP/2 connection, to 2,138 (the 73 KB chunk alone takes 600 ms);
+  - the hero, 788 to 1,557, on a new connection of its own (DNS 300 ms, TCP 225, TLS 150, server and first byte about 95).
+
+  **The hero is not the last node; the scripts are.**
+- **Why: four rules of the estimator (trace engine 0.0.67's Lantern):**
+  - `LargestContentfulPaint`: when the largest content is text drawn at the first paint, the estimate is the first paint's own graph (the board pages' 0.79 s). Otherwise it counts every request that finished before the observed paint. The scripts finished at 107 to 124 ms and the paint came at 125, so every page led by a picture carries the site's 157 KB of styles, font and scripts.
+  - `ConnectionPool` (`forceCoarseEstimates: true`): the first request to every origin pays a cold connection, whatever the page hinted.
+  - `PageDependencyGraph.linkCPUNodes`: a picture depends only on the request that found it, here the document.
+  - `Simulator.updateNetworkCapacity`: bandwidth is split evenly among the requests in progress, including a connection still in its handshake. The media host's 770 ms of connecting therefore halves the scripts' bandwidth: the 73 KB chunk takes 600 ms instead of 300.
+
+| What-if, re-simulated on the same trace (this Mac) | Hero on the media host | Hero on the page's own origin |
+|---|---|---|
+| As served (2.3 KB) | 2,138 ms | 1,688 ms |
+| Hero of 40 KB / 80 KB / 120 KB | 2,288 / 2,438 / 2,607 | 1,838 / 1,988 / 2,288 |
+| Paint at 105 ms, before the scripts end | 1,557 | 938 |
+| Paint at 200 ms, a slow first resize | 2,963 | 2,513 |
+
+- **CI's 3.49 s first run is consistent with a late paint** (inferred: a cold first resize at the runner's Cloudflare location). A late paint also pulls in the Vercel Toolbar's script (`vercel.live`, another origin, on previews and staging only) and the scripts' own work.
+- **To read the table in CI terms,** add about 0.57 s (2.71 against 2.14).
+- **What photos weigh.** The repository's `sharp`, on a procedural photo-like texture, makes AVIF copies of 12 to 23 KB at 640 wide and 27 to 43 KB at 960. Lighthouse's phone (412 px wide, at 1.75×) fetches the 960 copy of any picture 1,280 wide, as the trace's image post did.
+- **The board with a thumbnail tile first** (staging today): its largest content is text (the intro paragraph, 380 × 72) at the first paint, 0.79 s. The thumbnail is lazy, low priority and 1.9 KB, so the estimate never counts it.
+
+### 16.2 The decision
+
+Every picture the website draws is served from the page's own origin. One Vercel rewrite of `/_media/cdn-cgi/image/…`, in `next.config.ts`, forwards it to the media host; Cloudflare still resizes and caches it, and Vercel's edge caches it too.
+
+- **What it saves.** The hero joins the page's warm HTTP/2 connection: 450 ms less at every picture weight in the simulation (about 2.71 to 2.26 s on CI for the fixture), and readers' browsers skip a second handshake.
+- **What doesn't change.** The API's addresses stay as they are: only the markup maps them. Video and audio files still come from the media host, on tap.
+- **What goes.** The `preconnect()` that never reaches the page.
+- **What follows.** The kept fixture then gets a photographic hero (16.5), so the check measures a picture of real weight. Today's 2 KB gradient flatters every option.
+
+### 16.3 Rejected
+
+- **`preconnect`** gets no credit: the estimator ignores it (`forceCoarseEstimates`), and `PostMedia`'s call never reaches the served page (not in the head, not in the `Link` header).
+- **`preload`** (with `imagesrcset`, `imagesizes` and high priority) gets no credit in the estimator, since a picture waits for the document either way, and gains nothing in a browser, since the `<img>` is in the first 4 KB. A preload that doesn't match the `<source>` exactly downloads twice.
+- **Smaller widths or `sizes`** save 0 ms for the fixture, whose picture isn't on the path. For photos they save about 150 ms per 40 KB: a second lever, kept as 16.5's fallback.
+- **A hero smaller than the text** doesn't hold for every story. The board fixture's three-line title covers 37.6k px² against the hero's 81.3k, and a one-line title covers only 8k to 14k, so only a thumbnail is safe: no hero.
+- **A route handler that streams pictures** would run a function per picture, with cold starts and transfer from Vercel's functions.
+- **`next/image` with Vercel's optimizer** is ruled out: CLAUDE.md puts pictures through Cloudflare's transformations.
+- **Cloudflare in front of the whole site** is ruled out: Vercel advises against a proxy before its firewall, and previews on `*.vercel.app` couldn't use it, so the check would never see it.
+- **Caching the story page's HTML at the edge** would take about 0.5 s off the CI runner's distance, but it is R5's page and a larger change (16.8).
+- **Turning off the Vercel Toolbar for the check** is ruled out: it is the founder's setting, and it matters only on late paints.
+
+### 16.4 Rules for the builder (M5, `[normal]`, one pull request)
+
+1. **`W/lib/social/media/delivery.ts`:**
+   - Add `export const MEDIA_PATH = '/_media'`.
+   - `transformed(url, width)` answers the page's own address, `` `${MEDIA_PATH}/cdn-cgi/image/width=${width},format=auto${pathname}` ``, built from the media URL's pathname only (its origin, query and fragment are dropped).
+   - `imageSet` is otherwise unchanged (the same widths and the same `src` choice), so `MediaImage`, `PostMedia`'s poster and the console's `post-preview.tsx` all follow.
+   - The comments say why: one origin means no second connection, in the estimator or the browser.
+2. **New `W/lib/social/media/rewrite.ts` (R8's): `mediaRewrites(env)`.**
+   - It answers `[]` when `mediaBase(env)` is null; the API then serves no pictures either (`url.ts`), so no markup points at the route.
+   - Otherwise it answers one rule per width of `WIDTHS`, each with literal options and no pattern: source `` `${MEDIA_PATH}/cdn-cgi/image/width=<w>,format=auto/:key+` ``, destination `` `${base}/cdn-cgi/image/width=<w>,format=auto/:key+` ``.
+   - So only the four forms `delivery.ts` writes are forwarded. Raw files, other options and other paths get the site's 404: the site never relays video, audio or other resizes.
+   - **Proven with Next 16.4.6's own `getPathMatch` and `prepareDestination`:**
+     - the 320 rule matches `/_media/cdn-cgi/image/width=320,format=auto/social/<id>/<id>.png`, with `key` its three segments;
+     - it doesn't match `width=333`, an empty key or a bare `/_media/<key>`;
+     - it resolves to `https://media-staging.hrizzup.com/cdn-cgi/image/width=320,format=auto/<key>`, with no query added.
+   - **`W/proxy.ts` never runs for these addresses:** its matcher is `/sign-in-test`, `/console…` and `/sandbox…`. A later change to that matcher must keep `/_media/` out of it, or every picture would run the proxy: a later paint, a refreshed session's `set-cookie` (which Vercel won't cache), and possible redirects.
+3. **`W/next.config.ts`:** add `async rewrites() { return mediaRewrites(process.env); }` and change nothing else.
+   - This is the one file outside R8's own, and it is truly needed: only a rewrite puts the media host under the page's origin.
+   - `vercel.json` can't hold it, because the destination differs per environment and comes from `MEDIA_BASE_URL`, which Vercel has at build time.
+   - **Caching:**
+     - Vercel caches an outside origin's answers by their `Cache-Control` by default for projects created since 6 April 2026; this one dates from November 2026.
+     - Cloudflare answers `public, max-age=31536000, immutable` and `vary: accept`, with no `set-cookie`.
+     - Vercel's cache key includes `Accept` and `Accept-Encoding` by default.
+     - So no header is added. The pull request proves a repeat request answers `x-vercel-cache: HIT`; if it doesn't, add `x-vercel-enable-rewrite-caching: 1` for the same source in `W/vercel.json`'s `headers`, as Vercel documents.
+4. **`post-media.tsx`:** remove the `preconnect` import, both calls and their comment. Nothing on the page reaches the media host before a tap.
+5. **`story-picture.tsx` and `media-image.tsx`:** no change. The hero stays eager with `fetchPriority="high"`, other pictures stay lazy, and every box keeps its size.
+6. **Journeys, equally strict, with transformations still stubbed.** `W/e2e/journeys/social-media-pages.spec.ts`:
+   - It routes `${BASE}/_media/cdn-cgi/image/**` (answered with a stub picture and recorded), and still routes `${mediaOrigin}/**` (stub bytes, recorded).
+   - Any `/cdn-cgi/image/` request to the media host fails the test.
+   - Every `srcset` entry of the hero and of the image post starts with `/_media/cdn-cgi/image/width=`.
+   - Nothing reaches the media host's origin before the first tap, and each tap asks for exactly its file's address there.
+   - One real request, not routed, proves the rewrite: `GET ${BASE}/_media/cdn-cgi/image/width=320,format=auto/<the kept image's key>`.
+     - With `Accept: image/avif,image/webp,*/*` it answers 200 `image/avif`.
+     - With `Accept: image/webp,*/*` it answers `image/webp`.
+     - With `width=333` it answers 404.
+
+   `W/e2e/journeys/social-house-pages.spec.ts` (its resize routes) and `W/e2e/done/social-r8.spec.ts` move their picture routes and checks to `/_media/` the same way. Grep `e2e`, `lib` and `components` (`post-card.test.ts`, `media-player.test.ts` and others) for `mediaOrigin`, `cdn-cgi` and `media-staging`, and restate each check about page markup without weakening it. Checks of the API's own addresses stay as they are.
+7. **This note:** 8.1's `preconnect` line and 8.5 point to this section.
+8. **If M5's preview median is over 2.50 s,** M5 stays unmerged, the reason goes in its pull request and the status file, and it comes back to the expert with that run's Lighthouse report (the Speed check keeps the report of every run over budget).
+
+### 16.5 The photographic fixture (M5b, its own pull request, after M5 merges)
+
+1. **`W/lib/social/media/samples.ts`:** add `sampleTexturedJpeg({width, height})`.
+   - It is a seeded texture: value noise per channel at cells of 256, 64, 16, 4 and 2 px (amplitudes 0.5, 0.25, 0.13, 0.08 and 0.04), plus one hard-edged rectangle, written as a JPEG at quality 90.
+   - It uses no outside image, so no licence applies.
+2. **`W/e2e/fixtures/social/media.ts`:** a fourth post on the fixture's desk.
+   - It is an image post of a 1,280 × 720 textured JPEG, described "A textured test picture standing in for a photograph", with a fixed request ID.
+   - It is made only while the story's picture isn't that picture, and posted last, so it becomes the newest picture and therefore the hero (rule D5).
+   - Lighthouse's phone then fetches its 960 copy.
+3. **Its pull request records** the media host's 960 AVIF weight of that picture (one `GET`; 30 to 80 KB expected) and the Speed check's median.
+4. **Order (the fixture is shared staging data):**
+   - The post appears on staging as soon as M5b's own Screen check runs, and every preview reads it.
+   - By the table, a preview without M5 would measure a hero of about 40 KB from the media host: about 2.86 s on CI, past the 2.75 s limit.
+   - So M5b is opened only when every open pull request that builds the website sits on a `main` that holds M5; the coordinator checks the round's open PRs first, and others rebase or M5b waits.
+   - M5b's own Speed check may still measure either hero; both pass with M5.
+5. **Fallback, only if that median is over 2.40 s:**
+   - `MediaImage` gains `narrowMaxWidth?: number`, which draws `<source media="(max-width: 639.98px)" srcSet=<the copies at or under it> sizes="100vw"/>` before its other `<source>`.
+   - The hero passes 640.
+   - The cost: phones at 3× get a softer hero.
+
+### 16.6 Edge cases
+
+- **A change to `MEDIA_BASE_URL`** takes effect at the next deployment, since the rewrite is built in (staging redeploys on every merge, production on release).
+- **A cold resize, or a new deployment's empty cache,** costs one extra hop and is then cached. The median absorbs a slow first run.
+- **Each browser's `Accept`** gets its own entry, and Cloudflare answers AVIF, WebP or the original accordingly.
+- **Staging's bot challenge:** `/_media/` requests are same-origin, like the page's own code and styles, so they should pass as those do (inferred). The done-test proves it signed out, in both engines.
+- **Previews:** the protection-bypass cookie is the preview origin's own, so it covers the pictures.
+- **Removing media** (nothing does yet): copies stay cached for a year at Cloudflare's edge and now at Vercel's too. Whatever first removes media must purge both (Vercel's by a cache tag added then).
+- **Cookies:** on a cache miss the reader's cookies are forwarded to the media host. It is our own Cloudflare zone, not a third party, and its answers set no cookie.
+
+### 16.7 Tests that must exist
+
+1. **`delivery.test.ts`:** `src` and every `srcSet` entry are `/_media/cdn-cgi/image/width=<w>,format=auto<pathname>`; the media URL's origin, query and fragment never appear; the widths rule is unchanged.
+2. **`rewrite.test.ts`:**
+   - no rules without `MEDIA_BASE_URL`, or with an invalid one;
+   - with a valid one, exactly one rule per width, matching `WIDTHS` and with the literal forms above;
+   - a test that pins `next.config.ts` returning `mediaRewrites(process.env)`.
+3. **The render tests** (`media-image`, `story-picture`, `post-media`, `post-preview`):
+   - no absolute media-host address in any `src`, `srcset` or `poster`;
+   - the hero is eager and `fetchpriority="high"`;
+   - `post-media.tsx` no longer imports `preconnect`.
+4. **The pages journey,** as in rule 6, in both engines.
+5. **The Speed check on M5's preview:** `social-story-media`'s median is at most 2.50 s (about 2.2 to 2.3 s expected), and no run is over it except a cold first one.
+6. **M5b:** the same check with the textured hero, at most 2.40 s, or else the fallback.
+
+### 16.8 For the founder and the open questions
+
+- **Vercel now carries the website's picture bytes** (Fast Data Transfer and CDN requests on the existing Pro plan). Cloudflare R2's own delivery stays free. This costs nothing on staging; at launch it is a per-gigabyte cost that Cloudflare alone didn't have. Recommendation: accept it for faster pages, and review the bill in the pre-launch checklist.
+- **Caching story pages' HTML at the edge** (R5's page, refreshed by its tags) would take about 0.5 s off every page the check measures from the US, and would help readers far from Mumbai. Recommendation: a later milestone.
+- **M5b's order rule** (16.5, rule 4) holds the round's other website pull requests to a `main` with M5. The coordinator applies it.
+
+Advisor (Fable 5.2), consulted twice:
+- **The first review** had the what-ifs judged in CI terms and at real photo weights. That showed same-origin alone thins out for heavy photos, hence 16.5's photographic fixture and its fallback. It also asked for:
+  - the paint-time what-ifs, which fit CI's 3.49 s first run;
+  - Vercel's caching, `Accept` keying and metering, read from its docs;
+  - the layout option judged against a one-line title (thumbnail-sized only, so rejected);
+  - the board measured with a thumbnail tile first (text, 0.79 s);
+  - the dead `preconnect` named.
+- **The second review** had `W/proxy.ts`'s matcher checked (it excludes `/_media/`), the rule proven with Next's own matcher, M5b's order rule added for the shared fixture, inferences labelled as such, the failure path written (16.4, rule 8), and the test grep widened to `lib` and `components`.

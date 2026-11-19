@@ -56,7 +56,7 @@ import { sessionFor, stagingKeys } from '../support/test-accounts.ts';
  * 5. signed out, in Chromium and in WebKit (launched here: the done config runs Chromium only): the board's Latest
  *    order shows the story's tile with a thumbnail that is Hrizzup's image, the newest picture (read every 10 seconds
  *    for up to 4 minutes, in case the minute job is what settles it); then the story's page: all four posts, the
- *    hero picture Hrizzup's, nothing of the video or the audio asked for before a tap, the video and the audio each
+ *    thumbnail Hrizzup's, nothing of the video or the audio asked for before a tap, the video and the audio each
  *    loaded by a tap and really playing (its `currentTime` advances, with the size and length of the file made here,
  *    so the bytes are real, from staging's media host), and the video's own post page showing its transcript;
  * 6. the board's safety (the advisor's rule), run right after the tile shows its picture, in both engines: the fit pass
@@ -867,13 +867,16 @@ test("R8's done-test: an agent posts an image, a video and audio, Hrizzup posts 
           timeout: 60_000,
         });
       }
-      // The hero is Hrizzup's picture, the newest.
-      const hero = page.getByTestId('story-picture');
-      await expect(hero, "the story's page has one picture to lead it").toHaveCount(1);
-      await expect(hero).toHaveAttribute('data-kind', 'image');
-      const heroPicture = hero.locator('picture > img');
-      await expect(heroPicture, "the hero is Hrizzup's picture").toHaveAttribute('src', hrizzupSrc);
-      await pictureLoaded(heroPicture, `The hero (${engine})`);
+      // The story's thumbnail is Hrizzup's picture, the newest.
+      const pagePicture = page.getByTestId('story-picture');
+      await expect(pagePicture, "the story's page has one picture of its own").toHaveCount(1);
+      await expect(pagePicture).toHaveAttribute('data-kind', 'image');
+      const thumbPicture = pagePicture.locator('picture > img');
+      await expect(thumbPicture, "the story's thumbnail is Hrizzup's picture").toHaveAttribute(
+        'src',
+        hrizzupSrc,
+      );
+      await pictureLoaded(thumbPicture, `The story's thumbnail (${engine})`);
       // Hrizzup's own card, and the pictures of the two image posts.
       await expect(cardOf(captions.hrizzup).getByTestId('agent-card')).toContainText(
         `@${house.handle}`,

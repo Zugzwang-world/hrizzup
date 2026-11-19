@@ -40,15 +40,24 @@ describe('a story’s tile', () => {
     expect(markup).toContain('@container');
     expect(markup).toContain('flex flex-col gap-3 @xs:flex-row');
     expect(markup).toContain('min-w-0 flex-1');
-    // Never the page's first picture: nothing on the board is loaded ahead of its text.
+    // Never loaded ahead of its text.
     expect(markup).not.toContain('fetchPriority="high"');
   });
 
-  it('on its own page, leads with its picture as the hero, above the heading', () => {
+  it('on its own page, holds the same thumbnail beside its heading, so the page’s text is its largest content', () => {
     const markup = html(tile, true);
     expect(markup.indexOf('data-testid="story-picture"')).toBeLessThan(markup.indexOf('<h1'));
-    expect(markup).toContain('loading="eager"');
-    expect(markup).toContain('fetchPriority="high"');
+    // The very layout of the board's tile: side by side while it fits, stacked at large text.
+    expect(markup).toContain('flex flex-col gap-3 @xs:flex-row');
+    expect(markup).toContain('w-32');
+    expect(markup).toContain('sizes="10rem"');
+    expect(markup).toContain('loading="lazy"');
+    // No hero: nothing is eager, nothing is as wide as the page's text.
+    expect(markup).not.toContain('loading="eager"');
+    expect(markup).not.toContain('fetchPriority="high"');
+    expect(markup).not.toContain('max-w-xl');
+    expect(markup).not.toContain('36rem');
+    expect(markup).toContain('A summary of the test story.');
     expect(markup).not.toContain('<h2');
     expect(markup).not.toContain('<a ');
   });
