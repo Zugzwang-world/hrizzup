@@ -55,8 +55,11 @@ export type ProviderOptions = {
   timeoutMs?: number;
 };
 
-/** A model name the code will send: an `@cf/…` or `@hf/…` name of two parts, with nothing that could change the address. */
-const MODEL = /^@(cf|hf)\/[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/;
+/**
+ * A model name the code will send: an `@cf/…` or `@hf/…` name of two parts, each starting with a letter or a digit,
+ * so no dot segment (`@cf/../x`, `@cf/./x`) can change the request's path.
+ */
+const MODEL = /^@(cf|hf)\/[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9][A-Za-z0-9._-]*$/;
 /** An account ID as Cloudflare writes one (32 hex characters), loosely: it goes into the address. */
 const ACCOUNT = /^[A-Za-z0-9_-]{1,64}$/;
 

@@ -5,6 +5,7 @@ import {
   EMPTY_PROFILE,
   isCanonical,
   parseProfile,
+  passesCodeChecks,
   writeProfile,
 } from '@hrizzup/social/reading-profile';
 import { createRouterClient } from '@orpc/server';
@@ -25,6 +26,25 @@ const signedIn = vi.fn();
 const events: string[] = [];
 
 vi.mock('@/lib/api/context.ts', () => ({ signedIn: (headers: Headers) => signedIn(headers) }));
+
+/**
+ * `forget` is the shared cache module's, which never rejects for Redis (it swallows that); a test that must
+ * see what the handler does if it does reject makes it reject: `forgetFails.times` calls, then the real one.
+ */
+const forgetFails = vi.hoisted(() => ({ times: 0 }));
+vi.mock('@/lib/social/cache.ts', async (original) => {
+  const real = await original<typeof import('@/lib/social/cache.ts')>();
+  return {
+    ...real,
+    forget: async (keys: readonly string[]) => {
+      if (forgetFails.times > 0) {
+        forgetFails.times--;
+        throw new Error('forgetting the copies was refused');
+      }
+      return real.forget(keys);
+    },
+  };
+});
 
 type Statement = { text: string; values: unknown[] | undefined };
 const asked: Statement[] = [];
@@ -203,6 +223,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  forgetFails.times = 0;
   databaseOff.value = false;
   vi.useRealTimers();
   vi.unstubAllEnvs();
@@ -271,6 +292,57 @@ describe('the contract’s examples', () => {
       expect(parsed.ok, text).toBe(true);
       if (parsed.ok) expect(writeProfile(parsed.profile)).toBe(text);
       expect(isCanonical(text), text).toBe(true);
+    }
+  });
+});
+
+/**
+ * The agreement's code checks are written three times in this repository (the agreement's own `validate()`, the
+ * contract's `longText` in `common.ts`, and `passesCodeChecks` in `@hrizzup/social`'s reading-profile.ts, which
+ * cannot import the contract), and the database's `agreement.passes_code_checks` is the fourth. This holds the
+ * social package's copy equal to the contract's, for every character there is, in the three places a character
+ * can sit in a line (alone, at the end, in the middle). A later export of the checks from `@hrizzup/agreement`
+ * would remove the copy, and this test with it.
+ */
+describe('the code checks of the reading profile', () => {
+  it('are the contract’s own: passesCodeChecks accepts exactly what longText accepts, for every non-control code point', () => {
+    const contract = social.longText(5000);
+    const templates = [(c: string) => `a${c}b`, (c: string) => c, (c: string) => `a${c}`];
+    const disagreements: string[] = [];
+    let checked = 0;
+    for (let cp = 0; cp <= 0x10ffff; cp++) {
+      if (cp >= 0xd800 && cp <= 0xdfff) continue;
+      const character = String.fromCodePoint(cp);
+      // Control characters are the contract's own stricter rule (no escape sequences), apart from the code checks.
+      if (/\p{Cc}/u.test(character)) continue;
+      for (const template of templates) {
+        const text = template(character);
+        checked++;
+        if (passesCodeChecks(text) !== contract.safeParse(text).success) {
+          disagreements.push(`U+${cp.toString(16)} in ${JSON.stringify(text)}`);
+        }
+      }
+    }
+    expect(checked).toBeGreaterThan(3_000_000);
+    expect(disagreements.slice(0, 5)).toEqual([]);
+  }, 120_000);
+
+  it('also agree on the checks that span characters: a joiner beside plain text, stacked variation selectors, a final new line', () => {
+    const contract = social.longText(5000);
+    const joiner = String.fromCodePoint(0x200d);
+    const selector = String.fromCodePoint(0xfe0f);
+    for (const text of [
+      `a${joiner}b`,
+      `${joiner}a`,
+      `a${joiner}`,
+      `${joiner}${joiner}`,
+      `a${selector}${selector}`,
+      `a${selector}`,
+      `${String.fromCodePoint(0x1f469, 0x200d, 0x1f4bb)} coder`,
+      'ends with a new line\n',
+      'a\nb',
+    ]) {
+      expect(passesCodeChecks(text), JSON.stringify(text)).toBe(contract.safeParse(text).success);
     }
   });
 });
@@ -1033,12 +1105,20 @@ describe('reader.chat.send', () => {
       expect(statementsOf('reader_chat_settle')).toHaveLength(0);
     });
 
-    it('a settle that succeeded is never followed by a fail, even if forgetting the copies throws', async () => {
+    it('a settle that succeeded is never followed by a fail, even if forgetting the copies rejects: the retry answers the same two messages', async () => {
       database({ begin: reserved() });
-      redis.del.mockRejectedValueOnce(new Error('redis down'));
+      forgetFails.times = 1;
+      await expect(send().run()).rejects.toThrow('forgetting the copies was refused');
+      // The settle committed, so the call is done: no fail followed it, whatever came after.
+      expect(statementsOf('reader_chat_settle')).toHaveLength(1);
+      expect(statementsOf('reader_chat_fail')).toHaveLength(0);
+      // The reader sends again with the same request ID: the database answers the finished send.
+      database({ begin: { state: 'done', answer: answerRow() } });
       const reply = await send().run();
       expect(reply.message.id).toBe(MESSAGE_ID);
+      expect(reply.reply.id).toBe(REPLY_ID);
       expect(statementsOf('reader_chat_fail')).toHaveLength(0);
+      expect(statementsOf('reader_chat_settle')).toHaveLength(1);
     });
   });
 

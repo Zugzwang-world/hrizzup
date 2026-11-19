@@ -68,6 +68,11 @@ const characters = (text: string): number => {
  * stray joiners, a final new line), which the database makes as `agreement.passes_code_checks`. The database
  * checks them over the whole text, so a joiner next to the "- " in front of an item or the new line after it
  * counts; `checkItem` therefore asks about an item in place, inside a profile.
+ *
+ * This is a copy: the agreement's own `validate()` and the contract's `longText` hold the same rules, and this
+ * package can't import either (the contract imports this one's neighbours, and `validate()` brings in Ajv). A
+ * test in the website (`lib/api/social/readers.test.ts`) holds it equal to the contract's for every character.
+ * An export of the checks from `@hrizzup/agreement` (browser-safe, with no Ajv) would remove the copy.
  */
 const CODE_CHECKS = [
   /(?!\u{200D}|\u{FE0E}|\u{FE0F})[\p{Cf}\p{Co}\p{Cs}\p{Default_Ignorable_Code_Point}]/u,

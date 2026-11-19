@@ -1,5 +1,4 @@
 import { social } from '@hrizzup/api';
-import { passesCodeChecks } from '@hrizzup/social/reading-profile';
 import { describe, expect, it } from 'vitest';
 import { cleanReply, MAX_REPLY_CHARACTERS, readAnswer, UNREADABLE_REPLY } from './answer.ts';
 import { characterCount } from './text.ts';
@@ -163,8 +162,13 @@ describe('cleanReply', () => {
     ];
     for (const text of hostile) {
       const clean = cleanReply(text, none);
+      // Against the contract's own schemas, never the helper `cleanReply` itself asks: `plainText(2000)` for the
+      // pattern, and `longText(2000)`, whose code checks are the contract's own copy of the agreement's.
       expect(plain.safeParse(clean).success, JSON.stringify(clean).slice(0, 80)).toBe(true);
-      expect(passesCodeChecks(clean), JSON.stringify(clean).slice(0, 80)).toBe(true);
+      expect(
+        social.longText(2000).safeParse(clean).success,
+        JSON.stringify(clean).slice(0, 80),
+      ).toBe(true);
       expect(characterCount(clean)).toBeLessThanOrEqual(MAX_REPLY_CHARACTERS);
       expect(clean.length).toBeGreaterThan(0);
     }

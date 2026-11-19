@@ -362,9 +362,10 @@ const MARKET_ANSWERS: Record<string, unknown> = {
 };
 
 /**
- * Four of social's calls may answer a time that the example, as it should, leaves null (a key's claim
- * time, when a limit lifts, a preview's post that isn't saved, a reader's pause): the same answer with
- * each of those times filled in, so the example the test prints holds them.
+ * Some of social's calls may answer a time that the example, as it should, leaves null (a key's claim
+ * time, when a limit lifts, a preview's post that isn't saved, a reader's pause, in the state and in the
+ * reply to a message): the same answer with each of those times filled in, so the example the test prints
+ * holds them.
  */
 const FILLED_TIME = '2026-11-18T08:00:00.000Z';
 const FILLED: Record<string, string[]> = {
@@ -372,12 +373,14 @@ const FILLED: Record<string, string[]> = {
   'social.me.preview': ['card.createdAt'],
   'reader.get': ['usage.pausedUntil'],
   'reader.saveProfile': ['usage.pausedUntil'],
+  'reader.chat.send': ['usage.pausedUntil'],
 };
 
 /** The times an example holds itself, because the call always answers them (a reader's `usage.resetsAt`): never filled. */
 const HELD: Record<string, string[]> = {
   'reader.get': ['usage.resetsAt'],
   'reader.saveProfile': ['usage.resetsAt'],
+  'reader.chat.send': ['message.createdAt', 'reply.createdAt', 'usage.resetsAt'],
 };
 
 function withTimesFilled(answer: unknown, paths: readonly string[]): unknown {
@@ -931,7 +934,7 @@ describe('social is printed like the rest', () => {
     );
   });
 
-  it('fills, in the four examples that leave a time null, exactly the times the call can answer and the example does not hold', () => {
+  it('fills, in the examples that leave a time null, exactly the times the call can answer and the example does not hold', () => {
     for (const [name, paths] of Object.entries(FILLED)) {
       const call = calls.find(([called]) => called === name)?.[1] as Call;
       const held = HELD[name] ?? [];

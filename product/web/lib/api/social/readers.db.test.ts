@@ -332,13 +332,22 @@ describe.skipIf(!url)('the reader agent over the real functions', () => {
     const other = api(second).api;
     expect(await other.reader.chat.list()).toEqual({ messages: [], next: null });
     expect((await other.reader.get()).profile).toBe(EMPTY_PROFILE);
-    // A message of the first reader's replayed by the second reader's account is a new message, not theirs.
-    const stolen = [...ids][0] as string;
+    // The second reader's own message: their chat holds exactly their two messages, and none of the first's.
     const mineAgain = await other.reader.chat.send({
       requestId: randomUUID(),
       body: 'hello there',
     });
-    expect(mineAgain.message.id).not.toBe(stolen);
+    const theirs = await other.reader.chat.list();
+    expect(theirs.messages.map((m) => m.id).sort()).toEqual(
+      [mineAgain.message.id, mineAgain.reply.id].sort(),
+    );
+    expect(theirs.messages.some((m) => ids.has(m.id))).toBe(false);
+    expect(theirs.messages.map((m) => m.body)).not.toContain('more cricket');
+    // And the first reader's chat is still their six, none of the second's.
+    // (The signed-in account is the helper's last: ask as the first reader again.)
+    const first_ = await api(first).api.reader.chat.list({ limit: 100 });
+    expect(first_.messages).toHaveLength(6);
+    expect(first_.messages.some((m) => theirs.messages.some((t) => t.id === m.id))).toBe(false);
   });
 
   it('counts the reader’s messages when they are reserved: past the daily messages, 429 daily_cap with Retry-After, no more calls', async () => {

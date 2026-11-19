@@ -396,7 +396,7 @@ The tile is R8's own (`_story_tile`, with its picture), so `storyTileOf` maps it
 
 ### 3.3 The request to Workers AI
 - **Address:** `POST https://api.cloudflare.com/client/v4/accounts/${WORKERS_AI_ACCOUNT_ID}/ai/run/${model}`.
-  - `model` is the setting, and is sent only when it matches `^@(cf|hf)/[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$`. Anything else fails as `released` before any request.
+  - `model` is the setting, and is sent only when it matches `^@(cf|hf)/[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$` (each part starts with a letter or a digit, as built in M2: the first form let `@cf/../x` change the request's path). Anything else fails as `released` before any request.
   - The provider is chosen from the setting `reader_ai_provider`. Only `workers-ai` exists. Another name fails as `released` (503 `unavailable`), and the log says the name.
 - **Sending:** headers `Authorization: Bearer ${WORKERS_AI_TOKEN}` and `Content-Type: application/json`; `fetch(url, init)` (never a `Request`, as `storage.ts` notes); `cache: 'no-store'`; `signal: AbortSignal.timeout(20_000)`.
 - **The body:** `{messages: [{role: 'system', content: SYSTEM_PROMPT}, {role: 'user', content: <turn>}], max_tokens: <max_output_tokens from begin, 300>, temperature: 0.2}`, with no `response_format` (decision 12).

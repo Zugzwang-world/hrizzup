@@ -1,7 +1,8 @@
 import { emptyProfile } from '@hrizzup/social/reading-profile';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readerAi, stubProvider } from './index.ts';
 import { buildPrompt } from './prompt.ts';
+import { TIMEOUT_MS } from './workers-ai.ts';
 
 /** Nothing here reaches Cloudflare: every request goes to a stand-in `fetch`, and a test that sets none fails if one is made. */
 const FAKE_TOKEN = 'test-token-not-a-real-one';
@@ -15,6 +16,15 @@ const request = { prompt, maxOutputTokens: 300, message, profile: emptyProfile()
 
 const mustNotFetch = vi.fn(async () => {
   throw new Error('the network must not be reached');
+});
+// The global `fetch` is a stand-in that throws, so no test here can reach Cloudflare, whatever it forgets to pass.
+beforeEach(() => {
+  mustNotFetch.mockClear();
+  vi.stubGlobal('fetch', mustNotFetch);
+});
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 const envelope = (result: unknown, extra: Record<string, unknown> = {}) =>
   JSON.stringify({ success: true, errors: [], messages: [], result, ...extra });
@@ -59,6 +69,10 @@ describe('which provider answers', () => {
       [{ provider: 'openai', model: MODEL }, 'unknown provider "openai"'],
       [{ provider: 'workers-ai', model: 'llama' }, 'a model name the code will not send'],
       [{ provider: 'workers-ai', model: '@cf/meta/../x/y' }, 'a model name the code will not send'],
+      [{ provider: 'workers-ai', model: '@cf/../x' }, 'a model name the code will not send'],
+      [{ provider: 'workers-ai', model: '@cf/./x' }, 'a model name the code will not send'],
+      [{ provider: 'workers-ai', model: '@cf/meta/..' }, 'a model name the code will not send'],
+      [{ provider: 'workers-ai', model: '@hf/.hidden/x' }, 'a model name the code will not send'],
       [{ provider: 'workers-ai', model: `${MODEL}?x=1` }, 'a model name the code will not send'],
       [
         { provider: 'workers-ai', model: '@cf/meta/llama/extra' },
@@ -102,8 +116,12 @@ describe('the call to Workers AI', () => {
       envelope({ response: ours, usage: { prompt_tokens: 600, completion_tokens: 85 } }),
     );
     const { log } = lines();
+    const timeout = vi.spyOn(AbortSignal, 'timeout');
     const result = await readerAi(env, settings, { fetcher, log }).run(request);
     expect(fetcher).toHaveBeenCalledTimes(1);
+    // The limit is 20 seconds, and the signal the request carries is made from it.
+    expect(TIMEOUT_MS).toBe(20_000);
+    expect(timeout).toHaveBeenCalledExactlyOnceWith(20_000);
     const [url, init] = fetcher.mock.calls[0] ?? [];
     expect(url).toBe(
       `https://api.cloudflare.com/client/v4/accounts/${ACCOUNT}/ai/run/@cf/meta/llama-3.2-3b-instruct`,
