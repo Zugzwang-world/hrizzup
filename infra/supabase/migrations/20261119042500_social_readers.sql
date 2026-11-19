@@ -87,13 +87,13 @@ comment on function social._reader_paused(social.ai_days, social.settings) is
 -- A reading profile in its one stored form (docs/social/r12-design.md, 2.3): the title, the three headings in
 -- order, each item as "- item", a blank line between the parts, no final new line. Four plain parts, with no
 -- bounded repetition (Postgres's regex engine copies states for it): the length and the code checks; the
--- shape; each item (1 to 60 characters, no control character, no space at either end); at most 20 items under
--- each heading.
+-- shape; each item (1 to 60 characters, no control character, no space at either end, and one the agreement's
+-- `one_line` domain accepts: no hidden, direction or private-use character); at most 20 items under each heading.
+-- Stable, not immutable: it asks Postgres whether the domain takes the item.
 create function social._reader_profile_ok(body text)
 returns boolean
 language sql
-immutable
-parallel safe
+stable
 set search_path = ''
 as $$
   select body is not null
@@ -103,13 +103,14 @@ as $$
     and not exists (
       select 1 from pg_catalog.regexp_matches(body, '\n- ([^\n]*)', 'g') m
       where pg_catalog.char_length(m[1]) > 60
-         or m[1] !~ '^[^[:space:][:cntrl:]]([^[:cntrl:]]*[^[:space:][:cntrl:]])?$')
+         or m[1] !~ '^[^[:space:][:cntrl:]]([^[:cntrl:]]*[^[:space:][:cntrl:]])?$'
+         or not pg_catalog.pg_input_is_valid(m[1], 'agreement.one_line'))
     and (select coalesce(max((select count(*) from pg_catalog.regexp_matches(part, '\n- ', 'g'))), 0)
          from pg_catalog.regexp_split_to_table(body, '\n\n') part) <= 20
 $$;
 comment on function social._reader_profile_ok(text) is
   'Whether a text is a reading profile in its one stored form: the title, the three headings in order, items of 1 to 60 '
-  'characters, 20 a heading at most, 2,000 characters in all, no final new line.';
+  'characters that the agreement''s one_line accepts, 20 a heading at most, 2,000 characters in all, no final new line.';
 
 -- Whether a stored profile holds any item: a canonical bullet always starts a line with "- ", and nothing else does.
 create function social._reader_holds(body text)
@@ -233,11 +234,13 @@ begin
   return social._reader_view(who) || jsonb_build_object(
     'message', social._reader_message_view(v_message),
     'reply', social._reader_message_view(v_reply),
-    'profile_changed', coalesce((done ->> 'profile_changed')::boolean, false));
+    'profile_changed', coalesce((done ->> 'profile_changed')::boolean, false),
+    'profile_refused', coalesce((done #>> '{facts,profile_refused}')::boolean, false));
 end;
 $$;
 comment on function social._reader_answer(uuid, jsonb) is
-  'A finished send: the reader''s state plus {message, reply, profile_changed}, read by the stored result''s IDs.';
+  'A finished send: the reader''s state plus {message, reply, profile_changed, profile_refused}, read by the stored '
+  'result''s IDs.';
 
 
 -- 3. The reader's own reads ----------------------------------------------------------------------------------------
@@ -348,7 +351,8 @@ comment on function social.reader_save_profile(uuid, text) is
 --   {state: 'reserved', call, ai, profile, history}
 -- The request's own row in social.requests holds the reservation until settle or fail: {pending: {day, reserved,
 -- in, out, message_id, started_at, lease_until}}. After a crash past the lease, a retry takes over the same
--- reservation (no new reservation, no new slot).
+-- reservation (no new reservation, no new slot), and the abandoned try, which may have run, is charged as a kept
+-- failure is (its reservation moves into used, on the marker's own day, and into the reader's day).
 create function social.reader_chat_begin(request_id uuid, body text)
 returns jsonb
 language plpgsql
@@ -371,6 +375,8 @@ declare
   v_profile text;
   v_number integer;
   v_history jsonb;
+  v_taken numeric;
+  v_taken_day date;
 begin
   if request_id is null then
     raise exception 'A request ID is needed' using errcode = 'invalid_parameter_value';
@@ -393,7 +399,13 @@ begin
       return jsonb_build_object('state', 'in_progress',
         'retry_after_seconds', greatest(1, ceil(extract(epoch from (p ->> 'lease_until')::timestamptz - v_now)))::integer);
     end if;
-    -- The first try is past its lease: take over the same reservation, with a new lease.
+    -- The first try is past its lease, so it may have run: it is charged as a kept failure would be, and the same
+    -- reservation (the marker's own R and day) stays open for the new try, with a new lease. No new reservation and
+    -- no new slot, so the reader's cap still bounds what their failures can use.
+    v_taken := (p ->> 'reserved')::numeric;
+    v_taken_day := (p ->> 'day')::date;
+    update social.ai_days x set neurons_used = x.neurons_used + v_taken where x.day = v_taken_day;
+    update social.reader_days d set neurons = d.neurons + v_taken where d.user_id = who and d.day = v_taken_day;
     p := jsonb_set(p, '{lease_until}', to_jsonb(markets.utc(v_now + interval '60 seconds')));
     perform social._remember(who, request_id, 'reader_chat', params, jsonb_build_object('pending', p));
   else
@@ -641,7 +653,7 @@ comment on function social.reader_chat_settle(uuid, text, jsonb) is
 
 -- Ends a reserved call that got no answer, by what the provider did:
 --   released   it didn't run: the reservation and the reader's message slot come back
---   exhausted  as released, and today is marked: chat pauses until 00:00 UTC (Workers AI's 3036)
+--   exhausted  as released, and the marker's own day is marked: chat pauses until 00:00 UTC (Workers AI's 3036)
 --   kept       it may have run: the reservation counts as used and the slot stays taken, so one reader's failures
 --              can never use more than the daily cap's worth of the shared allowance
 -- The marker goes, so the request ID is free to try again.
@@ -658,7 +670,6 @@ declare
   p jsonb;
   v_reserved numeric;
   v_pday date;
-  v_today date;
 begin
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('social:' || who::text, 0));
   stored := social._replay(who, request_id, 'reader_chat', params);
@@ -684,23 +695,26 @@ begin
     where x.day = v_pday;
     update social.reader_days d set neurons = d.neurons + v_reserved where d.user_id = who and d.day = v_pday;
   else
-    update social.ai_days x set neurons_reserved = x.neurons_reserved - v_reserved where x.day = v_pday;
+    -- 3036 is about the allocation the call was made against, so it marks the marker's own day (its row exists:
+    -- the reservation made it), never a fresh day that began after the call.
+    update social.ai_days x
+    set neurons_reserved = x.neurons_reserved - v_reserved,
+        exhausted_at = case when kind = 'exhausted' then coalesce(x.exhausted_at, pg_catalog.clock_timestamp()) else x.exhausted_at end
+    where x.day = v_pday;
     update social.reader_days d set messages = d.messages - 1 where d.user_id = who and d.day = v_pday;
-    if kind = 'exhausted' then
-      -- The marker's day is today or earlier, so the rows are taken in ascending day order.
-      v_today := social._reader_today();
-      insert into social.ai_days (day) values (v_today) on conflict do nothing;
-      update social.ai_days x set exhausted_at = coalesce(x.exhausted_at, pg_catalog.clock_timestamp()) where x.day = v_today;
-    end if;
   end if;
   delete from social.requests q where q.actor = who and q.request_id = reader_chat_fail.request_id;
-  return jsonb_build_object('state', 'failed', 'kind', kind, 'view', social._reader_view(who));
+  -- The seconds to the end of today's UTC day, on the database's own clock, as begin's refusal counts them.
+  return jsonb_build_object('state', 'failed', 'kind', kind, 'view', social._reader_view(who),
+    'retry_after_seconds',
+    greatest(1, ceil(extract(epoch from social._reader_day_end(social._reader_today()) - pg_catalog.clock_timestamp())))::integer);
 end;
 $$;
 comment on function social.reader_chat_fail(uuid, text, text) is
   'Ends a reserved call that got no answer: released (it didn''t run: the reservation and the reader''s message slot '
-  'come back), exhausted (as released, and chat pauses for the UTC day: 3036) or kept (it may have run: the reservation '
-  'counts as used and the slot stays taken). The request ID is free again. P0002, 22023 (detail kind), HZS27.';
+  'come back), exhausted (as released, and chat pauses for the marker''s UTC day: 3036) or kept (it may have run: the '
+  'reservation counts as used and the slot stays taken). {state: failed, kind, view, retry_after_seconds (to 00:00 UTC)}; '
+  'the request ID is free again. P0002, 22023 (detail kind), HZS27.';
 
 
 -- 6. For You's candidates ------------------------------------------------------------------------------------------------

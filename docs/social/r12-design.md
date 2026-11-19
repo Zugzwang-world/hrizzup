@@ -64,7 +64,7 @@
 | Kind | When | Effect on the books |
 |---|---|---|
 | `released` | Cloudflare refused before running: 3040 (capacity), 5016 (model terms), any other 4xx but 408 (bad request, token, model name), or an unknown provider or a model name the code won't send | `reserved −= R`; the reader's message slot is given back |
-| `exhausted` | 3036, the daily free allocation is spent | As `released`, and today's `ai_days.exhausted_at` is set, so chat pauses until 00:00 UTC with no more calls |
+| `exhausted` | 3036, the daily free allocation is spent | As `released`, and the marker's own day's `ai_days.exhausted_at` is set (never a fresh day that began after the call), so chat pauses until 00:00 UTC with no more calls |
 | `kept` | The model may have run: a timeout or abort (408, or our 20-second limit), a network error, a 5xx, or an answer whose envelope can't be read | `reserved −= R; used += R`; the slot **stays taken** (decision 7) |
 
 An answered call is always settled, never failed. That includes a 200 whose `response` isn't our JSON: decision 12 keeps its text.
@@ -82,7 +82,7 @@ An answered call is always settled, never failed. That includes a 200 whose `res
 1. **After a send finished:** a retry with the same request ID answers the same two messages, with no AI call.
 2. **While the first try is in flight** (its marker's 60-second lease is live): `in_progress`, which becomes a 409 `clash` ("still answering"), with `Retry-After`.
 3. **After a crash past the lease:** the retry takes over the same reservation. The lease is renewed, and there is no new reservation and no new slot.
-   - **If the crashed try did run,** that one call goes uncounted, at most 18.3925 neurons. The 1,000-neuron margin covers it.
+   - **The abandoned try is charged as `kept`** (it may have run): `used += R` on the marker's day and `neurons += R` on the reader's day there, while the reservation itself stays open for the new try (still the marker's R and day). So a crashed try is never uncounted, and a reader's cap still bounds what failures can use.
    - **If nobody ever retries,** the reservation stays open for that day, which is conservative.
 4. **After a failure:** the marker is gone, so the same request ID tries again with a new reservation.
 
@@ -193,29 +193,29 @@ Under the app's read committed, a waiting writer re-reads the row once the other
 | `_reader_day_end(day date) → timestamptz` (immutable) | `((day + 1)::timestamp at time zone 'UTC')`: 05:30 IST |
 | `_reader_most(s social.settings) → numeric` (immutable) | `(2000 * s.reader_ai_in_neurons_per_m + 300 * s.reader_ai_out_neurons_per_m) * 0.000001` |
 | `_reader_paused(a social.ai_days, s social.settings) → boolean` (immutable) | `a.exhausted_at is not null or coalesce(a.neurons_used, 0) + coalesce(a.neurons_reserved, 0) + _reader_most(s) > s.reader_ai_daily_neurons` (a missing row is all nulls) |
-| `_reader_profile_ok(body text) → boolean` (immutable) | The canonical form, checked in four parts (below): the length and the code checks, the shape, each item, and the count under each heading |
+| `_reader_profile_ok(body text) → boolean` (**stable**: it asks Postgres whether the agreement's `one_line` takes each item) | The canonical form, checked in four parts (below): the length and the code checks, the shape, each item (its length, no control or end-space character, and the agreement's `one_line` rule), and the count under each heading |
 | `_reader_holds(body text) → boolean` (immutable) | `coalesce(body, '') ~ '\n- '` |
 | `_uuid7_after(prev uuid) → uuid` (volatile) | `made := _uuid7()`; when `prev is null or made > prev`, `made`; else a version 7 ID in the millisecond after `prev`'s: `ms := ('x' \|\| lpad(substr(replace(prev::text, '-', ''), 1, 12), 16, '0'))::bit(64)::bigint + 1`, laid over `gen_random_uuid()`'s first six bytes with bits 52 and 53 set, exactly as `_uuid7` builds one |
-| `_reader_message_view(m social.reader_messages) → jsonb` (immutable) | `{id, author, body, neurons: trim_scale(m.neurons)::text or null, created_at: markets.utc(m.created_at)}` |
+| `_reader_message_view(m social.reader_messages) → jsonb` (**stable**: `markets.utc` is) | `{id, author, body, neurons: trim_scale(m.neurons)::text or null, created_at: markets.utc(m.created_at)}` |
 | `_reader_view(who uuid) → jsonb` (stable) | the state: section 2.4's `reader_state` answer |
-| `_reader_answer(who uuid, done jsonb) → jsonb` (stable) | `_reader_view(who) \|\| {message, reply, profile_changed}`: the two messages read by `done`'s IDs **and** `user_id = who` (missing: P0002 "No such message") |
+| `_reader_answer(who uuid, done jsonb) → jsonb` (stable) | `_reader_view(who) \|\| {message, reply, profile_changed, profile_refused}` (`profile_refused` from the stored facts, false when absent, so a replay carries it too): the two messages read by `done`'s IDs **and** `user_id = who` (missing: P0002 "No such message") |
 
 **The canonical form, as `_reader_profile_ok` checks it.** It is one `language sql` expression, true only when all four parts hold:
 
 1. **Length and code checks:** `body is not null and char_length(body) <= 2000 and agreement.passes_code_checks(body)`.
 2. **The shape:** `body ~ '^# Reading profile\n\n## More of(\n- [^\n]+)*\n\n## Less of(\n- [^\n]+)*\n\n## Formats(\n- [^\n]+)*$'`.
-3. **Each item:** `not exists (select 1 from regexp_matches(body, '\n- ([^\n]*)', 'g') m where char_length(m[1]) > 60 or m[1] !~ '^[^[:space:][:cntrl:]]([^[:cntrl:]]*[^[:space:][:cntrl:]])?$')`. An item is 1 to 60 characters, with no control character and no space at either end.
+3. **Each item:** `not exists (select 1 from regexp_matches(body, '\n- ([^\n]*)', 'g') m where char_length(m[1]) > 60 or m[1] !~ '^[^[:space:][:cntrl:]]([^[:cntrl:]]*[^[:space:][:cntrl:]])?$')`. An item is 1 to 60 characters, with no control character and no space at either end, and one the agreement's `one_line` domain takes: the item check also asks `pg_input_is_valid(m[1], 'agreement.one_line')`, which refuses a hidden (zero-width), direction or private-use character.
 4. **Twenty a heading:** `(select coalesce(max((select count(*) from regexp_matches(part, '\n- ', 'g'))), 0) from regexp_split_to_table(body, '\n\n') part) <= 20`.
 
 **Why four parts and no bounded repetition** (`{0,20}` around `{0,58}`): Postgres's regex engine compiles bounded repetition by copying states, nested three times over. The four parts read plainly, and each is cheap on 2,000 characters.
 
-The TS side (`isCanonical` in `reading-profile.ts`) makes the same four checks in the same order, with `\s` and `\p{Cc}` for the classes. `writeProfile`'s output always passes both.
+The TS side (`isCanonical` in `reading-profile.ts`) makes the same four checks in the same order, with `\s` and `\p{Cc}` for the classes, and the agreement's `one_line` pattern (from `@hrizzup/agreement`'s `parts`) for the item rule. The database's `[:space:]` follows its character classification (an item ending in a no-break space is refused there), so the TS check must refuse it too. `writeProfile`'s output always passes both.
 
-The empty profile is therefore `# Reading profile\n\n## More of\n\n## Less of\n\n## Formats` (50 characters, holds nothing). The table's default `''` means "never saved", and the API shows it as that empty profile.
+The empty profile is therefore `# Reading profile\n\n## More of\n\n## Less of\n\n## Formats` (53 characters, holds nothing). The table's default `''` means "never saved", and the API shows it as that empty profile.
 
 ### 2.4 The seven calls
 
-Every answer uses snake_case, times come from `markets.utc`, and numerics are decimal text. Callers: **session** is `keys.session_account()` (42501 when nobody is signed in, or when a key signed the request); **app/none** is nobody.
+Every answer uses snake_case, times come from `markets.utc`, and numerics are decimal text (`trim_scale(x)::text`, also in the request's marker and the candidates' settings), so a number reads `18.3925`, never `18.392500`. Callers: **session** is `keys.session_account()` (42501 when nobody is signed in, or when a key signed the request); **app/none** is nobody.
 
 **`social.reader_state() → jsonb`** (session, `stable`)
 1. `who`.
@@ -261,8 +261,8 @@ Comment: "The signed-in reader's chat with their reader agent, newest first: {me
 5. **Already answered** (`stored ? 'message_id'`): answer `{state: 'done', answer: _reader_answer(who, stored)}`.
 6. **In flight** (`stored ? 'pending'`):
    - while `lease_until > clock`: answer `{state: 'in_progress', retry_after_seconds: greatest(1, ceil(lease_until − clock))}`;
-   - otherwise take it over: write the marker again with `lease_until = clock + 60 s` (`_remember`), then go to step 11 with that marker. There are no new checks, no new reservation and no new slot. Step 11's `ai`, `profile` and `history` are read fresh, from `s` and the reader's rows.
-7. **The message:** `body` is not null, 1 to 2,000 characters, and passes `body::agreement.plain_text` (in a sub-block that catches `check_violation`). Otherwise 22023, detail `body`. Then insert the `readers` row if missing.
+   - otherwise take it over: the abandoned try may have run, so it is charged as `kept` (`ai_days(p.day).neurons_used + p.reserved` and `reader_days(who, p.day).neurons + p.reserved`); the reservation stays open for the new try (still the marker's R and day). Write the marker again with `lease_until = clock + 60 s` (`_remember`), then go to step 11 with that marker. There are no new checks, no new reservation and no new slot, and `calls` is unchanged. Step 11's `ai`, `profile` and `history` are read fresh, from `s` and the reader's rows.
+7. **The message:** `body` is not null, 1 to 2,000 characters, and passes `body::agreement.plain_text` (in a sub-block that catches `check_violation`). Otherwise 22023, detail `body`. Then insert the `readers` row if missing (a begin refused for the cap or the allowance still leaves it).
 8. **The reader's cap:** if today's `reader_days.messages ≥ s.reader_daily_messages`, answer `{state: 'refused', reason: 'daily_cap', retry_after_seconds, resets_at, view: _reader_view(who)}`. The refusal counts nothing.
 9. **The allowance:** insert today's `ai_days` row if missing, then lock it (`for update`). If `_reader_paused(a, s)`:
    - `refused + 1`;
@@ -285,7 +285,7 @@ Comment: "Reserves one reader-agent call (D8). Answers {state: reserved | done |
 **`social.reader_chat_settle(request_id uuid, body text, answer jsonb) → jsonb`** (session)
 1. `who`, then the reader's lock.
 2. `stored := _replay(who, request_id, 'reader_chat', {body})` (HZS27):
-   - `null`: P0002 "No such message";
+   - `null`: P0002 "No such message" (a null `request_id` finds nothing, so it is P0002 too);
    - `? 'message_id'`: answer `{state: 'done', answer: _reader_answer(who, stored)}`.
 
    `p := stored -> 'pending'`.
@@ -316,17 +316,18 @@ Comment: "Settles a reserved call with the provider's answer: the reader's messa
 
 **`social.reader_chat_fail(request_id uuid, body text, kind text) → jsonb`** (session)
 1. `who`, the reader's lock, the replay:
-   - `null`: P0002;
+   - `null`: P0002 (a null `request_id` too);
    - `? 'message_id'`: answer `{state: 'done', answer}`.
 2. `kind` is one of `released`, `exhausted`, `kept`; otherwise 22023, detail `kind`.
 3. **Writes:**
    - `released` and `exhausted`: `ai_days(p.day).neurons_reserved − p.reserved`; `reader_days(who, p.day).messages − 1`.
-   - `exhausted` also inserts today's row if missing and sets `exhausted_at = coalesce(exhausted_at, clock)` on it. Ascending order holds, since `p.day ≤ today`.
+   - `exhausted` also sets `exhausted_at = coalesce(exhausted_at, clock)` on the marker's own day's row (`p.day`, whose row exists since the reservation made it), never on a fresh day that began after the call.
    - `kept`: `ai_days(p.day)`: `neurons_reserved − p.reserved`, `neurons_used + p.reserved`; `reader_days(who, p.day)`: `neurons + p.reserved`. `messages` is unchanged: the slot stays taken (decision 7).
+   - `calls` is never lowered by a failure: it counts the reservations made.
 4. Delete the marker: `delete from social.requests where actor = who and request_id = …`.
-5. Answer `{state: 'failed', kind, view: _reader_view(who)}`.
+5. Answer `{state: 'failed', kind, view: _reader_view(who), retry_after_seconds}`, where `retry_after_seconds` is the seconds to the end of today's UTC day on the database's clock, counted exactly as begin's refusal counts them (decision 10), so the handler's 429 after `exhausted` needs no clock of its own.
 
-Comment: "Ends a reserved call that got no answer: released (it didn't run: the reservation and the reader's message slot come back), exhausted (as released, and chat pauses for the UTC day: 3036) or kept (it may have run: the reservation counts as used and the slot stays taken). The request ID is free again. P0002, 22023 (detail kind), HZS27."
+Comment: "Ends a reserved call that got no answer: released (it didn't run: the reservation and the reader's message slot come back), exhausted (as released, and chat pauses for the marker's UTC day: 3036) or kept (it may have run: the reservation counts as used and the slot stays taken). {state: failed, kind, view, retry_after_seconds}; the request ID is free again. P0002, 22023 (detail kind), HZS27."
 
 **`social.foryou_candidates() → jsonb`** (app/none, `stable`)
 - **The stories:** the top 300 rows of `social.stories` that are `listed and state = 'live'`, ordered by `top_rank desc, story_id desc` (`stories_board_top`), joined to `content.stories` and the latest update as `social.board` does.
@@ -744,13 +745,13 @@ Nothing here sends a second message. A replay with the same request ID is proven
 | The same request ID sent twice, the first still answering | 409 `clash` with `Retry-After`; no second reservation |
 | The same request ID after the first finished | The same two messages; no AI call; the books unchanged |
 | The same request ID with another body | 409 `request_reused` (HZS27) |
-| The function dies between reserve and settle; the reader retries the same ID after 60 s | The same reservation, taken over; one AI call more than counted, at most 18.3925 neurons |
+| The function dies between reserve and settle; the reader retries the same ID after 60 s | The same reservation, taken over; the abandoned try is charged as kept (`used += 18.3925`), so no call goes uncounted |
 | The function dies and nobody retries | The reservation stays open for its day and its slot stays taken; the budget is conservative |
 | The reservation is made at 23:59:59 UTC and settled at 00:00:02 | Settled on the marker's day, not the new one |
 | An admin changes the rates during a call | The settle uses the marker's rates |
 | An admin lowers the daily neurons below today's use | Paused at once (the next `reader.get` and every send), until 00:00 UTC |
 | `reader_daily_messages` set to 0 | Every send is 429 `daily_cap`; reading works |
-| Workers AI answers 3036 while our count has room (staging, previews and later production share one Cloudflare account) | Released; the day is marked; every send that UTC day is 429 `allowance_used` with no call; feeds work |
+| Workers AI answers 3036 while our count has room (staging, previews and later production share one Cloudflare account) | Released; the call's own day is marked; every send that UTC day is 429 `allowance_used` with no call; feeds work |
 | 3040, 5016, 4xx | Released: the slot and the reservation come back; 503 `busy` or `unavailable` |
 | A timeout, 5xx or network error | Kept: `used += R`; the slot stays taken, so one reader's failures can use at most 20 × R a day; 503 |
 | Cloudflare keeps timing out and a reader keeps sending | Each send keeps its reservation and its slot; after 20 the reader is 429 `daily_cap`, having used at most 367.85 neurons of the day's 9,000 |
@@ -800,12 +801,12 @@ Nothing here sends a second message. A replay with the same request ID is proven
 | Settle without usage, and the stub | `used += 18.3925`; the stub's zeros give 0, with `reserved` back to 0 |
 | Profile at settle | A version with author `agent`, the number + 1, holds recomputed; a stale `base_number` answers `stale` with the current profile and writes nothing (`ai_days`, `reader_days`, messages and the marker unchanged) |
 | Replay | Begin after settle answers `done` with the same IDs; `ai_days` unchanged |
-| In flight | A second begin while the lease lives is `in_progress`. With the lease backdated (the test edits the marker), begin takes over the same reservation: `calls` and `messages` are unchanged, and its answer holds `ai.provider`, `ai.model`, `profile` and `history`, read fresh |
-| Fail | `released`: reserved and slot back, the marker gone, a new begin reserves again. `kept`: `used += 18.3925`, and the slot stays taken (`messages` unchanged). `exhausted`: released and `exhausted_at` set, then the next begin is `refused allowance_used`, `refused = 1`, no reservation |
+| In flight | A second begin while the lease lives is `in_progress`. With the lease backdated (the test edits the marker), begin takes over the same reservation: `calls` and `messages` are unchanged, the abandoned try is charged as kept (`neurons_used` and the reader's `neurons` each + 18.3925, `reserved` unchanged), the marker's R is kept even if the rates changed, the books balance, and its answer holds `ai.provider`, `ai.model`, `profile` and `history`, read fresh |
+| Fail | `released`: reserved and slot back, the marker gone, a new begin reserves again. `kept`: `used += 18.3925`, and the slot stays taken (`messages` unchanged). `exhausted`: released and `exhausted_at` set on the call's own day, the answer's `retry_after_seconds` the database's, then the next begin is `refused allowance_used`, `refused = 1`, no reservation |
 | The cap holds through failures | With `reader_daily_messages = 2`: two begins, each failed `kept`; the third begin is `refused daily_cap` |
 | Allowance | With `reader_ai_daily_neurons` set to **42.150375**, two begins reserve (`0 + 18.3925 + 18.3925 = 36.785` fits). The third is refused (`36.785 + 18.3925 = 55.1775` is over), counted as `refused = 1`, with `retry_after_seconds` in 1 to 86,400 and `paused_until` at the next 00:00 UTC. After one settles at 5.365375, a new begin fits exactly at the boundary (`5.365375 + 18.3925 + 18.3925 = 42.150375`, equal, not over), which proves the comparison is exact to the last decimal |
 | Cap | With `reader_daily_messages = 2`, the third begin is `refused daily_cap`, with no write and `refused` unchanged; a released call gives its slot back |
-| Day boundary | A marker dated yesterday settles on yesterday's rows only |
+| Day boundary | A marker dated yesterday settles, and fails as `kept`, on yesterday's rows only; failed as `exhausted` it marks yesterday, not today |
 | Books | After the whole script: for every day, `neurons_reserved` is the sum of the open markers' R; `neurons_used` is the sum of every settle's and keep's neurons, each exact |
 | Privacy | B's `reader_chat` and begin's history never hold A's messages; B's settle or fail with A's request ID is P0002 |
 | Account deleted | Readers, versions, messages and `reader_days` go; `ai_days` stays |

@@ -11,7 +11,19 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(123);
+select plan(129);
+
+-- Today's allowance rows are shared by every reader in this file and the clock can't be moved, so a run never straddles the
+-- turn of the UTC day: with under 60 seconds left of it, wait past 00:00 UTC.
+do $$
+declare
+  left_seconds numeric := extract(epoch from (date_trunc('day', clock_timestamp() at time zone 'UTC') + interval '1 day') - (clock_timestamp() at time zone 'UTC'));
+begin
+  if left_seconds < 60 then
+    perform pg_sleep(left_seconds + 1);
+  end if;
+end;
+$$;
 
 -- Runs one query as the app's own role, signed in as `account` (null: nobody), with `api_key` as the key that
 -- signed the request (null: none), and gives back its one value as text.
@@ -235,7 +247,7 @@ create temporary table memo_ (k text primary key, v jsonb) on commit drop;
 -- People ----------------------------------------------------------------------------------------------------------------------
 
 insert into auth.users (id, email, email_confirmed_at)
-select pg_temp.acct(n)::uuid, 'reader' || n || '@social-readers.test', now() from generate_series(1, 27) n;
+select pg_temp.acct(n)::uuid, 'reader' || n || '@social-readers.test', now() from generate_series(1, 28) n;
 
 -- 1. The columns and the helpers ----------------------------------------------------------------------------------------------
 
@@ -271,10 +283,13 @@ select is(
     social._reader_profile_ok(E'# Reading profile\n\n## More of\n- AI\n\n- ML\n\n## Less of\n\n## Formats'),
     social._reader_profile_ok(E'# Reading profile\n\n\n## More of\n\n## Less of\n\n## Formats'),
     social._reader_profile_ok(''),
-    social._reader_profile_ok(null)
+    social._reader_profile_ok(null),
+    social._reader_profile_ok(pg_temp.prof(array['a' || chr(8203) || 'b'], '{}', '{}')),
+    social._reader_profile_ok(pg_temp.prof(array['a' || chr(8238) || 'b'], '{}', '{}')),
+    social._reader_profile_ok(pg_temp.prof(array['a' || chr(57344) || 'b'], '{}', '{}'))
   ],
-  array[true, true, true, true, true, false, false, false, false, false, false, false, false, false, false, false, false, false],
-  'a reading profile is in its stored form: accepted are the example, the empty profile, a 60-character item, 20 items a heading and other scripts; refused are 61 characters, 21 items, a missing or misplaced heading, a final new line, a tab, spaces at an end, a blank line inside a list, an empty text and nothing'
+  array[true, true, true, true, true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false],
+  'a reading profile is in its stored form: accepted are the example, the empty profile, a 60-character item, 20 items a heading and other scripts; refused are 61 characters, 21 items, a missing or misplaced heading, a final new line, a tab, spaces at an end, a blank line inside a list, an empty text, nothing, and an item the agreement''s one_line refuses (a zero-width, a direction and a private-use character)'
 );
 select is(
   array[
@@ -412,12 +427,13 @@ select is(
     pg_temp.fails_detail(pg_temp.acct(1), null, format('select social.reader_save_profile(%L, %L)::text', pg_temp.req(14), pg_temp.big(55))),
     pg_temp.fails_detail(pg_temp.acct(1), null, format('select social.reader_save_profile(%L, %L)::text', pg_temp.req(15), pg_temp.prof('{AI}', '{}', '{}') || E'\n')),
     pg_temp.fails_detail(pg_temp.acct(1), null, format('select social.reader_save_profile(%L, %L)::text', pg_temp.req(16), pg_temp.prof(array[E'A\tI'], '{}', '{}'))),
+    pg_temp.fails_detail(pg_temp.acct(1), null, format('select social.reader_save_profile(%L, %L)::text', pg_temp.req(20), pg_temp.prof(array['a' || chr(8238) || 'b'], '{}', '{}'))),
     pg_temp.fails_detail(pg_temp.acct(1), null, format('select social.reader_save_profile(%L, %L)::text', pg_temp.req(17), '')),
     pg_temp.fails_detail(pg_temp.acct(1), null, format('select social.reader_save_profile(%L, %L)::text', pg_temp.req(18), null::text)),
     pg_temp.fails_detail(pg_temp.acct(1), null, format('select social.reader_save_profile(%L, %L)::text', null::text, pg_temp.prof('{}', '{}', '{}')))
   ],
-  array['22023:profile', '22023:profile', '22023:profile', '22023:profile', '22023:profile', '22023:profile', '22023:profile', '22023:profile', '22023:profile', '22023'],
-  'a profile that isn''t in its stored form is refused (22023, detail profile, never the table''s check): a missing heading, headings out of order, 61 characters, 21 items, a clean 2,001 characters, a final new line, a tab, an empty text, nothing; so is no request ID'
+  array['22023:profile', '22023:profile', '22023:profile', '22023:profile', '22023:profile', '22023:profile', '22023:profile', '22023:profile', '22023:profile', '22023:profile', '22023'],
+  'a profile that isn''t in its stored form is refused (22023, detail profile, never the table''s check): a missing heading, headings out of order, 61 characters, 21 items, a clean 2,001 characters, a final new line, a tab, a direction character, an empty text, nothing; so is no request ID'
 );
 select is(
   (select array[r.profile_number::text, (select count(*) from social.reader_profile_versions v where v.user_id = r.user_id)::text]
@@ -683,10 +699,11 @@ select is(
   'a stale settle writes nothing: no message, the marker stays, the profile and the allowance are unchanged'
 );
 select is(
-  (select array[st ->> 'state', st #>> '{answer,profile_changed}', st #>> '{answer,profile_number}', (st #>> '{answer,profile}' = pg_temp.prof('{AI, cricket}', '{}', '{}'))::text]
+  (select array[st ->> 'state', st #>> '{answer,profile_changed}', st #>> '{answer,profile_number}', (st #>> '{answer,profile}' = pg_temp.prof('{AI, cricket}', '{}', '{}'))::text,
+                st #>> '{answer,profile_refused}']
    from (select pg_temp.rsettle(9, 2, 'Hello', pg_temp.ans(600, 85, 'Hi', jsonb_build_object('base_number', 1, 'body', pg_temp.prof('{AI, cricket}', '{}', '{}')))) st) q),
-  array['done', 'true', '2', 'true'],
-  'settled again from the current number, it is done: the profile moves to number 2'
+  array['done', 'true', '2', 'true', 'false'],
+  'settled again from the current number, it is done: the profile moves to number 2, and was not refused'
 );
 select is(
   (select array[v.number::text, v.author] from social.reader_profile_versions v where v.user_id = pg_temp.acct(9)::uuid order by v.number desc limit 1),
@@ -716,10 +733,16 @@ select is(
 -- A profile that isn't in its stored form never raises: the old profile stays, the reply is saved, the books settle
 select pg_temp.rbegin(11, 1, 'Hello');
 select is(
-  (select array[st ->> 'state', st #>> '{answer,profile_changed}', st #>> '{answer,profile_number}', st #>> '{answer,reply,neurons}', st #>> '{answer,reply,body}']
+  (select array[st ->> 'state', st #>> '{answer,profile_changed}', st #>> '{answer,profile_number}', st #>> '{answer,reply,neurons}', st #>> '{answer,reply,body}',
+                st #>> '{answer,profile_refused}']
    from (select pg_temp.rsettle(11, 1, 'Hello', pg_temp.ans(600, 85, 'I tried.', jsonb_build_object('base_number', 0, 'body', 'More of: cricket'))) st) q),
-  array['done', 'false', '0', '5.365375', 'I tried.'],
-  'a profile edit that isn''t in its stored form leaves the old profile, saves the reply and settles the neurons'
+  array['done', 'false', '0', '5.365375', 'I tried.', 'true'],
+  'a profile edit that isn''t in its stored form leaves the old profile, saves the reply, settles the neurons and says the profile was refused'
+);
+select is(
+  (select array[b ->> 'state', b #>> '{answer,profile_refused}', b #>> '{answer,profile_changed}'] from (select pg_temp.rbegin(11, 1, 'Hello') b) q),
+  array['done', 'true', 'false'],
+  'and a replay of that send says it too'
 );
 select is(
   (select array[r.profile, r.profile_number::text, (select count(*)::text from social.reader_profile_versions where user_id = r.user_id),
@@ -751,29 +774,38 @@ select is(
 insert into memo_ select 'marker13', result -> 'pending' from social.requests where actor = pg_temp.acct(13)::uuid and request_id = pg_temp.req(1)::uuid;
 update social.requests set result = jsonb_set(result, '{pending,lease_until}', '"2026-11-19T00:00:00Z"')
 where actor = pg_temp.acct(13)::uuid and request_id = pg_temp.req(1)::uuid;
-update social.settings set reader_ai_model = '@cf/meta/another-model';
+-- The settings move before the takeover, the rates too: the takeover's answer and the books still use the marker's own R.
+update social.settings set reader_ai_model = '@cf/meta/another-model', reader_ai_in_neurons_per_m = 5000, reader_ai_out_neurons_per_m = 40000;
 select pg_temp.rsave(13, 2, pg_temp.prof('{AI}', '{}', '{}'));
 select is(
   (select array[b ->> 'state', b #>> '{call,reserved}', b #>> '{ai,model}', b #>> '{ai,provider}', (b #>> '{profile,body}' = pg_temp.prof('{AI}', '{}', '{}'))::text,
                 b #>> '{profile,number}', b ->> 'history', (b #>> '{call,lease_until}' > markets.utc(clock_timestamp()))::text]
    from (select pg_temp.rbegin(13, 1, 'Hello') b) q),
   array['reserved', '18.3925', '@cf/meta/another-model', 'workers-ai', 'true', '1', '[]', 'true'],
-  'after the lease a retry takes the reservation over, with a new lease, reading the model and the profile fresh'
+  'after the lease a retry takes the reservation over, with a new lease: the marker''s own 18.3925 (not the 22 the new rates would give), the model and the profile read fresh'
 );
 select is(
-  (select array[trim_scale(neurons_reserved)::text, calls::text, (select messages::text from social.reader_days where user_id = pg_temp.acct(13)::uuid),
+  (select array[trim_scale(neurons_reserved)::text, trim_scale(neurons_used)::text, calls::text, (select messages::text from social.reader_days where user_id = pg_temp.acct(13)::uuid),
+                (select trim_scale(neurons)::text from social.reader_days where user_id = pg_temp.acct(13)::uuid),
                 (select (v ->> 'message_id') = (select m.v ->> 'message_id' from memo_ m where m.k = 'marker13') from (select result -> 'pending' v from social.requests
-                  where actor = pg_temp.acct(13)::uuid and request_id = pg_temp.req(1)::uuid) x)::text]
+                  where actor = pg_temp.acct(13)::uuid and request_id = pg_temp.req(1)::uuid) x)::text,
+                (select v ->> 'reserved' from (select result -> 'pending' v from social.requests where actor = pg_temp.acct(13)::uuid and request_id = pg_temp.req(1)::uuid) x)]
    from social.ai_days where day = social._reader_today()),
-  array['18.3925', '1', '1', 'true'],
-  'the takeover made no new reservation and no new slot, and kept the message''s ID'
+  array['18.3925', '18.3925', '1', '1', '18.3925', 'true', '18.3925'],
+  'the takeover made no new reservation and no new slot, kept the message''s ID and the marker''s R, and charged the abandoned try as a kept failure: 18.3925 used, in the day and in the reader''s day, with the reservation still open for the new try'
+);
+select is(pg_temp.books(), '{}'::text[], 'the books balance with the abandoned try charged: used is the readers'' sum, reserved is the open marker');
+select is(
+  (select array[st ->> 'state', st #>> '{answer,reply,neurons}'] from (select pg_temp.rsettle(13, 1, 'Hello', pg_temp.ans(600, 85, 'Hi')) st) q),
+  array['done', '5.365375'],
+  'the taken-over call settles at the marker''s rates, not the new ones'
 );
 select is(
-  pg_temp.rsettle(13, 1, 'Hello', pg_temp.ans(600, 85, 'Hi')) ->> 'state',
-  'done',
-  'the taken-over call settles'
+  (select array[trim_scale(neurons_reserved)::text, trim_scale(neurons_used)::text, calls::text] from social.ai_days where day = social._reader_today()),
+  array['0', '23.757875', '1'],
+  'the day used the abandoned try''s 18.3925 and the answered try''s 5.365375'
 );
-select is(pg_temp.books(), '{}'::text[], 'the books balance after the takeover');
+select is(pg_temp.books(), '{}'::text[], 'the books balance after the takeover settles');
 
 -- 9. Each kind of failure ---------------------------------------------------------------------------------------------------------
 
@@ -824,10 +856,11 @@ select is(
 );
 select pg_temp.rbegin(15, 1, 'Hello');
 select is(
-  (select array[st ->> 'state', st ->> 'kind', st #>> '{view,usage,messages_today}', (st #>> '{view,usage,paused_until}' is not null)::text]
+  (select array[st ->> 'state', st ->> 'kind', st #>> '{view,usage,messages_today}', (st #>> '{view,usage,paused_until}' is not null)::text,
+                (abs((st ->> 'retry_after_seconds')::integer - ceil(extract(epoch from social._reader_day_end(social._reader_today()) - clock_timestamp()))) <= 2)::text]
    from (select pg_temp.rfail(15, 1, 'Hello', 'exhausted') st) q),
-  array['failed', 'exhausted', '0', 'true'],
-  'exhausted: the reservation and the slot come back, and the reader''s page says chat is paused'
+  array['failed', 'exhausted', '0', 'true', 'true'],
+  'exhausted: the reservation and the slot come back, the reader''s page says chat is paused, and the answer says the seconds to 00:00 UTC on the database''s clock'
 );
 select is(
   (select array[trim_scale(neurons_reserved)::text, trim_scale(neurons_used)::text, (exhausted_at is not null)::text, refused::text]
@@ -970,13 +1003,15 @@ select is(
 select pg_temp.reset_day();
 select pg_temp.rbegin(21, 1, 'Hello');
 select pg_temp.rbegin(22, 1, 'Hello');
--- Make both calls yesterday's: their reservations, slots and markers are moved to yesterday (as a call begun just before 00:00 UTC would be)
-insert into social.ai_days (day, neurons_reserved, calls) values (social._reader_today() - 1, 36.785, 2);
+select pg_temp.rbegin(28, 1, 'Hello');
+-- Make the three calls yesterday's: their reservations, slots and markers are moved to yesterday (as calls begun just before 00:00 UTC would be)
+insert into social.ai_days (day, neurons_reserved, calls) values (social._reader_today() - 1, 55.1775, 3);
 update social.ai_days set neurons_reserved = 0, calls = 0 where day = social._reader_today();
-insert into social.reader_days (user_id, day, messages) values (pg_temp.acct(21)::uuid, social._reader_today() - 1, 1), (pg_temp.acct(22)::uuid, social._reader_today() - 1, 1);
+insert into social.reader_days (user_id, day, messages)
+values (pg_temp.acct(21)::uuid, social._reader_today() - 1, 1), (pg_temp.acct(22)::uuid, social._reader_today() - 1, 1), (pg_temp.acct(28)::uuid, social._reader_today() - 1, 1);
 update social.reader_days set messages = 0 where day = social._reader_today();
 update social.requests set result = jsonb_set(result, '{pending,day}', to_jsonb((social._reader_today() - 1)::text)) where call = 'reader_chat';
-select is(pg_temp.books(), '{}'::text[], 'two calls made yesterday: the books balance on both days');
+select is(pg_temp.books(), '{}'::text[], 'three calls made yesterday: the books balance on both days');
 select is(
   pg_temp.rsettle(21, 1, 'Hello', pg_temp.ans(600, 85, 'Hi')) ->> 'state',
   'done',
@@ -987,7 +1022,7 @@ select is(
                 (select trim_scale(neurons_reserved)::text from social.ai_days where day = social._reader_today()), (select trim_scale(neurons_used)::text from social.ai_days where day = social._reader_today()),
                 (select trim_scale(neurons)::text from social.reader_days where user_id = pg_temp.acct(21)::uuid and day = social._reader_today() - 1),
                 (select trim_scale(neurons)::text from social.reader_days where user_id = pg_temp.acct(21)::uuid and day = social._reader_today())]),
-  array['18.3925', '5.365375', '0', '0', '5.365375', '0'],
+  array['36.785', '5.365375', '0', '0', '5.365375', '0'],
   'on yesterday''s rows only: yesterday''s reservation moved to used, today''s allowance and the reader''s day today untouched'
 );
 select is(
@@ -996,11 +1031,32 @@ select is(
   'a call reserved yesterday and failed as exhausted'
 );
 select is(
-  (select array[(select trim_scale(neurons_reserved)::text from social.ai_days where day = social._reader_today() - 1), (select (exhausted_at is null)::text from social.ai_days where day = social._reader_today() - 1),
-                (select (exhausted_at is not null)::text from social.ai_days where day = social._reader_today()),
+  (select array[(select trim_scale(neurons_reserved)::text from social.ai_days where day = social._reader_today() - 1), (select (exhausted_at is not null)::text from social.ai_days where day = social._reader_today() - 1),
+                (select (exhausted_at is null)::text from social.ai_days where day = social._reader_today()),
+                (select trim_scale(neurons_reserved)::text from social.ai_days where day = social._reader_today()),
                 (select messages::text from social.reader_days where user_id = pg_temp.acct(22)::uuid and day = social._reader_today() - 1)]),
-  array['0', 'true', 'true', '0'],
-  'releases yesterday''s reservation and slot, and marks today (not yesterday) as exhausted'
+  array['18.3925', 'true', 'true', '0', '0'],
+  'releases yesterday''s reservation and slot and marks yesterday, the call''s own day, as exhausted; the fresh day is not paused'
+);
+select is(
+  (select (s #>> '{usage,paused_until}' is null)::text from (select pg_temp.rstate(22) s) q),
+  'true',
+  'and the reader''s page, which reads today, is not paused'
+);
+select is(
+  pg_temp.rfail(28, 1, 'Hello', 'kept') ->> 'state',
+  'failed',
+  'a call reserved yesterday and failed as kept'
+);
+select is(
+  (select array[(select trim_scale(neurons_reserved)::text from social.ai_days where day = social._reader_today() - 1), (select trim_scale(neurons_used)::text from social.ai_days where day = social._reader_today() - 1),
+                (select trim_scale(neurons)::text from social.reader_days where user_id = pg_temp.acct(28)::uuid and day = social._reader_today() - 1),
+                (select messages::text from social.reader_days where user_id = pg_temp.acct(28)::uuid and day = social._reader_today() - 1),
+                (select trim_scale(neurons_reserved)::text from social.ai_days where day = social._reader_today()), (select trim_scale(neurons_used)::text from social.ai_days where day = social._reader_today()),
+                (select trim_scale(neurons)::text from social.reader_days where user_id = pg_temp.acct(28)::uuid and day = social._reader_today()),
+                (select count(*)::text from social.reader_days where day = social._reader_today() and neurons <> 0)]),
+  array['0', '23.757875', '18.3925', '1', '0', '0', '0', '0'],
+  'kept: yesterday''s reservation counts as used on yesterday''s allowance and the reader''s day there (the slot stays taken); today''s rows hold no neurons'
 );
 select is(pg_temp.books(), '{}'::text[], 'the books balance on both days after settling and failing across the turn of the day');
 
@@ -1230,9 +1286,9 @@ select is(
   'with the settings For You ranks by as text, and the formats in their order'
 );
 select is(
-  (select jsonb_array_length(pg_temp.j(null, 'select social.foryou_candidates()::text') -> 'stories')::text from social.settings),
-  '300',
-  'a second read gives the same: nothing in the answer depends on who asks'
+  pg_temp.j(pg_temp.acct(1), 'select social.foryou_candidates()::text') - 'as_of',
+  (select c - 'as_of' from cands_),
+  'a signed-in reader with a saved profile gets the same candidates as nobody does: nothing in the answer depends on who asks'
 );
 
 -- 16. The books at the end, and an account deleted --------------------------------------------------------------------------------------------------------
