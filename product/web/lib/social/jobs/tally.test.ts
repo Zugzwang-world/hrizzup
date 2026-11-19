@@ -1,20 +1,9 @@
-import { DatabaseBusyError } from '@hrizzup/db';
 import { socialRedis } from '@hrizzup/social/redis';
-import { agentUniqueKey, TAKE_SCRIPT, utcDay } from '@hrizzup/social/views';
+import { agentUniqueKey, TAKE_SCRIPT, utcDay, visitorCapKey } from '@hrizzup/social/views';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Run } from '../access.ts';
 import { COUNTS_RESERVE_MS } from './budget.ts';
-import {
-  APPLY,
-  isDeadlock,
-  onDeadlock,
-  TAKE_WAIT_MS,
-  TARGETS,
-  takeAndApply,
-  targetsOf,
-  UNIQUES_WAIT_MS,
-  withRetries,
-} from './tally.ts';
+import { APPLY, TAKE_WAIT_MS, TARGETS, takeAndApply, targetsOf, UNIQUES_WAIT_MS } from './tally.ts';
 
 /**
  * The take and the apply (docs/social/r11-design.md, section 3.5): the order of its four trips, what each sends,
@@ -129,6 +118,8 @@ const uniq = (kind: 'post' | 'story' | 'file', id: string) =>
   socialRedis.unique.key(PREFIX, kind, id);
 const seen = (kind: 'post' | 'story', id: string) =>
   socialRedis.seen.key(PREFIX, utcDay(NOW), kind, id);
+/** An item's visitors' hash for today: the cap's, deleted with the day set of an item that no longer counts. */
+const cap = (kind: 'post' | 'story', id: string) => visitorCapKey(PREFIX, utcDay(NOW), kind, id);
 
 /** The flat take answer for these fields and counts. */
 const taken = (...pairs: [string, number][]) =>
@@ -237,9 +228,9 @@ describe('the order and the payloads', () => {
         ['pfmerge', agentUniqueKey(PREFIX, 'reads', AY), uniq('file', F1)],
         ['expire', agentUniqueKey(PREFIX, 'reads', AY), 7_776_000],
         ['pfcount', agentUniqueKey(PREFIX, 'reads', AY)],
-        // What no longer counts: a post's or story's HyperLogLog and today's day set, a file's HyperLogLog only.
-        ['del', uniq('post', JUNK), seen('post', JUNK)],
-        ['del', uniq('story', JUNK_STORY), seen('story', JUNK_STORY)],
+        // What no longer counts: a post's or story's HyperLogLog, today's day set and today's visitors' hash; a file's HyperLogLog only.
+        ['del', uniq('post', JUNK), seen('post', JUNK), cap('post', JUNK)],
+        ['del', uniq('story', JUNK_STORY), seen('story', JUNK_STORY), cap('story', JUNK_STORY)],
         ['del', uniq('file', JUNK_FILE)],
       ],
     ]);
@@ -312,8 +303,8 @@ describe('the order and the payloads', () => {
     expect(events).toEqual(['take', 'targets', 'uniques']);
     expect(r.transactions).toEqual([
       [
-        ['del', uniq('post', JUNK), seen('post', JUNK)],
-        ['del', uniq('story', JUNK_STORY), seen('story', JUNK_STORY)],
+        ['del', uniq('post', JUNK), seen('post', JUNK), cap('post', JUNK)],
+        ['del', uniq('story', JUNK_STORY), seen('story', JUNK_STORY), cap('story', JUNK_STORY)],
       ],
     ]);
     expect(answer.ids).toEqual({ stories: [], posts: [], agents: [] });
@@ -550,7 +541,7 @@ describe('a check run’s request', () => {
   });
 });
 
-describe('the one retry, for a deadlock only', () => {
+describe('no retry of its own', () => {
   const deadlock = () => Object.assign(new Error('deadlock detected'), { code: '40P01' });
   const targets = {
     posts: [{ id: P1, story_id: S1, agent_id: AX }],
@@ -559,101 +550,39 @@ describe('the one retry, for a deadlock only', () => {
   };
   const apply = { posts: [P1], stories: [S1], agents: [AX], files: [] };
 
-  it('tries the apply again after a deadlock, with the same payload, and never takes again', async () => {
-    const db = database({ targets, apply }, (name, attempt) =>
-      name === 'apply' && attempt === 1 ? deadlock() : undefined,
-    );
-    const r = redis({ take: taken([`post:${P1}`, 2]) });
-    const answer = await takeAndApply({ run: db.run, cache: r.cache, now: () => NOW }, null);
-    expect(events).toEqual(['take', 'targets', 'uniques', 'apply', 'apply']);
-    const [first, second] = db.statements.filter((one) => one.text.includes('apply'));
-    expect(second?.values).toEqual(first?.values);
-    expect(second?.limits).toEqual(APPLY);
-    expect(r.takes).toHaveLength(1);
-    expect(r.transactions).toHaveLength(1);
-    expect(answer.ids.posts).toEqual([P1]);
-    expect(answer.summary).toMatchObject({ retried: ['apply'] });
-  });
-
-  it('tries the targets again after a deadlock too, and notes it', async () => {
-    const db = database({ targets, apply }, (name, attempt) =>
-      name === 'targets' && attempt === 1 ? deadlock() : undefined,
-    );
-    const r = redis({ take: taken([`post:${P1}`, 2]) });
-    const answer = await takeAndApply({ run: db.run, cache: r.cache, now: () => NOW }, null);
-    expect(events).toEqual(['take', 'targets', 'targets', 'uniques', 'apply']);
-    expect(answer.summary).toMatchObject({ retried: ['targets'] });
-  });
-
-  it('throws a second deadlock, and any other error is not tried again', async () => {
-    const twice = database({ targets, apply }, (name) =>
-      name === 'apply' ? deadlock() : undefined,
-    );
-    await expect(
-      takeAndApply(
-        { run: twice.run, cache: redis({ take: taken([`post:${P1}`, 2]) }).cache, now: () => NOW },
-        null,
-      ),
-    ).rejects.toMatchObject({ code: '40P01' });
-    expect(twice.statements.filter((one) => one.text.includes('apply'))).toHaveLength(2);
-
-    for (const code of ['40001', '55P03', '57014', '23505', undefined]) {
-      events = [];
-      const other = database({ targets, apply }, (name) =>
-        name === 'apply' ? Object.assign(new Error('x'), code ? { code } : {}) : undefined,
-      );
-      await expect(
-        takeAndApply(
-          {
-            run: other.run,
-            cache: redis({ take: taken([`post:${P1}`, 2]) }).cache,
-            now: () => NOW,
-          },
-          null,
-        ),
-      ).rejects.toThrow('x');
-      expect(
-        events.filter((event) => event === 'apply'),
-        String(code),
-      ).toHaveLength(1);
+  it('runs each statement once, whatever it fails with: `transaction` tries 40P01, 40001 and 55P03 again, up to three attempts, below this', async () => {
+    for (const code of ['40P01', '40001', '55P03', '57014', '23505', undefined]) {
+      for (const failing of ['targets', 'apply'] as const) {
+        events = [];
+        const db = database({ targets, apply }, (name) =>
+          name === failing ? Object.assign(new Error('x'), code ? { code } : {}) : undefined,
+        );
+        await expect(
+          takeAndApply(
+            {
+              run: db.run,
+              cache: redis({ take: taken([`post:${P1}`, 2]) }).cache,
+              now: () => NOW,
+            },
+            null,
+          ),
+          `${failing} ${code}`,
+        ).rejects.toThrow('x');
+        expect(
+          events.filter((event) => event === failing),
+          `${failing} ${code}`,
+        ).toHaveLength(1);
+      }
     }
   });
 
-  it('knows a deadlock by its code, itself or as `transaction` wraps it once its own attempts are used up', () => {
-    expect(isDeadlock(deadlock())).toBe(true);
-    expect(isDeadlock(new DatabaseBusyError({ cause: deadlock() }))).toBe(true);
-    expect(
-      isDeadlock(
-        new DatabaseBusyError({ cause: Object.assign(new Error('x'), { code: '55P03' }) }),
-      ),
-    ).toBe(false);
-    expect(
-      isDeadlock(
-        new DatabaseBusyError({ cause: Object.assign(new Error('x'), { code: '40001' }) }),
-      ),
-    ).toBe(false);
-    expect(isDeadlock(new DatabaseBusyError())).toBe(false);
-    expect(isDeadlock(Object.assign(new Error('x'), { code: '40001' }))).toBe(false);
-    expect(isDeadlock(Object.assign(new Error('x'), { cause: deadlock() }))).toBe(false);
-    for (const nothing of [null, undefined, 'text', 5, {}]) expect(isDeadlock(nothing)).toBe(false);
-  });
-
-  it('onDeadlock runs the statement once, or twice after a deadlock, and notes its name', async () => {
-    const retried: string[] = [];
-    await expect(onDeadlock('apply', retried, async () => 'done')).resolves.toBe('done');
-    expect(retried).toEqual([]);
-    const attempt = vi
-      .fn<() => Promise<string>>()
-      .mockRejectedValueOnce(new DatabaseBusyError({ cause: deadlock() }))
-      .mockResolvedValueOnce('again');
-    await expect(onDeadlock('recount', retried, attempt)).resolves.toBe('again');
-    expect(attempt).toHaveBeenCalledTimes(2);
-    expect(retried).toEqual(['recount']);
-    expect(withRetries({ taken: 1 }, retried)).toEqual({ taken: 1, retried: ['recount'] });
-    expect(withRetries({ taken: 1, retried: ['apply'] }, retried)).toEqual({
-      taken: 1,
-      retried: ['apply', 'recount'],
-    });
-    expect(withRetries({ taken: 1 }, [])).toEqual({ taken: 1 });
+  it('is not given a way to: the apply and the take run once, the error as it came', async () => {
+    const db = database({ targets, apply }, (name) => (name === 'apply' ? deadlock() : undefined));
+    const r = redis({ take: taken([`post:${P1}`, 2]) });
+    await expect(
+      takeAndApply({ run: db.run, cache: r.cache, now: () => NOW }, null),
+    ).rejects.toMatchObject({ code: '40P01' });
+    expect(r.takes).toHaveLength(1);
+    expect(db.statements.filter((one) => one.text.includes('apply'))).toHaveLength(1);
   });
 });

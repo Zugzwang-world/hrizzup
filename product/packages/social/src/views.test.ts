@@ -22,6 +22,7 @@ import {
   utcDay,
   VISITOR_DAILY_CAP,
   viewTokens,
+  visitorCapKey,
 } from './views.ts';
 
 /**
@@ -66,10 +67,37 @@ describe('the names', () => {
       socialRedis.counts.key('dev:slot1'),
       socialRedis.seen.key('dev:slot1', '20261119', 'post', POST),
       socialRedis.unique.key('dev:slot1', 'post', POST),
+      visitorCapKey('dev:slot1', '20261119', 'post', POST),
       socialRedis.seen.key('dev:slot1', '20261119', 'file', FILE),
       socialRedis.unique.key('dev:slot1', 'file', FILE),
+      visitorCapKey('dev:slot1', '20261119', 'file', FILE),
     ]);
     for (const key of call.keys) expect(key.startsWith('dev:slot1:')).toBe(true);
+  });
+
+  it('give an item’s visitors’ hash a name of its own, for its day, with no visitor, address or token in it', () => {
+    expect(visitorCapKey('stg', '20261119', 'post', POST)).toBe(
+      `stg:vcap:v1:20261119:post-${POST}`,
+    );
+    expect(visitorCapKey('pre', '20261120', 'story', STORY)).toBe(
+      `pre:vcap:v1:20261120:story-${STORY}`,
+    );
+    expect(visitorCapKey('dev:slot1', '20261119', 'file', FILE)).toBe(
+      `dev:slot1:vcap:v1:20261119:file-${FILE}`,
+    );
+    // Another day, kind or ID is another hash.
+    expect(visitorCapKey('stg', '20261120', 'post', POST)).not.toBe(
+      visitorCapKey('stg', '20261119', 'post', POST),
+    );
+    expect(visitorCapKey('stg', '20261119', 'story', POST)).not.toBe(
+      visitorCapKey('stg', '20261119', 'post', POST),
+    );
+    // What it refuses: a day that isn't eight digits, a kind or an ID that isn't one, an environment that isn't one.
+    expect(() => visitorCapKey('stg', '2026-11-19', 'post', POST)).toThrow(TypeError);
+    expect(() => visitorCapKey('stg', '20261119', 'agent' as never, POST)).toThrow(TypeError);
+    expect(() => visitorCapKey('stg', '20261119', 'post', POST.toUpperCase())).toThrow(TypeError);
+    expect(() => visitorCapKey('stg', '20261119', 'post', 'a:b')).toThrow(TypeError);
+    expect(() => visitorCapKey('prod', '20261119', 'post', POST)).toThrow(/prefix/);
   });
 
   it('give an agent’s two HyperLogLogs their own names, and refuse what is not an ID', () => {
@@ -179,10 +207,19 @@ describe('the tokens', () => {
     const keyless = readerToken(SECRET, { agentId: null, address: '198.51.100.7' });
     expect(keyless).toBe(`i:${hmac('social-file-reader\n198.51.100.7')}`);
     expect(keyless).not.toContain('198.51.100.7');
-    expect(readerToken(undefined, { agentId: null, address: '198.51.100.7' })).toBe(
-      `i:${sha('social-file-reader\n198.51.100.7')}`,
-    );
     expect(readerToken(SECRET, { agentId: null, address: null })).toBeNull();
+  });
+
+  it('never makes an unkeyed hash of an address: with no secret a keyless reader has no token', () => {
+    for (const none of [undefined, '']) {
+      expect(
+        readerToken(none, { agentId: null, address: '198.51.100.7' }),
+        String(none),
+      ).toBeNull();
+      expect(readerToken(none, { agentId: null, address: '2001:db8:1:2::9' })).toBeNull();
+    }
+    // An agent's read needs no hash of anything, so it counts with or without the secret.
+    expect(readerToken(undefined, { agentId: AGENT, address: '198.51.100.7' })).toBe(`a:${AGENT}`);
   });
 });
 
@@ -218,18 +255,22 @@ describe('a note’s call', () => {
   ];
   const call = noteCall('stg', { requestId: REQUEST, items }, tokens, NOON, 'c'.repeat(32));
 
-  it('has its keys and arguments in the order the script reads them', () => {
-    expect(call.keys).toHaveLength(2 + 2 * items.length);
+  it('has its keys and arguments in the order the script reads them: three keys an item', () => {
+    expect(call.keys).toHaveLength(2 + 3 * items.length);
     expect(call.keys[0]).toBe(`stg:note:v1:${REQUEST}`);
     expect(call.keys[1]).toBe('stg:count:social:v1');
     expect(call.keys.slice(2)).toEqual([
       `stg:seen:v1:20261119:post:${POST}`,
       `stg:uniq:v1:post:${POST}`,
+      `stg:vcap:v1:20261119:post-${POST}`,
       `stg:seen:v1:20261119:story:${STORY}`,
       `stg:uniq:v1:story:${STORY}`,
+      `stg:vcap:v1:20261119:story-${STORY}`,
       `stg:seen:v1:20261119:file:${FILE}`,
       `stg:uniq:v1:file:${FILE}`,
+      `stg:vcap:v1:20261119:file-${FILE}`,
     ]);
+    // With no visitor the cap is 0 and the visitor's token empty.
     expect(call.args).toEqual([
       'c'.repeat(32),
       '3600',
@@ -239,6 +280,7 @@ describe('a note’s call', () => {
       tokens.member,
       tokens.element,
       '0',
+      '',
       `post:${POST}`,
       'once',
       `story:${STORY}`,
@@ -249,16 +291,17 @@ describe('a note’s call', () => {
   });
 
   it('matches the script’s own index arithmetic, item by item', () => {
-    // With no visitor, item i's day set is KEYS[1 + 2i], its HyperLogLog KEYS[2 + 2i], its field ARGV[7 + 2i] and
-    // its mode ARGV[8 + 2i] (the script's indexes start at 1).
+    // Item i's day set is KEYS[3i], its HyperLogLog KEYS[3i + 1], its visitors' hash KEYS[3i + 2], its field
+    // ARGV[8 + 2i] and its mode ARGV[9 + 2i] (the script's indexes start at 1).
     items.forEach((item, n) => {
       const i = n + 1;
-      expect(call.keys[1 + 2 * i - 1]).toContain(`:seen:v1:20261119:${item.kind}:${item.id}`);
-      expect(call.keys[2 + 2 * i - 1]).toContain(`:uniq:v1:${item.kind}:${item.id}`);
-      expect(call.args[7 + 2 * i - 1]).toBe(fieldOf(item.kind, item.id));
-      expect(call.args[8 + 2 * i - 1]).toBe(item.kind === 'file' ? 'every' : 'once');
+      expect(call.keys[3 * i - 1]).toContain(`:seen:v1:20261119:${item.kind}:${item.id}`);
+      expect(call.keys[3 * i]).toContain(`:uniq:v1:${item.kind}:${item.id}`);
+      expect(call.keys[3 * i + 1]).toBe(visitorCapKey('stg', '20261119', item.kind, item.id));
+      expect(call.args[8 + 2 * i - 1]).toBe(fieldOf(item.kind, item.id));
+      expect(call.args[9 + 2 * i - 1]).toBe(item.kind === 'file' ? 'every' : 'once');
     });
-    expect((call.keys.length - 2) / 2).toBe(items.length);
+    expect((call.keys.length - 2) / 3).toBe(items.length);
   });
 
   it('holds no raw device ID in any key or argument', () => {
@@ -296,7 +339,7 @@ describe('the cap per address', () => {
     expect(VISITOR_DAILY_CAP).toBe(20);
   });
 
-  it('names its counter by the HMAC of the visitor and the day, keyed like the day tokens', () => {
+  it('names the visitor by the HMAC of the visitor key and the day, keyed like the day tokens', () => {
     const tokens = viewTokens(SECRET, DEVICE, NOON, VISITOR);
     expect(tokens.visitor).toBe(hmac(`social-view-visitor\n20261119\n${VISITOR}`));
     expect(tokens.visitor).toMatch(/^[0-9a-f]{32}$/);
@@ -320,22 +363,21 @@ describe('the cap per address', () => {
     expect([tokens.member, tokens.element.slice(2)]).not.toContain(tokens.visitor);
   });
 
-  it('is never an unkeyed hash of an address: with no secret there is no token for it, only for the constant `none`', () => {
+  it('is never made with no secret: no unkeyed hash of an address, so no cap, not even for the shared bucket', () => {
     for (const none of [undefined, '']) {
       // A day and an address with no key could be undone by trying every address.
-      expect(viewTokens(none, DEVICE, NOON, VISITOR).visitor, String(none)).toBeNull();
-      expect(viewTokens(none, DEVICE, NOON, '203.0.113.7').visitor).toBeNull();
-      expect(viewTokens(none, DEVICE, NOON, '2001:db8:1:2::/64').visitor).toBeNull();
-      // The shared bucket's token is made from the constant alone, so there is nothing in it to undo.
-      expect(viewTokens(none, DEVICE, NOON, 'none').visitor).toBe(
-        sha('social-view-visitor\n20261119\nnone'),
-      );
+      for (const visitor of [VISITOR, '203.0.113.7', '2001:db8:1:2::/64', 'none']) {
+        expect(
+          viewTokens(none, DEVICE, NOON, visitor).visitor,
+          `${String(none)} ${visitor}`,
+        ).toBeNull();
+      }
     }
     // With the secret, the shared bucket's token is keyed like the rest.
     expect(viewTokens(SECRET, DEVICE, NOON, 'none').visitor).toBe(
       hmac('social-view-visitor\n20261119\nnone'),
     );
-    // And a note with no visitor has none at all.
+    // A note with no visitor has none at all.
     for (const none of [null, '', undefined]) {
       expect(viewTokens(SECRET, DEVICE, NOON, none as never).visitor).toBeNull();
     }
@@ -346,23 +388,20 @@ describe('the cap per address', () => {
     );
   });
 
-  it('gives each item a third key, the visitor’s counter for it, and the cap as an argument', () => {
+  it('gives the note script the cap and the visitor’s token, and the same three keys an item always has', () => {
     const tokens = viewTokens(SECRET, DEVICE, NOON, VISITOR);
     const call = noteCall('stg', { requestId: REQUEST, items }, tokens, NOON, 'c'.repeat(32));
-    const token = tokens.visitor as string;
+    const without = noteCall(
+      'stg',
+      { requestId: REQUEST, items },
+      viewTokens(SECRET, DEVICE, NOON),
+      NOON,
+      'c'.repeat(32),
+    );
+    // The keys don't change with the visitor: its token is a field of the hash, not part of a name.
+    expect(call.keys).toEqual(without.keys);
     expect(call.keys).toHaveLength(2 + 3 * items.length);
-    expect(call.keys.slice(2)).toEqual([
-      `stg:seen:v1:20261119:post:${POST}`,
-      `stg:uniq:v1:post:${POST}`,
-      `stg:vcap:v1:20261119:post-${POST}:${token}`,
-      `stg:seen:v1:20261119:story:${STORY}`,
-      `stg:uniq:v1:story:${STORY}`,
-      `stg:vcap:v1:20261119:story-${STORY}:${token}`,
-      `stg:seen:v1:20261119:file:${FILE}`,
-      `stg:uniq:v1:file:${FILE}`,
-      `stg:vcap:v1:20261119:file-${FILE}:${token}`,
-    ]);
-    expect(call.args.slice(0, 8)).toEqual([
+    expect(call.args.slice(0, 9)).toEqual([
       'c'.repeat(32),
       '3600',
       '86400',
@@ -371,59 +410,44 @@ describe('the cap per address', () => {
       tokens.member,
       tokens.element,
       '20',
+      tokens.visitor,
     ]);
-    // With a visitor, item i's keys are KEYS[3i], KEYS[3i + 1] and KEYS[3i + 2]; its field and mode are as before.
-    items.forEach((item, n) => {
-      const i = n + 1;
-      expect(call.keys[3 * i - 1]).toContain(`:seen:v1:20261119:${item.kind}:${item.id}`);
-      expect(call.keys[3 * i]).toContain(`:uniq:v1:${item.kind}:${item.id}`);
-      expect(call.keys[3 * i + 1]).toBe(
-        socialRedis.visitorCap.key('stg', '20261119', item.kind, item.id, token),
-      );
-      expect(call.args[7 + 2 * i - 1]).toBe(fieldOf(item.kind, item.id));
-      expect(call.args[8 + 2 * i - 1]).toBe(item.kind === 'file' ? 'every' : 'once');
-    });
-    expect((call.keys.length - 2) / 3).toBe(items.length);
+    expect(without.args.slice(7, 9)).toEqual(['0', '']);
+    // The item arguments follow, as they always have.
+    expect(call.args.slice(9)).toEqual(without.args.slice(9));
   });
 
-  it('gives a note with no visitor the keys it has always had, and no cap (0)', () => {
-    const tokens = viewTokens(SECRET, DEVICE, NOON, null);
+  it('keeps neither the visitor, its token nor the device in any key, and no address in any key or argument', () => {
+    const tokens = viewTokens(SECRET, DEVICE, NOON, VISITOR);
     const call = noteCall('stg', { requestId: REQUEST, items }, tokens, NOON, 'c'.repeat(32));
-    expect(call.keys).toHaveLength(2 + 2 * items.length);
-    expect(call.keys.some((key) => key.includes(':vcap:'))).toBe(false);
-    expect(call.args[7]).toBe('0');
+    const names = JSON.stringify(call.keys);
+    expect(names).not.toContain(VISITOR);
+    expect(names).not.toContain(tokens.visitor as string);
+    expect(names).not.toContain(DEVICE);
+    expect(JSON.stringify(call.args)).not.toContain(VISITOR);
+    expect(JSON.stringify(call.args)).not.toContain(DEVICE);
   });
 
-  it('keeps neither the visitor nor the device in any key or argument', () => {
-    const call = noteCall(
-      'stg',
-      { requestId: REQUEST, items },
-      viewTokens(SECRET, DEVICE, NOON, VISITOR),
-      NOON,
-      'c'.repeat(32),
-    );
-    const everything = JSON.stringify(call);
-    expect(everything).not.toContain(VISITOR);
-    expect(everything).not.toContain(DEVICE);
-  });
-
-  it('is in the script: a counter below the cap is read before the device is added, and the counter ends with the day’s set', () => {
-    // The script checks the counter first, then adds the device, bumps the counter and gives it the day set's expiry.
+  it('is in the script: the visitor’s count is read before the device is added, and the hash ends with the day’s set', () => {
+    // The script checks the visitor's count first, then adds the device, bumps the count and gives the hash the day set's expiry.
     const order = [
       "redis.call('SISMEMBER', seen, ARGV[6])",
-      "redis.call('GET', KEYS[at + 3])",
+      "redis.call('HGET', visitors, ARGV[9])",
       "redis.call('SADD', seen, ARGV[6])",
       "redis.call('EXPIREAT', seen, ARGV[4])",
-      "redis.call('INCR', KEYS[at + 3])",
-      "redis.call('EXPIREAT', KEYS[at + 3], ARGV[4])",
+      "redis.call('HINCRBY', visitors, ARGV[9], 1)",
+      "redis.call('EXPIREAT', visitors, ARGV[4])",
       "redis.call('HINCRBY', KEYS[2], field, 1)",
       "redis.call('PFADD', uniq, ARGV[7])",
     ].map((call) => NOTE_SCRIPT.indexOf(call));
     for (const found of order) expect(found).toBeGreaterThan(-1);
     expect(order).toEqual([...order].sort((a, b) => a - b));
-    // A file ('every') never reaches the cap: only 'once' items are checked.
+    // A file ('every') never reaches the cap: only 'once' items are checked, and only with a cap above 0.
     expect(NOTE_SCRIPT).toContain("if mode == 'once' then");
-    expect(NOTE_SCRIPT).toContain('if cap > 0 then stride = 3 end');
+    expect(NOTE_SCRIPT).toContain('if cap > 0 then');
+    expect(NOTE_SCRIPT).toContain(
+      'local seen, uniq, visitors = KEYS[3 * i], KEYS[3 * i + 1], KEYS[3 * i + 2]',
+    );
   });
 });
 
@@ -525,7 +549,7 @@ describe('the scripts', () => {
     'EX',
     'SADD',
     'SISMEMBER',
-    'INCR',
+    'HGET',
     'EXPIREAT',
     'HINCRBY',
     'PFADD',
@@ -547,10 +571,12 @@ describe('the scripts', () => {
       expect(script).not.toContain('..');
       // A key given to redis.call is KEYS[…] itself or a local made from it, never anything built.
       for (const call of script.matchAll(/redis\.call\('([A-Z]+)',\s*([^,)]+)/g)) {
-        expect(call[2], `${call[1]} ${call[2]}`).toMatch(/^(KEYS\[[^\]]+\]|seen|uniq)$/);
+        expect(call[2], `${call[1]} ${call[2]}`).toMatch(/^(KEYS\[[^\]]+\]|seen|uniq|visitors)$/);
       }
     }
-    expect(NOTE_SCRIPT).toContain('local seen, uniq = KEYS[at + 1], KEYS[at + 2]');
+    expect(NOTE_SCRIPT).toContain(
+      'local seen, uniq, visitors = KEYS[3 * i], KEYS[3 * i + 1], KEYS[3 * i + 2]',
+    );
   });
 
   it('do not name a prefix, a purpose or a version', () => {

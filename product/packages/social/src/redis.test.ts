@@ -22,9 +22,6 @@ describe("social's Redis keys", () => {
     expect(socialRedis.seen.key('stg', '20261117', 'post', ID)).toBe(
       `stg:seen:v1:20261117:post:${ID}`,
     );
-    expect(socialRedis.visitorCap.key('stg', '20261117', 'post', ID, HASH.slice(0, 32))).toBe(
-      `stg:vcap:v1:20261117:post-${ID}:${HASH.slice(0, 32)}`,
-    );
     expect(socialRedis.unique.key('prd', 'file', ID)).toBe(`prd:uniq:v1:file:${ID}`);
     expect(socialRedis.note.key('stg', ID)).toBe(`stg:note:v1:${ID}`);
   });
@@ -44,7 +41,6 @@ describe("social's Redis keys", () => {
       keyCopy: 60,
       counts: 86_400,
       seen: 129_600, // 36 hours
-      visitorCap: 129_600, // 36 hours: it ends with the day's set
       unique: 7_776_000, // 90 days
       note: 3_600,
     });
@@ -101,34 +97,5 @@ describe("social's Redis keys", () => {
     expect(socialRedis.note.key('stg', ID.toUpperCase())).toBe(socialRedis.note.key('stg', ID));
     expect(() => socialRedis.note.key('stg', 'not-a-uuid')).toThrow(TypeError);
     expect(() => socialRedis.note.key('stg', 'someone@example.com')).toThrow(TypeError);
-  });
-
-  it("name a visitor's cap by the day's token alone: 32 lower-case hex characters, never an address or a visitor", () => {
-    const token = HASH.slice(0, 32);
-    for (const bad of [
-      '198.51.100.7',
-      'someone@example.com',
-      token.toUpperCase(),
-      token.slice(1),
-      `${token}0`,
-      'a:b',
-      '',
-    ]) {
-      expect(() => socialRedis.visitorCap.key('stg', '20261117', 'post', ID, bad), bad).toThrow(
-        TypeError,
-      );
-    }
-    expect(() => socialRedis.visitorCap.key('stg', '2026-11-17', 'post', ID, token)).toThrow(
-      TypeError,
-    );
-    expect(() =>
-      socialRedis.visitorCap.key('stg', '20261117', 'agent' as never, ID, token),
-    ).toThrow(TypeError);
-    expect(() => socialRedis.visitorCap.key('stg', '20261117', 'post', 'not-an-id', token)).toThrow(
-      TypeError,
-    );
-    expect(() => socialRedis.visitorCap.key('prod', '20261117', 'post', ID, token)).toThrow(
-      /prefix/,
-    );
   });
 });

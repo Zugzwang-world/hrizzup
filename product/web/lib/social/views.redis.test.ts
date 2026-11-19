@@ -14,6 +14,7 @@ import {
   VISITOR_DAILY_CAP,
   type ViewItem,
   viewTokens,
+  visitorCapKey,
 } from '@hrizzup/social/views';
 import type { Redis } from '@upstash/redis';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -95,17 +96,18 @@ const seenKey = (item: ViewItem, when = at) =>
     item.kind,
     item.id,
   );
-const capKey = (item: ViewItem, visitor: string, when = at) => {
-  const token = viewTokens(SECRET, 'x', when, visitor).visitor as string;
-  return socialRedis.visitorCap.key(
-    prefix,
-    when.toISOString().slice(0, 10).replaceAll('-', ''),
-    item.kind,
-    item.id,
-    token,
+/** An item's visitors' hash for the day of `when`: one field for each visitor's day token. */
+const capKey = (item: ViewItem, when = at) =>
+  visitorCapKey(prefix, when.toISOString().slice(0, 10).replaceAll('-', ''), item.kind, item.id);
+/** The devices a visitor has added to an item that day: its field of the hash. */
+const capOf = async (item: ViewItem, visitor: string, when = at) =>
+  Number(
+    (await redis.hget(
+      capKey(item, when),
+      viewTokens(SECRET, 'x', when, visitor).visitor as string,
+    )) ?? 0,
   );
-};
-/** Seconds from now to the end of the UTC day of `when`, plus the margin: what the day set's and the counter's TTL is at most. */
+/** Seconds from now to the end of the UTC day of `when`, plus the margin: what the day set's and the visitors' hash's TTL is at most. */
 const secondsToDayEnd = (when: Date) => seenUntil(when) - Date.now() / 1000;
 
 beforeAll(async () => {
@@ -195,7 +197,7 @@ describe.skipIf(!enabled)('the note script on a real Redis', () => {
     );
     // The day set and the visitor's counter end together: by the next midnight plus 600 seconds, and not early.
     const ends = secondsToDayEnd(at);
-    for (const key of [seenKey(item), capKey(item, VISITOR_A)]) {
+    for (const key of [seenKey(item), capKey(item)]) {
       const left = await ttl(key);
       expect(left, key).toBeLessThanOrEqual(Math.ceil(ends) + 1);
       expect(left, key).toBeGreaterThan(Math.floor(ends) - 30);
@@ -300,7 +302,7 @@ describe.skipIf(!enabled)('the cap per address on a real Redis', () => {
     expect(await pendingOf(item)).toBe(20);
     expect(await redis.scard(seenKey(item))).toBe(20);
     expect(await redis.pfcount(socialRedis.unique.key(prefix, 'post', item.id))).toBe(20);
-    expect(Number(await redis.get(capKey(item, VISITOR_A)))).toBe(20);
+    expect(await capOf(item, VISITOR_A)).toBe(20);
     // A device already seen is still just a repeat, and a capped device is still refused.
     expect((await note([item], device(1), { visitor: VISITOR_A })).counted).toBe(0);
     expect((await note([item], device(21), { visitor: VISITOR_A })).counted).toBe(0);
@@ -314,8 +316,10 @@ describe.skipIf(!enabled)('the cap per address on a real Redis', () => {
     expect((await note([item], device(100), { visitor: VISITOR_B })).counted).toBe(1);
     expect((await note([item], device(101), { visitor: VISITOR_B })).counted).toBe(1);
     expect(await pendingOf(item)).toBe(22);
-    expect(Number(await redis.get(capKey(item, VISITOR_B)))).toBe(2);
-    expect(Number(await redis.get(capKey(item, VISITOR_A)))).toBe(20);
+    expect(await capOf(item, VISITOR_B)).toBe(2);
+    expect(await capOf(item, VISITOR_A)).toBe(20);
+    // Two visitors, two fields of one hash.
+    expect(await redis.hlen(capKey(item))).toBe(2);
   });
 
   it('caps each item on its own: a capped post does not stop a new one in the same note', async () => {
@@ -335,12 +339,12 @@ describe.skipIf(!enabled)('the cap per address on a real Redis', () => {
     expect((await note([item], device(21), { visitor: VISITOR_A, at: tomorrow })).counted).toBe(1);
     expect((await note([item], device(1), { visitor: VISITOR_A, at: tomorrow })).counted).toBe(1);
     expect(await pendingOf(item)).toBe(22);
-    expect(Number(await redis.get(capKey(item, VISITOR_A, tomorrow)))).toBe(2);
-    expect(Number(await redis.get(capKey(item, VISITOR_A)))).toBe(20);
-    // Two days' counters are two keys, and no two names are alike.
-    expect(capKey(item, VISITOR_A, tomorrow)).not.toBe(capKey(item, VISITOR_A));
-    // Tomorrow's keys end a day later, by that day's own midnight plus 600 seconds.
-    expect(await redis.ttl(capKey(item, VISITOR_A, tomorrow))).toBeGreaterThan(86_400 - 60);
+    expect(await capOf(item, VISITOR_A, tomorrow)).toBe(2);
+    expect(await capOf(item, VISITOR_A)).toBe(20);
+    // Two days' hashes are two keys, and no two names are alike.
+    expect(capKey(item, tomorrow)).not.toBe(capKey(item));
+    // Tomorrow's hash ends a day later, by that day's own midnight plus 600 seconds.
+    expect(await redis.ttl(capKey(item, tomorrow))).toBeGreaterThan(86_400 - 60);
   });
 
   it('counts 20 of 21 notes from different addresses of one IPv6 /64 on one post: rotating through a block gets nowhere', async () => {
@@ -397,7 +401,7 @@ describe.skipIf(!enabled)('the cap per address on a real Redis', () => {
       expect((await note([item], device(n))).counted, `device ${n}`).toBe(1);
     }
     expect(await pendingOf(item)).toBe(VISITOR_DAILY_CAP + 5);
-    expect(await redis.exists(capKey(item, VISITOR_A))).toBe(0);
+    expect(await redis.exists(capKey(item))).toBe(0);
   });
 
   it('does not cap a file, which counts at every note, and writes no counter for it', async () => {
@@ -406,7 +410,7 @@ describe.skipIf(!enabled)('the cap per address on a real Redis', () => {
       expect((await note([item], device(n), { visitor: VISITOR_A })).counted, `read ${n}`).toBe(1);
     }
     expect(await pendingOf(item)).toBe(VISITOR_DAILY_CAP + 5);
-    expect(await redis.exists(capKey(item, VISITOR_A))).toBe(0);
+    expect(await redis.exists(capKey(item))).toBe(0);
   });
 
   it('keeps no address, visitor or device in any key it made', async () => {
@@ -418,5 +422,9 @@ describe.skipIf(!enabled)('the cap per address on a real Redis', () => {
     }
     const members = await redis.smembers(seenKey(item));
     expect(members.join(' ')).not.toContain(VISITOR_A);
+    // The visitor's token is a field of the item's hash, never part of a key's name, and the hash holds nothing else.
+    const token = viewTokens(SECRET, 'x', at, VISITOR_A).visitor as string;
+    for (const key of made) expect(key).not.toContain(token);
+    expect(await redis.hkeys(capKey(item))).toEqual([token]);
   });
 });

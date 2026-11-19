@@ -1,4 +1,3 @@
-import { DatabaseBusyError, errorCode } from '@hrizzup/db';
 import { socialRedis } from '@hrizzup/social/redis';
 import { isUuid } from '@hrizzup/social/uuid';
 import {
@@ -9,6 +8,7 @@ import {
   takenOf,
   UNIQUE_SECONDS,
   utcDay,
+  visitorCapKey,
 } from '@hrizzup/social/views';
 import type { Run } from '../access.ts';
 import type { SocialCache } from '../cache.ts';
@@ -34,10 +34,10 @@ import { type Ids, noIds } from './types.ts';
  *   keeps moving); a uniques transaction that fails applies the totals with no unique counts, which catch up
  *   at the item's next count. A **database** statement that fails fails the step; what was taken is lost, as
  *   D7 accepts (at most a minute of views, never counted twice).
- * - **One retry, for a deadlock only:** a statement the database ended with a deadlock (40P01) is tried once
- *   more, and the retry is noted in the summary. An apply that failed committed nothing, so running it again
- *   with the same payload counts nothing twice; the take is never run again. This is the app trying one
- *   database statement again, never a test or a check retrying.
+ * - **No retry of its own:** `transaction` (`@hrizzup/db`) already tries a statement again, up to three attempts, when
+ *   the database ends it with a deadlock (40P01), a serialization failure (40001) or a lock wait that ran out
+ *   (55P03); a statement rolled back counts nothing, so nothing here is counted twice. Past those attempts the
+ *   error fails the step, and what was taken is lost, as above.
  * - **Its answer holds counts and flags only,** never an ID list, a device or an address.
  */
 
@@ -75,43 +75,6 @@ export type Tally = {
   /** Counts and flags only. */
   summary: Record<string, unknown>;
 };
-
-// ---- The one retry ----
-
-/** Whether the database ended a statement with a deadlock: itself, or as `transaction` wraps it once its own attempts are used up. */
-export function isDeadlock(error: unknown): boolean {
-  if (errorCode(error) === '40P01') return true;
-  return error instanceof DatabaseBusyError && errorCode(error.cause) === '40P01';
-}
-
-/**
- * `attempt` (one database statement, run as one `run` call), and once more when the database ended it with a
- * deadlock and for nothing else: any other error is thrown as it came, and a second deadlock too. The
- * statement's name is added to `retried` for the run's summary.
- */
-export async function onDeadlock<T>(
-  name: string,
-  retried: string[],
-  attempt: () => Promise<T>,
-): Promise<T> {
-  try {
-    return await attempt();
-  } catch (error) {
-    if (!isDeadlock(error)) throw error;
-    retried.push(name);
-    return attempt();
-  }
-}
-
-/** A summary with the statements that were tried again added to its `retried` (none: it is left as it is). */
-export function withRetries(
-  summary: Record<string, unknown>,
-  retried: readonly string[],
-): Record<string, unknown> {
-  if (retried.length === 0) return summary;
-  const earlier = Array.isArray(summary.retried) ? (summary.retried as string[]) : [];
-  return { ...summary, retried: [...earlier, ...retried] };
-}
 
 // ---- The targets ----
 
@@ -167,15 +130,13 @@ async function statement(
  * Which of these IDs still count, and whose they are: one statement (`social.job_count_targets`). Nothing is
  * asked, and no statement made, when there is no ID.
  */
-export async function readTargets(run: Run, wanted: Wanted, retried: string[]): Promise<Targets> {
+export async function readTargets(run: Run, wanted: Wanted): Promise<Targets> {
   if (wanted.posts.length + wanted.stories.length + wanted.files.length === 0) return noTargets();
-  const answer = await onDeadlock('targets', retried, () =>
-    statement(run, TARGETS, `select ${TARGETS_FUNCTION}($1::jsonb) as answer`, {
-      posts: wanted.posts,
-      stories: wanted.stories,
-      files: wanted.files,
-    }),
-  );
+  const answer = await statement(run, TARGETS, `select ${TARGETS_FUNCTION}($1::jsonb) as answer`, {
+    posts: wanted.posts,
+    stories: wanted.stories,
+    files: wanted.files,
+  });
   return targetsOf(answer);
 }
 
@@ -314,13 +275,19 @@ async function uniques(
   unions('views');
   unions('reads');
 
-  // The taken items that no longer count: a post or story's HyperLogLog and today's day set, a file's HyperLogLog.
+  // The taken items that no longer count: a post or story's HyperLogLog, today's day set and today's visitors' hash,
+  // a file's HyperLogLog (a made-up ID's keys live about a minute).
   const day = utcDay(at);
   for (const [kind, itemKind] of KINDS) {
     for (const id of taken[kind].keys()) {
       if (counting[kind].has(id)) continue;
       const keys = [socialRedis.unique.key(prefix, itemKind, id)];
-      if (itemKind !== 'file') keys.push(socialRedis.seen.key(prefix, day, itemKind, id));
+      if (itemKind !== 'file') {
+        keys.push(
+          socialRedis.seen.key(prefix, day, itemKind, id),
+          visitorCapKey(prefix, day, itemKind, id),
+        );
+      }
       pipeline.del(...keys);
       queue();
     }
@@ -354,29 +321,19 @@ export async function takeAndApply(
   request: Wanted | null,
 ): Promise<Tally> {
   const { run, cache } = deps;
-  const retried: string[] = [];
-  const summaryOf = (parts: Record<string, unknown>): Record<string, unknown> => ({
-    ...parts,
-    ...(retried.length > 0 ? { retried } : {}),
-  });
-
   // 1. The take. A request with no IDs takes nothing at all.
   const got = await take(cache, request);
   const taken = got.ids;
   const base = { taken: got.taken, ...(got.failed ? { redis: false } : {}) };
 
   // 2. The targets, when there is any ID to ask about: what was taken, and a check run's own IDs.
-  const targets = await readTargets(
-    run,
-    {
-      posts: [...new Set([...taken.posts.keys(), ...(request?.posts ?? [])])],
-      stories: [...new Set([...taken.stories.keys(), ...(request?.stories ?? [])])],
-      files: [...new Set([...taken.files.keys(), ...(request?.files ?? [])])],
-    },
-    retried,
-  );
+  const targets = await readTargets(run, {
+    posts: [...new Set([...taken.posts.keys(), ...(request?.posts ?? [])])],
+    stories: [...new Set([...taken.stories.keys(), ...(request?.stories ?? [])])],
+    files: [...new Set([...taken.files.keys(), ...(request?.files ?? [])])],
+  });
   if (got.taken === 0 && got.dropped === 0) {
-    return { ids: noIds(), targets, summary: summaryOf(base) };
+    return { ids: noIds(), targets, summary: base };
   }
   const live = {
     posts: new Set(targets.posts.map((post) => post.id)),
@@ -389,17 +346,16 @@ export async function takeAndApply(
     files: new Map([...taken.files].filter(([id]) => live.files.has(id))),
   };
   const counted = counting.posts.size + counting.stories.size + counting.files.size;
-  const summaryParts = (extra: Record<string, unknown>) =>
-    summaryOf({
-      ...base,
-      dropped: got.dropped + (got.taken - counted),
-      counted: {
-        posts: counting.posts.size,
-        stories: counting.stories.size,
-        files: counting.files.size,
-      },
-      ...extra,
-    });
+  const summaryParts = (extra: Record<string, unknown>) => ({
+    ...base,
+    dropped: got.dropped + (got.taken - counted),
+    counted: {
+      posts: counting.posts.size,
+      stories: counting.stories.size,
+      files: counting.files.size,
+    },
+    ...extra,
+  });
 
   // 3. The uniques (and the junk keys' clean-up, which a take of nothing but made-up IDs needs too).
   const found = await uniques(cache, taken, counting, targets, (deps.now ?? (() => new Date()))());
@@ -425,8 +381,11 @@ export async function takeAndApply(
         }
       : {}),
   };
-  const answer = await onDeadlock('apply', retried, () =>
-    statement(run, APPLY, `select ${APPLY_FUNCTION}($1::jsonb) as answer`, payload),
+  const answer = await statement(
+    run,
+    APPLY,
+    `select ${APPLY_FUNCTION}($1::jsonb) as answer`,
+    payload,
   );
   const { stories, posts, agents } = checkedAnswer(APPLY_FUNCTION, answer, [
     'stories',

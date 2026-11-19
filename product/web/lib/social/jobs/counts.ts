@@ -2,14 +2,7 @@ import { forgetBriefs, purgePlan, purgeTags } from '../purge.ts';
 import { answerOf } from '../shape.ts';
 import { checkedAnswer } from './answers.ts';
 import { PURGE_WAIT_MS, RECOUNT } from './budget.ts';
-import {
-  onDeadlock,
-  readTargets,
-  type Tally,
-  takeAndApply,
-  type Wanted,
-  withRetries,
-} from './tally.ts';
+import { readTargets, type Tally, takeAndApply, type Wanted } from './tally.ts';
 import { type Ids, type JobDeps, mergeIds, noIds } from './types.ts';
 
 /**
@@ -36,7 +29,13 @@ export type CountsRequest = { posts: string[]; stories: string[]; files: string[
 /** What the run answers: the IDs it recounted, or that another run held the `counts` lease. */
 export type CountsAnswer = { ran: false; busy: true } | { ran: true; ok: boolean; ids: Ids };
 
-/** The counts lease: a run of 18 seconds at most (the door's deadline), so 30 leaves it room to end. */
+/**
+ * The counts lease, in seconds. The run is planned at about 14.5 seconds (`budget.ts`: begin 2, take 0.75, targets
+ * 0.5, uniques 0.75, apply 1, recount 5, purge 2.5, end 2), so 30 is about twice that. The door answers by its 18
+ * second deadline whatever the run is doing, and the run carries on under `waitUntil` to the end, so it still closes
+ * its lease; a statement `transaction` tries again can take it past the lease, which only lets another run start
+ * meanwhile, and `job_end` closes only the run that holds the lease.
+ */
 export const COUNTS_LEASE_SECONDS = 30;
 
 const RECOUNT_FUNCTION = 'social.job_recount';
@@ -63,7 +62,6 @@ export async function runCounts(
   }
 
   let ok = true;
-  const retried: string[] = [];
   let recounted: Ids = noIds();
   let summary: Record<string, unknown> = {};
   try {
@@ -77,7 +75,7 @@ export async function runCounts(
       ? await takeAndApply({ run, cache }, wanted)
       : {
           ids: noIds(),
-          targets: await readTargets(run, wanted, retried),
+          targets: await readTargets(run, wanted),
           summary: { taken: 0 },
         };
     const { targets } = tally;
@@ -91,20 +89,17 @@ export async function runCounts(
       ],
     });
     if (also.stories.length + also.posts.length + also.agents.length > 0) {
-      // One try again for a deadlock, on the recount alone: the apply before it has committed and never runs twice.
-      const answer = await onDeadlock('recount', retried, () =>
-        run(
-          async (tx) =>
-            answerOf(
-              (
-                await tx.query(`select ${RECOUNT_FUNCTION}($1::timestamptz, $2::jsonb) as answer`, [
-                  null,
-                  JSON.stringify(also),
-                ])
-              ).rows,
-            ),
-          RECOUNT,
-        ),
+      const answer = await run(
+        async (tx) =>
+          answerOf(
+            (
+              await tx.query(`select ${RECOUNT_FUNCTION}($1::timestamptz, $2::jsonb) as answer`, [
+                null,
+                JSON.stringify(also),
+              ])
+            ).rows,
+          ),
+        RECOUNT,
       );
       const checked = checkedAnswer(
         RECOUNT_FUNCTION,
@@ -129,7 +124,7 @@ export async function runCounts(
       'counts',
       runId,
       ok,
-      JSON.stringify(withRetries(summary, retried)),
+      JSON.stringify(summary),
     ]),
   );
   return { ran: true, ok, ids: recounted };

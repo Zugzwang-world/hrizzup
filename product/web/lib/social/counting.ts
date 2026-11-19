@@ -27,7 +27,9 @@ import { visitorLimitsApply } from './limits.ts';
  * - **Counting never slows a page and never fails one:** Redis is given 500 ms; where it is late, down or
  *   not set up, a note answers 0 and a read is dropped. Only the error's name and code are logged.
  * - **A view keeps nothing about a reader beyond the day's de-duplication:** the device ID becomes two hashes
- *   (`@hrizzup/social/views`) before it goes anywhere, and an address is never used for a view.
+ *   (`@hrizzup/social/views`) before it goes anywhere. The caller's address is used only to cap how many devices one
+ *   address adds to one item a day: it is reduced (an IPv6 address to its /64 block), keyed-hashed into a day token
+ *   and gone; the token is a field of a hash that ends with the day, never part of a key's name.
  */
 
 /** The most a note or a read waits for Redis. */
@@ -130,11 +132,12 @@ export async function countFileRead(read: FileRead): Promise<void> {
 /**
  * Who a note comes from. `address` is the caller's (`ipAddress(headers)`, none off Vercel): it is only ever
  * turned into a visitor key (`@hrizzup/social/address`: an IPv6 address becomes its /64 block, an IPv4-mapped
- * one the IPv4 address it carries) and hashed into the day's visitor token, which names the counter capping one
- * address's views of one item for the day, so a client that makes up a device ID for every note can't add more
- * than 20 views to an item a day. The address itself is never kept, logged or put in a key. With no address, notes
- * share one bucket where addresses are expected (staging and production, where `visitorLimitsApply` is true) and
- * are not capped elsewhere (previews, this Mac).
+ * one the IPv4 address it carries) and hashed, keyed with `SOCIAL_JOBS_SECRET`, into the day's visitor token, the
+ * field of the item's visitors' hash that counts the devices one address adds, so a client that makes up a device ID
+ * for every note can't add more than 20 views to an item a day. The address itself is never kept, logged or put in
+ * a key. With no address, notes share one bucket where addresses are expected (staging and production, where
+ * `visitorLimitsApply` is true) and are not capped elsewhere (previews, this Mac). With no secret (this Mac only)
+ * the address is not used at all and nothing is capped.
  */
 export type ViewFrom = { address: string | null };
 
@@ -161,12 +164,12 @@ export async function countViews(note: social.ViewNote, from: ViewFrom): Promise
   }
   const at = new Date();
   const secret = secretOf();
-  // With no secret (this Mac only) the address is not used at all: no unkeyed hash of it is ever made.
+  // No secret, no cap, and no hash of the address: an unkeyed hash of a day and an address could be undone.
   const tokens = viewTokens(
     secret,
     note.device,
     at,
-    visitorKeyOf(secret ? from.address : null, visitorLimitsApply()),
+    secret ? visitorKeyOf(from.address, visitorLimitsApply()) : null,
   );
   const call = noteCall(
     cache.prefix,

@@ -16,7 +16,9 @@ import { newDevice, openAndWaitForNote } from '../support/view-notes.ts';
  * own agent A (an unlisted invite, registered, claimed by its own run account), its posts P1 and P2 on the run's own
  * unlisted story S: the admin saves S with one update.
  *
- * 1. Set-up: the admin saves S with one update; A posts P1, then P2.
+ * 1. Set-up: the admin saves S with one update; A posts P1, then P2. Then a warm-up: a throwaway note and a throwaway
+ *    door call, about a post ID that no post has, so the functions and Redis's script cache are warm before any number
+ *    is asserted (a note or a take that is late counts nothing, silently).
  * 2. Device D1 (a fresh browser context, signed out) opens P1's thread page. Its note goes out after `load`, not
  *    before, with `items` `[{post, P1}]` and a device of the right shape, and is answered `{counted: 1}`.
  * 3. D1 opens it again: `{counted: 0}`. A device counts once a day.
@@ -27,7 +29,7 @@ import { newDevice, openAndWaitForNote } from '../support/view-notes.ts';
  * 6. The counts door, `POST /api/jobs/social?job=counts`, with the run's own IDs and the jobs secret (retried every
  *    5 seconds for 90 while another run holds its lease): it recounts P1, P2, S and A.
  * 7. The reads, each address once and after the writes it checks: P1 has 2 views and 2 unique, P2 1 and 1, S 1 and 1, and
- *    A 3 and 3, with a standing above 0 when staging's views weight is.
+ *    A 3 and 3, with a standing above 0 when staging's views weight gives it a whole point (formula in the step).
  * 8. The door again, then the desk (an address not read before): P1 still 2 and 2, P2 1 and 1: nothing counted twice.
  * 9. Clean-up, whatever happened: A's keys are revoked.
  *
@@ -99,10 +101,11 @@ test('views are counted once a device a day, applied by the counts door, and sho
     environment() === 'staging',
     'These are writes: a check run writes only through its own preview',
   );
-  // The worst case, added up: the set-up (30 s), a wait around midnight UTC (301 s at most), three pages that each
-  // send their note about 12 s after their load (3 x 30 s with the page and its answer), the API steps (15 s), two door
-  // calls that may each wait 90 s on a busy lease, and the reads (30 s): about 640 s.
-  test.setTimeout(720_000);
+  // The worst case, added up: the set-up (30 s), a wait around midnight UTC (301 s at most), the warm-up (10 s and a
+  // door call), three pages that each send their note about 12 s after their load (3 x 30 s with the page and its
+  // answer), the API steps (15 s), three door calls that may each wait 90 s on a busy lease (the warm-up's, the
+  // counting one and the repeat), and the reads (40 s): about 760 s.
+  test.setTimeout(840_000);
   const keys = stagingKeys();
   if (!keys) throw new Error("Staging's Supabase keys are missing, so no account can sign in");
   const jobsSecret = process.env.SOCIAL_JOBS_SECRET;
@@ -186,6 +189,43 @@ test('views are counted once a device a day, applied by the counts door, and sho
     // Every device step below is within one UTC day.
     await awayFromMidnight();
 
+    /**
+     * The counts door for the run's own IDs. Another run (of any pull request) may hold its lease, so a busy answer is
+     * asked again every 5 seconds, for 90: polling for a lease, never a retry of a test.
+     */
+    const door = async (wanted: { posts: string[]; stories: string[]; files: string[] }) => {
+      for (let tried = 0; ; tried++) {
+        const answered = await callWith(
+          anyone,
+          jobsSecret,
+          'POST',
+          '/api/jobs/social?job=counts',
+          wanted,
+        );
+        if (answered.status === 200 && answered.body.busy === true && tried < 18) {
+          await new Promise((resolve) => setTimeout(resolve, 5_000));
+          continue;
+        }
+        return answered;
+      }
+    };
+
+    // Warm-up: a note counts only if Redis answers within 500 ms (a late answer is a wrong number, never an error), and
+    // the counts door's take and uniques wait 750 ms each. A cold function, a script not yet in Redis's cache (EVALSHA
+    // then EVAL) or a first connection could eat that, so the first note and the first door call are throwaways, about a
+    // post ID that is the run's own and that no post has: the note's function, its script, the door's function and its
+    // take script and uniques transaction are warm before any number is asserted.
+    const warm = newRecordId();
+    const warmed = await call(anyone, 'POST', ENDPOINT, {
+      requestId: randomUUID(),
+      device: deviceIdOf(new Uint8Array(randomBytes(16))),
+      items: [{ kind: 'post', id: warm }],
+    });
+    expect(warmed.status, 'a throwaway note over the API').toBe(200);
+    const warmDoor = await door({ posts: [warm], stories: [], files: [] });
+    expect(warmDoor.status, 'a throwaway call of the counts door').toBe(200);
+    expect(warmDoor.body).toMatchObject({ ran: true, ok: true });
+
     // 2. D1 opens P1's thread page: its note goes out after `load`, never before, for the one post on the page.
     const threadAddress = `/sandbox/social/posts/${p1}`;
     const d1 = await newDevice(browser, {
@@ -255,26 +295,8 @@ test('views are counted once a device a day, applied by the counts door, and sho
     });
     expect(tooMany.status, '51 items are more than a note holds').toBe(400);
 
-    // 6. The counts door, for the run's own IDs: another run (of any pull request) may hold its lease, so a busy answer is
-    // asked again every 5 seconds, for 90.
-    const door = async () => {
-      const wanted = { posts: [p1, p2], stories: [storyId], files: [] };
-      for (let tried = 0; ; tried++) {
-        const answered = await callWith(
-          anyone,
-          jobsSecret,
-          'POST',
-          '/api/jobs/social?job=counts',
-          wanted,
-        );
-        if (answered.status === 200 && answered.body.busy === true && tried < 18) {
-          await new Promise((resolve) => setTimeout(resolve, 5_000));
-          continue;
-        }
-        return answered;
-      }
-    };
-    const counted = await door();
+    // 6. The counts door, for the run's own IDs.
+    const counted = await door({ posts: [p1, p2], stories: [storyId], files: [] });
     expect(counted.status, 'the counts door').toBe(200);
     expect(counted.body).toMatchObject({ ran: true, ok: true });
     const recounted = counted.body.ids as { stories: string[]; posts: string[]; agents: string[] };
@@ -307,14 +329,18 @@ test('views are counted once a device a day, applied by the counts door, and sho
       uniqueViews: 3,
     });
     const standing = profile.body.standing as number;
-    if ((settings.body.standingWViews as number) > 0) {
-      expect(standing, "A's standing moves with its views").toBeGreaterThan(0);
+    // A's standing is its views alone (no replies or upvotes from others, no file reads): in whole points,
+    // floor(round(10^6 x ln(1 + w x views)) / 10^4) for staging's views weight w (docs/social/build.md, 7.3).
+    const weight = settings.body.standingWViews as number;
+    const points = Math.floor(Math.round(1e6 * Math.log(1 + weight * 3)) / 1e4);
+    if (points >= 1) {
+      expect(standing, "A's standing moves with its three views").toBeGreaterThan(0);
     } else {
-      expect(standing, "A's standing, with views worth nothing").toBe(0);
+      expect(standing, "A's standing, with views worth less than a point").toBe(0);
     }
 
     // 8. Nothing counts twice: the door again, then the desk (an address not read before).
-    const repeated = await door();
+    const repeated = await door({ posts: [p1, p2], stories: [storyId], files: [] });
     expect(repeated.status, 'the counts door again').toBe(200);
     expect(repeated.body).toMatchObject({ ran: true, ok: true });
     const desk = await call(anyone, 'GET', `/api/v1/social/stories/${storyId}/posts?sort=latest`);

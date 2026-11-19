@@ -331,69 +331,37 @@ describe('a run that fails', () => {
   });
 });
 
-describe('a deadlock', () => {
+describe('no retry of its own', () => {
   const deadlock = () => Object.assign(new Error('deadlock detected'), { code: '40P01' });
 
-  it('on the recount, after the apply committed, tries only the recount again, and notes it', async () => {
-    const r = redis();
-    resetSocialCache(r.cache);
-    const db = database({}, (name, attempt) =>
-      name === 'recount' && attempt === 1 ? deadlock() : undefined,
-    );
-    const answer = await runCounts(REQUEST, deps(db, r.cache));
-    expect(db.names()).toEqual(['begin', 'targets', 'apply', 'recount', 'recount', 'end']);
-    expect(r.takes).toHaveLength(1);
-    const [first, second] = db.statements.filter((one) => one.name === 'recount');
-    expect(second?.values).toEqual(first?.values);
-    expect(answer).toMatchObject({ ran: true, ok: true });
-    expect(JSON.parse(String(db.statements.at(-1)?.values?.[3]))).toMatchObject({
-      retried: ['recount'],
-    });
-    expect(db.statements.at(-1)?.values?.[2]).toBe(true);
-  });
-
-  it('on the apply, tries the apply again and goes on to the recount', async () => {
-    const r = redis();
-    resetSocialCache(r.cache);
-    const db = database({}, (name, attempt) =>
-      name === 'apply' && attempt === 1 ? new DatabaseBusyError({ cause: deadlock() }) : undefined,
-    );
-    const answer = await runCounts(REQUEST, deps(db, r.cache));
-    expect(db.names()).toEqual(['begin', 'targets', 'apply', 'apply', 'recount', 'end']);
-    expect(r.takes).toHaveLength(1);
-    expect(answer).toMatchObject({ ran: true, ok: true });
-    expect(JSON.parse(String(db.statements.at(-1)?.values?.[3]))).toMatchObject({
-      retried: ['apply'],
-    });
-  });
-
-  it('on the no-Redis path, tries the targets again', async () => {
-    resetSocialCache(null);
-    const db = database({}, (name, attempt) =>
-      name === 'targets' && attempt === 1 ? deadlock() : undefined,
-    );
-    const answer = await runCounts(REQUEST, deps(db, null));
-    expect(db.names()).toEqual(['begin', 'targets', 'targets', 'recount', 'end']);
-    expect(answer).toMatchObject({ ran: true, ok: true });
-    expect(JSON.parse(String(db.statements.at(-1)?.values?.[3]))).toMatchObject({
-      retried: ['targets'],
-    });
-  });
-
-  it('any other error on the recount is not tried again, and a second deadlock ends the run unhealthy', async () => {
+  it('runs the recount once, and ends the run unhealthy, when it fails with a deadlock (`transaction` has tried it three times by then)', async () => {
     for (const failure of [
-      () => Object.assign(new Error('x'), { code: '57014' }),
-      () => Object.assign(new Error('x'), { code: '55P03' }),
       deadlock,
+      () => Object.assign(new Error('x'), { code: '57014' }),
+      () => new DatabaseBusyError({ cause: deadlock() }),
     ]) {
       const r = redis();
       resetSocialCache(r.cache);
-      const db = database({}, (name, attempt) =>
-        name === 'recount' && (attempt === 1 || failure === deadlock) ? failure() : undefined,
-      );
+      const db = database({}, (name) => (name === 'recount' ? failure() : undefined));
       const answer = await runCounts(REQUEST, deps(db, r.cache));
-      const tried = db.statements.filter((one) => one.name === 'recount').length;
-      expect(tried).toBe(failure === deadlock ? 2 : 1);
+      expect(db.statements.filter((one) => one.name === 'recount')).toHaveLength(1);
+      expect(db.statements.filter((one) => one.name === 'apply')).toHaveLength(1);
+      expect(answer).toMatchObject({ ran: true, ok: false });
+      expect(JSON.parse(String(db.statements.at(-1)?.values?.[3]))).not.toHaveProperty('retried');
+    }
+  });
+
+  it('runs the apply and the targets once, too, and takes once', async () => {
+    for (const failing of ['apply', 'targets'] as const) {
+      const r = redis();
+      resetSocialCache(r.cache);
+      const db = database({}, (name) => (name === failing ? deadlock() : undefined));
+      const answer = await runCounts(REQUEST, deps(db, r.cache));
+      expect(
+        db.statements.filter((one) => one.name === failing),
+        failing,
+      ).toHaveLength(1);
+      expect(r.takes).toHaveLength(1);
       expect(answer).toMatchObject({ ran: true, ok: false });
     }
   });
