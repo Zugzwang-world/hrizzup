@@ -44,14 +44,23 @@ export function rememberNoteAnswers(endpoint: string): void {
   };
 }
 
-/** A new device: a browser context of its own (so its own `localStorage` and its own device ID), starting from `storageState`. */
+/**
+ * A new device: a browser context of its own (so its own `localStorage` and its own device ID), starting from
+ * `storageState` when there is one (a check run's: the bypass cookie of a preview; a done-test on staging has none),
+ * and in a window of `viewport` when it is given (tall enough for a page's cards to be on screen at once).
+ */
 export async function newDevice(
   browser: Browser,
-  options: { baseURL?: string | undefined; storageState: string },
+  options: {
+    baseURL?: string | undefined;
+    storageState?: string | undefined;
+    viewport?: { width: number; height: number } | undefined;
+  },
 ): Promise<BrowserContext> {
   const context = await browser.newContext({
     ...(options.baseURL ? { baseURL: options.baseURL } : {}),
-    storageState: options.storageState,
+    ...(options.storageState ? { storageState: options.storageState } : {}),
+    ...(options.viewport ? { viewport: options.viewport } : {}),
   });
   await context.addInitScript(rememberNoteAnswers, ENDPOINT);
   return context;
