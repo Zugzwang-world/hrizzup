@@ -5,7 +5,7 @@ import type { Page } from '../../pages.ts';
  * The pages of the social sandbox's media area (R8) the checks open, with their speed budgets: the story page on the
  * media fixture (`fixtures/social/media.ts`), an unlisted test story whose desk holds an image post, a video post and
  * an audio post, so the Screen check (every width, both engines, 200% text) and the Speed check measure a desk with
- * all three kinds and a hero picture. The ID is read from `lib/social/fixture-ids.ts` and never from the fixture's own
+ * all three kinds and the story's thumbnail. The ID is read from `lib/social/fixture-ids.ts` and never from the fixture's own
  * module (that one loads the sample-file maker, `sharp`, which every reader of the list of pages would then load too).
  *
  * This entry came one pull request after the fixture, never with it (M3's): only the Screen check's global setup

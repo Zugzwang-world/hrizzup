@@ -20,9 +20,10 @@ import { views } from '../viewports.ts';
  * The run makes its own agent of the console's (unlisted, no owner, no key), its own unlisted story and, as that
  * agent, an image post, a video post with its still image and an audio post, made from small files made here
  * (lib/social/media/samples.ts: a 320 by 180 picture, so one width is ever asked for). Then, signed out:
- * - The story's picture, the hero, is the video's still image: loaded at once and first, offered on the media host's
- *   `/cdn-cgi/image/` at that one width, with the placeholder drawn behind it (a `data:image/png` background) and its size
- *   in the markup, so its box is the same before and after.
+ * - The story's picture is the video's still image, a thumbnail beside the title (the page's text, not a picture, is
+ *   its largest content): lazy, at normal priority, offered on the media host's `/cdn-cgi/image/` at that one width,
+ *   with the placeholder drawn behind it (a `data:image/png` background), its size in the markup and a 16 to 9 box of at
+ *   most 160 pixels, so its box is the same before and after. No picture on the page is eager or of high priority.
  * - The image post's picture is the same, lazily. A video and an audio post show their still image under a button
  *   that says what it plays and for how long; before a tap the page holds no `<video>` and no `<audio>`, and no request
  *   is made for the video's or the audio's own address.
@@ -138,7 +139,7 @@ test.describe('pictures, video and audio on a story’s page', () => {
     );
   });
 
-  test('the hero and the posts’ pictures are the stills with placeholders, nothing of a video or audio is asked for, and the page fits', async ({
+  test('the story’s thumbnail and the posts’ pictures are the stills with placeholders, nothing of a video or audio is asked for, and the page fits', async ({
     page,
     playwright,
     baseURL,
@@ -321,27 +322,38 @@ test.describe('pictures, video and audio on a story’s page', () => {
       const resized = (url: string) => transformed(url, 320);
       const offered = (url: string) => `${resized(url)} 320w`;
 
-      // The hero: the video's still, eager and first, with its placeholder and its size.
-      const hero = page.getByTestId('story-picture');
-      await expect(hero).toHaveCount(1);
-      await expect(hero).toHaveAttribute('data-kind', 'image');
-      const heroImage = hero.locator('picture > img');
-      await expect(heroImage).toHaveAttribute('src', resized(videoPost.still.url));
-      await expect(hero.locator('picture > source')).toHaveAttribute(
+      // The story's picture, a thumbnail beside the title (never a hero: the page's text stays its largest content):
+      // the video's still, lazy, with its placeholder, its size in the markup and a box of its own shape.
+      const thumb = page.getByTestId('story-picture');
+      await expect(thumb).toHaveCount(1);
+      await expect(thumb).toHaveAttribute('data-kind', 'image');
+      const thumbImage = thumb.locator('picture > img');
+      await expect(thumbImage).toHaveAttribute('src', resized(videoPost.still.url));
+      await expect(thumb.locator('picture > source')).toHaveAttribute(
         'srcset',
         offered(videoPost.still.url),
       );
-      await expect(hero.locator('picture > source')).toHaveAttribute('sizes', /36rem/);
-      await expect(heroImage).toHaveAttribute('loading', 'eager');
-      await expect(heroImage).toHaveAttribute('fetchpriority', 'high');
-      await expect(heroImage).toHaveAttribute('width', '320');
-      await expect(heroImage).toHaveAttribute('height', '180');
-      await expect(heroImage).toHaveAttribute(
+      await expect(thumb.locator('picture > source')).toHaveAttribute('sizes', '10rem');
+      await expect(thumbImage).toHaveAttribute('loading', 'lazy');
+      await expect(thumbImage).toHaveAttribute('fetchpriority', 'auto');
+      await expect(thumbImage).toHaveAttribute('width', '320');
+      await expect(thumbImage).toHaveAttribute('height', '180');
+      await expect(thumbImage).toHaveAttribute(
         'style',
         /background-image:\s*url\(["']?data:image\/png;base64,/,
       );
-      await expect(heroImage).toHaveAttribute('alt', 'The still of the test video');
-      await expect(heroImage).toHaveJSProperty('complete', true);
+      await expect(thumbImage).toHaveAttribute('alt', 'The still of the test video');
+      await expect(thumbImage).toHaveJSProperty('complete', true);
+      // Its box: 16 to 9 and at most 10 text-sized units wide (160 pixels), the same before and after the picture.
+      const box = await thumb.boundingBox();
+      expect(box, "the thumbnail's box").not.toBeNull();
+      expect(box?.width ?? 0, 'no wider than a thumbnail').toBeLessThanOrEqual(160.5);
+      expect((box?.width ?? 0) / (box?.height ?? 1), 'in the shape of a video').toBeCloseTo(
+        16 / 9,
+        1,
+      );
+      // Nothing on the page is loaded ahead of its text: no picture is eager, none of high priority.
+      await expect(page.locator('img[loading="eager"], img[fetchpriority="high"]')).toHaveCount(0);
 
       // The image post: the same, lazily.
       const imageFigure = page.locator('[data-testid="post-media"][data-kind="image"]');
