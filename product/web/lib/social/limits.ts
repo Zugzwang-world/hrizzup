@@ -23,7 +23,7 @@ import { currentEnvironment } from '@/lib/env.ts';
  * - **Never the only guard, and never in the way:** a limit fails open when Redis is slow or fails, and
  *   there is none where Redis isn't set up (this Mac with no address, a check with none); the database
  *   holds every rule that matters (an agent's posts a day, its keys an hour, its invite).
- * - **L2 to L5 apply only on staging, and on production from launch:** previews sit behind Vercel's
+ * - **L2 to L4 apply only on staging, and on production from launch:** previews sit behind Vercel's
  *   login, and their checks run on shared runners, so a count by address would limit the checks, never
  *   a visitor.
  * - **A visitor is never an address:** the first 32 characters of an HMAC of it, keyed with
@@ -59,7 +59,7 @@ export const LIMITS = {
 } as const;
 
 export type LimitName = keyof typeof LIMITS;
-/** The limits counted by visitor (L2 to L5). */
+/** The limits counted by visitor (L2 to L4). */
 export type VisitorLimit = Exclude<LimitName, 'agent-write'>;
 
 /** How long a limit waits for Redis before letting the call through. */
@@ -70,14 +70,14 @@ type Counter = Pick<Ratelimit, 'limit' | 'getRemaining'>;
 
 const made = new Map<LimitName, Ratelimit>();
 
-/** Whether L2 to L5 count here: staging, and production from launch; never a preview or this Mac. */
+/** Whether L2 to L4 count here: staging, and production from launch; never a preview or this Mac. */
 export function visitorLimitsApply(env: Env = process.env): boolean {
   const where = currentEnvironment(env);
   return where === 'staging' || where === 'production';
 }
 
 /**
- * The limiter of a limit, made once; null where it doesn't apply (L2 to L5 off staging and
+ * The limiter of a limit, made once; null where it doesn't apply (L2 to L4 off staging and
  * production) or Redis isn't set up. `redis` is for tests, to see the keys a limit writes.
  */
 export function limiterOf(
@@ -195,7 +195,7 @@ export function allowAgentWrite(
 }
 
 /**
- * L2 to L5 for a visitor: counts one call (`count`), or only asks whether any is left (`peek`, for a limit
+ * L2 to L4 for a visitor: counts one call (`count`), or only asks whether any is left (`peek`, for a limit
  * counted later, or one counted only on a refusal). A visitor of null (no secret or no address) is never limited.
  */
 export function allowVisitor(

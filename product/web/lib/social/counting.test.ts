@@ -127,7 +127,8 @@ describe('a view note', () => {
     await countViews(note(items, REQUEST.toUpperCase()), { address: '198.51.100.7' });
     expect(redis.made).toEqual([NOTE_SCRIPT, TAKE_SCRIPT]);
     expect(redis.ran).toHaveLength(1);
-    const tokens = viewTokens(SECRET, DEVICE, NOW);
+    // With an address the note is capped by it (the visitor key is the address itself, an IPv4 address whole).
+    const tokens = viewTokens(SECRET, DEVICE, NOW, '198.51.100.7');
     const expected = noteCall(
       'dev:slot1',
       { requestId: REQUEST, items },
@@ -159,16 +160,21 @@ describe('a view note', () => {
     expect(without.ran[0]?.args[5]).not.toBe(withSecret.ran[0]?.args[5]);
   });
 
-  it('names the counter that caps an address by the visitor’s day token, and keeps neither the visitor nor the address', async () => {
-    const VISITOR = 'visitor-aaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+  /** The capped note of an address, as the script would be called, for these items. */
+  const capped = async (address: string | null, items: social.ViewNote['items']) => {
     const redis = standIn();
     use(redis.client);
+    await countViews(note(items), { address });
+    return redis;
+  };
+
+  it('names the counter that caps an address by the address’s day token, and keeps neither the address nor the device', async () => {
     const items = [
       { kind: 'post' as const, id: POST },
       { kind: 'file' as const, id: FILE },
     ];
-    await countViews(note(items), { address: '198.51.100.7', visitor: VISITOR });
-    const tokens = viewTokens(SECRET, DEVICE, NOW, VISITOR);
+    const redis = await capped('198.51.100.7', items);
+    const tokens = viewTokens(SECRET, DEVICE, NOW, '198.51.100.7');
     expect(redis.ran[0]).toEqual({
       script: NOTE_SCRIPT,
       ...noteCall(
@@ -186,23 +192,67 @@ describe('a view note', () => {
     );
     expect(redis.ran[0]?.args[7]).toBe('20');
     const everything = JSON.stringify(redis.ran);
-    expect(everything).not.toContain(VISITOR);
     expect(everything).not.toContain('198.51.100.7');
     expect(everything).not.toContain(DEVICE);
   });
 
-  it('has no cap for a note with no visitor: the keys an item has always had, and a cap of 0', async () => {
-    const redis = standIn();
-    use(redis.client);
-    for (const from of [{ address: null }, { address: null, visitor: null }]) {
-      redis.ran.length = 0;
-      await countViews(
-        note([{ kind: 'post', id: POST }], '01a1e7ff-0000-7a1b-9c2d-3e4f5a6b7c8f'),
-        from,
+  it('counts every address of an IPv6 /64 as one visitor, and the next /64 as another', async () => {
+    const items = [{ kind: 'post' as const, id: POST }];
+    const capKeyOf = async (address: string) => (await capped(address, items)).ran[0]?.keys[4];
+    const home = await capKeyOf('2001:db8:1:2:aaaa:bbbb:cccc:dddd');
+    expect(home).toContain(':vcap:v1:20261119:post-');
+    expect(await capKeyOf('2001:DB8:1:2::1')).toBe(home);
+    expect(await capKeyOf('2001:db8:1:2:ffff:ffff:ffff:ffff')).toBe(home);
+    expect(await capKeyOf('2001:db8:1:3::1')).not.toBe(home);
+    // An IPv4-mapped address is the IPv4 address itself.
+    expect(await capKeyOf('::ffff:203.0.113.7')).toBe(await capKeyOf('203.0.113.7'));
+    expect(await capKeyOf('203.0.113.8')).not.toBe(await capKeyOf('203.0.113.7'));
+    // No address, and no part of the block's low half, is in any key or argument.
+    const redis = await capped('2001:db8:1:2:aaaa:bbbb:cccc:dddd', items);
+    const everything = JSON.stringify(redis.ran);
+    for (const part of ['aaaa:bbbb', 'cccc:dddd', '2001:db8'])
+      expect(everything).not.toContain(part);
+  });
+
+  it('caps a note with no address in one shared bucket where addresses are expected (staging and production)', async () => {
+    const items = [{ kind: 'post' as const, id: POST }];
+    for (const target of ['staging', 'production']) {
+      vi.stubEnv('VERCEL', '1');
+      vi.stubEnv('VERCEL_TARGET_ENV', target);
+      const none = await capped(null, items);
+      expect(none.ran[0]?.keys, target).toHaveLength(5);
+      expect(none.ran[0]?.args[7]).toBe('20');
+      const shared = viewTokens(SECRET, DEVICE, NOW, 'none').visitor as string;
+      expect(none.ran[0]?.keys[4]).toBe(
+        socialRedis.visitorCap.key('stg', '20261119', 'post', POST, shared),
       );
-      expect(redis.ran[0]?.keys).toHaveLength(4);
+      // Two notes with no address, and a note whose address is not one, share it.
+      expect((await capped(null, items)).ran[0]?.keys[4]).toBe(none.ran[0]?.keys[4]);
+      expect((await capped('not an address', items)).ran[0]?.keys[4]).toBe(none.ran[0]?.keys[4]);
+      // An address that can be told apart has a bucket of its own.
+      expect((await capped('203.0.113.7', items)).ran[0]?.keys[4]).not.toBe(none.ran[0]?.keys[4]);
+    }
+    // The literal `none` is not in any key or argument: only its hash.
+    expect(JSON.stringify((await capped(null, items)).ran)).not.toContain('none');
+  });
+
+  it('has no cap for a note with no address elsewhere (a preview, this Mac): the keys an item has always had, and a cap of 0', async () => {
+    const items = [{ kind: 'post' as const, id: POST }];
+    for (const where of [undefined, 'preview']) {
+      if (where) {
+        vi.stubEnv('VERCEL', '1');
+        vi.stubEnv('VERCEL_TARGET_ENV', where);
+      } else {
+        vi.stubEnv('VERCEL', '');
+      }
+      const redis = await capped(null, items);
+      expect(redis.ran[0]?.keys, String(where)).toHaveLength(4);
       expect(redis.ran[0]?.keys.some((key) => key.includes(':vcap:'))).toBe(false);
       expect(redis.ran[0]?.args[7]).toBe('0');
+      const garbage = await capped('not an address', items);
+      expect(garbage.ran[0]?.keys).toHaveLength(4);
+      // An address that can be told apart is still capped, on a preview too.
+      expect((await capped('203.0.113.7', items)).ran[0]?.keys).toHaveLength(5);
     }
   });
 

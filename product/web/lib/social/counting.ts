@@ -1,4 +1,5 @@
 import type { social } from '@hrizzup/api';
+import { visitorKeyOf } from '@hrizzup/social/address';
 import { socialRedis } from '@hrizzup/social/redis';
 import { isUuid } from '@hrizzup/social/uuid';
 import {
@@ -16,6 +17,7 @@ import {
 } from '@hrizzup/social/views';
 import type { Redis } from '@upstash/redis';
 import { socialCache } from './cache.ts';
+import { visitorLimitsApply } from './limits.ts';
 
 /**
  * Where views and file reads are counted (docs/social/build.md, D7 and D15; docs/social/r11-design.md,
@@ -126,18 +128,20 @@ export async function countFileRead(read: FileRead): Promise<void> {
 }
 
 /**
- * Who a note comes from, as far as counting needs it. `visitor` is R6's visitor (`visitorOf`: an HMAC of the
- * address, never the address): it only goes into a hash that names the counter capping one address's views of
- * one item for the day, so a client that makes up a device ID for every note can't add more than 20 views to an
- * item a day. With none (no address, or no secret to tell visitors apart: off staging and production) there is no
- * cap. `address` is accepted and never used: the address never reaches Redis.
+ * Who a note comes from. `address` is the caller's (`ipAddress(headers)`, none off Vercel): it is only ever
+ * turned into a visitor key (`@hrizzup/social/address`: an IPv6 address becomes its /64 block, an IPv4-mapped
+ * one the IPv4 address it carries) and hashed into the day's visitor token, which names the counter capping one
+ * address's views of one item for the day, so a client that makes up a device ID for every note can't add more
+ * than 20 views to an item a day. The address itself is never kept, logged or put in a key. With no address, notes
+ * share one bucket where addresses are expected (staging and production, where `visitorLimitsApply` is true) and
+ * are not capped elsewhere (previews, this Mac).
  */
-export type ViewFrom = { address: string | null; visitor?: string | null };
+export type ViewFrom = { address: string | null };
 
 /**
  * A page's view note: each item once a device a day (a file's note counts every note), at most 20 a day an
- * address for each item, and a note whose request ID was seen in the last hour dropped whole. Answers how many
- * items it counted. Views count by device and by visitor; the address never reaches Redis.
+ * address (an IPv6 /64 block) for each item, and a note whose request ID was seen in the last hour dropped whole.
+ * Answers how many items it counted. Views count by device and by visitor; the address never reaches Redis.
  *
  * The same request ID with the same note answers 0 (a retry); with another note it throws `NoteReused`.
  * Where Redis is down, late or not set up, it answers 0.
@@ -156,7 +160,12 @@ export async function countViews(note: social.ViewNote, from: ViewFrom): Promise
     items.push({ kind: item.kind, id });
   }
   const at = new Date();
-  const tokens = viewTokens(secretOf(), note.device, at, from.visitor ?? null);
+  const tokens = viewTokens(
+    secretOf(),
+    note.device,
+    at,
+    visitorKeyOf(from.address, visitorLimitsApply()),
+  );
   const call = noteCall(
     cache.prefix,
     { requestId: note.requestId, items },

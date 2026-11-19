@@ -82,7 +82,7 @@ describe('the view note', () => {
     const { call } = api();
     await expect(call.social.views(NOTE)).resolves.toEqual({ counted: 2 });
     expect(countViews).toHaveBeenCalledTimes(1);
-    expect(countViews).toHaveBeenCalledWith(NOTE, { address: null, visitor: 'visitor-one' });
+    expect(countViews).toHaveBeenCalledWith(NOTE, { address: null });
     expect(query).not.toHaveBeenCalled();
   });
 
@@ -104,15 +104,17 @@ describe('the view note', () => {
     expect(allowVisitor).toHaveBeenLastCalledWith('view-note', null, 'count');
   });
 
-  it('gives counting the visitor, for the cap per address, and never the address itself', async () => {
-    visitorOf.mockImplementation(() => 'visitor-two');
-    await api({ 'x-forwarded-for': '198.51.100.7' }).call.social.views(NOTE);
-    expect(countViews).toHaveBeenLastCalledWith(NOTE, { address: null, visitor: 'visitor-two' });
-    expect(JSON.stringify(countViews.mock.calls)).not.toContain('198.51.100.7');
-    // With no visitor (no address, or no secret) counting gets none, and so has no cap.
-    visitorOf.mockImplementation(() => null);
+  it('gives counting the caller’s address for the cap per address (as `ipAddress` reads it), and none when there is none', async () => {
+    await api({ 'x-real-ip': '203.0.113.7' }).call.social.views(NOTE);
+    expect(countViews).toHaveBeenLastCalledWith(NOTE, { address: '203.0.113.7' });
+    await api({ 'x-real-ip': '2001:db8:1:2:aaaa:bbbb:cccc:dddd' }).call.social.views(NOTE);
+    expect(countViews).toHaveBeenLastCalledWith(NOTE, {
+      address: '2001:db8:1:2:aaaa:bbbb:cccc:dddd',
+    });
     await api().call.social.views(NOTE);
-    expect(countViews).toHaveBeenLastCalledWith(NOTE, { address: null, visitor: null });
+    expect(countViews).toHaveBeenLastCalledWith(NOTE, { address: null });
+    // The limit stays R6's, by the visitor it makes of the address; nothing else of the address is passed on.
+    expect(allowVisitor).toHaveBeenLastCalledWith('view-note', 'visitor-one', 'count');
   });
 
   it('is 409 request_reused, in the words the API’s other writes use, when the ID was used for another note', async () => {

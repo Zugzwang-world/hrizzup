@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { visitorKeyOf } from '@hrizzup/social/address';
 import { socialRedis } from '@hrizzup/social/redis';
 import {
   agentUniqueKey,
@@ -340,6 +341,54 @@ describe.skipIf(!enabled)('the cap per address on a real Redis', () => {
     expect(capKey(item, VISITOR_A, tomorrow)).not.toBe(capKey(item, VISITOR_A));
     // Tomorrow's keys end a day later, by that day's own midnight plus 600 seconds.
     expect(await redis.ttl(capKey(item, VISITOR_A, tomorrow))).toBeGreaterThan(86_400 - 60);
+  });
+
+  it('counts 20 of 21 notes from different addresses of one IPv6 /64 on one post: rotating through a block gets nowhere', async () => {
+    const item = post();
+    const results: number[] = [];
+    for (let n = 1; n <= VISITOR_DAILY_CAP + 1; n++) {
+      const address = `2001:db8:1:2:${n.toString(16)}:${(n * 7).toString(16)}::${n.toString(16)}`;
+      results.push(
+        (await note([item], device(n), { visitor: visitorKeyOf(address, false) })).counted,
+      );
+    }
+    expect(results.filter((counted) => counted === 1)).toHaveLength(20);
+    expect(results[20]).toBe(0);
+    expect(await pendingOf(item)).toBe(20);
+    // The next /64 is another visitor, and an IPv4 address another again.
+    const next = visitorKeyOf('2001:db8:1:3::1', false);
+    expect((await note([item], device(100), { visitor: next })).counted).toBe(1);
+    expect(
+      (await note([item], device(101), { visitor: visitorKeyOf('203.0.113.7', false) })).counted,
+    ).toBe(1);
+    // The same address written as IPv4-mapped is the same IPv4 visitor.
+    expect(visitorKeyOf('::ffff:203.0.113.7', false)).toBe(visitorKeyOf('203.0.113.7', false));
+  });
+
+  it('caps notes with no address in one shared bucket where addresses are expected, and not elsewhere', async () => {
+    const item = post();
+    const shared = visitorKeyOf(null, true);
+    expect(shared).toBe('none');
+    const results: number[] = [];
+    for (let n = 1; n <= VISITOR_DAILY_CAP + 1; n++) {
+      results.push((await note([item], device(n), { visitor: shared })).counted);
+    }
+    expect(results.filter((counted) => counted === 1)).toHaveLength(20);
+    expect(results[20]).toBe(0);
+    // An address that can be told apart is not in that bucket.
+    expect(
+      (await note([item], device(200), { visitor: visitorKeyOf('203.0.113.9', true) })).counted,
+    ).toBe(1);
+    // Elsewhere (a preview, this Mac) a note with no address is not capped.
+    expect(visitorKeyOf(null, false)).toBeNull();
+    const open = post();
+    for (let n = 1; n <= VISITOR_DAILY_CAP + 3; n++) {
+      expect((await note([open], device(n), { visitor: visitorKeyOf(null, false) })).counted).toBe(
+        1,
+      );
+    }
+    // No key holds the literal bucket name.
+    for (const key of made) expect(key).not.toContain(':none');
   });
 
   it('does not cap a note with no visitor, and writes no counter for it', async () => {

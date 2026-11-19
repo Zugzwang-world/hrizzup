@@ -13,9 +13,10 @@ import { idOrThrow } from './uuid.ts';
  *   Redis: the day's set holds a *day token* (an HMAC of the device and the UTC day, which can't be linked
  *   to another day's), and an item's HyperLogLog (which keeps no members) takes a *device token*.
  * - **One address can't make up devices to add views:** a device ID is the client's own string, so each item
- *   also keeps, for each visitor and UTC day, a counter named by a *visitor day token* (an HMAC of R6's
- *   visitor, itself an HMAC of the address): at 20 the visitor's new devices count nothing more for that item
- *   that day. The same counter ends with the day's set.
+ *   also keeps, for each visitor and UTC day, a counter named by a *visitor day token* (an HMAC of the visitor
+ *   key, `address.ts`: the IPv4 address, or an IPv6 address's /64 block, or one shared `none` where an address
+ *   was expected): at 20 the visitor's new devices count nothing more for that item that day. The same counter
+ *   ends with the day's set, and no address is ever in a key.
  * - **Every key a script touches is passed in `KEYS`** (Upstash's rule), built by `socialRedis` or
  *   `redisKey`, so it starts with the environment and is written with its expiry in the same script.
  */
@@ -46,7 +47,8 @@ export type ViewTokens = {
   element: string;
   /**
    * The visitor's day token, which names the counter that caps one address's views of one item for the day;
-   * null with no visitor (no address, or no secret to tell visitors apart), and then there is no cap.
+   * null with no visitor key (`visitorKeyOf` in `address.ts`: a note with no address where none is expected), and
+   * then there is no cap.
    */
   visitor: string | null;
 };
@@ -190,7 +192,7 @@ function digestOf(secret: string | undefined, text: string): string {
  * `social-view-device\n<device>` (the HyperLogLog's element: the same across days, so a returning
  * device is one unique reader), and `visitor` is the HMAC of `social-view-visitor\n<yyyymmdd>\n<visitor>`, the
  * name of the counter that caps one address's views of one item for the day (null with no `visitor`: no cap).
- * `visitor` is R6's `visitorOf(headers)`, itself an HMAC of the address; it only goes into the hash.
+ * `visitor` is the visitor key of `address.ts` (a normalised address, or `none`); it only goes into the hash.
  */
 export function viewTokens(
   secret: string | undefined,

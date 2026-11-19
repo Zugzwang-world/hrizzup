@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID } from 'node:crypto';
-import { type BrowserContext, expect, type Page, type Response, test } from '@playwright/test';
+import { type BrowserContext, expect, test } from '@playwright/test';
 import { KEY_TEXT } from '../../lib/api/credential.ts';
 import { newRecordId } from '../../lib/record-id.ts';
 import { deviceIdOf, ENDPOINT, isDeviceId } from '../../lib/social/view-rules.ts';
@@ -8,6 +8,7 @@ import { call, callWith } from '../support/quiet-request.ts';
 import { newRunTrader, runKey } from '../support/run.ts';
 import { adminState, signedOutState } from '../support/states.ts';
 import { type Engine, stagingKeys } from '../support/test-accounts.ts';
+import { newDevice, openAndWaitForNote } from '../support/view-notes.ts';
 
 /**
  * Journey: views are counted, once a device a UTC day, and show on the post, the story and the agent (docs/social/
@@ -77,44 +78,12 @@ const WORDS = {
   p2: 'A second take on the signals journey’s story: counted over the API.',
 };
 
-/** Whether a response is the view note's answer. */
-const isNote = (response: Response) =>
-  new URL(response.url()).pathname === ENDPOINT && response.request().method() === 'POST';
-
 /** Waits out the minutes around 00:00 UTC, so no "once a day" step of the journey straddles two days. */
 async function awayFromMidnight(): Promise<void> {
   const now = new Date();
   const seconds = now.getUTCHours() * 3600 + now.getUTCMinutes() * 60 + now.getUTCSeconds();
   const wait = seconds >= 86_400 - 180 ? 86_400 + 120 - seconds : seconds < 120 ? 120 - seconds : 0;
   if (wait > 0) await new Promise((resolve) => setTimeout(resolve, (wait + 1) * 1_000));
-}
-
-type NoteBody = { requestId: string; device: string; items: { kind: string; id: string }[] };
-
-/**
- * Opens a page of the sandbox as a device and waits for the note its page sends: the note's body, its answer, and
- * whether any note went out before the page's `load` (none may).
- */
-async function openAndWaitForNote(page: Page, address: string) {
-  let loaded = false;
-  let beforeLoad = 0;
-  page.on('request', (request) => {
-    if (new URL(request.url()).pathname === ENDPOINT && request.method() === 'POST' && !loaded) {
-      beforeLoad += 1;
-    }
-  });
-  page.on('load', () => {
-    loaded = true;
-  });
-  const noted = page.waitForResponse(isNote, { timeout: 25_000 });
-  await page.goto(address);
-  const response = await noted;
-  return {
-    status: response.status(),
-    body: response.request().postDataJSON() as NoteBody,
-    answer: (await response.json()) as { counted: number },
-    beforeLoad,
-  };
 }
 
 test('views are counted once a device a day, applied by the counts door, and show on the post, the story and the agent', async ({
@@ -218,13 +187,15 @@ test('views are counted once a device a day, applied by the counts door, and sho
 
     // 2. D1 opens P1's thread page: its note goes out after `load`, never before, for the one post on the page.
     const threadAddress = `/sandbox/social/posts/${p1}`;
-    const d1 = await browser.newContext({
+    const d1 = await newDevice(browser, {
       ...(baseURL ? { baseURL } : {}),
       storageState: signedOutState(engine),
     });
     devices.push(d1);
-    const first = await openAndWaitForNote(await d1.newPage(), threadAddress);
+    const first = await openAndWaitForNote(d1, threadAddress);
+    await first.page.close();
     expect(first.status, "D1's note").toBe(200);
+    expect(first.answered, "D1's note, as the page saw its answer").toBe(200);
     expect(first.beforeLoad, 'no note went out before the page loaded').toBe(0);
     expect(first.body.items, "D1's note is about the post on the page").toEqual([
       { kind: 'post', id: p1 },
@@ -233,7 +204,8 @@ test('views are counted once a device a day, applied by the counts door, and sho
     expect(first.answer, 'the first view of the day counts').toEqual({ counted: 1 });
 
     // 3. D1 again: the same device, the same day: nothing counts (the device is kept by the browser).
-    const again = await openAndWaitForNote(await d1.newPage(), threadAddress);
+    const again = await openAndWaitForNote(d1, threadAddress);
+    await again.page.close();
     expect(again.body.device, 'the browser keeps its device').toBe(first.body.device);
     expect(again.body.requestId, 'each note has a request ID of its own').not.toBe(
       first.body.requestId,
@@ -241,12 +213,13 @@ test('views are counted once a device a day, applied by the counts door, and sho
     expect(again.answer, 'a device counts once a day').toEqual({ counted: 0 });
 
     // 4. D2, another device: it counts.
-    const d2 = await browser.newContext({
+    const d2 = await newDevice(browser, {
       ...(baseURL ? { baseURL } : {}),
       storageState: signedOutState(engine),
     });
     devices.push(d2);
-    const second = await openAndWaitForNote(await d2.newPage(), threadAddress);
+    const second = await openAndWaitForNote(d2, threadAddress);
+    await second.page.close();
     expect(second.body.device, 'another browser, another device').not.toBe(first.body.device);
     expect(second.answer, "a second device's view counts").toEqual({ counted: 1 });
 
