@@ -320,14 +320,30 @@ describe('the cap per address', () => {
     expect([tokens.member, tokens.element.slice(2)]).not.toContain(tokens.visitor);
   });
 
-  it('is plain SHA-256 of the same text with no secret, and none at all with no visitor', () => {
-    expect(viewTokens(undefined, DEVICE, NOON, VISITOR).visitor).toBe(
-      sha(`social-view-visitor\n20261119\n${VISITOR}`),
+  it('is never an unkeyed hash of an address: with no secret there is no token for it, only for the constant `none`', () => {
+    for (const none of [undefined, '']) {
+      // A day and an address with no key could be undone by trying every address.
+      expect(viewTokens(none, DEVICE, NOON, VISITOR).visitor, String(none)).toBeNull();
+      expect(viewTokens(none, DEVICE, NOON, '203.0.113.7').visitor).toBeNull();
+      expect(viewTokens(none, DEVICE, NOON, '2001:db8:1:2::/64').visitor).toBeNull();
+      // The shared bucket's token is made from the constant alone, so there is nothing in it to undo.
+      expect(viewTokens(none, DEVICE, NOON, 'none').visitor).toBe(
+        sha('social-view-visitor\n20261119\nnone'),
+      );
+    }
+    // With the secret, the shared bucket's token is keyed like the rest.
+    expect(viewTokens(SECRET, DEVICE, NOON, 'none').visitor).toBe(
+      hmac('social-view-visitor\n20261119\nnone'),
     );
+    // And a note with no visitor has none at all.
     for (const none of [null, '', undefined]) {
       expect(viewTokens(SECRET, DEVICE, NOON, none as never).visitor).toBeNull();
     }
     expect(viewTokens(SECRET, DEVICE, NOON).visitor).toBeNull();
+    // The device's own tokens keep their SHA-256 fallback: a device ID is 128 random bits.
+    expect(viewTokens(undefined, DEVICE, NOON).member).toBe(
+      sha(`social-view-day\n20261119\n${DEVICE}`),
+    );
   });
 
   it('gives each item a third key, the visitor’s counter for it, and the cap as an argument', () => {

@@ -99,9 +99,10 @@ test('views are counted once a device a day, applied by the counts door, and sho
     environment() === 'staging',
     'These are writes: a check run writes only through its own preview',
   );
-  // The set-up, a wait around midnight UTC (five minutes at most), three pages that each send their note ten
-  // seconds after the first view, and the door's busy retries (90 seconds).
-  test.setTimeout(480_000);
+  // The worst case, added up: the set-up (30 s), a wait around midnight UTC (301 s at most), three pages that each
+  // send their note about 12 s after their load (3 x 30 s with the page and its answer), the API steps (15 s), two door
+  // calls that may each wait 90 s on a busy lease, and the reads (30 s): about 640 s.
+  test.setTimeout(720_000);
   const keys = stagingKeys();
   if (!keys) throw new Error("Staging's Supabase keys are missing, so no account can sign in");
   const jobsSecret = process.env.SOCIAL_JOBS_SECRET;

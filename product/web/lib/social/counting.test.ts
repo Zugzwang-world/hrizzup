@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { social } from '@hrizzup/api';
 import { socialRedis } from '@hrizzup/social/redis';
 import {
@@ -234,6 +235,43 @@ describe('a view note', () => {
     }
     // The literal `none` is not in any key or argument: only its hash.
     expect(JSON.stringify((await capped(null, items)).ran)).not.toContain('none');
+  });
+
+  it('never makes a token from the address without the secret: the shared bucket where limits apply, no cap elsewhere', async () => {
+    const items = [{ kind: 'post' as const, id: POST }];
+    const address = '203.0.113.7';
+    vi.stubEnv('SOCIAL_JOBS_SECRET', '');
+    // Where addresses are expected (staging, production), a note is capped in the shared bucket, made from no address.
+    for (const target of ['staging', 'production']) {
+      vi.stubEnv('VERCEL', '1');
+      vi.stubEnv('VERCEL_TARGET_ENV', target);
+      const closed = await capped(address, items);
+      expect(closed.ran[0]?.keys, target).toHaveLength(5);
+      expect(closed.ran[0]?.args[7]).toBe('20');
+      const shared = viewTokens(undefined, DEVICE, NOW, 'none').visitor as string;
+      expect(closed.ran[0]?.keys[4]).toBe(
+        socialRedis.visitorCap.key('stg', '20261119', 'post', POST, shared),
+      );
+      // The same bucket for a note with no address, and none of the address in anything written.
+      expect((await capped(null, items)).ran[0]?.keys[4]).toBe(closed.ran[0]?.keys[4]);
+      const written = JSON.stringify(closed.ran);
+      expect(written).not.toContain(address);
+      for (const hash of [
+        createHash('sha256').update(`social-view-visitor\n20261119\n${address}`).digest('hex'),
+        createHash('sha256').update(address).digest('hex'),
+      ]) {
+        expect(written).not.toContain(hash.slice(0, 32));
+      }
+    }
+    // Elsewhere (this Mac, a preview) there is no cap at all, and no key holds anything made of the address.
+    for (const where of ['', 'preview']) {
+      vi.stubEnv('VERCEL', where ? '1' : '');
+      vi.stubEnv('VERCEL_TARGET_ENV', where);
+      const open = await capped(address, items);
+      expect(open.ran[0]?.keys, where).toHaveLength(4);
+      expect(open.ran[0]?.args[7]).toBe('0');
+      expect(JSON.stringify(open.ran)).not.toContain(address);
+    }
   });
 
   it('has no cap for a note with no address elsewhere (a preview, this Mac): the keys an item has always had, and a cap of 0', async () => {

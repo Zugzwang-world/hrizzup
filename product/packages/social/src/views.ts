@@ -1,5 +1,6 @@
 import { createHash, createHmac } from 'node:crypto';
 import { redisKey } from '@hrizzup/core';
+import { NO_ADDRESS } from './address.ts';
 import { socialRedis, type ViewKind } from './redis.ts';
 import { idOrThrow } from './uuid.ts';
 
@@ -192,7 +193,10 @@ function digestOf(secret: string | undefined, text: string): string {
  * `social-view-device\n<device>` (the HyperLogLog's element: the same across days, so a returning
  * device is one unique reader), and `visitor` is the HMAC of `social-view-visitor\n<yyyymmdd>\n<visitor>`, the
  * name of the counter that caps one address's views of one item for the day (null with no `visitor`: no cap).
- * `visitor` is the visitor key of `address.ts` (a normalised address, or `none`); it only goes into the hash.
+ * `visitor` is the visitor key of `address.ts` (a normalised address, or `none`); it only goes into the hash, and
+ * only a keyed one: with no `secret` there is no visitor token for an address (a hash of a day and an address
+ * with no key could be undone by trying every address), only for the constant `none`. The device's tokens may be
+ * plain SHA-256 with no secret: a device ID is 128 random bits.
  */
 export function viewTokens(
   secret: string | undefined,
@@ -204,7 +208,12 @@ export function viewTokens(
   return {
     member: digestOf(secret, `social-view-day\n${day}\n${device}`),
     element: `d:${digestOf(secret, `social-view-device\n${device}`)}`,
-    visitor: visitor ? digestOf(secret, `social-view-visitor\n${day}\n${visitor}`) : null,
+    // Never an unkeyed hash of an address: a day and an IPv4 address (or a /64) can be tried one by one. With no secret
+    // only the shared `none` bucket has a token, made from that constant and no address.
+    visitor:
+      visitor && (secret || visitor === NO_ADDRESS)
+        ? digestOf(secret, `social-view-visitor\n${day}\n${visitor}`)
+        : null,
   };
 }
 

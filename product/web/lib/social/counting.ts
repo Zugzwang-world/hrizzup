@@ -160,11 +160,13 @@ export async function countViews(note: social.ViewNote, from: ViewFrom): Promise
     items.push({ kind: item.kind, id });
   }
   const at = new Date();
+  const secret = secretOf();
+  // With no secret (this Mac only) the address is not used at all: no unkeyed hash of it is ever made.
   const tokens = viewTokens(
-    secretOf(),
+    secret,
     note.device,
     at,
-    visitorKeyOf(from.address, visitorLimitsApply()),
+    visitorKeyOf(secret ? from.address : null, visitorLimitsApply()),
   );
   const call = noteCall(
     cache.prefix,
