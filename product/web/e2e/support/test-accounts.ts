@@ -102,6 +102,9 @@ function ownRunAddress(email: string) {
   }
 }
 
+/** What Supabase's 422 for an account that already exists is called (`email_exists`; `user_already_exists` before it). */
+const EMAIL_EXISTS = new Set(['email_exists', 'user_already_exists']);
+
 /**
  * A new account of the run's; its signup gives it its starting balance. Marked as a test account
  * (what the website and the API then say it signed in with), unless it stands for a real reader:
@@ -109,12 +112,26 @@ function ownRunAddress(email: string) {
  * `password`, the account gets that password, which nobody can do through the website: only the
  * trial of a password sign-in uses it, with staging's server key. Returns its ID. Runs never
  * delete their accounts: the books keep their history.
+ *
+ * With `existingOk` (the test cast's `make`, which runs again after a crash), Supabase's 422 for an
+ * account that already exists counts as done and the answer is null, never an ID: nothing is
+ * changed on that account. Only the "email exists" refusal counts; any other failure still throws.
  */
 export async function createRunAccount(
   keys: Keys,
   email: string,
-  options: { password?: string; testAccount?: boolean } = {},
-): Promise<string> {
+  options?: { password?: string; testAccount?: boolean; existingOk?: false },
+): Promise<string>;
+export async function createRunAccount(
+  keys: Keys,
+  email: string,
+  options: { password?: string; testAccount?: boolean; existingOk: true },
+): Promise<string | null>;
+export async function createRunAccount(
+  keys: Keys,
+  email: string,
+  options: { password?: string; testAccount?: boolean; existingOk?: boolean } = {},
+): Promise<string | null> {
   ownRunAddress(email);
   const testAccount = options.testAccount ?? true;
   const { data, error } = await admin(keys).auth.admin.createUser({
@@ -125,6 +142,9 @@ export async function createRunAccount(
       : {}),
     ...(options.password ? { password: options.password } : {}),
   });
+  if (options.existingOk && error?.status === 422 && EMAIL_EXISTS.has(String(error.code))) {
+    return null;
+  }
   if (error || !data.user) throw new Error(`Couldn't create ${email} (${error?.status})`);
   return data.user.id;
 }
