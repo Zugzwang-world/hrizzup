@@ -341,15 +341,17 @@ function formatOf(item: string, formats: readonly (readonly string[])[]): number
  * - **add to Less of** is a remove from Formats, and is never added to Less of: a format a reader doesn't want is
  *   not lifted, and never hides a story (decision 15);
  * - **remove** from More of or Less of takes the format out of Formats as well, unless this answer adds that format
- *   (to More of or to Formats): then it only clears More of and Less of, so "remove it from More of, add it to
- *   Formats", the model's way to move an item, gives the same profile in either order;
+ *   (to More of or to Formats): then it only clears More of and Less of; and a **remove from Formats** of a format
+ *   this answer adds does nothing. So "remove it from one list, add it to the other", the model's way to move an
+ *   item, gives the same profile in either order;
  * - **a format word never stays under More of or Less of:** each of these, and an **add to Formats** of a format
  *   word (the one case where the model named Formats), also takes that format, in any spelling ("Meme" for "memes",
  *   by the word rule below), out of More of and Less of, so a profile that already holds "timelines" under More of
  *   has it moved, not duplicated. An add that is dropped (Formats full, an item the stored form refuses) moves
  *   nothing.
  * An add to Formats of a format already there under another spelling is a no-op (More of and Less of are still
- * cleared). A **remove from Formats**, and an item that isn't a format, are read as they are, and with no
+ * cleared). A **remove from Formats** (but for a format this answer adds), and an item that isn't a format, are
+ * read as they are, and with no
  * `formatNames` every operation is. What was rerouted is counted as any operation is: applied when it changed the
  * profile, dropped when the add didn't fit, a no-op otherwise.
  */
@@ -366,7 +368,8 @@ export function applyEdits(
   let dropped = 0;
   const read = edits.slice(0, MAX_EDITS);
   // The formats this answer adds (to More of or to Formats): a remove of one of them leaves Formats alone, so
-  // "remove it from More of, add it to Formats" gives the same profile in either order.
+  // "remove it from More of, add it to Formats" and "remove it from Formats, add it to More of" give the same
+  // profile in either order.
   const adding = new Set<number>();
   for (const edit of read) {
     if (isEdit(edit) && edit.op === 'add' && edit.list !== 'less') {
@@ -381,6 +384,10 @@ export function applyEdits(
     }
     const item = cleanItem(edit.item);
     const key = keyOf(item);
+    // A remove from Formats of a format this answer adds is the other half of a move to More of or Formats: nothing.
+    if (edit.list === 'formats' && edit.op === 'remove' && adding.has(formatOf(item, formats))) {
+      continue;
+    }
     // Which format the item is (-1: it isn't one). A remove from Formats is read as it is.
     const format = edit.list === 'formats' && edit.op === 'remove' ? -1 : formatOf(item, formats);
     if (format >= 0) {

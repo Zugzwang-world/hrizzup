@@ -291,6 +291,31 @@ describe('applyEdits, with the formats’ names: a format word always goes to Fo
         add('formats', 'timelines'),
       ]),
     ).toEqual(profileOf([], [], ['timelines']));
+    // The mirror: a move from Formats to More of. The remove of what the answer adds is nothing, in either order.
+    expect(
+      both(profileOf([], [], ['timelines']), [
+        remove('formats', 'timelines'),
+        add('more', 'timelines'),
+      ]),
+    ).toEqual(profileOf([], [], ['timelines']));
+    expect(
+      both(profileOf([], [], ['Timeline']), [
+        remove('formats', 'Timeline'),
+        add('more', 'timelines'),
+      ]),
+    ).toEqual(profileOf([], [], ['Timeline']));
+    expect(
+      both(profileOf([], [], ['timelines']), [
+        remove('formats', 'timelines'),
+        add('formats', 'timelines'),
+      ]),
+    ).toEqual(profileOf([], [], ['timelines']));
+    expect(
+      both(profileOf(['AI'], [], ['memes']), [
+        remove('formats', 'memes'),
+        add('more', 'timelines'),
+      ]),
+    ).toEqual(profileOf(['AI'], [], ['timelines']));
     // The remove alone, with no add of that format in the answer, still takes it out of all three.
     expect(
       both(profileOf(['timelines', 'AI'], [], ['timelines']), [

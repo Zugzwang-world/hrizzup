@@ -116,7 +116,7 @@ An answered call is always settled, never failed. That includes a 200 whose `res
   - an **add to Less of** whose item is a format is a remove from Formats, and is never added to Less of (a format a reader doesn't want is not lifted; it never hides a story, decision 15);
   - a **remove** from More of or Less of also removes the item from Formats, **unless the same answer adds that format** (to More of or to Formats): then it only clears More of and Less of, because the prompt tells the model to move an item by removing it from one list and adding it to the other, and the result must not depend on the order of the operations in one answer ("remove it from More of, add it to Formats" gives the same profile either way round, and again on a stale re-apply);
   - **a format word never stays under More of or Less of:** each of the three, and an **add to Formats** of a format word (the one case where the model named Formats), also takes that format, in any spelling, out of both, so a profile that already holds "timelines" under More of has it moved to Formats, not duplicated (an add that is dropped, as one to a full Formats list is, moves nothing);
-  - a **remove** from Formats, and any item that isn't a format, are as the model gave them; with no names (the candidates can't be read) nothing is rerouted or moved, and the send never fails for it.
+  - a **remove** from Formats is as the model gave it, but for a format the same answer adds, where it does nothing (the mirror of the rule above: "remove it from Formats, add it to More of" gives the same profile in either order), and so is any item that isn't a format; with no names (the candidates can't be read) nothing is rerouted or moved, and the send never fails for it.
 
 **12. JSON is asked for in the prompt only; JSON mode stays off.**
 - **Why:** Cloudflare's JSON mode list doesn't include `llama-3.2-3b-instruct`, and the model is a console setting. A `response_format` a model doesn't take could fail every call.
@@ -490,7 +490,7 @@ After the lines:
   - **add to `less`:** a remove of every item that is the same format from `formats`, `more` and `less`; never added to `less`. A format that isn't anywhere is a no-op, not dropped.
   - **remove from `more` or `less`:** the same remove, from all three lists, except that a format this answer adds (an add of it to `more` or `formats`, found before any operation is applied) is left in `formats`: the remove then only clears `more` and `less`. So the model's move, "remove it from `more`, add it to `formats`", gives the same profile in either order. (The counts can differ by order: an operation that finds nothing left to change isn't counted.)
   - Each is applied once if it changed the profile.
-  - A remove from `formats`, a non-format item, and any call with no names or an empty list are read exactly as above.
+  - A remove from `formats` is read as it is, but does nothing for a format the same answer adds; a non-format item, and any call with no names or an empty list, are read exactly as above.
 
 ### 3.5 Reading the model's answer (`readAnswer`, `cleanReply`)
 

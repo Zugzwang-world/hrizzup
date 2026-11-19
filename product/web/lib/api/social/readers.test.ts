@@ -649,7 +649,7 @@ describe('reader.chat.send', () => {
       });
     });
 
-    it('has the stand-in’s list of formats the same as the eight the database holds', () => {
+    it('has the stand-in’s list of formats the same as the eight in this file’s copy of the migration’s `social.formats`', () => {
       expect([...STUB_FORMATS].sort()).toEqual(
         Object.values(FORMATS)
           .map((name) => name.toLowerCase())
@@ -1316,6 +1316,52 @@ describe('reader.chat.send', () => {
         // The profile it moved to held "Timeline" in Formats already, and "timelines" under More of.
         expect(settledWith(1)).toMatchObject({
           profile: { base_number: 5, body: profileWith(['golf'], [], ['Timeline']) },
+        });
+      },
+    );
+
+    it.each([
+      ['remove, then add', 'remove-first'],
+      ['add, then remove', 'add-first'],
+    ])(
+      'moves an item from Formats to More of the same way in either order, stale re-apply included (%s)',
+      async (_name, order) => {
+        const moveDown = [
+          { op: 'remove', list: 'formats', item: 'timelines' },
+          { op: 'add', list: 'more', item: 'timelines' },
+        ];
+        fetcher.mockResolvedValueOnce(
+          cloudflare({
+            response: {
+              reply: 'Done: timelines.',
+              edits: order === 'remove-first' ? moveDown : [...moveDown].reverse(),
+            },
+          }),
+        );
+        keepFormats();
+        database({
+          // It holds the word in both lists, as a profile from before the rule may: the move clears More of only.
+          begin: reserved({
+            profile: { body: profileWith(['AI', 'timelines'], [], ['timelines']), number: 3 },
+          }),
+          settle: [
+            {
+              state: 'stale',
+              profile: {
+                body: profileWith(['golf', 'timelines'], [], ['Timeline', 'memes']),
+                number: 5,
+              },
+            },
+            { state: 'done', answer: answerRow() },
+          ],
+        });
+        await send().run();
+        // Formats keeps it (a format word is moved to Formats, never to More of), in either order.
+        expect(settledWith(0)).toMatchObject({
+          profile: { base_number: 3, body: profileWith(['AI'], [], ['timelines']) },
+        });
+        expect(settledWith(1)).toMatchObject({
+          profile: { base_number: 5, body: profileWith(['golf'], [], ['Timeline', 'memes']) },
         });
       },
     );
