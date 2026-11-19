@@ -1,0 +1,345 @@
+import type { social } from '@hrizzup/api';
+import { socialRedis } from '@hrizzup/social/redis';
+import {
+  fingerprintOf,
+  NOTE_SCRIPT,
+  noteCall,
+  TAKE_SCRIPT,
+  viewTokens,
+} from '@hrizzup/social/views';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { resetSocialCache } from './cache.ts';
+import { countFileRead, countViews, NoteReused, scriptsOf, within } from './counting.ts';
+
+/**
+ * Counting views and file reads (docs/social/r11-design.md, section 3.3): what a note sends to Redis, what it
+ * answers for each of the script's answers, that Redis never fails a page (down, late or throwing answers 0),
+ * and what a file read adds. Redis is stood in for by a client that records every script and command; the
+ * scripts themselves run on a real Redis in `views.redis.test.ts` (this Mac only).
+ */
+
+const POST = '01a1e7fc-c300-7a1b-9c2d-3e4f5a6b7c8d';
+const STORY = '01a1e7f8-1a00-7c3d-8e4f-5a6b7c8d9e0f';
+const FILE = '01a1e7fd-0000-7a1b-9c2d-3e4f5a6b7c8d';
+const AGENT = '01a1e3a0-ab00-7ef9-810c-37c5772f543f';
+const REQUEST = '01a1e7ff-0000-7a1b-9c2d-3e4f5a6b7c8d';
+// Made-up values, plainly not secrets: the secret check scans every branch for anything key-like.
+const SECRET = 'test-secret-for-the-counting-tests';
+const DEVICE = 'aaaaaaaaaaaaaaaaaaaaaa';
+const NOW = new Date('2026-11-19T12:00:00.000Z');
+
+type Command = [string, ...unknown[]];
+
+/** A Redis client's stand-in: every script made and run, and every command of a transaction, in order. */
+function standIn(answer: (keys: string[], args: string[]) => unknown = () => ['counted', 1]) {
+  const made: string[] = [];
+  const ran: { script: string; keys: string[]; args: string[] }[] = [];
+  const transactions: Command[][] = [];
+  const client = {
+    createScript: vi.fn((script: string) => {
+      made.push(script);
+      return {
+        exec: vi.fn(async (keys: string[], args: string[]) => {
+          ran.push({ script, keys, args });
+          return answer(keys, args);
+        }),
+      };
+    }),
+    multi: vi.fn(() => {
+      const commands: Command[] = [];
+      const record =
+        (name: string) =>
+        (...args: unknown[]) => {
+          commands.push([name, ...args]);
+          return pipeline;
+        };
+      const pipeline = {
+        hincrby: record('hincrby'),
+        expire: record('expire'),
+        pfadd: record('pfadd'),
+        exec: vi.fn(async () => {
+          transactions.push(commands);
+          return commands.map(() => 1);
+        }),
+      };
+      return pipeline;
+    }),
+  };
+  return { client, made, ran, transactions };
+}
+
+const note = (items: social.ViewNote['items'], requestId = REQUEST): social.ViewNote => ({
+  requestId,
+  device: DEVICE,
+  items,
+});
+
+function use(redis: ReturnType<typeof standIn>['client'] | null, prefix = 'stg') {
+  resetSocialCache(redis ? { redis: redis as never, prefix } : null);
+}
+
+beforeEach(() => {
+  vi.useFakeTimers({ now: NOW, toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+  vi.stubEnv('SOCIAL_JOBS_SECRET', SECRET);
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllEnvs();
+  vi.restoreAllMocks();
+  resetSocialCache();
+});
+
+describe('a view note', () => {
+  it('counts nothing where Redis is not set up', async () => {
+    use(null);
+    await expect(countViews(note([{ kind: 'post', id: POST }]), { address: null })).resolves.toBe(
+      0,
+    );
+  });
+
+  it('lower-cases every ID and keeps the first of each kind and ID', async () => {
+    const redis = standIn();
+    use(redis.client);
+    const counted = await countViews(
+      note([
+        { kind: 'post', id: POST.toUpperCase() },
+        { kind: 'story', id: STORY },
+        { kind: 'post', id: POST },
+        { kind: 'file', id: FILE },
+        { kind: 'file', id: FILE.toUpperCase() },
+        { kind: 'story', id: STORY.toUpperCase() },
+      ]),
+      { address: null },
+    );
+    expect(counted).toBe(1);
+    const fields = redis.ran[0]?.args.slice(7).filter((_, n) => n % 2 === 0);
+    expect(fields).toEqual([`post:${POST}`, `story:${STORY}`, `file:${FILE}`]);
+  });
+
+  it('runs one script with the keys, arguments and fingerprint the helpers build, the device in none of them', async () => {
+    const redis = standIn();
+    use(redis.client, 'dev:slot1');
+    const items = [
+      { kind: 'post' as const, id: POST },
+      { kind: 'file' as const, id: FILE },
+    ];
+    await countViews(note(items, REQUEST.toUpperCase()), { address: '198.51.100.7' });
+    expect(redis.made).toEqual([NOTE_SCRIPT, TAKE_SCRIPT]);
+    expect(redis.ran).toHaveLength(1);
+    const tokens = viewTokens(SECRET, DEVICE, NOW);
+    const expected = noteCall(
+      'dev:slot1',
+      { requestId: REQUEST, items },
+      tokens,
+      NOW,
+      fingerprintOf(tokens.element, items),
+    );
+    expect(redis.ran[0]).toEqual({ script: NOTE_SCRIPT, ...expected });
+    expect(redis.ran[0]?.keys[0]).toBe(socialRedis.note.key('dev:slot1', REQUEST));
+    // Neither the device nor the caller's address reaches Redis.
+    const everything = JSON.stringify(redis.ran);
+    expect(everything).not.toContain(DEVICE);
+    expect(everything).not.toContain('198.51.100.7');
+    expect(everything).not.toContain(SECRET);
+  });
+
+  it('keys its tokens with the trimmed secret, and with none on a Mac that has none', async () => {
+    const withSecret = standIn();
+    use(withSecret.client);
+    vi.stubEnv('SOCIAL_JOBS_SECRET', `  ${SECRET}\n`);
+    await countViews(note([{ kind: 'post', id: POST }]), { address: null });
+    expect(withSecret.ran[0]?.args[5]).toBe(viewTokens(SECRET, DEVICE, NOW).member);
+
+    const without = standIn();
+    use(without.client);
+    vi.stubEnv('SOCIAL_JOBS_SECRET', '');
+    await countViews(note([{ kind: 'post', id: POST }]), { address: null });
+    expect(without.ran[0]?.args[5]).toBe(viewTokens(undefined, DEVICE, NOW).member);
+    expect(without.ran[0]?.args[5]).not.toBe(withSecret.ran[0]?.args[5]);
+  });
+
+  it('answers what the script counted, 0 for a retry, and refuses a reused request ID', async () => {
+    const answers: unknown[] = [
+      ['counted', 2],
+      ['replay', 0],
+      ['reused', 0],
+      ['counted', '1'],
+    ];
+    const redis = standIn(() => answers.shift());
+    use(redis.client);
+    const send = () => countViews(note([{ kind: 'post', id: POST }]), { address: null });
+    await expect(send()).resolves.toBe(2);
+    await expect(send()).resolves.toBe(0);
+    await expect(send()).rejects.toBeInstanceOf(NoteReused);
+    await expect(send()).resolves.toBe(1);
+  });
+
+  it('makes each script once for a client, so its SHA-1 is worked out once', async () => {
+    const redis = standIn();
+    use(redis.client);
+    await countViews(note([{ kind: 'post', id: POST }]), { address: null });
+    await countViews(note([{ kind: 'story', id: STORY }], '01a1e7ff-0000-7a1b-9c2d-3e4f5a6b7c8e'), {
+      address: null,
+    });
+    expect(redis.client.createScript).toHaveBeenCalledTimes(2);
+    expect(scriptsOf(redis.client as never)).toBe(scriptsOf(redis.client as never));
+    expect(redis.client.createScript).toHaveBeenCalledTimes(2);
+    expect(scriptsOf(standIn().client as never)).not.toBe(scriptsOf(redis.client as never));
+  });
+
+  it('answers 0 for a client that throws, and logs only the error’s name and code', async () => {
+    const redis = standIn(() => {
+      throw Object.assign(new Error('a message that quotes the command: aaaaaaaaaaaaaaaaaaaaaa'), {
+        name: 'UpstashError',
+        code: 'ECONNRESET',
+      });
+    });
+    use(redis.client);
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    await expect(countViews(note([{ kind: 'post', id: POST }]), { address: null })).resolves.toBe(
+      0,
+    );
+    expect(log).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(log.mock.calls)).toContain('UpstashError');
+    expect(JSON.stringify(log.mock.calls)).toContain('ECONNRESET');
+    expect(JSON.stringify(log.mock.calls)).not.toContain(DEVICE);
+  });
+
+  it('answers 0 for an answer that is not the script’s', async () => {
+    const redis = standIn(() => 'OK');
+    use(redis.client);
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    await expect(countViews(note([{ kind: 'post', id: POST }]), { address: null })).resolves.toBe(
+      0,
+    );
+  });
+
+  it('answers 0 after 500 ms for a Redis that is slow, and never fails for what it answers later', async () => {
+    let settle: (value: unknown) => void = () => undefined;
+    const redis = standIn(() => new Promise((resolve) => (settle = resolve)));
+    use(redis.client);
+    const sent = countViews(note([{ kind: 'post', id: POST }]), { address: null });
+    let done = false;
+    void sent.then(() => {
+      done = true;
+    });
+    await vi.advanceTimersByTimeAsync(499);
+    expect(done).toBe(false);
+    await vi.advanceTimersByTimeAsync(2);
+    await expect(sent).resolves.toBe(0);
+    settle(['counted', 1]);
+    await vi.advanceTimersByTimeAsync(10);
+  });
+});
+
+describe('waiting for Redis', () => {
+  it('answers the work, or that the time ran out, and an error in time is thrown', async () => {
+    await expect(within(Promise.resolve(5), 500)).resolves.toEqual({ value: 5 });
+    const slow = new Promise<number>((resolve) => setTimeout(() => resolve(1), 900));
+    const waited = within(slow, 500);
+    await vi.advanceTimersByTimeAsync(500);
+    await expect(waited).resolves.toEqual({ late: true });
+    await vi.advanceTimersByTimeAsync(500);
+    await expect(within(Promise.reject(new Error('down')), 500)).rejects.toThrow('down');
+    // Work that fails after the wait is no unhandled rejection.
+    const failing = new Promise<number>((_, reject) =>
+      setTimeout(() => reject(new Error('late')), 900),
+    );
+    const gaveUp = within(failing, 500);
+    await vi.advanceTimersByTimeAsync(500);
+    await expect(gaveUp).resolves.toEqual({ late: true });
+    await vi.advanceTimersByTimeAsync(500);
+  });
+});
+
+describe('a file read', () => {
+  const pending = 'stg:count:social:v1';
+  const unique = `stg:uniq:v1:file:${FILE}`;
+
+  it('does nothing where Redis is not set up, or for an ID that is not a UUID', async () => {
+    use(null);
+    await expect(
+      countFileRead({ fileId: FILE, agentId: AGENT, address: null }),
+    ).resolves.toBeUndefined();
+    const redis = standIn();
+    use(redis.client);
+    await countFileRead({ fileId: 'not-an-id', agentId: AGENT, address: null });
+    await countFileRead({ fileId: FILE.toUpperCase(), agentId: AGENT, address: null });
+    expect(redis.client.multi).not.toHaveBeenCalled();
+  });
+
+  it('adds one read and, for a posting key’s read, the agent to the file’s HyperLogLog, in one transaction', async () => {
+    const redis = standIn();
+    use(redis.client);
+    await countFileRead({ fileId: FILE, agentId: AGENT, address: '198.51.100.7' });
+    expect(redis.transactions).toEqual([
+      [
+        ['hincrby', pending, `file:${FILE}`, 1],
+        ['expire', pending, 86_400],
+        ['pfadd', unique, `a:${AGENT}`],
+        ['expire', unique, 7_776_000],
+      ],
+    ]);
+  });
+
+  it('adds a hash of the address for a keyless read, never the address itself', async () => {
+    const redis = standIn();
+    use(redis.client);
+    await countFileRead({ fileId: FILE, agentId: null, address: '198.51.100.7' });
+    const commands = redis.transactions[0] ?? [];
+    expect(commands).toHaveLength(4);
+    const added = commands[2];
+    expect(added?.[0]).toBe('pfadd');
+    expect(String(added?.[2])).toMatch(/^i:[0-9a-f]{32}$/);
+    expect(JSON.stringify(commands)).not.toContain('198.51.100.7');
+  });
+
+  it('counts the read and nothing else for a reader it cannot name', async () => {
+    const redis = standIn();
+    use(redis.client);
+    await countFileRead({ fileId: FILE, agentId: null, address: null });
+    expect(redis.transactions).toEqual([
+      [
+        ['hincrby', pending, `file:${FILE}`, 1],
+        ['expire', pending, 86_400],
+      ],
+    ]);
+  });
+
+  it('never throws, and logs only the error’s name and code', async () => {
+    const redis = standIn();
+    redis.client.multi.mockImplementation(() => {
+      throw Object.assign(new Error('quotes 198.51.100.7'), { name: 'UpstashError', code: 'X' });
+    });
+    use(redis.client);
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    await expect(
+      countFileRead({ fileId: FILE, agentId: null, address: '198.51.100.7' }),
+    ).resolves.toBeUndefined();
+    expect(JSON.stringify(log.mock.calls)).not.toContain('198.51.100.7');
+  });
+
+  it('gives up on a slow Redis after 500 ms', async () => {
+    const redis = standIn();
+    redis.client.multi.mockImplementation(() => {
+      const pipeline = {
+        hincrby: () => pipeline,
+        expire: () => pipeline,
+        pfadd: () => pipeline,
+        exec: () => new Promise(() => undefined),
+      };
+      return pipeline as never;
+    });
+    use(redis.client);
+    let done = false;
+    const read = countFileRead({ fileId: FILE, agentId: AGENT, address: null }).then(() => {
+      done = true;
+    });
+    await vi.advanceTimersByTimeAsync(499);
+    expect(done).toBe(false);
+    await vi.advanceTimersByTimeAsync(2);
+    await read;
+    expect(done).toBe(true);
+  });
+});

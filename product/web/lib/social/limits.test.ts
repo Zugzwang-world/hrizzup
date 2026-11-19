@@ -95,6 +95,7 @@ describe('the limits', () => {
         count: 20,
         seconds: 60,
       },
+      'view-note': { purpose: 'social-views', policy: 'view-notes', count: 30, seconds: 60 },
     });
   });
 });

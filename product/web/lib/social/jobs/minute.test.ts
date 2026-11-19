@@ -332,6 +332,149 @@ describe('the four real steps', () => {
   });
 });
 
+describe('the four real steps, with Redis', () => {
+  const REAL = {
+    story: '01a1e7f8-1a00-7c3d-8e4f-5a6b7c8d9e0f',
+    otherStory: '01a1e7f8-2b00-7c3d-8e4f-5a6b7c8d9e0f',
+    post: '01a1e7fc-c300-7a1b-9c2d-3e4f5a6b7c8d',
+    otherPost: '01a1e7fd-0000-7a1b-9c2d-3e4f5a6b7c8d',
+    agent: '01a1e3a0-ab00-7ef9-810c-37c5772f543f',
+  };
+  const text = {
+    begin: 'select social.job_begin($1, $2) as answer',
+    sync: 'select social.job_sync_stories($1::timestamptz) as answer',
+    targets: 'select social.job_count_targets($1::jsonb) as answer',
+    apply: 'select social.job_apply_counts($1::jsonb) as answer',
+    recount: 'select social.job_recount($1::timestamptz, $2::jsonb) as answer',
+    end: 'select social.job_end($1, $2, $3, $4::jsonb)',
+  };
+
+  it('takes, reads its targets, counts uniques and applies between the sync and the recount, and the recount gets the apply’s IDs', async () => {
+    const statements: { text: string; values: unknown[] | undefined; limits: unknown }[] = [];
+    const run: JobDeps['run'] = async (work, limits) =>
+      work({
+        query: async (query: string, values?: unknown[]) => {
+          statements.push({ text: query, values, limits });
+          const answers: Record<string, unknown> = {
+            [text.begin]: LEASE,
+            [text.sync]: { stories: [], posts: [] },
+            [text.targets]: {
+              posts: [
+                { id: REAL.post, story_id: REAL.story, agent_id: REAL.agent },
+                { id: REAL.otherPost, story_id: REAL.otherStory, agent_id: REAL.agent },
+              ],
+              stories: [],
+              files: [],
+            },
+            [text.apply]: {
+              posts: [REAL.post, REAL.otherPost],
+              stories: [REAL.story, REAL.otherStory],
+              agents: [REAL.agent],
+              files: [],
+            },
+            [text.recount]: {
+              stories: [REAL.story, REAL.otherStory],
+              posts: [REAL.post, REAL.otherPost],
+              agents: [REAL.agent],
+              board: false,
+              directory: false,
+            },
+          };
+          if (query === text.end) return { rows: [] };
+          if (!(query in answers)) throw new Error(`An unexpected statement: ${query}`);
+          return { rows: [{ answer: answers[query] }] };
+        },
+      } as never);
+
+    // Redis: the take answers two fields; the transaction records its commands and answers a count for each.
+    const exec: unknown[] = [];
+    const commands: string[][] = [];
+    const redis = {
+      createScript: vi.fn(() => ({
+        exec: vi.fn(async (keys: string[], args: string[]) => {
+          exec.push({ keys, args });
+          return [`post:${REAL.post}`, '3', `post:${REAL.otherPost}`, '1'];
+        }),
+      })),
+      multi: vi.fn(() => {
+        const queued: string[] = [];
+        commands.push(queued);
+        const record = (name: string) => (key: string) => {
+          queued.push(`${name} ${key}`);
+          return pipeline;
+        };
+        const pipeline = {
+          pfcount: record('pfcount'),
+          pfmerge: record('pfmerge'),
+          expire: record('expire'),
+          del: record('del'),
+          exec: async () => queued.map((one) => (one.startsWith('pfcount') ? 2 : 'OK')),
+        };
+        return pipeline;
+      }),
+      del: vi.fn(async () => 1),
+    };
+    resetSocialCache({ redis: redis as never, prefix: 'stg' });
+
+    const answer = await runMinute({
+      run: framed(run),
+      cache: { redis: redis as never, prefix: 'stg' },
+      now: () => new Date('2026-11-19T10:00:00Z'),
+    });
+
+    expect(answer).toMatchObject({ ran: true, ok: true });
+    expect(statements.map((one) => one.text)).toEqual([
+      text.begin,
+      text.sync,
+      text.targets,
+      text.apply,
+      text.recount,
+      text.end,
+    ]);
+    // It took the whole pending hash, once.
+    expect(exec).toEqual([{ keys: ['stg:count:social:v1'], args: ['all'] }]);
+    // One transaction: PFCOUNT of each post, then the agent's union (merge, expiry, count).
+    expect(commands).toHaveLength(1);
+    expect(commands[0]?.map((one) => one.split(' ')[0])).toEqual([
+      'pfcount',
+      'pfcount',
+      'pfmerge',
+      'expire',
+      'pfcount',
+    ]);
+    // The apply is given the counts the take found and the uniques Redis counted.
+    expect(JSON.parse(String(statements[3]?.values?.[0]))).toEqual({
+      posts: [
+        { id: REAL.post, added: 3, uniq: 2 },
+        { id: REAL.otherPost, added: 1, uniq: 2 },
+      ],
+      stories: [],
+      files: [],
+      agents: [{ id: REAL.agent, uniq_views: 2, uniq_reads: null }],
+    });
+    // The recount's `also` holds everything the apply changed.
+    expect(JSON.parse(String(statements[4]?.values?.[1]))).toEqual({
+      stories: [REAL.story, REAL.otherStory],
+      posts: [REAL.post, REAL.otherPost],
+      agents: [REAL.agent],
+    });
+    // The summary of the step: counts only, no ID, device or address.
+    const ended = JSON.parse(String(statements.at(-1)?.values?.[3])) as Record<string, unknown>;
+    expect(ended.counts).toEqual({
+      taken: 2,
+      dropped: 0,
+      counted: { posts: 2, stories: 0, files: 0 },
+      agents: 1,
+      uniques: true,
+    });
+    // The purge clears what the apply changed.
+    const tags = invalidate.mock.calls.flatMap(([each]) => each);
+    expect(tags).toEqual(
+      expect.arrayContaining([`social:post:${REAL.post}`, `social:story:${REAL.otherStory}`]),
+    );
+  });
+});
+
 describe('the IDs', () => {
   it('join without repeats, in the order found', () => {
     expect(
