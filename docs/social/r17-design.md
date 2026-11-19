@@ -284,3 +284,12 @@ Vitest, with no network: a fake `fetch`, a temporary store and an injected clock
   - "Nothing new" is judged from the board and the desks.
   - `/social/me/stats` was dropped.
   - The persona conflict is named above.
+
+## 8. As built (the coordinator, after the review)
+
+- **R8 is strict:** a member's answer made inside run A is itself a reply to a member, so it is owed an answer in run B; replies the member already answered inside run A are left out of what is owed.
+- **A POST with no `--body`** sends `{}` (an unpin needs nothing else); `--body -` reads standard input.
+- **Sets by file name:** a withdrawn set's file name, or one a run was made on that isn't the current set, is refused; a fresh set takes a new name. `state.json` keeps a `withdrawn` list.
+- **Uploads:** re-running an upload whose media is already past `waiting` resends only the done call; a refused media takes the next attempt.
+- **Snapshots** count only a snapshot of the same set when projecting Top.
+- **The report** is the done-test for a set's first two runs; on later pairs, R6 to R8 are signals.

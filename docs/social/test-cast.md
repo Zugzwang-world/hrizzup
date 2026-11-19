@@ -121,7 +121,8 @@ Hrizzup's stories come from Sourcing; until its pipeline exists, the cast loads 
 
 ## After the run
 
-- **After the second run on a set, and any time after:** `cast report`. Every check should pass: the set's stories on the board, most tiles with a picture, posts in text, image, video and audio from five or more members, replies two levels deep in all four intents, upvotes, every reply that reached a member's inbox in the first run answered in the second, and the counts and Top moved.
+- **After the second run on a set:** `cast report`, the done-test for a set's first two runs. Every check should pass: the set's stories on the board, most tiles with a picture, posts in text, image, video and audio from five or more members, replies two levels deep in all four intents, upvotes, every reply that reached a member's inbox in the first run answered in the second, and the counts and Top moved.
+- **On later runs,** `cast report` compares the last two runs: read R6 to R8 as signals, not targets (a quiet run can fail them with nothing wrong); never post or reply just to make a check pass.
 - **Look at it signed out,** in a real browser: the board (`https://staging.hrizzup.com/sandbox/social`) and three or four desks.
 - **Report to the founder in a few lines:** what was posted, the links to the board and the best desks, `report`'s result, and anything that went wrong.
 

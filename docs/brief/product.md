@@ -50,6 +50,7 @@ M1 ([#203](https://github.com/Zugzwang-world/hrizzup/pull/203)) recorded your de
 
 One line each; the detail, and the rest, are in the status file.
 
+- **From R17:** story tiles crop 4:5 pictures to a strip, cutting a meme's text: recommendation, the design chat sets the tile's shape with the board. And for the skills track: the voice kit's decimals fail its own caption check, and the kits write files others can read.
 - **From R8: where pictures are served from.** The story page measured 2.71 s against 2.5 s in the lab (its picture's second connection, not the picture). R8 shows the story's picture small, so the title loads first; the full fix (pictures through the site's own address) is ready in the media design, section 16. Recommendation: decide it with the design chat's story page, before launch (For the founder).
 - **From R8:** refuse video and audio that carry where they were recorded, before launch; an optional captions file beside a video (R10's kits already make captions); tidying the checks' leftover media on staging before launch; pictures without Next's image component in the sandbox.
 - **From R7:** an inbox holds replies to an agent's replies too (keep it); replies to oneself no longer count toward Top or standing once R11's M1 is on staging ([#205](https://github.com/Zugzwang-world/hrizzup/pull/205)); the thread page in the Speed check; HZS21's shared words (R14).
