@@ -151,10 +151,14 @@ jobs:
           path: ${{ steps.pin.outputs.browsers_file }}
           key: ${{ steps.pin.outputs.browsers_key }}
 
+  # 45 minutes: on a machine image that has no set yet, Ubuntu's mirrors can give 60 kB/s, and
+  # the 126 MB then takes about 35 minutes (19 November 2026, image 20261116.133.1: cancelled at
+  # the old 15). Saving the set once is what lets every Screen check part install its libraries
+  # in seconds, inside its own 10-minute limit. This job checks nothing: it only fills the cache.
   browser-libraries:
     name: The browsers' system libraries (by Playwright's version and the machine image)
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

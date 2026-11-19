@@ -1272,6 +1272,12 @@ class EveryWorkflow(unittest.TestCase):
             self.assertIn("\n        timeout-minutes: 10\n", step)
         self.assertNotIn("libraries install", browsers[0], "one install, one limit")
 
+    def test_the_tool_cache_has_time_to_save_a_new_images_libraries(self):
+        # On a new machine image the set comes from Ubuntu's mirrors, which gave 60 kB/s on
+        # 19 November 2026: the 126 MB then takes about 35 minutes, so the job has 45.
+        header = read("tools.yml").split("\n  browser-libraries:\n", 1)[1].split("    steps:\n", 1)[0]
+        self.assertIn("\n    timeout-minutes: 45\n", header)
+
     def test_install_deps_is_only_ever_the_fallback_after_the_cached_libraries(self):
         fallbacks = dry_runs = 0
         for file in workflow_files():

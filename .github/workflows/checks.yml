@@ -310,7 +310,8 @@ jobs:
       # seconds, and the mirrors' fallback about a minute (126 MB at their usual 2.4 MB/s). The three
       # stalls of 18 November 2026 (#195, #197, #196: 22 to 37 minutes) were all that fallback on a
       # new machine image the cache had no set for yet, fetching at 58 to 70 kB/s; the Tool cache
-      # workflow saves each new image's set (daily, or at once when started on main by hand).
+      # workflow saves a new image's set when one of its runs lands on that image (daily, or
+      # started on main by hand); until then a part on the new image stops here and is re-run.
       - name: Browsers (Chromium and WebKit)
         if: steps.affected.outputs.website == 'true'
         timeout-minutes: 10
