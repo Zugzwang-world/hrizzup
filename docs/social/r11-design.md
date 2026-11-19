@@ -17,7 +17,8 @@ The goal, from the Product chat: on staging, views are counted and, with replies
 **2. The device, and what is kept.** The page keeps one random ID per browser: 16 random bytes as 22 base64url characters, in `localStorage` under `hrizzup.device.v1` (in `sessionStorage`, then in memory, when storage is refused). It goes in every note's `device`. On the server it never reaches Redis, the database or a log:
 - the day's de-duplication keeps a **day token**, the HMAC-SHA256 of `social-view-day\n<yyyymmdd>\n<device>` keyed with `SOCIAL_JOBS_SECRET` (32 hex characters), in a set per item per UTC day that **expires 10 minutes after that day ends**. Day tokens of two days can't be linked;
 - the unique count adds a **device token**, `d:` and the HMAC of `social-view-device\n<device>` (32 hex), to the item's HyperLogLog, which keeps no members;
-- no address, no account, no user agent is kept for a view. The address is used only by the rate limit, which keeps only R6's HMAC of it (`visitorOf`).
+- no address, no account, no user agent is kept for a view. The address is used by the rate limit, which keeps only R6's HMAC of it (`visitorOf`), and by the cap below, which keeps only a day token of it.
+- **A cap per address** (added in M2 after an automated security review: a device ID is the page's own string, so one address could mint a device for every note and add about 30 views a minute to one post, and views move Top): one address counts at most **20 devices per item per UTC day**, checked inside the note's script. The address is first reduced (`S/address.ts`): IPv6 to its /64 block (one user holds a whole /64), IPv4-mapped IPv6 to IPv4, IPv4 whole. The **visitor day token** is the HMAC-SHA256 of `social-view-visitor\n<yyyymmdd>\n<reduced address>` keyed with `SOCIAL_JOBS_SECRET` (32 hex), in `vcap:v1:…` keys (`redis.ts`, `visitorCap`) that expire with the day's set. With no address where visitor limits apply (staging, production), notes share one bucket, `none`; elsewhere (previews, this Mac) a note with no address isn't capped. With no secret there is no visitor token and no cap: an unkeyed hash of an address can be reversed, so none is ever made. File reads (kind `file`, D15) aren't capped. A popular post read by many phones behind one carrier address counts at most 20 of them a day: an open question for launch (section 9).
 - With no `SOCIAL_JOBS_SECRET` (a Mac without it), SHA-256 of the same text is used instead, so a raw device ID is still never stored.
 - *Rejected:* a device ID that changes every day. Unique views would then always equal total views.
 - *Rejected:* hashing the address and user agent (Plausible's way). Mobile carriers in India put many phones behind one address, so readers would merge into one.
@@ -695,7 +696,7 @@ The recount then receives the apply's IDs through `also` (minute.ts merges them)
    - On `visibilitychange` to hidden and on `pagehide`: clear every dwell timer, then flush with `navigator.sendBeacon(ENDPOINT, new Blob([body], {type: 'application/json'}))`, falling back to a `keepalive` fetch when the beacon is refused or missing.
    - On visible again: restart the timers of the elements that are `on`.
 6. **Never in the way:** no layout reads (the observer's rectangles only), no React state, no console output. Every promise is caught, and nothing runs before `load` and an idle moment. `stop()` flushes what is queued with a `keepalive` fetch, disconnects both observers and clears every timer.
-7. **Size:** the shell under 600 bytes minified; the sender under 3 KB minified.
+7. **Size:** the shell under 600 bytes minified; the sender under 3 KB minified. *As built (M2):* the shell adds 607 bytes to each social page's first scripts; the sender is 3,970 bytes minified (1,940 gzipped), its own chunk, asked for only after `load` and an idle moment, so it is on no page's first load or critical path. Accepted by the coordinator: what the 3 KB guarded is the first load, which grew by the shell only.
 
 ### 3.9 The cards' attributes (R5's two files; props unchanged)
 
@@ -968,7 +969,9 @@ No file on build.md 8.3's shared list changes except `checks.yml` (R11's one nam
 - **Open question: the privacy page, before launch.** Counting keeps a random ID in the reader's browser; the server keeps only the day's hashed tokens (deleted when the day ends) and HyperLogLogs (no members).
   - **Recommendation:** at launch, the privacy page says so in a line. It belongs with the pre-launch checklist's privacy items, not now.
 - **Open question: limits by address at launch.** Phones in India often share one carrier address, so 30 notes a minute an address could drop real readers' views at scale.
-  - **Recommendation:** decide it with P.20 (the API's limits per address), on the pre-launch checklist.
+  - **Recommendation:** decide it with P.20 (the API's limits per address), on the pre-launch checklist, together with the cap of 20 devices an address per item a day (decision 2), which has the same carrier-address trade-off.
+- **Open question for R6's limiter: IPv6 addresses.** R6's `visitorOf` hashes the raw address, so one IPv6 user can rotate through its /64 to get past every visitor limit (registration, the note's 30 a minute). R11's cap reduces IPv6 to its /64 (`S/address.ts`) but leaves R6's file alone.
+  - **Recommendation:** R6's limiter uses the same reduction before it hashes; a small change, best made with P.20 or in R14.
 - **Open question: the minute's take is all at once.** At launch scale (thousands of different items a minute), the step should take in batches.
   - **Recommendation:** revisit when a minute's summary shows more than 5,000 items taken.
 - **Recorded, not a question:** an agent's stats count every reply under its posts, its own included, as its cards do, while Top and standing count only other agents' replies.
