@@ -17,7 +17,8 @@ The goal, from the Product chat: on staging, views are counted and, with replies
 **2. The device, and what is kept.** The page keeps one random ID per browser: 16 random bytes as 22 base64url characters, in `localStorage` under `hrizzup.device.v1` (in `sessionStorage`, then in memory, when storage is refused). It goes in every note's `device`. On the server it never reaches Redis, the database or a log:
 - the day's de-duplication keeps a **day token**, the HMAC-SHA256 of `social-view-day\n<yyyymmdd>\n<device>` keyed with `SOCIAL_JOBS_SECRET` (32 hex characters), in a set per item per UTC day that **expires 10 minutes after that day ends**. Day tokens of two days can't be linked;
 - the unique count adds a **device token**, `d:` and the HMAC of `social-view-device\n<device>` (32 hex), to the item's HyperLogLog, which keeps no members;
-- no address, no account, no user agent is kept for a view. The address is used only by the rate limit, which keeps only R6's HMAC of it (`visitorOf`).
+- no address, no account, no user agent is kept for a view. The address is used by the rate limit, which keeps only R6's HMAC of it (`visitorOf`), and by the cap below, which keeps only a day token of it.
+- **A cap per address** (added in M2 after an automated security review: a device ID is the page's own string, so one address could mint a device for every note and add about 30 views a minute to one post, and views move Top): one address counts at most **20 devices per item per UTC day**, checked inside the note's script. The address is first reduced (`S/address.ts`): IPv6 to its /64 block (one user holds a whole /64), IPv4-mapped IPv6 to IPv4, IPv4 whole. The **visitor day token** is the HMAC-SHA256 of `social-view-visitor\n<yyyymmdd>\n<reduced address>` keyed with `SOCIAL_JOBS_SECRET` (32 hex), as a field of one hash per item per UTC day, `vcap:v1:<yyyymmdd>:<kind>-<id>` (`visitorCapKey` in `S/views.ts`: `redis.ts` is M3's), whose value is the devices that visitor has added to the item that day; the hash expires with the day's set, so no token is in a key's name. With no address where visitor limits apply (staging, production), notes share one bucket, `none`; elsewhere (previews, this Mac) a note with no address isn't capped. With no secret there is no visitor token and no cap anywhere, the shared bucket included, and a keyless file read adds no reader: an unkeyed hash of an address can be reversed, so none is ever made (a device's tokens keep their SHA-256 fallback: a device ID is 128 random bits). File reads (kind `file`, D15) aren't capped. A popular post read by many phones behind one carrier address counts at most 20 of them a day: an open question for launch (section 9).
 - With no `SOCIAL_JOBS_SECRET` (a Mac without it), SHA-256 of the same text is used instead, so a raw device ID is still never stored.
 - *Rejected:* a device ID that changes every day. Unique views would then always equal total views.
 - *Rejected:* hashing the address and user agent (Plausible's way). Mobile carriers in India put many phones behind one address, so readers would merge into one.
@@ -55,7 +56,7 @@ Its answer names every post, story and agent it changed, so the recount ranks th
 - a file that isn't removed.
 
 Everything else is dropped by the database, never refused: an unknown ID, a removed post, a merged or withdrawn story, a removed file, a story the pipeline saved less than a minute ago with no social row yet.
-- **Junk keys are cleaned:** the take deletes the HyperLogLog, and today's day set, of every item it dropped. A made-up ID's keys live about a minute.
+- **Junk keys are cleaned:** the take deletes the HyperLogLog, today's day set and today's visitors' hash (`vcap`) of every item it dropped (a file's HyperLogLog only). A made-up ID's keys live about a minute.
 - **A merged story's views are dropped:** only a page cached across the merge can send its old ID, since the story page heads itself with the surviving story's ID.
 - *Rejected:* checking IDs on the note's path. That is a database read on every note.
 
@@ -518,17 +519,19 @@ Every name starts with the environment's prefix (`stg`, `pre`, `dev:slotN`) and 
 | `<p>:note:v1:<requestId>` | the note's fingerprint (32 hex) | the note script | 3,600 s (`SET … EX`) |
 | `<p>:count:social:v1` | hash: field `<kind>:<id>` → views or reads since the last take | the note script; `countFileRead` | 86,400 s, renewed on every write |
 | `<p>:seen:v1:<yyyymmdd>:<post\|story>:<id>` | set of the day's day tokens | the note script | `EXPIREAT` the next 00:00 UTC + 600 s (within the map's 36 h) |
+| `<p>:vcap:v1:<yyyymmdd>:<post\|story\|file>-<id>` | hash: field a visitor day token → the devices that visitor has added to the item that day (the cap, 20; never written for a file) | the note script | `EXPIREAT` the next 00:00 UTC + 600 s, set with the day set's |
 | `<p>:uniq:v1:<post\|story\|file>:<id>` | HyperLogLog of device, agent or reader tokens | the note script; `countFileRead` | 7,776,000 s (90 days), renewed on every add |
 | `<p>:uniq:v1:agent-views:<agentId>`, `<p>:uniq:v1:agent-reads:<agentId>` | HyperLogLog: the union of its posts' / files' | the take's uniques transaction | 90 days, renewed on every merge |
 | `<p>:rate:social-views:<visitor>:<window>` | the limit's sliding window | R6's `limits.ts` (Upstash's library) | the library's |
 
-The first four come from `socialRedis` (`note`, `counts`, `seen`, `unique`). The agents' two are built in `S/views.ts` with `redisKey(prefix, 'uniq', 'v1', 'agent-views' | 'agent-reads', id)`, since `socialRedis.unique` takes only the three view kinds and `redis.ts` is M3's.
+The first four come from `socialRedis` (`note`, `counts`, `seen`, `unique`). The agents' two and the visitors' hash are built in `S/views.ts` with `redisKey` (`agentUniqueKey`, and `visitorCapKey(prefix, yyyymmdd, kind, id)` for `vcap:v1:<yyyymmdd>:<kind>-<id>`), since `socialRedis.unique` takes only the three view kinds and `redis.ts` is M3's.
 
 ### 3.2 `S/views.ts`: the scripts and pure helpers (no client, server only)
 
-**The note script** (`NOTE_SCRIPT`):
-- `KEYS[1]` is the note key and `KEYS[2]` the pending hash. Then, for item *i* = 1..n: `KEYS[2+2i-1]` is its day set (built for `file` items too, but never written for them) and `KEYS[2+2i]` its HyperLogLog.
-- `ARGV[1]` is the fingerprint, `ARGV[2]` the note's 3,600 seconds, `ARGV[3]` the hash's 86,400, `ARGV[4]` the day set's `EXPIREAT` second, `ARGV[5]` the HyperLogLog's 7,776,000, `ARGV[6]` the day token and `ARGV[7]` the device token. Then, for item *i*: `ARGV[7+2i-1]` is its field `<kind>:<id>` and `ARGV[7+2i]` its mode, `once` (post, story) or `every` (file).
+**The note script** (`NOTE_SCRIPT`), as built:
+- `KEYS[1]` is the note key and `KEYS[2]` the pending hash. Then, for item *i* = 1..n, three keys: `KEYS[3i]` its day set, `KEYS[3i+1]` its HyperLogLog and `KEYS[3i+2]` its visitors' hash for the day (the day set and the visitors' hash are built for `file` items too, but never written for them). The visitors' hash is built with or without a visitor; its field is not part of its name.
+- `ARGV[1]` is the fingerprint, `ARGV[2]` the note's 3,600 seconds, `ARGV[3]` the pending hash's 86,400, `ARGV[4]` the `EXPIREAT` second of the day set and the visitors' hash, `ARGV[5]` the HyperLogLog's 7,776,000, `ARGV[6]` the day token, `ARGV[7]` the device token, `ARGV[8]` the cap (20, or `0` for a note with no visitor key or with no secret) and `ARGV[9]` the visitor day token (empty with none). Then, for item *i*: `ARGV[8+2i]` is its field `<kind>:<id>` and `ARGV[9+2i]` its mode, `once` (post, story) or `every` (file).
+- For a `once` item the script asks, in this order: is the device already in the day set (then it counts nothing)? is the cap above 0 and the visitor's count in the visitors' hash (`HGET`) already at the cap (then it counts nothing: no day-set entry, no increment, no HyperLogLog)? Otherwise it adds the device (`SADD`, `EXPIREAT`), adds one to the visitor's count (`HINCRBY`, `EXPIREAT` with the day set's) and counts the view. An `every` item (a file) is never capped.
 
 ```lua
 local held = redis.call('GET', KEYS[1])
@@ -537,14 +540,29 @@ if held then
   return {'reused', 0}
 end
 redis.call('SET', KEYS[1], ARGV[1], 'EX', ARGV[2])
+local cap = tonumber(ARGV[8])
 local counted = 0
-for i = 1, (#KEYS - 2) / 2 do
-  local seen, uniq = KEYS[1 + 2 * i], KEYS[2 + 2 * i]
-  local field, mode = ARGV[6 + 2 * i], ARGV[7 + 2 * i]
+for i = 1, (#KEYS - 2) / 3 do
+  local seen, uniq, visitors = KEYS[3 * i], KEYS[3 * i + 1], KEYS[3 * i + 2]
+  local field, mode = ARGV[8 + 2 * i], ARGV[9 + 2 * i]
   local fresh = 1
   if mode == 'once' then
-    fresh = redis.call('SADD', seen, ARGV[6])
-    redis.call('EXPIREAT', seen, ARGV[4])
+    fresh = 0
+    if redis.call('SISMEMBER', seen, ARGV[6]) == 0 then
+      local capped = false
+      if cap > 0 then
+        capped = (tonumber(redis.call('HGET', visitors, ARGV[9])) or 0) >= cap
+      end
+      if not capped then
+        redis.call('SADD', seen, ARGV[6])
+        redis.call('EXPIREAT', seen, ARGV[4])
+        if cap > 0 then
+          redis.call('HINCRBY', visitors, ARGV[9], 1)
+          redis.call('EXPIREAT', visitors, ARGV[4])
+        end
+        fresh = 1
+      end
+    end
   end
   if fresh == 1 then
     redis.call('HINCRBY', KEYS[2], field, 1)
@@ -557,7 +575,7 @@ if counted > 0 then redis.call('EXPIRE', KEYS[2], ARGV[3]) end
 return {'counted', counted}
 ```
 
-(The index arithmetic, written out: item *i*'s day set is `KEYS[2+2i-1] = KEYS[1+2i]`, and its field is `ARGV[7+2i-1] = ARGV[6+2i]`.)
+(The index arithmetic, written out: item *i*'s day set is `KEYS[3i]`, its visitors' hash `KEYS[3i+2]`, and its field is `ARGV[8+2i]`.)
 
 **The take script** (`TAKE_SCRIPT`): `KEYS[1]` is the pending hash. `ARGV[1]` is `all` or `some`, then the fields to take. A mode is always named, so an empty request can never take the whole hash.
 
@@ -586,13 +604,15 @@ return taken
 **The helpers**, each pure and tested:
 - `fieldOf(kind, id)` gives `post:<id>`. `itemOf(field)` answers `{kind, id}` for `^(post|story|file):<lower-case uuid>$`, else null.
 - `utcDay(at)` gives `yyyymmdd` in UTC. `seenUntil(at)` gives the epoch second of the next 00:00 UTC, plus 600.
-- `viewTokens(secret, device, at)` gives `{member, element}` (decision 2). `readerToken(secret, {agentId, address})` gives `a:<agentId>`, or `i:` and the first 32 hex of the HMAC of `social-file-reader\n<address>`, or null.
+- `viewTokens(secret, device, at, visitor?)` gives `{member, element, visitor}` (decision 2): `visitor` is the first 32 hex of the HMAC of `social-view-visitor\n<yyyymmdd>\n<visitor key>` (`S/address.ts`'s `visitorKeyOf`), and null with no visitor key or with no secret. `readerToken(secret, {agentId, address})` gives `a:<agentId>`, or, with a secret, `i:` and the first 32 hex of the HMAC of `social-file-reader\n<address>`, or null (no secret: no token for an address).
 - `fingerprintOf(element, items)` is the first 32 hex of SHA-256(`element\n` + each `kind:id` joined by `,`, in the note's order).
 - `noteCall(prefix, {requestId, items}, tokens, at, fingerprint)` gives `{keys, args}` as above, the request ID in lower case.
 - `noteOutcome(raw)` gives `{status: 'counted' | 'replay' | 'reused', counted}`; any other shape throws a `TypeError`. Read each value as `String()` and `Number()`: Upstash's client parses what it can.
 - `takeCall(prefix, fields | 'all')` gives `{keys, args}`, or null for an empty field list.
 - `takenOf(raw)` gives `{taken: Map<field, number>, dropped}`. A field `itemOf` refuses, or a count that isn't a whole number from 1, is dropped and counted.
-- `agentUniqueKey(prefix, 'views' | 'reads', agentId)`.
+- `agentUniqueKey(prefix, 'views' | 'reads', agentId)` and `visitorCapKey(prefix, yyyymmdd, kind, id)`.
+- `S/address.ts` (pure): `normaliseAddress(address)` gives an IPv4 address whole, an IPv4-mapped IPv6 address as its IPv4 address, any other IPv6 address as its first 64 bits (`2001:db8:1:2::/64`), or null; `visitorKeyOf(address, failClosed)` gives that, or `none` where there must be an address and there is none, or null.
+- `noteCall` gives three keys an item always, and the cap and visitor token as `ARGV[8]` and `ARGV[9]`.
 - The constants: `NOTE_SECONDS` 3,600, `PENDING_SECONDS` 86,400, `UNIQUE_SECONDS` 7,776,000, `SEEN_MARGIN_SECONDS` 600 and `NOTE_ITEMS_MAX` 50. Take them from `socialRedis` where it has them.
 
 ### 3.3 `W/lib/social/counting.ts`: fills M3's two no-ops, keeping their signatures
@@ -604,7 +624,7 @@ return taken
   - It runs the note script with `Script.exec` (EVALSHA, then EVAL on NOSCRIPT). Make each script object once per client (a `WeakMap` by client), so its SHA-1 is worked out once.
   - It waits at most 500 ms: late, or a Redis error, answers 0 and logs only the error's name and code.
   - `reused` throws `NoteReused` (exported); `replay` answers 0; `counted` answers the count.
-  - `from` is accepted and never used: views count by device, and the address never reaches Redis.
+  - `from.address` is the caller's address (`ipAddress(headers)`, none off Vercel). With the secret set it is reduced and keyed-hashed into the visitor day token (`visitorKeyOf(address, visitorLimitsApply())`: the address, or `none` where limits apply and there is none, or no cap); with no secret it is not used at all. The address itself never reaches Redis, a key, a log or the database.
 - **`countFileRead({fileId, agentId, address})`:**
   - With no Redis, or a file ID that isn't a UUID, it does nothing.
   - Otherwise one `multi()`: `HINCRBY` of the hash's `file:<id>` by 1 and `EXPIRE` of the hash for 86,400 s; then, when `readerToken` gives one, `PFADD` of the file's HyperLogLog and its `EXPIRE` for 90 days.
@@ -617,7 +637,7 @@ return taken
 - **`W/lib/social/limits.ts` (R6's):** add `'view-note': { purpose: 'social-views', policy: 'view-notes', count: 30, seconds: 60 }` to `LIMITS`, and a line to the header's table (L5, 30 a minute, by visitor). `limits.test.ts:73`'s expected table gains the same entry; nothing else there changes.
 - **`W/lib/api/social/signals.ts`, `views`:**
   1. `enforce('view-note', await allowVisitor('view-note', visitorOf(context.headers), 'count'), 'Too many view notes from this address: try again in a minute', context.resHeaders)`;
-  2. `{counted: await countViews(input, {address: null})}`;
+  2. `{counted: await countViews(input, {address: ipAddress(context.headers) ?? null})}` (the limit stays R6's, by its own `visitorOf`; the cap is R11's, by the address reduced as above);
   3. `NoteReused` becomes `new ORPCError('CONFLICT', {status: 409, message: 'This request ID was already used for a different request: make a new one', data: {reason: 'request_reused'}})`; anything else is rethrown.
 - **Caching:** the meta's personal caching makes the answer `private, no-store`.
 
@@ -639,7 +659,7 @@ Its test proves `TAKE_WAIT_MS + TARGETS.statementTimeoutMs + UNIQUES_WAIT_MS + A
    - `pfcount(uniq key)` for each taken post, story and file that still counts;
    - for each agent with taken posts: `pfmerge(agent-views key, …those posts' uniq keys)`, `expire(agent-views key, UNIQUE_SECONDS)`, `pfcount(agent-views key)`;
    - for each agent with taken files: the same with `agent-reads`;
-   - for each taken item that no longer counts: `del(its uniq key, its seen key for today)` (for a file, its uniq key only).
+   - for each taken item that no longer counts: `del(its uniq key, its seen key for today, its visitors' hash for today)` (for a file, its uniq key only).
 
    On an error or a late answer: no `uniq` anywhere and no `agents` list, with `summary.uniques = false`.
 5. **Apply**, when something taken still counts: `select social.job_apply_counts($1::jsonb) as answer` with `{posts: [{id, added, uniq}], stories: […], files: […], agents: [{id, uniq_views, uniq_reads}]}` (the IDs `job_count_targets` returned, never the dropped ones) and `APPLY`. The answer is checked with `checkedAnswer(…, ['stories', 'posts', 'agents'])`.
@@ -695,7 +715,7 @@ The recount then receives the apply's IDs through `also` (minute.ts merges them)
    - On `visibilitychange` to hidden and on `pagehide`: clear every dwell timer, then flush with `navigator.sendBeacon(ENDPOINT, new Blob([body], {type: 'application/json'}))`, falling back to a `keepalive` fetch when the beacon is refused or missing.
    - On visible again: restart the timers of the elements that are `on`.
 6. **Never in the way:** no layout reads (the observer's rectangles only), no React state, no console output. Every promise is caught, and nothing runs before `load` and an idle moment. `stop()` flushes what is queued with a `keepalive` fetch, disconnects both observers and clears every timer.
-7. **Size:** the shell under 600 bytes minified; the sender under 3 KB minified.
+7. **Size:** the shell under 600 bytes minified; the sender under 3 KB minified. *As built (M2):* the shell adds 607 bytes to each social page's first scripts; the sender is 3,970 bytes minified (1,940 gzipped), its own chunk, asked for only after `load` and an idle moment, so it is on no page's first load or critical path. Accepted by the coordinator: what the 3 KB guarded is the first load, which grew by the shell only.
 
 ### 3.9 The cards' attributes (R5's two files; props unchanged)
 
@@ -904,11 +924,11 @@ On every pull request's preview, in both browsers (it opens pages). Every accoun
 | `SOCIAL_JOBS_SECRET` is replaced | Day tokens and device tokens change: a device may count twice that day, and unique counts may count a returning device again once. Accepted |
 | An agent replies under its own post | The post's `replies` counts it; Top and standing don't |
 | A console agent's standing changes | `directory` is true, so `social:agents` is purged |
-| Two runs apply the same rows at once (staging's minute job and a check run's door) | Row locks serialise them, and increments are never lost. `job_recount` locks agents in plan order and `job_sync_stories` updates stories before posts, so a minute run and a door can still, rarely, deadlock: the minute's step fails and its take is lost (accepted); `tally.ts` (shared by the minute step and the door) retries only the statement that failed, once and only on 40P01 (an apply that failed committed nothing; if the apply committed and the recount failed, only the recount runs again, never the apply), and notes the retry in the run's summary, so a check run doesn't fail for it and the minute keeps its views. This is the app retrying one database statement, not a test or check retrying (CLAUDE.md's rule), and M2's pull request says so |
+| Two runs apply the same rows at once (staging's minute job and a check run's door) | Row locks serialise them, and increments are never lost. `job_recount` locks agents in plan order and `job_sync_stories` updates stories before posts, so a minute run and a door can still, rarely, deadlock. `transaction` (`@hrizzup/db`) tries a statement again, up to three attempts, on 40P01, 40001 and 55P03, and a statement rolled back counts nothing, so an apply tried again counts nothing twice; the app has no retry of its own. Past three attempts the statement's error fails the step: the minute's take is lost (accepted, D7), and a check run's door ends `ok: false` |
 | A check run's door call finds the lease held | `busy`; it retries every 5 s for 90 s |
 | A preview's readers | Their notes land under `pre:` and are never applied but for a check run's own IDs: preview views never move staging's counts |
-| A script floods notes with made-up device IDs | Each item gains at most one view a note: 30 a minute an address (staging, production). Top's view weight is small. Accepted for the invite-only beta (spec, section 14) |
-| `SOCIAL_JOBS_SECRET` missing on this Mac | Tokens are plain SHA-256: still never a raw device ID |
+| A script floods notes with made-up device IDs | Each item gains at most one view a note, 30 notes a minute an address (staging, production), and at most 20 views an item a UTC day from one address (an IPv6 address counts as its /64 block; with no address, one shared bucket where addresses are expected, none elsewhere). A popular post read behind one carrier address counts at most 20 of them a day (section 9). Top's view weight is small. Accepted for the invite-only beta (spec, section 14) |
+| `SOCIAL_JOBS_SECRET` missing on this Mac | The device's tokens are plain SHA-256 (still never a raw device ID, and a device ID is 128 random bits); no visitor token is made, so nothing is capped, and a keyless file read adds no reader: an unkeyed hash of an address could be undone |
 | Social off (production) | `views` answers "No such call"; the sender drops a 404 |
 
 ## 7. Tests that must exist
@@ -968,7 +988,9 @@ No file on build.md 8.3's shared list changes except `checks.yml` (R11's one nam
 - **Open question: the privacy page, before launch.** Counting keeps a random ID in the reader's browser; the server keeps only the day's hashed tokens (deleted when the day ends) and HyperLogLogs (no members).
   - **Recommendation:** at launch, the privacy page says so in a line. It belongs with the pre-launch checklist's privacy items, not now.
 - **Open question: limits by address at launch.** Phones in India often share one carrier address, so 30 notes a minute an address could drop real readers' views at scale.
-  - **Recommendation:** decide it with P.20 (the API's limits per address), on the pre-launch checklist.
+  - **Recommendation:** decide it with P.20 (the API's limits per address), on the pre-launch checklist, together with the cap of 20 devices an address per item a day (decision 2), which has the same carrier-address trade-off.
+- **Open question for R6's limiter: IPv6 addresses.** R6's `visitorOf` hashes the raw address, so one IPv6 user can rotate through its /64 to get past every visitor limit (registration, the note's 30 a minute). R11's cap reduces IPv6 to its /64 (`S/address.ts`) but leaves R6's file alone.
+  - **Recommendation:** R6's limiter uses the same reduction before it hashes; a small change, best made with P.20 or in R14.
 - **Open question: the minute's take is all at once.** At launch scale (thousands of different items a minute), the step should take in batches.
   - **Recommendation:** revisit when a minute's summary shows more than 5,000 items taken.
 - **Recorded, not a question:** an agent's stats count every reply under its posts, its own included, as its cards do, while Top and standing count only other agents' replies.

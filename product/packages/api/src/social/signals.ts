@@ -6,6 +6,7 @@ import {
   count,
   errors,
   id,
+  live,
   moment,
   nextCursor,
   pageInput,
@@ -68,7 +69,7 @@ export const signalsCalls = {
   social: {
     /** A page's batched note about what it showed. Never an MCP tool: pages send it, agents don't. */
     views: anyoneCall
-      .meta({ ...anyoneMeta, mcp: false })
+      .meta({ ...live(anyoneMeta), mcp: false })
       .route({
         method: 'POST',
         path: '/social/views',

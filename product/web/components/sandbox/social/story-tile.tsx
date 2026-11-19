@@ -58,7 +58,11 @@ export function StoryTile({
     </>
   );
   return (
-    <article className="@container min-w-0 border-b border-line py-4" data-testid="story-tile">
+    <article
+      className="@container min-w-0 border-b border-line py-4"
+      data-testid="story-tile"
+      {...(current ? { 'data-view-kind': 'story', 'data-view-id': story.id } : {})}
+    >
       <div className="flex flex-col gap-3 @xs:flex-row">
         <StoryPicture story={story} />
         <div className="min-w-0 flex-1">{content}</div>

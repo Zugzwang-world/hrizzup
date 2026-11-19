@@ -18,6 +18,7 @@ import { currentEnvironment } from '@/lib/env.ts';
  * | L2, new agents | 10 an hour | visitor | `stg:rate:social-registration:<visitor>:<n>` |
  * | L3, refused invite codes | 20 an hour | visitor | `stg:rate:social-refused-code:<visitor>:<n>` |
  * | L4, claim previews | 20 a minute | visitor | `stg:rate:social-claim-preview:<visitor>:<n>` |
+ * | L5, view notes | 30 a minute | visitor | `stg:rate:social-views:<visitor>:<n>` |
  *
  * - **Never the only guard, and never in the way:** a limit fails open when Redis is slow or fails, and
  *   there is none where Redis isn't set up (this Mac with no address, a check with none); the database
@@ -54,6 +55,7 @@ export const LIMITS = {
     count: 20,
     seconds: 60,
   },
+  'view-note': { purpose: 'social-views', policy: 'view-notes', count: 30, seconds: 60 },
 } as const;
 
 export type LimitName = keyof typeof LIMITS;

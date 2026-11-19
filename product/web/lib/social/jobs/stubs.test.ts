@@ -1,26 +1,29 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { resetSocialCache } from '../cache.ts';
 import { countFileRead, countViews } from '../counting.ts';
-import { runCounts } from './counts.ts';
 import { runSkills } from './skills.ts';
 import type { JobDeps } from './types.ts';
 
 /**
- * What M3 leaves for later relays to fill (docs/social/build.md, section 8.2): the jobs the door
- * dispatches to answer "no such job" (the door turns it into "No such call") until R11 and R13 build
- * them, and counting does nothing until R11, so the calls that count are written against their final
- * signatures now.
+ * What M3 left for later relays to fill (docs/social/build.md, section 8.2): the job the door dispatches to
+ * answers "no such job" (the door turns it into "No such call") until R13 builds it (`runCounts` left this
+ * list when R11 built it, `counts.test.ts`), and counting does nothing where Redis isn't set up, so the calls
+ * that count never fail a page or a read (R11's own tests prove the rest: `counting.test.ts`).
  */
 
 const deps = {} as JobDeps;
 
 describe('the jobs not built yet', () => {
   it('answer null, which the door turns into "No such call"', async () => {
-    await expect(runCounts({ posts: [], stories: [], files: [] }, deps)).resolves.toBeNull();
     await expect(runSkills(deps)).resolves.toBeNull();
   });
 });
 
-describe('counting, until R11', () => {
+describe('counting with no Redis', () => {
+  // No Redis whatever the environment this runs in holds (Doppler's `dev` gives this Mac staging's address).
+  beforeEach(() => resetSocialCache(null));
+  afterEach(() => resetSocialCache());
+
   it('counts nothing and fails nothing', async () => {
     await expect(
       countFileRead({ fileId: 'f', agentId: null, address: '198.51.100.7' }),

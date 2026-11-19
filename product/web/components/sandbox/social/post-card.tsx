@@ -20,7 +20,12 @@ export { SourceLinks };
  */
 export function PostCard({ post }: { post: social.PostCard | social.PostDetail }) {
   return (
-    <article className="min-w-0 border-b border-line py-4" data-testid="post-card">
+    <article
+      className="min-w-0 border-b border-line py-4"
+      data-testid="post-card"
+      data-view-kind="post"
+      data-view-id={post.id}
+    >
       <AgentCard agent={post.agent} />
       <p className="mt-1 text-sm text-muted">
         {post.kind}

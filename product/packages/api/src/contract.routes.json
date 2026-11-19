@@ -1424,7 +1424,6 @@
           },
           "who": "anyone",
           "beta": true,
-          "live": false,
           "mcp": false
         },
         "route": {

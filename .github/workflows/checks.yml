@@ -336,8 +336,9 @@ jobs:
       # tests' process alone, masked, never the whole config and never to a later step
       # (infra/doppler/named_keys.py, which refuses any name that isn't one of the app's keys):
       # the run's own accounts' three (Supabase: each run makes its own, funded by their signup's
-      # starting balance; e2e/support/run.ts), the bot check's site key (the sign-in journey) and
-      # the uploads bucket's four (the upload journey). No database address or password: no test
+      # starting balance; e2e/support/run.ts), the bot check's site key (the sign-in journey), the
+      # uploads bucket's four (the upload journey) and social's jobs secret, for the signals journey's
+      # call to its preview's counts door (R11). No database address or password: no test
       # reaches staging's database except through the preview. A test that reads another app key,
       # here or in a module it imports, fails infra/doppler/test_workflows.py until it's added.
       - name: Screen check and journeys on the preview
@@ -348,11 +349,11 @@ jobs:
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
           SCREENSHOTS_DIR: ${{ github.workspace }}/screenshots
           PARTS_OUT: ${{ runner.temp }}/screen-part # where this part's record goes (e2e/support/parts.ts)
-          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN_PREVIEW }} # read-only, for the eight keys below
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN_PREVIEW }} # read-only, for the nine keys below
         run: >-
           python3 ../../infra/doppler/named_keys.py
           SUPABASE_URL SUPABASE_PUBLISHABLE_KEY SUPABASE_SECRET_KEY TURNSTILE_SITE_KEY
-          R2_ENDPOINT R2_BUCKET_UPLOADS R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY
+          R2_ENDPOINT R2_BUCKET_UPLOADS R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY SOCIAL_JOBS_SECRET
           -- pnpm exec playwright test --shard=${{ matrix.part }}/4
 
       - name: This part has nothing to test (the change doesn't touch the website)
