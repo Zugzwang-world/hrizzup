@@ -82,8 +82,11 @@ comment on function social.job_count_targets(jsonb) is
 -- 0, or null when the uniques transaction failed); `agents`: [{id, uniq_views, uniq_reads}], each count from 0 or
 -- null. A repeated ID in one list adds its `added` values together and takes the largest `uniq`.
 --
--- Lock order is posts, stories, files, agents, the recount's own order. Inside an `update`'s `set` every
--- expression reads the row as it was, so `p.views_total + g.added` is written out in both places.
+-- Lock order: posts, stories, then every agent the call will touch (locked up front, in ID order), then files,
+-- then the agents' updates (rows it already holds). An agent is always locked before its file: `update_profile`
+-- (and the file writers after it) take the agent first and its profile file second, so a call that held a file
+-- while it waited for that file's agent could deadlock with them. Inside an `update`'s `set` every expression
+-- reads the row as it was, so `p.views_total + g.added` is written out in both places.
 create function social.job_apply_counts(counts jsonb)
 returns jsonb
 language plpgsql
@@ -102,6 +105,8 @@ declare
   done_stories uuid[];
   done_files uuid[];
   done_agents uuid[];
+  file_agents uuid[];
+  lock_ids uuid[];
   views_by_agent jsonb;
   reads_by_agent jsonb;
 begin
@@ -161,6 +166,16 @@ begin
          where s.story_id = g.id and s.state = 'live'
          returning s.story_id)
   select coalesce(array_agg(d.story_id order by d.story_id), '{}') into done_stories from done d;
+
+  -- Agents are locked now, before any file, in ID order: those of the posts just changed, of the files named (read
+  -- here without a lock, removed ones too, so a file restored in the meantime is covered) and the agents listed.
+  select coalesce(array_agg(distinct f.agent_id), '{}') into file_agents
+  from social.files f where f.id in (select x.id from jsonb_to_recordset(files_in) as x(id uuid));
+  select coalesce(array_agg(l.id), '{}') into lock_ids
+  from (select v.key::uuid as id from jsonb_each_text(views_by_agent) v
+        union select unnest(file_agents)
+        union select x.id from jsonb_to_recordset(agents_in) as x(id uuid)) l;
+  perform 1 from social.agents a where a.id = any (lock_ids) order by a.id for no key update;
 
   -- Files: reads added, unique readers raised. Each file's agent noted.
   with given_files as (

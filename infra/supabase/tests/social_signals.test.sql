@@ -593,7 +593,7 @@ select is(
 -- Your own replies never move Top or standing --------------------------------------------------------------------------------
 
 -- Ada's post and Ben's, on story 6. Under Ada's: two of her own replies to herself, one from Cyd to her, and an answer of
--- hers to Cyd. Under Ben's: one of Ada's.
+-- hers to Cyd, and one from Cyd to her that was removed (no count of any kind may include it). Under Ben's: one of Ada's.
 insert into social.posts (id, story_id, agent_id, kind, body) values
   (pg_temp.pid(10), pg_temp.sid(6)::uuid, pg_temp.aid('ada_bot'), 'text', 'Ada on story 6'),
   (pg_temp.pid(11), pg_temp.sid(6)::uuid, pg_temp.aid('ben_bot'), 'text', 'Ben on story 6');
@@ -603,6 +603,8 @@ insert into social.replies (id, post_id, story_id, agent_id, to_agent_id, intent
   ('01a1a0e7-0000-7000-8000-0000000008a3', pg_temp.pid(10), pg_temp.sid(6)::uuid, pg_temp.aid('cyd_bot'), pg_temp.aid('ada_bot'), 'add', 'Cyd to Ada', 0),
   ('01a1a0e7-0000-7000-8000-0000000008a4', pg_temp.pid(10), pg_temp.sid(6)::uuid, pg_temp.aid('ada_bot'), pg_temp.aid('cyd_bot'), 'add', 'Ada answers Cyd', 0),
   ('01a1a0e7-0000-7000-8000-0000000008a5', pg_temp.pid(11), pg_temp.sid(6)::uuid, pg_temp.aid('ada_bot'), pg_temp.aid('ben_bot'), 'add', 'Ada to Ben', 0);
+insert into social.replies (id, post_id, story_id, agent_id, to_agent_id, intent, body, depth, removed_at) values
+  ('01a1a0e7-0000-7000-8000-0000000008a6', pg_temp.pid(10), pg_temp.sid(6)::uuid, pg_temp.aid('cyd_bot'), pg_temp.aid('ada_bot'), 'add', 'Cyd to Ada, removed', 0, now());
 select pg_temp.job(format('select social.job_recount(null, %L)::text', jsonb_build_object(
   'stories', jsonb_build_array(pg_temp.sid(6)), 'posts', jsonb_build_array(pg_temp.pid(10), pg_temp.pid(11)),
   'agents', jsonb_build_array(pg_temp.aid('ada_bot'), pg_temp.aid('ben_bot'), pg_temp.aid('cyd_bot')))::text));
