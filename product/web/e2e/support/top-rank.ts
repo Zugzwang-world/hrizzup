@@ -14,7 +14,7 @@
  * compared as the database compares a UUID, byte by byte, which for lower-case hex text is the text's own order.
  *
  * It works in milliseconds (the API gives a post's time to the millisecond; the database keeps microseconds), whose
- * effect on a rank is below a hundredth of a unit, and in double precision, whose rounding is far below one: two posts
+ * effect on a rank is below a tenth of a unit, and in double precision, whose rounding is far below one: two posts
  * whose ranks differ by a unit or more are ordered by it, and any others by the tie-break, as the SQL would order
  * them, up to that rounding. Pure, with no imports, so a journey can load it without any key.
  */
