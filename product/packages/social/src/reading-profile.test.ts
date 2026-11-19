@@ -316,6 +316,13 @@ describe('applyEdits, with the formats’ names: a format word always goes to Fo
         add('more', 'timelines'),
       ]),
     ).toEqual(profileOf(['AI'], [], ['timelines']));
+    // An add of a different format does not shield the remove: only the format the answer adds is kept.
+    expect(
+      both(profileOf(['memes'], [], ['memes']), [
+        remove('more', 'memes'),
+        add('formats', 'timelines'),
+      ]),
+    ).toEqual(profileOf([], [], ['timelines']));
     // The remove alone, with no add of that format in the answer, still takes it out of all three.
     expect(
       both(profileOf(['timelines', 'AI'], [], ['timelines']), [
