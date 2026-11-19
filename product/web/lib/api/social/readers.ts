@@ -22,6 +22,7 @@ import { cleanReply } from '@/lib/social/reader-ai/answer.ts';
 import { type Failure, READER_WORDS } from '@/lib/social/reader-ai/failures.ts';
 import { type ProviderAnswer, readerAi } from '@/lib/social/reader-ai/index.ts';
 import { buildPrompt, type HistoryMessage } from '@/lib/social/reader-ai/prompt.ts';
+import { STUB_FORMATS } from '@/lib/social/reader-ai/stub.ts';
 import { answerOf } from '@/lib/social/shape.ts';
 import { type StoryTileRow, storyTileOf } from '@/lib/social/stories.ts';
 import { api } from '../base.ts';
@@ -330,10 +331,14 @@ const needsFormatNames = (edit: unknown): boolean => {
  * The names of Hrizzup's formats ("Timeline", "Meme", "Audio brief"), which `applyEdits` needs to send a format
  * word to Formats whatever list the model named (decision 11). They come from the shared candidates' copy, the
  * one `reader.forYou` reads (a cold copy is loaded from the database the same way), and only when an operation
- * could touch a format word (any but a remove from Formats). **Never fails the send:** if the copy can't be had, the edits are applied as the
- * model gave them (`null`), and one line says so, with nothing in it.
+ * could touch a format word (any but a remove from Formats). **Never fails the send:** if the copy can't be had, one line says so, with nothing
+ * in it, and the edits are applied as the model gave them (`null`), or, when the stand-in answered, by its own list
+ * of the formats (`STUB_FORMATS`), which its reply was written with.
  */
-async function formatNamesFor(edits: readonly unknown[]): Promise<string[] | null> {
+async function formatNamesFor(
+  edits: readonly unknown[],
+  provider: ProviderAnswer['provider'],
+): Promise<string[] | null> {
   if (!edits.slice(0, MAX_EDITS).some(needsFormatNames)) return null;
   try {
     const { formats } = await sharedCandidates();
@@ -342,7 +347,8 @@ async function formatNamesFor(edits: readonly unknown[]): Promise<string[] | nul
     return Object.values(formats).filter((name): name is string => typeof name === 'string');
   } catch {
     console.error(JSON.stringify({ event: 'reader_format_names_failed' }));
-    return null;
+    // The stand-in's reply was written with its own list of the formats: use it, so the reply and the profile agree.
+    return provider === 'stub' ? [...STUB_FORMATS] : null;
   }
 }
 
@@ -362,7 +368,7 @@ async function settleWith(
 ): Promise<AnswerRow> {
   let profile: ReadingProfile = readProfile(begun.profile.body);
   let number = begun.profile.number;
-  const formatNames = await formatNamesFor(provided.edits);
+  const formatNames = await formatNamesFor(provided.edits, provided.provider);
   const options = formatNames === null ? {} : { formatNames };
   for (let reapplied = 0; ; reapplied++) {
     const giveUp = reapplied > MOST_REAPPLIED;

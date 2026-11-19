@@ -264,6 +264,57 @@ describe('applyEdits, with the formats’ names: a format word always goes to Fo
     );
   });
 
+  it('gives the same profile whichever order the model removes and adds the same format: a move is not undone', () => {
+    const both = (start: ReadingProfile, edits: unknown[]) => {
+      const forward = apply(start, edits).profile;
+      const backward = apply(start, [...edits].reverse()).profile;
+      expect(backward).toEqual(forward);
+      return forward;
+    };
+    // The prompt's way to move an item: remove it from one list, add it to the other.
+    expect(
+      both(profileOf(['AI', 'timelines']), [
+        remove('more', 'timelines'),
+        add('formats', 'timelines'),
+      ]),
+    ).toEqual(profileOf(['AI'], [], ['timelines']));
+    expect(
+      both(profileOf(['AI', 'timelines']), [remove('more', 'timelines'), add('more', 'timelines')]),
+    ).toEqual(profileOf(['AI'], [], ['timelines']));
+    // From Less of, and in another spelling; Formats already holding it keeps it.
+    expect(
+      both(profileOf([], ['memes'], ['Meme']), [remove('less', 'memes'), add('formats', 'Memes')]),
+    ).toEqual(profileOf([], [], ['Meme']));
+    expect(
+      both(profileOf(['timelines'], [], ['timelines']), [
+        remove('more', 'timelines'),
+        add('formats', 'timelines'),
+      ]),
+    ).toEqual(profileOf([], [], ['timelines']));
+    // The remove alone, with no add of that format in the answer, still takes it out of all three.
+    expect(
+      both(profileOf(['timelines', 'AI'], [], ['timelines']), [
+        remove('more', 'timelines'),
+        remove('more', 'AI'),
+      ]),
+    ).toEqual(profileOf());
+    // The profile is the same in either order; only the count differs, as a count of operations that changed
+    // something always does: the add that comes first has already moved the item, so the remove finds nothing.
+    const edits = [add('formats', 'timelines'), remove('more', 'timelines')];
+    expect(apply(profileOf(['timelines']), edits)).toMatchObject({ applied: 1, dropped: 0 });
+    expect(apply(profileOf(['timelines']), [...edits].reverse())).toMatchObject({
+      applied: 2,
+      dropped: 0,
+    });
+    // An add to Less of is not an add that keeps Formats: "no timelines" still takes it out.
+    expect(
+      apply(profileOf(['timelines'], [], ['timelines']), [
+        remove('more', 'timelines'),
+        add('less', 'timelines'),
+      ]).profile,
+    ).toEqual(profileOf());
+  });
+
   it('applies the edits as they come with no format names, or an empty list, as before', () => {
     const edits = [add('more', 'timelines'), add('less', 'memes'), remove('more', 'x')];
     const as = applyEdits(emptyProfile(), edits);
@@ -300,15 +351,20 @@ describe('applyEdits, with the formats’ names: a format word always goes to Fo
     expect(apply(emptyProfile(), [add('more', 'timelines')]).profile.formats).toEqual([
       'timelines',
     ]);
+    // 1,908 characters: one more 60-character item fits (1,971), two do not (2,034). More of has room for one.
     const near = profileOf(
-      Array.from({ length: 20 }, (_, i) => `${String(i).padStart(2, '0')}${'x'.repeat(30)}`),
+      Array.from({ length: 19 }, (_, i) => `${String(i).padStart(2, '0')}${'x'.repeat(30)}`),
       Array.from({ length: 20 }, (_, i) => `${String(i).padStart(2, '0')}${'y'.repeat(30)}`),
       Array.from({ length: 14 }, (_, i) => `${String(i).padStart(2, '0')}${'z'.repeat(30)}`),
     );
-    const names = ['a'.repeat(60)];
-    const done = applyEdits(near, [add('more', 'a'.repeat(60)), add('more', 'b'.repeat(60))], {
-      formatNames: names,
-    });
+    expect(writeProfile(near)).toHaveLength(1908);
+    const edits = [add('more', 'a'.repeat(60)), add('more', 'b'.repeat(60))];
+    // Without the names both go to More of: the first fits, the second finds More of full.
+    const plain = applyEdits(near, edits);
+    expect(plain.profile.more).toHaveLength(20);
+    expect(plain).toMatchObject({ applied: 1, dropped: 1 });
+    // With them both go to Formats, which has room: it is the whole profile's length that refuses them.
+    const done = applyEdits(near, edits, { formatNames: ['a'.repeat(60), 'b'.repeat(60)] });
     expect(done.profile).toEqual(near);
     expect(done).toMatchObject({ applied: 0, dropped: 2 });
   });

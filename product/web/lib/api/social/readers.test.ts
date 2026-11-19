@@ -94,6 +94,7 @@ const redis = {
 const { router } = await import('../router.ts');
 const { resetSocialCache } = await import('@/lib/social/cache.ts');
 const { secondsToDayEnd, stateSeconds } = await import('./readers.ts');
+const { STUB_FORMATS } = await import('@/lib/social/reader-ai/stub.ts');
 
 const ORIGIN = 'https://abc-preview.hrizzup.test';
 const READER = '019a7b10-0000-7000-8000-0000000000a1';
@@ -646,6 +647,31 @@ describe('reader.chat.send', () => {
         reply: "(Stand-in, Workers AI isn't set up here.) Removed from Formats: memes",
         profile: { base_number: 1, body: profileWith(['AI']) },
       });
+    });
+
+    it('has the stand-in’s list of formats the same as the eight the database holds', () => {
+      expect([...STUB_FORMATS].sort()).toEqual(
+        Object.values(FORMATS)
+          .map((name) => name.toLowerCase())
+          .sort(),
+      );
+    });
+
+    it('reads a format word by its own list when the candidates can not be read, so its reply and the saved profile agree', async () => {
+      database({
+        begin: reserved({ profile: { body: profileWith(['AI'], [], ['memes']), number: 1 } }),
+      });
+      const settle = answer;
+      answer = (statement) =>
+        statement.text.includes('foryou_candidates')
+          ? fault('57014', 'canceling statement due to statement timeout')
+          : settle(statement);
+      await api().call.reader.chat.send({ requestId: REQUEST, body: 'no memes' });
+      expect(settledWith()).toMatchObject({
+        reply: "(Stand-in, Workers AI isn't set up here.) Removed from Formats: memes",
+        profile: { base_number: 1, body: profileWith(['AI']) },
+      });
+      expect(console.error).toHaveBeenCalledWith('{"event":"reader_format_names_failed"}');
     });
 
     it('is the stand-in when only the token is missing, or only the account ID, or one is empty', async () => {
@@ -1253,6 +1279,46 @@ describe('reader.chat.send', () => {
       expect(events.filter((event) => event.includes(BOARD_TOP_COPY))).toEqual([]);
       expect(statementsOf('foryou_candidates')).toHaveLength(0);
     });
+
+    it.each([
+      ['remove, then add', 'remove-first'],
+      ['add, then remove', 'add-first'],
+    ])(
+      'moves an item the same way in either order, and again on a stale re-apply (%s)',
+      async (_name, order) => {
+        const moveUp = [
+          { op: 'remove', list: 'more', item: 'timelines' },
+          { op: 'add', list: 'formats', item: 'timelines' },
+        ];
+        fetcher.mockResolvedValueOnce(
+          cloudflare({
+            response: {
+              reply: 'Done: timelines are a format now.',
+              edits: order === 'remove-first' ? moveUp : [...moveUp].reverse(),
+            },
+          }),
+        );
+        keepFormats();
+        database({
+          begin: reserved({ profile: { body: profileWith(['AI', 'timelines']), number: 3 } }),
+          settle: [
+            {
+              state: 'stale',
+              profile: { body: profileWith(['golf', 'timelines'], [], ['Timeline']), number: 5 },
+            },
+            { state: 'done', answer: answerRow() },
+          ],
+        });
+        await send().run();
+        expect(settledWith(0)).toMatchObject({
+          profile: { base_number: 3, body: profileWith(['AI'], [], ['timelines']) },
+        });
+        // The profile it moved to held "Timeline" in Formats already, and "timelines" under More of.
+        expect(settledWith(1)).toMatchObject({
+          profile: { base_number: 5, body: profileWith(['golf'], [], ['Timeline']) },
+        });
+      },
+    );
 
     it('reads once and gives the same names to every re-apply after a stale settle', async () => {
       fetcher.mockResolvedValueOnce(cloudflare({ response: SLIPPED }));

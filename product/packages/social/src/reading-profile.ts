@@ -340,7 +340,9 @@ function formatOf(item: string, formats: readonly (readonly string[])[]): number
  * - **add to More of** is an add to Formats, the item as the reader wrote it;
  * - **add to Less of** is a remove from Formats, and is never added to Less of: a format a reader doesn't want is
  *   not lifted, and never hides a story (decision 15);
- * - **remove** from More of or Less of takes the format out of Formats as well;
+ * - **remove** from More of or Less of takes the format out of Formats as well, unless this answer adds that format
+ *   (to More of or to Formats): then it only clears More of and Less of, so "remove it from More of, add it to
+ *   Formats", the model's way to move an item, gives the same profile in either order;
  * - **a format word never stays under More of or Less of:** each of these, and an **add to Formats** of a format
  *   word (the one case where the model named Formats), also takes that format, in any spelling ("Meme" for "memes",
  *   by the word rule below), out of More of and Less of, so a profile that already holds "timelines" under More of
@@ -363,6 +365,15 @@ export function applyEdits(
   let applied = 0;
   let dropped = 0;
   const read = edits.slice(0, MAX_EDITS);
+  // The formats this answer adds (to More of or to Formats): a remove of one of them leaves Formats alone, so
+  // "remove it from More of, add it to Formats" gives the same profile in either order.
+  const adding = new Set<number>();
+  for (const edit of read) {
+    if (isEdit(edit) && edit.op === 'add' && edit.list !== 'less') {
+      const format = formatOf(cleanItem(edit.item), formats);
+      if (format >= 0) adding.add(format);
+    }
+  }
   for (const edit of read) {
     if (!isEdit(edit)) {
       dropped++;
@@ -380,7 +391,10 @@ export function applyEdits(
         // The reader doesn't want this format lifted: out of all three lists, and never added to Less of.
         let changed = takeOut(next.more, same);
         changed = takeOut(next.less, same) || changed;
-        changed = takeOut(next.formats, same) || changed;
+        // A remove of a format this answer adds leaves Formats alone (it is the "move" half of the model's move).
+        if (edit.op === 'add' || !adding.has(format)) {
+          changed = takeOut(next.formats, same) || changed;
+        }
         if (changed) applied++;
         continue;
       }

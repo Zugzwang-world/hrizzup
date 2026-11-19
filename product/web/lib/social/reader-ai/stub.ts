@@ -30,7 +30,8 @@ import {
 /** What every stub reply begins with. */
 export const STUB_LABEL = "(Stand-in, Workers AI isn't set up here.)";
 
-const FORMATS = [
+/** The formats the stand-in names, the same eight Hrizzup has (`social.formats`): also what the handler reads a format word by when the stand-in answered and the database's names can't be read. */
+export const STUB_FORMATS = [
   'timeline',
   'meme',
   'explainer',
@@ -80,7 +81,7 @@ export function stubEdits(message: string): ProfileEdit[] {
       continue;
     }
     const lower = clause.toLowerCase();
-    const named = FORMATS.filter((format) => new RegExp(`\\b${format}s?\\b`, 'u').test(lower));
+    const named = STUB_FORMATS.filter((format) => new RegExp(`\\b${format}s?\\b`, 'u').test(lower));
     if (named.length > 0) {
       for (const format of named) add('formats', `${format}s`);
       continue;
@@ -131,7 +132,7 @@ export function stubAnswer(
   // the reply tells what that did to the profile, never what the stand-in's edits said.
   const changes = changesBetween(
     profile,
-    applyEdits(profile, edits, { formatNames: FORMATS }).profile,
+    applyEdits(profile, edits, { formatNames: STUB_FORMATS }).profile,
   );
   const reply =
     changes.length > 0
