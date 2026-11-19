@@ -102,10 +102,36 @@ describe('main()', () => {
     expect(err()).toContain(text);
   });
 
-  it('says the snapshot and the report come in the second pass', async () => {
-    expect(await run('snapshot', 'after-run-1')).toBe(2);
-    expect(await run('report')).toBe(2);
-    expect(err()).toContain('second pass');
+  it("checks a snapshot's and a report's arguments before it builds anything", async () => {
+    let built = 0;
+    const makeCtx = () => {
+      built++;
+      return h.ctx;
+    };
+    for (const argv of [
+      ['snapshot'],
+      ['snapshot', 'after-run-1', 'after-run-2'],
+      ['snapshot', 'after-run-1', '--nope'],
+      ['report', 'now'],
+      ['report', '--nope'],
+    ]) {
+      expect(await main(argv, h.io, makeCtx), argv.join(' ')).toBe(2);
+    }
+    expect(built).toBe(0);
+    expect(err()).toContain('Use `snapshot after-run-<n> [--wait]`');
+    expect(err()).toContain('Use `report [--runs <a>,<b>]`');
+  });
+
+  it('passes --wait to the snapshot and --runs to the report', async () => {
+    // Nothing is set up, so each is refused by its own command, which means the arguments were read.
+    expect(await run('snapshot', 'after-run-1', '--wait')).toBe(2);
+    expect(err()).toContain('Run 1 has not been started');
+    h.writes.length = 0;
+    expect(await run('report', '--runs', '1,2')).toBe(2);
+    expect(err()).toContain('Run 1 has not been started');
+    h.writes.length = 0;
+    expect(await run('report', '--runs', 'x')).toBe(2);
+    expect(err()).toContain('two run numbers');
   });
 
   it('checks the arguments before it builds anything', async () => {

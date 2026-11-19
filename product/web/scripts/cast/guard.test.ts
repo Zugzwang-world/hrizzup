@@ -12,6 +12,7 @@ import {
   checkEnvironment,
   cleanPath,
   readyMessageParts,
+  rootUrl,
   skillUrl,
 } from './guard.ts';
 import { fakeCode, fakeUploadUrl, harness, json } from './harness.ts';
@@ -31,6 +32,32 @@ const refused = (work: () => unknown) => {
 };
 
 describe('addresses', () => {
+  it('reads two addresses outside the API, and no other: the skill file and the health page', () => {
+    expect(rootUrl('/api/health')).toBe(`${STAGING_ORIGIN}/api/health`);
+    expect(rootUrl('/skill.md')).toBe(skillUrl());
+    expect(assertStagingUrl(`${STAGING_ORIGIN}/api/health`).pathname).toBe('/api/health');
+    for (const path of [
+      '/api/healthz',
+      '/api/health/x',
+      '/api',
+      '/',
+      '/docs',
+      '/api/v1',
+      '/api/jobs/social',
+      '/skill.md/x',
+    ]) {
+      refused(() => rootUrl(path));
+    }
+    for (const address of [
+      `${STAGING_ORIGIN}/api/healthz`,
+      `${STAGING_ORIGIN}/api/health/x`,
+      'https://hrizzup.com/api/health',
+      'http://staging.hrizzup.com/api/health',
+    ]) {
+      refused(() => assertStagingUrl(address));
+    }
+  });
+
   it("builds only staging's API addresses", () => {
     expect(API_BASE).toBe(`${STAGING_ORIGIN}/api/v1`);
     expect(apiUrl('/social/me')).toBe(`${STAGING_ORIGIN}/api/v1/social/me`);

@@ -580,6 +580,77 @@ export class FakeStories {
   }
 }
 
+/** One story's tile on the fake board. */
+export type FakeTile = {
+  id: string;
+  title?: string;
+  counts?: Record<string, number>;
+  picture?: { url: string } | null;
+};
+
+/**
+ * The board, the desks and the health page, as the API answers them (the board's answer on staging on 19
+ * November 2026: `{stories: [{id, title, categories, picture, counts}], next}`; a desk is `{posts, next}`).
+ * The board's Top is `top`'s order, its Latest `latest`'s; a test moves the counts between reads with `onTopRead`.
+ */
+export class FakeBoard {
+  top: FakeTile[] = [];
+  latest: FakeTile[] = [];
+  desks = new Map<string, Array<Record<string, unknown>>>();
+  /** How many stories a page of the board holds (a cursor is the offset). */
+  pageSize = 100;
+  topReads = 0;
+  latestReads = 0;
+  /** Called after each Top read starts, with how many there have been, before it answers. */
+  onTopRead: ((reads: number) => void) | null = null;
+  /** What the health page answers, or null for no answer at all. */
+  health: { status: number; body: unknown } | null = { status: 200, body: { commit: 'abc1234' } };
+
+  constructor(server: FakeServer) {
+    server.on('GET', '/api/v1/social/board', (req) => {
+      const sort = req.query.get('sort') ?? 'top';
+      if (sort === 'top') {
+        this.topReads++;
+        this.onTopRead?.(this.topReads);
+      } else {
+        this.latestReads++;
+      }
+      const all = sort === 'top' ? this.top : this.latest;
+      const from = Number(req.query.get('cursor') ?? 0);
+      const page = all.slice(from, from + this.pageSize);
+      return json(200, {
+        stories: page.map((tile) => ({
+          id: tile.id,
+          title: tile.title ?? 'A story',
+          categories: ['general'],
+          picture: tile.picture ?? null,
+          counts: {
+            posts: 0,
+            replies: 0,
+            upvotes: 0,
+            views: 0,
+            uniqueViews: 0,
+            pins: 0,
+            ...tile.counts,
+          },
+        })),
+        next: from + this.pageSize < all.length ? String(from + this.pageSize) : null,
+      });
+    });
+    server.on('GET', /^\/api\/v1\/social\/stories\/([0-9a-f-]{36})\/posts$/, (req, match) =>
+      json(200, {
+        posts: this.desks.get(match[1] ?? '') ?? [],
+        next: null,
+        sort: req.query.get('sort'),
+      }),
+    );
+    server.on('GET', '/api/health', () => {
+      if (!this.health) throw new TypeError('fetch failed');
+      return json(this.health.status, this.health.body);
+    });
+  }
+}
+
 // ---------------------------------------------------------------------------------------------
 // The whole harness
 // ---------------------------------------------------------------------------------------------
@@ -591,6 +662,7 @@ export type Harness = {
   server: FakeServer;
   social: FakeSocial;
   stories: FakeStories;
+  board: FakeBoard;
   /** What was printed, in order, both streams. */
   writes: Array<{ stream: 'out' | 'err'; text: string }>;
   io: Output;
@@ -610,6 +682,7 @@ export function harness(options: { env?: Record<string, string | undefined> } = 
   const server = new FakeServer();
   const social = new FakeSocial(server, () => new Date(clock.now()).toISOString());
   const stories = new FakeStories(server, social);
+  const board = new FakeBoard(server);
   const writes: Harness['writes'] = [];
   const io = makeOutput((stream, text) => writes.push({ stream, text }));
   const accounts: string[] = [];
@@ -637,6 +710,7 @@ export function harness(options: { env?: Record<string, string | undefined> } = 
     server,
     social,
     stories,
+    board,
     writes,
     io,
     accounts,

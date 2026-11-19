@@ -1,6 +1,6 @@
 import type { Ctx } from './context.ts';
 import { apiRefused, limited, noAnswer, refuse } from './errors.ts';
-import { apiUrl, skillUrl } from './guard.ts';
+import { apiUrl, rootUrl } from './guard.ts';
 import { requestIdFor } from './ids.ts';
 import { pace } from './pace.ts';
 import { DROPPED, learn } from './redact.ts';
@@ -13,7 +13,7 @@ import { DROPPED, learn } from './redact.ts';
 
 export type Call = {
   method: 'GET' | 'POST';
-  /** Under `/api/v1`; with `root`, the skill file's own path. */
+  /** Under `/api/v1`; with `root`, the skill file's or the health page's own path. */
   path: string;
   query?: Record<string, string>;
   /** A posting key, sent as `Authorization: Bearer`. Public reads send none. */
@@ -24,6 +24,8 @@ export type Call = {
   /** What the request ID is made from. None: the call takes no request ID (a preview, a revocation, a story's save). */
   id?: { subject: string; run: number; fileSha256?: string; attempt: number };
   root?: boolean;
+  /** Ask once: a read that is only a nicety (the health page) takes whatever answer comes, and is never sent again. */
+  once?: boolean;
 };
 
 export type Answer = {
@@ -88,10 +90,10 @@ export const reasonOf = (body: Record<string, unknown>): string | undefined => {
 
 /** Sends one request (resending it as rule 6 says) and answers whatever staging answered once the retries are done. */
 export async function sendRaw(ctx: Ctx, call: Call): Promise<Answer> {
-  const url = call.root ? skillUrl() : apiUrl(call.path, call.query);
+  const url = call.root ? rootUrl(call.path) : apiUrl(call.path, call.query);
   const label = `${call.method} ${call.root ? call.path : templateOf(call.path)}`;
   const headers: Record<string, string> = {
-    accept: call.root ? 'text/markdown, */*' : 'application/json',
+    accept: call.root && call.path === '/skill.md' ? 'text/markdown, */*' : 'application/json',
   };
   const secretToken = call.key ?? call.bearer;
   if (call.key !== undefined && call.bearer !== undefined) {
@@ -142,7 +144,7 @@ export async function sendRaw(ctx: Ctx, call: Call): Promise<Answer> {
       );
       if (/redirect/i.test(cause)) throw refuse(`${label} was redirected: refused`);
       const waited = WAITS_MS[silent];
-      if (waited === undefined) throw noAnswer(`${label} got no answer`);
+      if (waited === undefined || call.once) throw noAnswer(`${label} got no answer`);
       silent++;
       await ctx.clock.sleep(waited);
       continue;
@@ -150,7 +152,7 @@ export async function sendRaw(ctx: Ctx, call: Call): Promise<Answer> {
     if (response.status >= 300 && response.status < 400) {
       throw refuse(`${label} was redirected: refused`);
     }
-    if (TRANSIENT.has(response.status)) {
+    if (TRANSIENT.has(response.status) && !call.once) {
       const waited = WAITS_MS[silent];
       if (waited === undefined) throw noAnswer(`${label} got no answer`);
       silent++;
@@ -159,7 +161,7 @@ export async function sendRaw(ctx: Ctx, call: Call): Promise<Answer> {
     }
     const body = jsonOf(text);
     learnSecrets(body);
-    if (response.status === 429) {
+    if (response.status === 429 && !call.once) {
       const seconds = retryAfterOf(response, body);
       const reason = reasonOf(body);
       if ((reason !== undefined && SLOW_REASONS.has(reason)) || (seconds ?? 0) > LONG_WAIT_S) {

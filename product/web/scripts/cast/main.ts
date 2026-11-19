@@ -6,7 +6,9 @@ import { checkEnvironment } from './guard.ts';
 import { inboxCommand } from './inbox.ts';
 import { makeCommand, retireCommand } from './make.ts';
 import { type Output, show } from './redact.ts';
+import { reportCommand } from './report.ts';
 import { endCommand, showCommand, startCommand } from './runs.ts';
+import { snapshotCommand } from './snapshot.ts';
 import { checkCommand, loadCommand, withdrawCommand } from './stories.ts';
 import { uploadCommand } from './upload.ts';
 
@@ -28,8 +30,10 @@ The commands marked (D) run under staging's keys:
   inbox <member>                unanswered replies, oldest first
   upload <member> <file> (--description <file> | --transcript <file> --still <id>)
                                 get the link, send the file, say it is done; prints the media id
-  snapshot <label> [--wait]     (second pass)
-  report [--runs a,b]           (second pass)
+  snapshot after-run-<n> [--wait]
+                                what the board and the desks showed once run n's writes settled
+                                (6 minutes after its last write; --wait waits, up to 20 minutes more)
+  report [--runs a,b]           compare two runs' snapshots and threads: PASS or FAIL for R1 to R9
   --help                        this text
 
 Files are named inside the store (~/.config/hrizzup/cast): story sets in stories/, bodies, media and
@@ -37,7 +41,10 @@ their words in work/. Nothing secret is ever printed. Exit codes: 0 done, 1 the 
 script refused, 3 no answer (run the same command again), 4 a limit (wait the seconds it says).`;
 
 /** `parseArgs`, with its own message (which quotes the arguments) replaced by ours. */
-function parse<T extends Record<string, { type: 'string' }>>(args: string[], options: T) {
+function parse<T extends Record<string, { type: 'string' } | { type: 'boolean' }>>(
+  args: string[],
+  options: T,
+) {
   try {
     return parseArgs({ args, options, allowPositionals: true, strict: true });
   } catch {
@@ -114,9 +121,17 @@ function plan(argv: string[]): Job {
           ...(values.still === undefined ? {} : { still: values.still }),
         });
     }
-    case 'snapshot':
-    case 'report':
-      throw refuse(`\`${command}\` is not built yet: it comes in the cast's second pass`);
+    case 'snapshot': {
+      const { values, positionals } = parse(rest, { wait: { type: 'boolean' } });
+      const [label, ...more] = positionals;
+      if (!label || more.length > 0) throw refuse('Use `snapshot after-run-<n> [--wait]`');
+      return (ctx) => snapshotCommand(ctx, { label, wait: values.wait === true });
+    }
+    case 'report': {
+      const { values, positionals } = parse(rest, { runs: { type: 'string' } });
+      if (positionals.length > 0) throw refuse('Use `report [--runs <a>,<b>]`');
+      return (ctx) => reportCommand(ctx, values.runs === undefined ? {} : { runs: values.runs });
+    }
     default:
       throw refuse(`${command} is not a command: see --help`);
   }

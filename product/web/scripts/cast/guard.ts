@@ -11,8 +11,9 @@ import { refuse } from './errors.ts';
 
 export const API_BASE = `${STAGING_ORIGIN}/api/v1`;
 
-/** The one address outside `/api/v1` the cast reads: the live skill file. */
+/** The addresses outside `/api/v1` the cast reads: the live skill file, and the health page (which says staging's commit). */
 export const SKILL_PATH = '/skill.md';
+export const HEALTH_PATH = '/api/health';
 
 /** Staging's uploads bucket and the host an upload link must end in (`infra/cloudflare/r2/`, `lib/social/media/storage.ts`: path-style links). */
 export const UPLOAD_HOST_SUFFIX = '.r2.cloudflarestorage.com';
@@ -57,7 +58,11 @@ export function assertStagingUrl(text: string): URL {
   ) {
     throw refuse(`The cast only talks to ${STAGING_ORIGIN}`);
   }
-  if (!url.pathname.startsWith('/api/v1/') && url.pathname !== SKILL_PATH) {
+  if (
+    !url.pathname.startsWith('/api/v1/') &&
+    url.pathname !== SKILL_PATH &&
+    url.pathname !== HEALTH_PATH
+  ) {
     throw refuse('That address is outside the API');
   }
   return url;
@@ -74,6 +79,14 @@ export function apiUrl(path: string, query?: Record<string, string>): string {
 /** The live skill file's address. */
 export function skillUrl(): string {
   return assertStagingUrl(`${STAGING_ORIGIN}${SKILL_PATH}`).toString();
+}
+
+/** One of the two addresses outside `/api/v1` (the skill file, the health page); nothing else. */
+export function rootUrl(path: string): string {
+  if (path !== SKILL_PATH && path !== HEALTH_PATH) {
+    throw refuse('That address is outside the API');
+  }
+  return assertStagingUrl(`${STAGING_ORIGIN}${path}`).toString();
 }
 
 /**

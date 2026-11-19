@@ -1,9 +1,10 @@
 import type { Ctx } from './context.ts';
 import { CastError, refuse } from './errors.ts';
 import { send } from './http.ts';
-import { list, text } from './lenient.ts';
+import { list, object, text } from './lenient.ts';
 import { type LogEntry, readLog, totalsOf } from './log.ts';
 import { MEMBERS } from './members.ts';
+import { projectTop, snapshotBefore } from './snapshot.ts';
 import { lastRun, needSet, openRun, type RunRecord, readState, writeState } from './state.ts';
 
 /**
@@ -122,6 +123,55 @@ export async function showCommand(ctx: Ctx): Promise<void> {
       pictures === null
         ? '  stories with a picture: unknown (the board was not read)'
         : `  stories with a picture: ${pictures} of ${current.storyIds.length}`,
+    );
+  }
+  if (current) await projectedOrder(ctx, run, current.storyIds, totals.replies);
+}
+
+/** The set file's story titles by id, for printing; empty when the file can't be read. */
+function titlesOf(ctx: Ctx, file: string): Map<string, string> {
+  const titles = new Map<string, string>();
+  try {
+    const parsed: unknown = JSON.parse(ctx.store.readText(`stories/${file}`) ?? '{}');
+    for (const entry of list(object(parsed).stories)) {
+      const story = object(entry.story);
+      const id = text(story.id);
+      const title = text(story.title);
+      if (id && title) titles.set(id, title);
+    }
+  } catch {
+    // Without the file the ids are printed: the projection never fails for a title.
+  }
+  return titles;
+}
+
+/** `run show`'s last section: the Top order projected from the last snapshot's replies and this run's. */
+async function projectedOrder(
+  ctx: Ctx,
+  run: RunRecord,
+  storyIds: string[],
+  replies: ReturnType<typeof totalsOf>['replies'],
+): Promise<void> {
+  const state = readState(ctx.store);
+  const snapshot = snapshotBefore(ctx.store, state, run.n);
+  const thisRun: Record<string, number> = {};
+  for (const reply of replies.values()) thisRun[reply.storyId] = (thisRun[reply.storyId] ?? 0) + 1;
+  const { order, differs } = projectTop(snapshot, storyIds, thisRun);
+  const titles = titlesOf(ctx, run.set);
+  ctx.io.out(
+    snapshot
+      ? `projected Top order (replies: ${snapshot.label}'s snapshot plus this run's):`
+      : "projected Top order (no earlier snapshot: this run's replies alone, ties in the set file's order):",
+  );
+  order.forEach((one, at) => {
+    const name = titles.get(one.id) ?? one.id;
+    ctx.io.out(`  ${at + 1}. ${name}: ${one.base + one.plus} replies (${one.base} + ${one.plus})`);
+  });
+  if (snapshot && differs !== null) {
+    ctx.io.out(
+      differs
+        ? `  the projected order differs from ${snapshot.label}'s Top`
+        : `  the projected order is the same as ${snapshot.label}'s Top`,
     );
   }
 }

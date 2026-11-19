@@ -178,6 +178,142 @@ describe('runs', () => {
   });
 });
 
+describe('run show: the projected Top order', () => {
+  const S = [idOf(31), idOf(32), idOf(33)] as [string, string, string];
+  const at = (entry: Omit<Extract<LogEntry, { type: 'reply' }>, 't' | 'type'>, run = 2) =>
+    appendLog(h.store, run, { t: 'x', type: 'reply', ...entry });
+  const reply = (n: number, story: string, member = 'analyst') => ({
+    member,
+    id: idOf(700 + n),
+    postId: idOf(800 + n),
+    parentId: null,
+    storyId: story,
+    intent: 'add',
+    depth: 0,
+  });
+  const snapshot = (top: string[], replies: number[]) => ({
+    format: 'hrizzup-cast-snapshot/1',
+    label: 'after-run-1',
+    run: 1,
+    set: 'set.json',
+    storyIds: S,
+    takenAt: 'x',
+    commit: 'abc1234',
+    lastWriteAt: 'x',
+    top,
+    latest: top,
+    tiles: Object.fromEntries(
+      S.map((id, i) => [
+        id,
+        {
+          posts: 0,
+          replies: replies[i] ?? 0,
+          upvotes: 0,
+          picture: null,
+          rank: top.indexOf(id) + 1,
+        },
+      ]),
+    ),
+    desks: {},
+    logged: {},
+  });
+  const lines = () => h.printed().split('\n');
+
+  beforeEach(() => {
+    seedSet(h, S, { run: 2 });
+    const state = readState(h.store);
+    state.runs.unshift({ n: 1, set: 'set.json', open: false, startedAt: 'a', endedAt: 'b' });
+    h.store.writeJson('state.json', state);
+    h.store.writeJson('stories/set.json', {
+      format: 'hrizzup-cast-stories/1',
+      written: 'x',
+      stories: S.map((id, i) => ({ story: { id, title: `Story ${i + 1}` }, updates: [] })),
+    });
+    h.server.on('GET', '/api/v1/social/board', () => json(200, { stories: [], next: null }));
+  });
+
+  it("is the last snapshot's replies plus this run's, most first, and says the order is the same when it is", async () => {
+    h.store.writeJson('snapshots/after-run-1.json', snapshot([S[0], S[1], S[2]], [5, 3, 1]));
+    at(reply(1, S[0]));
+    expect(await run('run', 'show')).toBe(0);
+    const text = last();
+    expect(text).toContain(
+      "projected Top order (replies: after-run-1's snapshot plus this run's):",
+    );
+    expect(text).toContain('1. Story 1: 6 replies (5 + 1)');
+    expect(text).toContain('2. Story 2: 3 replies (3 + 0)');
+    expect(text).toContain('3. Story 3: 1 replies (1 + 0)');
+    expect(text).toContain("the projected order is the same as after-run-1's Top");
+  });
+
+  it("says it differs once this run's replies change the order", async () => {
+    h.store.writeJson('snapshots/after-run-1.json', snapshot([S[0], S[1], S[2]], [5, 3, 1]));
+    for (let n = 0; n < 3; n++) at(reply(n, S[1]));
+    await run('run', 'show');
+    const text = last();
+    expect(
+      lines()
+        .filter((line) => /^\s+\d\./.test(line))
+        .map((line) => line.trim().split(':')[0]),
+    ).toEqual(['1. Story 2', '2. Story 1', '3. Story 3']);
+    expect(text).toContain('1. Story 2: 6 replies (3 + 3)');
+    expect(text).toContain("the projected order differs from after-run-1's Top");
+  });
+
+  it("counts a reply logged twice once, and takes the snapshot of an earlier run, never the shown run's own", async () => {
+    h.store.writeJson('snapshots/after-run-1.json', snapshot([S[0], S[1], S[2]], [5, 3, 1]));
+    h.store.writeJson('snapshots/after-run-2.json', {
+      ...snapshot([S[2], S[1], S[0]], [9, 9, 9]),
+      label: 'after-run-2',
+      run: 2,
+    });
+    at(reply(1, S[1]));
+    at(reply(1, S[1]));
+    await run('run', 'show');
+    expect(last()).toContain('2. Story 2: 4 replies (3 + 1)');
+    expect(last()).toContain("replies: after-run-1's snapshot");
+  });
+
+  it("with no earlier snapshot, projects from this run's replies alone, ties in the set file's order, with no verdict", async () => {
+    at(reply(1, S[2]));
+    await run('run', 'show');
+    const text = last();
+    expect(text).toContain('no earlier snapshot');
+    expect(
+      lines()
+        .filter((line) => /^\s+\d\./.test(line))
+        .map((line) => line.trim().split(':')[0]),
+    ).toEqual(['1. Story 3', '2. Story 1', '3. Story 2']);
+    expect(text).not.toContain('the projected order');
+  });
+
+  it('prints ids when the set file cannot be read, and reads nothing but the board', async () => {
+    h.store.remove('stories/set.json');
+    at(reply(1, S[0]));
+    await run('run', 'show');
+    expect(last()).toContain(`1. ${S[0]}: 1 replies (0 + 1)`);
+    expect(h.server.requests.every((req) => req.path.endsWith('/social/board'))).toBe(true);
+  });
+
+  it('keeps what run show printed before, line for line', async () => {
+    at(reply(1, S[0]));
+    await run('run', 'show');
+    const text = last();
+    for (const line of [
+      'run 2 (open) on set.json',
+      '  explainer: not started',
+      'next: explainer (not started)',
+      'tally:',
+      '  posts: 0 (text 0, image 0, video 0, audio 0)',
+      '  replies: 1',
+      '  upvotes: 0',
+      '  stories with a picture: 0 of 3',
+    ]) {
+      expect(text).toContain(line);
+    }
+  });
+});
+
 describe('inbox', () => {
   const reply = (n: number, extra: Record<string, unknown> = {}) => ({
     id: idOf(100 + n),
