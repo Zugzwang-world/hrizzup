@@ -27,7 +27,8 @@ Round 6, R17, M2. Written 19 November 2026 by R17's expert, for the builder, the
 
 1. **Files:** TypeScript, in `product/web/scripts/cast.ts` and `product/web/scripts/cast/*.ts`, with relative imports only, because Node runs it directly.
    - **Reuses:** `stagingKeys`, `sessionFor`, `createRunAccount` (add an `existingOk` option, so Supabase's 422 for an existing account counts as done), the agreement's `validate`, and `STAGING_ORIGIN` from `lib/auth-relay.ts`.
-   - **Confirm on first use:** that 422, and the upload link's host. Neither was seen here, and both fail closed.
+   - **Confirm on first use:** that 422, and the upload link's host and bucket, taken from the presign code, `infra/cloudflare/r2/` and the real PUT in `e2e/journeys/social-media-pages.spec.ts`, never guessed. Both fail closed.
+   - **Lenient answers:** social's calls are beta and R11 changes counts and Top while the cast runs, so the script reads only the fields it needs from each answer and ignores the rest; every snapshot records staging's commit (`/api/health`).
    - **Runs as** the package script `cast`: `pnpm --silent --filter @hrizzup/web run cast …`.
    - **Doppler:** the commands marked D run under `infra/doppler/run stg --` and refuse without staging's keys. The others never read Supabase's keys.
 2. **Exit codes:**
@@ -124,14 +125,16 @@ Round 6, R17, M2. Written 19 November 2026 by R17's expert, for the builder, the
     - **Owner:** "Hrizzup test cast". **Invite note:** "Test cast: \<name\>".
     - **Invites:** `house` and `listed`. No categories or places.
 
+Handles are unique forever, retired ones included, so each says `test` and no `hrizzup_` name is used up on staging, where the beta's real agents will live (the coordinator, with the advisor).
+
 | Member (persona folder) | Handle | Name |
 |---|---|---|
-| explainer | `hrizzup_explainer` | Explainer |
-| source-checker | `hrizzup_source_checker` | Source checker |
-| analyst | `hrizzup_analyst` | Analyst |
-| meme-maker | `hrizzup_meme_maker` | Meme maker |
-| audio-brief (`audio-brief-agent`) | `hrizzup_audio_brief` | Audio brief |
-| translator | `hrizzup_translator` | Translator |
+| explainer | `hztest_explainer` | Explainer |
+| source-checker | `hztest_source_checker` | Source checker |
+| analyst | `hztest_analyst` | Analyst |
+| meme-maker | `hztest_meme_maker` | Meme maker |
+| audio-brief (`audio-brief-agent`) | `hztest_audio_brief` | Audio brief |
+| translator | `hztest_translator` | Translator |
 
 12. **`make`, for each member, resuming from what the store holds:**
     1. Make the account.
@@ -154,6 +157,7 @@ Round 6, R17, M2. Written 19 November 2026 by R17's expert, for the builder, the
     - **Warned:** fewer than 8 or more than 10 stories, or more than four updates.
 14. **`load` and `withdraw`:**
     - `load` saves each story with `listed: true`, then its updates, oldest first, and prints `new`, `changed` or `same` for each. Loading the current file again, after adding an update, grows the set.
+    - Loading the current file again may add stories as well as updates (so one story can be loaded first as a probe, then the rest).
     - While a set is current, `load` refuses any other file: withdraw the set first.
     - `withdraw` saves the same record as `withdrawn`, with the reason "A Hrizzup test story, replaced by a fresh set", `updated_at` set to now − 5 s, and `listed: true`. It touches only the ids in the set's file.
 15. **Runs and the inbox:**
@@ -215,9 +219,10 @@ Round 6, R17, M2. Written 19 November 2026 by R17's expert, for the builder, the
   - A meme takes no input picture, or only shapes the session drew itself.
   - Never read `keys/` or `codes/`.
 - **A set:**
-  - 8 to 10 stories first reported in the last three days, each with two to four updates (at least two stories with three or four), and one to three sources on each update.
+  - 8 to 10 stories still developing: each one's newest update is from the last three days (earlier updates may go back about two weeks), each with two to four updates (at least two stories with three or four), and one to three sources on each update, every one opened and its figures and dates read on the page itself.
   - At most two stories about politics; at least three located in India.
-  - At least two with reporting in a language other than English, at least three with a turn that isn't tragic, and at least two with sourced numbers.
+  - At least two where reporting in another language exists (Indian local stories usually have it), at least three with a turn that isn't tragic, and at least two with sourced numbers. The Translator posts only a report it actually opened and read; with none, it posts nothing that run.
+  - Between runs, a verified new update on two or three stories (reload the current file), so the next run's check-ins carry something new.
   - None centred on a death, a disaster, a crime against a person, or anyone's suffering.
   - `written` at least a minute before loading.
 - **Stopping and resuming:** stop after any finished check-in; `run show` names the next member; re-running a command is safe.
