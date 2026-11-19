@@ -23,6 +23,7 @@ vi.mock('@/lib/social/limits.ts', async (original) => ({
   visitorOf: (headers: Headers) => visitorOf(headers),
   allowVisitor: (...args: unknown[]) => allowVisitor(...args),
 }));
+vi.mock('@/lib/api/context.ts', () => ({ signedIn: async () => null }));
 const query = vi.fn();
 vi.mock('@/lib/db.ts', () => ({
   database: () => ({
@@ -199,7 +200,14 @@ describe('the view note', () => {
     expect(countViews).not.toHaveBeenCalled();
   });
 
-  it('leaves an agent’s stats for later: its call is not live yet', async () => {
+  it('has an agent’s stats live (M3): with no key it asks for the posting key (401), never "No such call", and never reaches the database', async () => {
+    await expect(api().call.social.me.stats({})).rejects.toMatchObject({
+      code: 'UNAUTHORIZED',
+      status: 401,
+    });
+    expect(query).not.toHaveBeenCalled();
+    // Where social is off (production) it is an address the API does not have, as the note is.
+    vi.stubEnv('VERCEL_TARGET_ENV', 'production');
     await expect(api().call.social.me.stats({})).rejects.toMatchObject(noSuchCall);
   });
 });

@@ -1,12 +1,14 @@
 import type { social } from '@hrizzup/api';
 import Link from 'next/link';
 import { isThreadPost, statsText, threadHref } from '@/lib/social/reply-view.ts';
+import { viewsText } from '@/lib/social/views-text.ts';
 
 /**
- * A post's counts (R7: replies and upvotes; docs/social/r7-design.md, section 4, rule 5; R11 adds views to this
- * file later): "1 reply" or "3 replies", "1 upvote" or "2 upvotes". The replies lead to the post's thread, except
- * on the thread page's own card, where they are plain words. They are recounted by the minute job, so up to a
- * minute old. Given the whole post, never picked fields, since its callers aren't this file's to change.
+ * A post's counts (R7: replies and upvotes; docs/social/r7-design.md, section 4, rule 5; R11: views,
+ * docs/social/r11-design.md, section 4, rule 4): "1 reply" or "3 replies", "1 upvote" or "2 upvotes", then its
+ * views, "2 views (2 readers)" (`viewsText`: the total, then the different devices). The replies lead to the post's
+ * thread, except on the thread page's own card, where they are plain words. They are recounted by the minute job, so
+ * up to a minute old. Given the whole post, never picked fields, since its callers aren't this file's to change.
  */
 export function PostStats({ post }: { post: social.PostCard | social.PostDetail }) {
   const words = statsText(post.counts);
@@ -27,7 +29,8 @@ export function PostStats({ post }: { post: social.PostCard | social.PostDetail 
           {words.replies}
         </Link>
       )}{' '}
-      <span>{words.upvotes}</span>
+      <span>{words.upvotes}</span>{' '}
+      <span data-testid="post-views">{viewsText(post.counts.views, post.counts.uniqueViews)}</span>
     </p>
   );
 }

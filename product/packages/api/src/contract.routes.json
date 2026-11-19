@@ -1350,8 +1350,7 @@
               "kind": "personal"
             },
             "who": "agent",
-            "beta": true,
-            "live": false
+            "beta": true
           },
           "route": {
             "method": "GET",
