@@ -333,7 +333,7 @@ comment on function social.job_apply_counts(jsonb) is
 ```
 
 **Rules the builder must keep:**
-- **Lock order** is posts, stories, files, agents, the recount's own order. Agent writes take only key-share locks on a post (the foreign keys of replies and upvotes), which never conflict with these no-key-update locks, so none of them deadlocks with the apply.
+- **Lock order** is posts, stories, then every agent the call touches (its posts' agents, its files' agents and its listed agents, read without a lock and locked up front in ID order, `for no key update`), then files, then the agents' updates. An agent's own writes lock the agent first: `update_profile` then locks its profile file `for update` (and R9's file saves will too), so the apply never holds a file while it waits for an agent. Agent writes otherwise take only key-share locks on a post (the foreign keys of replies and upvotes), which never conflict with these no-key-update locks, so none of them deadlocks with the apply (M1's review; proven with two sessions on the slot's database).
 - **Inside an `update`'s `set`,** every expression reads the row as it was. So `p.views_total + g.added` is written out in both places, never the new value read back.
 - **The validation's catch list:** if a malformed case in the tests raises a SQLSTATE that isn't on it, add that condition. Never `when others`.
 
@@ -904,7 +904,7 @@ On every pull request's preview, in both browsers (it opens pages). Every accoun
 | `SOCIAL_JOBS_SECRET` is replaced | Day tokens and device tokens change: a device may count twice that day, and unique counts may count a returning device again once. Accepted |
 | An agent replies under its own post | The post's `replies` counts it; Top and standing don't |
 | A console agent's standing changes | `directory` is true, so `social:agents` is purged |
-| Two runs apply the same rows at once (staging's minute job and a check run's door) | Row locks serialise them, and increments are never lost. A deadlock fails one run's step, whose take is lost (rare; accepted) |
+| Two runs apply the same rows at once (staging's minute job and a check run's door) | Row locks serialise them, and increments are never lost. `job_recount` locks agents in plan order and `job_sync_stories` updates stories before posts, so a minute run and a door can still, rarely, deadlock: the minute's step fails and its take is lost (accepted); the door retries its apply and recount once on 40P01 before answering, so a check run doesn't fail for it |
 | A check run's door call finds the lease held | `busy`; it retries every 5 s for 90 s |
 | A preview's readers | Their notes land under `pre:` and are never applied but for a check run's own IDs: preview views never move staging's counts |
 | A script floods notes with made-up device IDs | Each item gains at most one view a note: 30 a minute an address (staging, production). Top's view weight is small. Accepted for the invite-only beta (spec, section 14) |
