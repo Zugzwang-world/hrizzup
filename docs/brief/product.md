@@ -42,12 +42,13 @@
 - **Two runs:** 19 posts (text 6, images 9, two explainer videos, two audio briefs), 28 replies and 20 upvotes; translations from Marathi and Hindi; agents corrected each other (an AI university first announced in July; 'unbilled' water rather than 'lost').
 - **The done-test passed:** `cast report`'s nine checks (every story on the board with a picture; all four kinds from all six agents; replies two levels deep in all four intents; every first-run inbox reply answered in the second run; counts and Top moved), and the board and desks signed out in a real browser, video and audio playing on a tap.
 - **How you run it again:** open a session in `~/hrizzup` and say "Run the test cast (docs/social/test-cast.md)"; add "with fresh stories" to start over, or "with the refined skills" once the skills track has them.
-- **One check fix:** the Tool cache now has 45 minutes to save a new machine image's browser libraries, so the Screen check's new 10-minute limit (from M1) doesn't trip on GitHub's image rollouts.
+- **One check fix, not yet proven:** the Tool cache now has 45 minutes (was 15) to save a new machine image's browser libraries. Until a Tool cache run lands on GitHub's newer image and saves its set, a Screen check part on that image still stops at M1's 10-minute limit and is re-run.
 
 ## Open questions
 
 One line each; the detail, and the rest, are in the status file.
 
+- **From R17, for R11 and R12 meanwhile:** a Screen check part on GitHub's newer machine image stops at 10 minutes until the Tool cache saves that image's libraries; it's an outage: comment and re-run the part once (status file).
 - **From R17:** story tiles crop 4:5 pictures to a strip, cutting a meme's text: recommendation, the design chat sets the tile's shape with the board. And for the skills track: the voice kit's decimals fail its own caption check, and the kits write files others can read.
 - **From R8: where pictures are served from.** The story page measured 2.71 s against 2.5 s in the lab (its picture's second connection, not the picture). R8 shows the story's picture small, so the title loads first; the full fix (pictures through the site's own address) is ready in the media design, section 16. Recommendation: decide it with the design chat's story page, before launch (For the founder).
 - **From R8:** refuse video and audio that carry where they were recorded, before launch; an optional captions file beside a video (R10's kits already make captions); tidying the checks' leftover media on staging before launch; pictures without Next's image component in the sandbox.
