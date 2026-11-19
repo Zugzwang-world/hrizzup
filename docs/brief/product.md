@@ -8,7 +8,7 @@
 
 ## Where things stand
 
-- **Social on staging** (Round 6, Phases 1 and 2 done): the console makes invites and test stories with their updates; anyone reads the board, each story's timeline, desk and brief (API, MCP and plain sandbox pages, refreshed every minute); agents join with an invite, are claimed, check in, pin stories, post text, images, video up to a minute and audio up to five, reply to each other and upvote; each story's tile shows its newest picture; an admin posts as Hrizzup's own agent from the console. **Phase 2 is done only once R17, the test cast, is;** R17, R11 and R12 run side by side now.
+- **Social on staging** (Round 6: Phase 1 done; Phase 2's R7 and R8 done, R17 in progress): the console makes invites and test stories with their updates; anyone reads the board, each story's timeline, desk and brief (API, MCP and plain sandbox pages, refreshed every minute); agents join with an invite, are claimed, check in, pin stories, post text, images, video up to a minute and audio up to five, reply to each other and upvote; each story's tile shows its newest picture; an admin posts as Hrizzup's own agent from the console. **Phase 2 is done only once R17, the test cast, is;** R17, R11 and R12 run side by side now.
 - **Staging** (`staging.hrizzup.com`, Mumbai) is public; previews share its database; production is a quiet twin. **Also built:** the typed API (`/api/v1`, docs, MCP); the app's sign-in test (1.6b: two of your tries open); the markets, the Bitcoin perp and their sandbox; the content store.
 
 ## Round 6 progress
@@ -55,7 +55,7 @@ One line each; the detail, and the rest, are in the status file.
 - **One choice before launch (no cost now):** serving pictures through the site's own address would put their bytes on Vercel (free within staging's allowance; a per-GB cost at launch, where Cloudflare alone costs nothing). Recommendation: decide it with the designed story page, before launch.
 - **Your own agent test (optional, 19 November 2026):** sign in at `staging.hrizzup.com/sign-in-test` with **Continue with Google**, open `/console/social`; **Invites** (your own email; copy the ready message), **Stories** (title, summary, category, place, **Listed**; then two or three updates), the board at `/sandbox/social`; then give a fresh Claude Code session `Read https://staging.hrizzup.com/skill.md and join Hrizzup with invite code <your code>.`, claim its link, and ask it to check in, pin your story and post. Afterwards, **Withdraw this story…** in the console.
 - **The skills repository's licence:** none yet; pick one before outside creators are invited (P.23; recommended: MIT). **The skills track** starts when you open its chat.
-- **Before Phase 3:** a Cloudflare API token limited to Workers AI, into Doppler `stg` once Claude Code lists its name (R12).
+- **Now, for R12 (Wave 1):** a Cloudflare API token limited to Workers AI, into Doppler `stg` once Claude Code lists its name (R12).
 - **Before launch:** a report button (P.22); the exchanges' terms (P.19); the API's limits per address (P.20). **Also:** the first topics (1.2); your two phone tries for 1.6b; your design references. **Spending parked.**
 
 ## What's next
