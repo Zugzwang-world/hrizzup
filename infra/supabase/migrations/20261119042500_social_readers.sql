@@ -350,9 +350,10 @@ comment on function social.reader_save_profile(uuid, text) is
 --   {state: 'refused', reason: 'daily_cap' | 'allowance_used', ...}
 --   {state: 'reserved', call, ai, profile, history}
 -- The request's own row in social.requests holds the reservation until settle or fail: {pending: {day, reserved,
--- in, out, message_id, started_at, lease_until}}. After a crash past the lease, a retry takes over the same
--- reservation (no new reservation, no new slot), and the abandoned try, which may have run, is charged as a kept
--- failure is (its reservation moves into used, on the marker's own day, and into the reader's day).
+-- in, out, message_id, started_at, lease_until}}. After a crash past the lease, a retry is never free: the
+-- abandoned try, which may have run, is charged as a kept failure is (its reservation moves into used, on the
+-- marker's own day, and into the reader's day; its slot stays taken), the marker goes, and the request goes on as a
+-- new one, through the reader's cap and the allowance, to a new reservation and slot.
 create function social.reader_chat_begin(request_id uuid, body text)
 returns jsonb
 language plpgsql
@@ -382,7 +383,7 @@ begin
     raise exception 'A request ID is needed' using errcode = 'invalid_parameter_value';
   end if;
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('social:' || who::text, 0));
-  -- Everything below answers from these, the takeover too: never from a second read of the settings.
+  -- Everything below answers from these, a takeover too: never from a second read of the settings.
   s := social._settings();
   v_today := social._reader_today();
   v_most := social._reader_most(s);
@@ -393,63 +394,69 @@ begin
 
   if stored ? 'message_id' then
     return jsonb_build_object('state', 'done', 'answer', social._reader_answer(who, stored));
-  elsif stored ? 'pending' then
+  end if;
+  if stored ? 'pending' then
     p := stored -> 'pending';
     if (p ->> 'lease_until')::timestamptz > v_now then
       return jsonb_build_object('state', 'in_progress',
         'retry_after_seconds', greatest(1, ceil(extract(epoch from (p ->> 'lease_until')::timestamptz - v_now)))::integer);
     end if;
-    -- The first try is past its lease, so it may have run: it is charged as a kept failure would be, and the same
-    -- reservation (the marker's own R and day) stays open for the new try, with a new lease. No new reservation and
-    -- no new slot, so the reader's cap still bounds what their failures can use.
+    -- The first try is past its lease, so it may have run, and a takeover is never a free retry. The abandoned try is
+    -- charged exactly as `reader_chat_fail(..., 'kept')` charges it: on the marker's own day its reservation moves into
+    -- used and into the reader's day, and its message slot stays taken. The marker goes, so the request ID is free
+    -- again, and the request goes on down the normal path below as a new one: the same body checks, the reader's cap,
+    -- the allowance, a new reservation and slot, a new message ID and lease, all on today's settings and date. So every
+    -- call that goes out passes the cap and the allowance, and one reader's failures are bounded by their daily cap.
+    -- (The marker's day's row comes before today's, in ascending day order.)
     v_taken := (p ->> 'reserved')::numeric;
     v_taken_day := (p ->> 'day')::date;
-    update social.ai_days x set neurons_used = x.neurons_used + v_taken where x.day = v_taken_day;
+    update social.ai_days x
+    set neurons_reserved = x.neurons_reserved - v_taken, neurons_used = x.neurons_used + v_taken
+    where x.day = v_taken_day;
     update social.reader_days d set neurons = d.neurons + v_taken where d.user_id = who and d.day = v_taken_day;
-    p := jsonb_set(p, '{lease_until}', to_jsonb(markets.utc(v_now + interval '60 seconds')));
-    perform social._remember(who, request_id, 'reader_chat', params, jsonb_build_object('pending', p));
-  else
-    if body is null or pg_catalog.char_length(body) not between 1 and 2000 then
-      raise exception 'A message is 1 to 2,000 characters' using errcode = 'invalid_parameter_value', detail = 'body';
-    end if;
-    begin
-      perform body::agreement.plain_text;
-    exception when check_violation then
-      raise exception 'A message is plain text, with no hidden characters and no new line or space at either end'
-        using errcode = 'invalid_parameter_value', detail = 'body';
-    end;
-    insert into social.readers (user_id) values (who) on conflict do nothing;
-
-    -- The reader's own cap, counted when a message is reserved. It is checked before the allowance, so a reader past
-    -- their cap is never counted as an allowance refusal. A refusal here counts nothing.
-    select d.messages into v_sent from social.reader_days d where d.user_id = who and d.day = v_today;
-    if coalesce(v_sent, 0) >= s.reader_daily_messages then
-      return jsonb_build_object('state', 'refused', 'reason', 'daily_cap',
-        'retry_after_seconds', v_retry, 'resets_at', markets.utc(v_end), 'view', social._reader_view(who));
-    end if;
-
-    -- The allowance. Today's row is locked, so two readers' reservations run one at a time.
-    insert into social.ai_days (day) values (v_today) on conflict do nothing;
-    select x.* into a from social.ai_days x where x.day = v_today for update;
-    if social._reader_paused(a, s) then
-      update social.ai_days x set refused = x.refused + 1 where x.day = v_today;
-      return jsonb_build_object('state', 'refused', 'reason', 'allowance_used',
-        'retry_after_seconds', v_retry, 'paused_until', markets.utc(v_end), 'view', social._reader_view(who));
-    end if;
-
-    update social.ai_days x set neurons_reserved = x.neurons_reserved + v_most, calls = x.calls + 1 where x.day = v_today;
-    insert into social.reader_days as d (user_id, day, messages) values (who, v_today, 1)
-    on conflict (user_id, day) do update set messages = d.messages + 1;
-    p := jsonb_build_object(
-      'day', v_today,
-      'reserved', pg_catalog.trim_scale(v_most)::text,
-      'in', pg_catalog.trim_scale(s.reader_ai_in_neurons_per_m)::text,
-      'out', pg_catalog.trim_scale(s.reader_ai_out_neurons_per_m)::text,
-      'message_id', social._uuid7(),
-      'started_at', markets.utc(v_now),
-      'lease_until', markets.utc(v_now + interval '60 seconds'));
-    perform social._remember(who, request_id, 'reader_chat', params, jsonb_build_object('pending', p));
+    delete from social.requests q where q.actor = who and q.request_id = reader_chat_begin.request_id;
   end if;
+
+  if body is null or pg_catalog.char_length(body) not between 1 and 2000 then
+    raise exception 'A message is 1 to 2,000 characters' using errcode = 'invalid_parameter_value', detail = 'body';
+  end if;
+  begin
+    perform body::agreement.plain_text;
+  exception when check_violation then
+    raise exception 'A message is plain text, with no hidden characters and no new line or space at either end'
+      using errcode = 'invalid_parameter_value', detail = 'body';
+  end;
+  insert into social.readers (user_id) values (who) on conflict do nothing;
+
+  -- The reader's own cap, counted when a message is reserved. It is checked before the allowance, so a reader past
+  -- their cap is never counted as an allowance refusal. A refusal here counts nothing.
+  select d.messages into v_sent from social.reader_days d where d.user_id = who and d.day = v_today;
+  if coalesce(v_sent, 0) >= s.reader_daily_messages then
+    return jsonb_build_object('state', 'refused', 'reason', 'daily_cap',
+      'retry_after_seconds', v_retry, 'resets_at', markets.utc(v_end), 'view', social._reader_view(who));
+  end if;
+
+  -- The allowance. Today's row is locked, so two readers' reservations run one at a time.
+  insert into social.ai_days (day) values (v_today) on conflict do nothing;
+  select x.* into a from social.ai_days x where x.day = v_today for update;
+  if social._reader_paused(a, s) then
+    update social.ai_days x set refused = x.refused + 1 where x.day = v_today;
+    return jsonb_build_object('state', 'refused', 'reason', 'allowance_used',
+      'retry_after_seconds', v_retry, 'paused_until', markets.utc(v_end), 'view', social._reader_view(who));
+  end if;
+
+  update social.ai_days x set neurons_reserved = x.neurons_reserved + v_most, calls = x.calls + 1 where x.day = v_today;
+  insert into social.reader_days as d (user_id, day, messages) values (who, v_today, 1)
+  on conflict (user_id, day) do update set messages = d.messages + 1;
+  p := jsonb_build_object(
+    'day', v_today,
+    'reserved', pg_catalog.trim_scale(v_most)::text,
+    'in', pg_catalog.trim_scale(s.reader_ai_in_neurons_per_m)::text,
+    'out', pg_catalog.trim_scale(s.reader_ai_out_neurons_per_m)::text,
+    'message_id', social._uuid7(),
+    'started_at', markets.utc(v_now),
+    'lease_until', markets.utc(v_now + interval '60 seconds'));
+  perform social._remember(who, request_id, 'reader_chat', params, jsonb_build_object('pending', p));
 
   select r.profile, r.profile_number into v_profile, v_number from social.readers r where r.user_id = who;
   select coalesce(jsonb_agg(jsonb_build_object('author', h.author, 'body', h.body) order by h.id), '[]'::jsonb) into v_history

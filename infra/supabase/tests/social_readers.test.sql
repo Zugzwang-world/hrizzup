@@ -11,7 +11,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = extensions, public;
 
-select plan(129);
+select plan(139);
 
 -- Today's allowance rows are shared by every reader in this file and the clock can't be moved, so a run never straddles the
 -- turn of the UTC day: with under 60 seconds left of it, wait past 00:00 UTC.
@@ -247,7 +247,7 @@ create temporary table memo_ (k text primary key, v jsonb) on commit drop;
 -- People ----------------------------------------------------------------------------------------------------------------------
 
 insert into auth.users (id, email, email_confirmed_at)
-select pg_temp.acct(n)::uuid, 'reader' || n || '@social-readers.test', now() from generate_series(1, 28) n;
+select pg_temp.acct(n)::uuid, 'reader' || n || '@social-readers.test', now() from generate_series(1, 31) n;
 
 -- 1. The columns and the helpers ----------------------------------------------------------------------------------------------
 
@@ -755,7 +755,7 @@ select is(
 );
 select is(pg_temp.books(), '{}'::text[], 'the books balance after the profile cases');
 
--- 8. Retries in flight, and a takeover after a crash ---------------------------------------------------------------------------------
+-- 8. Retries in flight, and a takeover after a crash: never a free retry ----------------------------------------------------------------
 
 select pg_temp.reset_day();
 select pg_temp.rbegin(13, 1, 'Hello');
@@ -774,38 +774,114 @@ select is(
 insert into memo_ select 'marker13', result -> 'pending' from social.requests where actor = pg_temp.acct(13)::uuid and request_id = pg_temp.req(1)::uuid;
 update social.requests set result = jsonb_set(result, '{pending,lease_until}', '"2026-11-19T00:00:00Z"')
 where actor = pg_temp.acct(13)::uuid and request_id = pg_temp.req(1)::uuid;
--- The settings move before the takeover, the rates too: the takeover's answer and the books still use the marker's own R.
+-- The settings move before the takeover, the rates too: the abandoned try is charged at its marker's R (18.3925), and the new
+-- reservation is made at today's rates (2,000 x 5,000 + 300 x 40,000, times 0.000001, is 22).
 update social.settings set reader_ai_model = '@cf/meta/another-model', reader_ai_in_neurons_per_m = 5000, reader_ai_out_neurons_per_m = 40000;
 select pg_temp.rsave(13, 2, pg_temp.prof('{AI}', '{}', '{}'));
 select is(
   (select array[b ->> 'state', b #>> '{call,reserved}', b #>> '{ai,model}', b #>> '{ai,provider}', (b #>> '{profile,body}' = pg_temp.prof('{AI}', '{}', '{}'))::text,
                 b #>> '{profile,number}', b ->> 'history', (b #>> '{call,lease_until}' > markets.utc(clock_timestamp()))::text]
    from (select pg_temp.rbegin(13, 1, 'Hello') b) q),
-  array['reserved', '18.3925', '@cf/meta/another-model', 'workers-ai', 'true', '1', '[]', 'true'],
-  'after the lease a retry takes the reservation over, with a new lease: the marker''s own 18.3925 (not the 22 the new rates would give), the model and the profile read fresh'
+  array['reserved', '22', '@cf/meta/another-model', 'workers-ai', 'true', '1', '[]', 'true'],
+  'after the lease a retry is a new request: it reserves at today''s rates (22, not the marker''s 18.3925), with a new lease, the model and the profile read fresh'
 );
 select is(
   (select array[trim_scale(neurons_reserved)::text, trim_scale(neurons_used)::text, calls::text, (select messages::text from social.reader_days where user_id = pg_temp.acct(13)::uuid),
                 (select trim_scale(neurons)::text from social.reader_days where user_id = pg_temp.acct(13)::uuid),
-                (select (v ->> 'message_id') = (select m.v ->> 'message_id' from memo_ m where m.k = 'marker13') from (select result -> 'pending' v from social.requests
+                (select (v ->> 'message_id') <> (select m.v ->> 'message_id' from memo_ m where m.k = 'marker13') from (select result -> 'pending' v from social.requests
                   where actor = pg_temp.acct(13)::uuid and request_id = pg_temp.req(1)::uuid) x)::text,
                 (select v ->> 'reserved' from (select result -> 'pending' v from social.requests where actor = pg_temp.acct(13)::uuid and request_id = pg_temp.req(1)::uuid) x)]
    from social.ai_days where day = social._reader_today()),
-  array['18.3925', '18.3925', '1', '1', '18.3925', 'true', '18.3925'],
-  'the takeover made no new reservation and no new slot, kept the message''s ID and the marker''s R, and charged the abandoned try as a kept failure: 18.3925 used, in the day and in the reader''s day, with the reservation still open for the new try'
+  array['22', '18.3925', '2', '2', '18.3925', 'true', '22'],
+  'the abandoned try is charged as a kept failure (18.3925 from reserved into used, and into the reader''s day), its slot stays taken, and the retry makes a new reservation (22), a new slot (2 messages), a new call and a new message ID'
 );
-select is(pg_temp.books(), '{}'::text[], 'the books balance with the abandoned try charged: used is the readers'' sum, reserved is the open marker');
+select is(pg_temp.books(), '{}'::text[], 'the books balance after the takeover: used is the readers'' sum, reserved is the open marker');
 select is(
   (select array[st ->> 'state', st #>> '{answer,reply,neurons}'] from (select pg_temp.rsettle(13, 1, 'Hello', pg_temp.ans(600, 85, 'Hi')) st) q),
-  array['done', '5.365375'],
-  'the taken-over call settles at the marker''s rates, not the new ones'
+  array['done', '6.4'],
+  'the new call settles at its own marker''s rates: 600 x 5,000 + 85 x 40,000, times 0.000001, is 6.4'
 );
 select is(
   (select array[trim_scale(neurons_reserved)::text, trim_scale(neurons_used)::text, calls::text] from social.ai_days where day = social._reader_today()),
-  array['0', '23.757875', '1'],
-  'the day used the abandoned try''s 18.3925 and the answered try''s 5.365375'
+  array['0', '24.7925', '2'],
+  'the day used the abandoned try''s 18.3925 and the answered call''s 6.4'
 );
-select is(pg_temp.books(), '{}'::text[], 'the books balance after the takeover settles');
+select is(pg_temp.books(), '{}'::text[], 'the books balance after the new call settles');
+
+-- A takeover when the reader is at their cap: refused, and the abandoned try is still charged
+select pg_temp.reset_day();
+update social.settings set reader_daily_messages = 1;
+select pg_temp.rbegin(29, 1, 'Hello');
+update social.requests set result = jsonb_set(result, '{pending,lease_until}', '"2026-11-19T00:00:00Z"')
+where actor = pg_temp.acct(29)::uuid and request_id = pg_temp.req(1)::uuid;
+select is(
+  (select array[b ->> 'state', b ->> 'reason', b #>> '{view,usage,messages_left_today}'] from (select pg_temp.rbegin(29, 1, 'Hello') b) q),
+  array['refused', 'daily_cap', '0'],
+  'a retry after the lease, when the reader is at their cap, is refused as the cap: a takeover is never a free retry'
+);
+select is(
+  (select array[trim_scale(neurons_reserved)::text, trim_scale(neurons_used)::text, calls::text, refused::text,
+                (select messages::text from social.reader_days where user_id = pg_temp.acct(29)::uuid),
+                (select trim_scale(neurons)::text from social.reader_days where user_id = pg_temp.acct(29)::uuid),
+                (select count(*)::text from social.requests where actor = pg_temp.acct(29)::uuid and request_id = pg_temp.req(1)::uuid)]
+   from social.ai_days where day = social._reader_today()),
+  array['0', '18.3925', '1', '0', '1', '18.3925', '0'],
+  'the abandoned try is charged (18.3925 used, its slot stays taken), no new reservation is made (still one call), the cap''s refusal counts nothing, and the marker is gone'
+);
+select is(pg_temp.books(), '{}'::text[], 'the books balance after the takeover at the cap');
+
+-- A takeover when the allowance is spent: refused as such, counted, and the abandoned try is still charged
+select pg_temp.reset_day();
+select pg_temp.rbegin(30, 1, 'Hello');
+update social.requests set result = jsonb_set(result, '{pending,lease_until}', '"2026-11-19T00:00:00Z"')
+where actor = pg_temp.acct(30)::uuid and request_id = pg_temp.req(1)::uuid;
+update social.settings set reader_ai_daily_neurons = 20;
+select is(
+  (select array[b ->> 'state', b ->> 'reason', ((b ->> 'retry_after_seconds')::integer between 1 and 86400)::text,
+                (b ->> 'paused_until' = markets.utc(social._reader_day_end(social._reader_today())))::text]
+   from (select pg_temp.rbegin(30, 1, 'Hello') b) q),
+  array['refused', 'allowance_used', 'true', 'true'],
+  'a retry after the lease, when the allowance is spent, is refused as the allowance used'
+);
+select is(
+  (select array[trim_scale(neurons_reserved)::text, trim_scale(neurons_used)::text, calls::text, refused::text,
+                (select messages::text from social.reader_days where user_id = pg_temp.acct(30)::uuid),
+                (select trim_scale(neurons)::text from social.reader_days where user_id = pg_temp.acct(30)::uuid),
+                (select count(*)::text from social.requests where actor = pg_temp.acct(30)::uuid and request_id = pg_temp.req(1)::uuid)]
+   from social.ai_days where day = social._reader_today()),
+  array['0', '18.3925', '1', '1', '1', '18.3925', '0'],
+  'the abandoned try is charged, the refusal is counted once, no new reservation is made (still one call) and the marker is gone'
+);
+select is(pg_temp.books(), '{}'::text[], 'the books balance after the takeover with the allowance spent');
+
+-- A takeover of a marker dated yesterday: yesterday is charged, today is reserved
+select pg_temp.reset_day();
+select pg_temp.rbegin(31, 1, 'Hello');
+insert into social.ai_days (day, neurons_reserved, calls) values (social._reader_today() - 1, 18.3925, 1);
+update social.ai_days set neurons_reserved = 0, calls = 0 where day = social._reader_today();
+insert into social.reader_days (user_id, day, messages) values (pg_temp.acct(31)::uuid, social._reader_today() - 1, 1);
+update social.reader_days set messages = 0 where day = social._reader_today();
+update social.requests set result = jsonb_set(jsonb_set(result, '{pending,day}', to_jsonb((social._reader_today() - 1)::text)), '{pending,lease_until}', '"2026-11-19T00:00:00Z"')
+where actor = pg_temp.acct(31)::uuid and request_id = pg_temp.req(1)::uuid;
+select is(pg_temp.books(), '{}'::text[], 'a call made yesterday, past its lease: the books balance on both days');
+select is(
+  (select array[b ->> 'state', b #>> '{call,reserved}', (b #>> '{call,day}' = social._reader_today()::text)::text]
+   from (select pg_temp.rbegin(31, 1, 'Hello') b) q),
+  array['reserved', '18.3925', 'true'],
+  'the retry reserves anew, on today''s date'
+);
+select is(
+  (select array[(select trim_scale(neurons_reserved)::text from social.ai_days where day = social._reader_today() - 1), (select trim_scale(neurons_used)::text from social.ai_days where day = social._reader_today() - 1),
+                (select trim_scale(neurons)::text from social.reader_days where user_id = pg_temp.acct(31)::uuid and day = social._reader_today() - 1),
+                (select messages::text from social.reader_days where user_id = pg_temp.acct(31)::uuid and day = social._reader_today() - 1),
+                (select trim_scale(neurons_reserved)::text from social.ai_days where day = social._reader_today()), (select trim_scale(neurons_used)::text from social.ai_days where day = social._reader_today()),
+                (select calls::text from social.ai_days where day = social._reader_today()),
+                (select messages::text from social.reader_days where user_id = pg_temp.acct(31)::uuid and day = social._reader_today()),
+                (select trim_scale(neurons)::text from social.reader_days where user_id = pg_temp.acct(31)::uuid and day = social._reader_today())]),
+  array['0', '18.3925', '18.3925', '1', '18.3925', '0', '1', '1', '0'],
+  'yesterday is charged (18.3925 into used and the reader''s day there, its slot taken); today holds the new reservation, call and slot'
+);
+select is(pg_temp.books(), '{}'::text[], 'the books balance on both days after the takeover across the turn of the day');
 
 -- 9. Each kind of failure ---------------------------------------------------------------------------------------------------------
 
