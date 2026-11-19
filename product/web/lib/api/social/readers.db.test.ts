@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { social } from '@hrizzup/api';
 import {
   EMPTY_PROFILE,
@@ -10,6 +10,7 @@ import {
 import { createRouterClient } from '@orpc/server';
 import pg from 'pg';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { newRecordId } from '@/lib/record-id.ts';
 import { resetSocialCache } from '@/lib/social/cache.ts';
 import { localDatabaseOrThrow } from '@/lib/social/local-database.ts';
 
@@ -810,4 +811,136 @@ describe.skipIf(!url)('the profile in the code and in the database', () => {
       ).toEqual(refusedHere);
     }
   }, 180_000);
+});
+
+/**
+ * For You over the real functions (docs/social/r12-design.md, sections 2.4, 4.1 and 4.2): `social.foryou_candidates`'s
+ * own answer through the website's mapper, the build, and the pages, on stories this test seeds (listed, each with a
+ * word of its own that no other story holds, at ranks that differ by less than a match is worth). What
+ * `readers.test.ts` can only assume is proven here: that the hand-written mapper matches what the SQL emits, so a
+ * field the SQL renames or drops is a failure, and that a reader's profile hides, lifts and orders as the code says.
+ */
+describe.skipIf(!url)('For You over the real functions', () => {
+  const letters = (n: number) =>
+    Array.from(randomBytes(n), (b) => 'abcdefghijklmnopqrstuvwxyz'[b % 26]).join('');
+  const minutesAgo = (n: number) => new Date(Date.now() - n * 60_000).toISOString();
+  const seeded: Record<string, unknown>[] = [];
+
+  async function listedStory(title: string, createdMinutesAgo: number): Promise<string> {
+    const id = newRecordId();
+    const record = {
+      format: 'story/1',
+      id,
+      title,
+      summary: `What is happening in ${title}.`,
+      locations: ['mumbai'],
+      categories: ['general'],
+      state: 'live',
+      created_at: minutesAgo(createdMinutesAgo),
+      updated_at: minutesAgo(createdMinutesAgo - 1),
+    };
+    await owner.query('select intake.save_story($1::jsonb)', [JSON.stringify(record)]);
+    await owner.query("select social._list_story($1, true, 'console', null)", [id]);
+    await owner.query('select social._refresh_story($1)', [id]);
+    seeded.push(record);
+    return id;
+  }
+
+  afterAll(async () => {
+    if (!url) return;
+    // Withdraw what this test listed (a story is listed for good), so none of it stays on the slot's board.
+    for (const record of seeded) {
+      await owner.query('select intake.save_story($1::jsonb)', [
+        JSON.stringify({
+          ...record,
+          state: 'withdrawn',
+          withdrawn_reason: 'A story of the reader tests',
+          updated_at: new Date().toISOString(),
+        }),
+      ]);
+      await owner.query('select social._refresh_story($1)', [record.id]);
+    }
+  });
+
+  it('hides what "Less of" matches, lifts what "More of" matches over a newer story, and leaves the empty profile as the board’s Top', async () => {
+    const run = letters(8);
+    const [alpha, bravo, charlie] = [`alpha${run}`, `bravo${run}`, `charlie${run}`];
+    // Newest first by rank: bravo (100 minutes old), alpha (200), charlie (300): 200 minutes apart is a rank gap of
+    // 192,540 at a half-life of 12 hours, well under the 1,386,294 a "More of" match is worth.
+    const bravoId = await listedStory(`Kestrel ${bravo} story`, 100);
+    const alphaId = await listedStory(`Kestrel ${alpha} story`, 200);
+    const charlieId = await listedStory(`Kestrel ${charlie} story`, 300);
+
+    const reader = await newAccount();
+    const { api: mine } = api(reader);
+    await mine.reader.saveProfile({
+      requestId: randomUUID(),
+      body: writeProfile({ more: [charlie], less: [alpha], formats: [] }),
+    });
+    const lifted = await mine.reader.forYou({ limit: 100 });
+    expect(social.storyPage.parse(lifted)).toEqual(lifted);
+    const order = lifted.stories.map((story) => story.id);
+    expect(order, 'Less of hides alpha').not.toContain(alphaId);
+    expect(order, 'the other two are there').toEqual(expect.arrayContaining([bravoId, charlieId]));
+    expect(order.indexOf(charlieId), 'More of lifts charlie over the newer bravo').toBeLessThan(
+      order.indexOf(bravoId),
+    );
+    // The mapper's fields are the board's own: the story's tile as the board answers it.
+    const tile = lifted.stories.find((story) => story.id === bravoId);
+    expect(tile).toMatchObject({
+      title: `Kestrel ${bravo} story`,
+      categories: ['general'],
+      places: ['mumbai'],
+      picture: null,
+      counts: { posts: 0, replies: 0, upvotes: 0, views: 0, uniqueViews: 0, pins: 0 },
+    });
+
+    // The empty profile is the board's Top, and the three are in their ranks' order.
+    const plain = api(await newAccount()).api;
+    const top = (await plain.reader.forYou({ limit: 100 })).stories.map((story) => story.id);
+    expect(top).toEqual(expect.arrayContaining([alphaId, bravoId, charlieId]));
+    expect(top.indexOf(bravoId)).toBeLessThan(top.indexOf(alphaId));
+    expect(top.indexOf(alphaId)).toBeLessThan(top.indexOf(charlieId));
+    const board = (await plain.social.board({ limit: 100 })).stories.map((story) => story.id);
+    expect(top.slice(0, board.length), 'the board’s own first hundred').toEqual(board);
+  });
+
+  it('pages the whole build, two at a time, in the same order as one big page, and refuses a cursor of another build', async () => {
+    const run = letters(8);
+    await listedStory(`Heron ${letters(6)}${run} one`, 30);
+    await listedStory(`Heron ${letters(6)}${run} two`, 40);
+    await listedStory(`Heron ${letters(6)}${run} three`, 50);
+    const reader = await newAccount();
+    const { api: mine } = api(reader);
+    await mine.reader.saveProfile({
+      requestId: randomUUID(),
+      body: writeProfile({ more: ['heron'], less: [], formats: [] }),
+    });
+    const whole = (await mine.reader.forYou({ limit: 100 })).stories.map((story) => story.id);
+    expect(whole.length).toBeGreaterThanOrEqual(3);
+    const walked: string[] = [];
+    let cursor: string | undefined;
+    let first: string | null = null;
+    for (let pages = 0; pages < 200; pages++) {
+      const page = await mine.reader.forYou({ limit: 2, ...(cursor ? { cursor } : {}) });
+      walked.push(...page.stories.map((story) => story.id));
+      first ??= page.next;
+      if (page.next === null) break;
+      cursor = page.next;
+    }
+    expect(walked, 'the pages walk the same order as the whole').toEqual(whole);
+    // A cursor from this reader's build refused for a profile that has changed the order since.
+    await mine.reader.saveProfile({
+      requestId: randomUUID(),
+      body: writeProfile({ more: [], less: ['heron'], formats: [] }),
+    });
+    await expect(mine.reader.forYou({ limit: 2, cursor: first as string })).rejects.toMatchObject({
+      status: 400,
+      message: 'Your For You was rebuilt: start again from the first page',
+    });
+  });
+
+  it('is turned away signed out', async () => {
+    await expect(api(null).api.reader.forYou()).rejects.toMatchObject({ status: 401 });
+  });
 });

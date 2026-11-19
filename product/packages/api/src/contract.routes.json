@@ -1886,8 +1886,7 @@
           "caching": {
             "kind": "personal"
           },
-          "beta": true,
-          "live": false
+          "beta": true
         },
         "route": {
           "method": "GET",

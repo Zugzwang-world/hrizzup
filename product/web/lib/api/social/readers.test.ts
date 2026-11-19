@@ -1,6 +1,7 @@
-import { social } from '@hrizzup/api';
+import { DEFAULT_PAGE, social } from '@hrizzup/api';
 import { social as examples } from '@hrizzup/api/examples';
-import { encodeCursor } from '@hrizzup/social/cursor';
+import { CURSOR_MESSAGE, decodeCursor, encodeCursor } from '@hrizzup/social/cursor';
+import { buildId } from '@hrizzup/social/for-you';
 import {
   EMPTY_PROFILE,
   isCanonical,
@@ -102,11 +103,11 @@ const REPLY_ID = '019a7b10-0000-7000-8000-0000000000c2';
 const OLDER_ID = '019a7b10-0000-7000-8000-0000000000b0';
 const STATE_COPY = `stg:cache:social-reader:v1:${READER}`;
 const FOR_YOU_COPY = `stg:cache:social-foryou:v1:${READER}`;
+const BOARD_TOP_COPY = 'stg:cache:social-board-top:v1';
 const TOKEN = 'test-token-not-a-real-one';
 const ACCOUNT = '0123456789abcdef0123456789abcdef';
 const BODY = 'AI news from the Philippines, mostly timelines and memes, no crypto';
 const MODEL = '@cf/meta/llama-3.2-3b-instruct';
-const noSuchCall = { code: 'NOT_FOUND', status: 404, message: 'No such call' };
 
 const api = (headers: Record<string, string> = {}) => {
   const resHeaders = new Headers();
@@ -1154,9 +1155,311 @@ describe('a 503 that is not the reader agent’s', () => {
   });
 });
 
+// reader.forYou ------------------------------------------------------------------------------------------------
+
+/** A story as `social.foryou_candidates` answers it: the board's tile, its rank and its desk's formats. */
+const storyRow = (
+  n: number,
+  title: string,
+  rank: string,
+  formats: string[] = [],
+  changes: Record<string, unknown> = {},
+) => ({
+  id: `019a7b10-0000-7000-8000-${(0xd000 + n).toString(16).padStart(12, '0')}`,
+  title,
+  summary: 'A summary that holds nothing of interest.',
+  categories: [],
+  places: [],
+  created_at: '2026-11-18T05:00:00.000Z',
+  latest_at: '2026-11-18T06:00:00.000Z',
+  latest_headline: null,
+  counts: { posts: 0, replies: 0, upvotes: 0, views: 0, unique_views: 0, pins: 0 },
+  picture: null,
+  top_rank: rank,
+  formats,
+  ...changes,
+});
+const AI = storyRow(1, 'An AI model tops a leaderboard', '9000000', ['timeline']);
+const CRICKET = storyRow(2, 'The cricket final is tonight', '8000000');
+const CRYPTO = storyRow(3, 'A crypto exchange is hacked', '7000000', ['meme']);
+
+/** The candidates as the database answers them: the board's order, the settings as text, the formats' names. */
+const candidatesRow = (stories: ReturnType<typeof storyRow>[] = [AI, CRICKET, CRYPTO]) => ({
+  as_of: '2026-11-18T08:00:00.000Z',
+  half_life_hours: '12',
+  match_hours: '24',
+  format_hours: '6',
+  formats: [
+    { code: 'timeline', name: 'Timeline' },
+    { code: 'meme', name: 'Meme' },
+  ],
+  stories,
+});
+
+/** The reader's state with a saved profile (More of cricket, Less of crypto), its number 3 unless told. */
+const readerWith = (profile: string, number = 3) =>
+  stateRow({ profile, profile_number: number, holds_something: profile !== '' });
+const LIKES_CRICKET = profileWith(['cricket'], ['crypto']);
+
+/** The database as For You asks it: the candidates, and the reader's state. */
+function forYouDatabase(
+  state: ReturnType<typeof stateRow> = readerWith(LIKES_CRICKET),
+  stories?: ReturnType<typeof storyRow>[],
+) {
+  answer = ({ text }) => {
+    if (text.includes('foryou_candidates')) return candidatesRow(stories);
+    if (text.includes('reader_state')) return state;
+    return {};
+  };
+}
+const forYouCopy = () =>
+  stored.get(FOR_YOU_COPY) as
+    | { id: string; ids: string[]; profileNumber: number; builtAt: string }
+    | undefined;
+const REBUILT = 'Your For You was rebuilt: start again from the first page';
+const rebuilt = {
+  code: 'BAD_REQUEST',
+  status: 400,
+  message: REBUILT,
+  data: { issues: [{ path: 'cursor', message: REBUILT }] },
+};
+
 describe('reader.forYou', () => {
-  it('is not built yet: "No such call"', async () => {
-    await expect(api().call.reader.forYou()).rejects.toMatchObject(noSuchCall);
+  it('is the contract’s call: its example page, its rebuilt refusal and its input are what the contract holds', () => {
+    expect(social.storyPage.parse(examples.readers.forYouPage)).toEqual(
+      examples.readers.forYouPage,
+    );
+    // The example's next is a cursor of For You's own list, as a real build's ID (16 hex) writes it.
+    const next = examples.readers.forYouPage.next as string;
+    expect(decodeCursor('forYou', next)).toEqual({ b: '7f3e9a21c04b5d68', o: 1 });
+    expect(examples.readers.forYouRebuilt).toMatchObject({ defined: true, ...rebuilt });
+  });
+
+  it('builds the first page from the profile and the board’s top 300, keeps the build five minutes, and pages from it', async () => {
+    forYouDatabase();
+    const page = await api().call.reader.forYou({ limit: 1 });
+    // More of cricket lifts the cricket story over the AI one by a match's worth (1,386,294 over a 1,000,000 gap); Less of crypto drops the third.
+    expect(page.stories.map((story) => story.id)).toEqual([CRICKET.id]);
+    const ids = [CRICKET.id, AI.id];
+    const id = buildId(ids);
+    expect(decodeCursor('forYou', page.next as string)).toEqual({ b: id, o: 1 });
+    expect(social.storyPage.parse(page)).toEqual(page);
+    expect(forYouCopy()).toMatchObject({ id, ids, profileNumber: 3 });
+    expect(events).toContain(`redis set ${FOR_YOU_COPY} ex 300`);
+    expect(events).toContain(`redis set ${BOARD_TOP_COPY} ex 60`);
+    // The candidates are shared: nothing personal in their copy or their key.
+    expect(JSON.stringify(stored.get(BOARD_TOP_COPY))).not.toContain(READER);
+    // One trip: the build, the candidates and the state are all asked before anything is kept.
+    expect(events.slice(0, 3)).toEqual([
+      `redis get ${FOR_YOU_COPY}`,
+      `redis get ${BOARD_TOP_COPY}`,
+      `redis get ${STATE_COPY}`,
+    ]);
+    expect(statementsOf('foryou_candidates')).toHaveLength(1);
+    expect(statementsOf('reader_state')).toHaveLength(1);
+
+    // The next page is cut from the kept build: no database trip, and the last page has no next.
+    const second = await api().call.reader.forYou({ cursor: page.next as string, limit: 1 });
+    expect(second.stories.map((story) => story.id)).toEqual([AI.id]);
+    expect(second.next).toBeNull();
+    expect(asked).toHaveLength(2);
+  });
+
+  it('runs the candidates as nobody and the state as the reader, one call of one function each', async () => {
+    forYouDatabase();
+    await api().call.reader.forYou();
+    expect(asked.map((statement) => statement.text).sort()).toEqual([
+      'select social.foryou_candidates() as answer',
+      'select social.reader_state() as answer',
+    ]);
+  });
+
+  it('is the board’s Top for a reader with an empty profile', async () => {
+    forYouDatabase(stateRow());
+    const page = await api().call.reader.forYou();
+    expect(page.stories.map((story) => story.id)).toEqual([AI.id, CRICKET.id, CRYPTO.id]);
+    expect(page.next).toBeNull();
+    expect(forYouCopy()?.profileNumber).toBe(0);
+  });
+
+  it('pages DEFAULT_PAGE stories when no limit is sent, and the next cursor holds the rest', async () => {
+    const many = Array.from({ length: DEFAULT_PAGE + 3 }, (_, n) =>
+      storyRow(n + 1, `Story number ${n + 1}`, String(1_000_000 - n)),
+    );
+    forYouDatabase(stateRow(), many);
+    const page = await api().call.reader.forYou();
+    expect(page.stories).toHaveLength(DEFAULT_PAGE);
+    expect(decodeCursor('forYou', page.next as string).o).toBe(DEFAULT_PAGE);
+    const last = await api().call.reader.forYou({ cursor: page.next as string });
+    expect(last.stories).toHaveLength(3);
+    expect(last.next).toBeNull();
+  });
+
+  it('keeps the copy of a build made from the reader’s profile as it stands, and rebuilds one made from an older profile', async () => {
+    forYouDatabase();
+    const builtAt = '2026-11-18T07:00:00.000Z';
+    // The same profile number: the copy is used as it is, whatever it holds, and nothing is deleted.
+    stored.set(FOR_YOU_COPY, { id: '0123456789abcdef', ids: [AI.id], profileNumber: 3, builtAt });
+    const kept = await api().call.reader.forYou();
+    expect(kept.stories.map((story) => story.id)).toEqual([AI.id]);
+    expect(dels()).toEqual([]);
+    // An older number (a stale copy written back just after a profile change): deleted, then built again.
+    stored.set(FOR_YOU_COPY, { id: '0123456789abcdef', ids: [AI.id], profileNumber: 2, builtAt });
+    const fresh = await api().call.reader.forYou();
+    expect(fresh.stories.map((story) => story.id)).toEqual([CRICKET.id, AI.id]);
+    expect(dels()).toEqual([[FOR_YOU_COPY]]);
+    expect(forYouCopy()).toMatchObject({ ids: [CRICKET.id, AI.id], profileNumber: 3 });
+  });
+
+  it('rebuilds a missing copy on a later page, with the same ID, so the cursor is still good', async () => {
+    forYouDatabase();
+    const first = await api().call.reader.forYou({ limit: 1 });
+    stored.delete(FOR_YOU_COPY);
+    asked.length = 0;
+    const second = await api().call.reader.forYou({ cursor: first.next as string, limit: 1 });
+    expect(second.stories.map((story) => story.id)).toEqual([AI.id]);
+    expect(forYouCopy()?.id).toBe(buildId([CRICKET.id, AI.id]));
+    // A later page needs the state only to rebuild: it asked for it then.
+    expect(statementsOf('reader_state')).toHaveLength(0);
+  });
+
+  it('answers the rebuilt 400, the contract’s example, for a cursor of another build', async () => {
+    forYouDatabase();
+    await api().call.reader.forYou({ limit: 1 });
+    const other = encodeCursor('forYou', { b: 'ffffffffffffffff', o: 1 });
+    await expect(api().call.reader.forYou({ cursor: other, limit: 1 })).rejects.toMatchObject(
+      rebuilt,
+    );
+    // The example says the same, word for word.
+    const { defined: _defined, ...example } = examples.readers.forYouRebuilt as Record<
+      string,
+      unknown
+    >;
+    expect(example).toEqual(rebuilt);
+  });
+
+  it('answers the rebuilt 400 when the profile changed the order since the cursor was made', async () => {
+    forYouDatabase();
+    const first = await api().call.reader.forYou({ limit: 1 });
+    // The reader saved a profile that hides the cricket story: a save deletes the build and the state's copy, and the new order isn't the cursor's.
+    stored.delete(FOR_YOU_COPY);
+    stored.delete(STATE_COPY);
+    forYouDatabase(readerWith(profileWith([], ['cricket']), 4));
+    await expect(
+      api().call.reader.forYou({ cursor: first.next as string, limit: 1 }),
+    ).rejects.toMatchObject(rebuilt);
+  });
+
+  it('answers the usual cursor 400 for an offset past the end of the build, and an empty page at the end', async () => {
+    forYouDatabase();
+    const first = await api().call.reader.forYou();
+    expect(first.next).toBeNull();
+    const id = buildId([CRICKET.id, AI.id]);
+    const past = encodeCursor('forYou', { b: id, o: 3 });
+    await expect(api().call.reader.forYou({ cursor: past })).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      status: 400,
+      message: CURSOR_MESSAGE,
+      data: { issues: [{ path: 'cursor', message: CURSOR_MESSAGE }] },
+    });
+    // An offset at the end is a page with nothing on it, and no next.
+    const end = await api().call.reader.forYou({ cursor: encodeCursor('forYou', { b: id, o: 2 }) });
+    expect(end).toEqual({ stories: [], next: null });
+  });
+
+  it('refuses a cursor of another list, or one that is no cursor, with the usual 400, before anything is read', async () => {
+    forYouDatabase();
+    for (const cursor of [
+      'not-a-cursor',
+      encodeCursor('time', { t: '2026-11-15T05:00:00.000Z', i: AI.id }),
+    ]) {
+      await expect(api().call.reader.forYou({ cursor })).rejects.toMatchObject({
+        status: 400,
+        message: CURSOR_MESSAGE,
+      });
+    }
     expect(asked).toHaveLength(0);
+    expect(events.filter((event) => event.startsWith('redis'))).toEqual([]);
+  });
+
+  it('skips a story that has left the candidates since the build, and still pages on from the whole build', async () => {
+    forYouDatabase(stateRow());
+    const first = await api().call.reader.forYou({ limit: 1 });
+    expect(first.stories.map((story) => story.id)).toEqual([AI.id]);
+    // The cricket story is withdrawn: the shared copy no longer holds it, the build still does.
+    const copy = stored.get(BOARD_TOP_COPY) as { stories: { tile: { id: string } }[] };
+    copy.stories = copy.stories.filter((candidate) => candidate.tile.id !== CRICKET.id);
+    const second = await api().call.reader.forYou({ cursor: first.next as string, limit: 1 });
+    expect(second.stories).toEqual([]);
+    // The page is short, but the build goes on: the third story's page is still offered.
+    expect(decodeCursor('forYou', second.next as string)).toEqual({ b: forYouCopy()?.id, o: 2 });
+    const third = await api().call.reader.forYou({ cursor: second.next as string, limit: 1 });
+    expect(third.stories.map((story) => story.id)).toEqual([CRYPTO.id]);
+    expect(third.next).toBeNull();
+  });
+
+  it('works with Redis not set up: every call loads and rebuilds, and a cursor still works while nothing changed', async () => {
+    resetSocialCache(null);
+    forYouDatabase();
+    const first = await api().call.reader.forYou({ limit: 1 });
+    expect(first.stories.map((story) => story.id)).toEqual([CRICKET.id]);
+    const second = await api().call.reader.forYou({ cursor: first.next as string, limit: 1 });
+    expect(second.stories.map((story) => story.id)).toEqual([AI.id]);
+    expect(events.filter((event) => event.startsWith('redis'))).toEqual([]);
+    expect(statementsOf('foryou_candidates')).toHaveLength(2);
+  });
+
+  it('works with Redis failing: the database answers, nothing is thrown, and a cursor still works', async () => {
+    forYouDatabase();
+    redis.get.mockRejectedValue(new Error('Redis is down'));
+    redis.set.mockRejectedValue(new Error('Redis is down'));
+    redis.del.mockRejectedValue(new Error('Redis is down'));
+    try {
+      const first = await api().call.reader.forYou({ limit: 1 });
+      const second = await api().call.reader.forYou({ cursor: first.next as string, limit: 1 });
+      expect(first.stories.map((story) => story.id)).toEqual([CRICKET.id]);
+      expect(second.stories.map((story) => story.id)).toEqual([AI.id]);
+    } finally {
+      redis.get.mockReset();
+      redis.set.mockReset();
+      redis.del.mockReset();
+    }
+  });
+
+  it('is the reader’s own: another reader’s build is another key, and nobody’s copy is read for a key', async () => {
+    forYouDatabase();
+    await api().call.reader.forYou();
+    expect([...stored.keys()].filter((key) => key.includes('social-foryou'))).toEqual([
+      FOR_YOU_COPY,
+    ]);
+    const other = '019a7b10-0000-7000-8000-0000000000a2';
+    signedIn.mockResolvedValue({ id: other });
+    await api().call.reader.forYou();
+    expect(stored.has(`stg:cache:social-foryou:v1:${other}`)).toBe(true);
+  });
+
+  it('is turned away: 401 when nobody is signed in, 403 for a key', async () => {
+    signedIn.mockResolvedValue(null);
+    await expect(api().call.reader.forYou()).rejects.toMatchObject({
+      code: 'UNAUTHORIZED',
+      status: 401,
+    });
+    signedIn.mockResolvedValue({ id: READER });
+    await expect(
+      api({ authorization: `Bearer hz_demo_${'p'.repeat(43)}` }).call.reader.forYou(),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN', status: 403 });
+    expect(asked).toHaveLength(0);
+  });
+
+  it('answers 503 where the database is not set up, and never an AI call: nothing reaches the network', async () => {
+    databaseOff.value = true;
+    await expect(api().call.reader.forYou()).rejects.toMatchObject({
+      code: 'SERVICE_UNAVAILABLE',
+      status: 503,
+    });
+    forYouDatabase();
+    databaseOff.value = false;
+    await api().call.reader.forYou();
+    expect(fetcher).not.toHaveBeenCalled();
   });
 });

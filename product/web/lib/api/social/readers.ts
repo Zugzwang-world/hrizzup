@@ -1,5 +1,7 @@
 import { DEFAULT_PAGE, type social } from '@hrizzup/api';
 import type { Transaction } from '@hrizzup/db';
+import { CURSOR_MESSAGE } from '@hrizzup/social/cursor';
+import { buildForYou, type Candidates } from '@hrizzup/social/for-you';
 import {
   applyEdits,
   EMPTY_PROFILE,
@@ -10,7 +12,7 @@ import {
 import { socialRedis } from '@hrizzup/social/redis';
 import { ORPCError } from '@orpc/server';
 import { badRequest } from '@/lib/api/ground-rules.ts';
-import { asSession } from '@/lib/social/access.ts';
+import { asApp, asSession } from '@/lib/social/access.ts';
 import { forget, redisPrefix, remember } from '@/lib/social/cache.ts';
 import { sessionOf, waitHeader } from '@/lib/social/callers.ts';
 import { faultOf, type OwnMap } from '@/lib/social/errors.ts';
@@ -20,14 +22,14 @@ import { type Failure, READER_WORDS } from '@/lib/social/reader-ai/failures.ts';
 import { type ProviderAnswer, readerAi } from '@/lib/social/reader-ai/index.ts';
 import { buildPrompt, type HistoryMessage } from '@/lib/social/reader-ai/prompt.ts';
 import { answerOf } from '@/lib/social/shape.ts';
+import { type StoryTileRow, storyTileOf } from '@/lib/social/stories.ts';
 import { api } from '../base.ts';
-import { notBuilt } from './not-built.ts';
 
 /**
  * The reader agent: the reading profile, the chat and the allowance (R12; docs/social/r12-design.md, section
- * 3.8): this area's handlers, one for each of its calls in `social/readers.ts` of the contract. `reader.get`,
- * `saveProfile` and the chat's two calls are live; `reader.forYou` (M3) is not built yet. R12 edits no other
- * area's file.
+ * 3.8 and 4.2): this area's handlers, one for each of its calls in `social/readers.ts` of the contract.
+ * `reader.get`, `saveProfile`, the chat's two calls and `reader.forYou` (M3) are live. R12 edits no other area's
+ * file.
  *
  * - **Every call is the signed-in reader's own** (`sessionOf`: never a key, 403), through `asSession`, and
  *   answers a refusal of the database as the shared map does, after R12's own (`readerRefusals`).
@@ -41,6 +43,8 @@ import { notBuilt } from './not-built.ts';
  *   token counts, the form and the time, and nothing of the reader's.
  * - **Redis** (names from `socialRedis`): the reader's state copy (60 seconds at most, never past 00:00 UTC) is
  *   deleted by every save, send, refusal and failure of that reader; For You's copy by a profile change.
+ * - **For You is plain code** (`@hrizzup/social/for-you`): the board's top 300 as one shared copy a minute (nothing
+ *   personal), a build of the reader's ranked story IDs for five minutes, and a page cut from the build.
  */
 
 /** A message as `social._reader_message_view` answers it. */
@@ -449,6 +453,124 @@ async function sendMessage(
   }
 }
 
+// ---------------------------------------------------------------------------------------------
+// reader.forYou: the shared candidates, the reader's build, a page cut from it
+// ---------------------------------------------------------------------------------------------
+
+/** What `social.foryou_candidates` answers: the board's top 300 as tiles, each with its rank and its desk's formats. */
+type CandidatesRow = {
+  as_of: string;
+  half_life_hours: string;
+  match_hours: string;
+  format_hours: string;
+  formats: { code: string; name: string }[];
+  stories: (StoryTileRow & { top_rank: string; formats: string[] })[];
+};
+
+/**
+ * The candidates as kept in Redis (`cache:social-board-top:v1`) and as For You ranks them: the tiles already mapped
+ * (so a page needs no second read), each with its rank and desk's formats, and the formats' names by code.
+ */
+type CandidateCopy = Candidates<social.StoryTile> & { asOf: string };
+
+/** A reader's build as kept in Redis (`cache:social-foryou:v1:<user>`): its ID, the ranked IDs, and the profile it was built from. */
+type ForYouBuild = { id: string; ids: string[]; profileNumber: number; builtAt: string };
+
+/** The board's top 300 from the database, mapped once. */
+async function loadCandidates(): Promise<CandidateCopy> {
+  const row = await asApp(
+    async (tx) =>
+      answerOf(
+        (await tx.query('select social.foryou_candidates() as answer', [])).rows,
+      ) as CandidatesRow,
+  );
+  return {
+    asOf: row.as_of,
+    halfLifeHours: row.half_life_hours,
+    matchHours: row.match_hours,
+    formatHours: row.format_hours,
+    formats: Object.fromEntries(row.formats.map((format) => [format.code, format.name])),
+    stories: row.stories.map((story) => ({
+      tile: storyTileOf(story),
+      rank: story.top_rank,
+      formats: story.formats,
+    })),
+  };
+}
+
+/** What a For You cursor from another build says (the contract's own example). */
+const REBUILT = 'Your For You was rebuilt: start again from the first page';
+
+/**
+ * One page of the reader's For You (docs/social/r12-design.md, section 4.2). The three copies are asked for
+ * together, in one trip: the reader's build (read only), the shared candidates (loaded when missing) and, on a first
+ * page, the reader's state (for the profile and its number). With Redis down or not set up each is loaded from the
+ * database and the build is made on the spot; its ID depends only on the order, so a cursor still works while
+ * nothing has changed.
+ */
+async function forYouPage(
+  userId: string,
+  cursor: string | null | undefined,
+  take: number,
+): Promise<social.StoryPage> {
+  const at = cursorFrom('forYou', cursor);
+  const prefix = redisPrefix();
+  const buildKey = prefix === null ? null : socialRedis.forYou.key(prefix, lower(userId));
+  const [saved, candidates, firstState] = await Promise.all([
+    buildKey === null ? null : remember<ForYouBuild | null>(buildKey, 300, async () => null),
+    prefix === null
+      ? loadCandidates()
+      : remember(socialRedis.boardTop.key(prefix), socialRedis.boardTop.seconds, loadCandidates),
+    at === null ? stateFor(userId) : null,
+  ]);
+
+  /** Makes the build from the reader's profile as it stands, keeps it, and answers what is kept (a build another call kept at the same moment is as good). */
+  const rebuild = async (state: StateRow, stale: boolean): Promise<ForYouBuild> => {
+    if (buildKey !== null && stale) await forget([buildKey]);
+    const made = buildForYou(readProfile(profileText(state.profile)), candidates);
+    const fresh: ForYouBuild = {
+      ...made,
+      profileNumber: state.profile_number,
+      builtAt: new Date().toISOString(),
+    };
+    return buildKey === null
+      ? fresh
+      : remember(buildKey, socialRedis.forYou.seconds, async () => fresh);
+  };
+
+  let build: ForYouBuild;
+  if (at === null) {
+    // A first page: the copy, unless it is missing or was made from an older profile than the reader's now.
+    const state = firstState as StateRow;
+    build =
+      saved !== null && saved.profileNumber === state.profile_number
+        ? saved
+        : await rebuild(state, saved !== null);
+  } else {
+    // A later page: a missing copy is rebuilt (the same order gives the same ID, so the cursor can still be good).
+    build = saved ?? (await rebuild(await stateFor(userId), false));
+    if (build.id !== at.b) {
+      throw badRequest(REBUILT, [{ path: 'cursor', message: REBUILT }]);
+    }
+    if (at.o > build.ids.length) {
+      throw badRequest(CURSOR_MESSAGE, [{ path: 'cursor', message: CURSOR_MESSAGE }]);
+    }
+  }
+
+  const from = at?.o ?? 0;
+  const tiles = new Map(
+    candidates.stories.map((candidate) => [candidate.tile.id.toLowerCase(), candidate.tile]),
+  );
+  const stories = build.ids.slice(from, from + take).flatMap((id) => {
+    // A story withdrawn, or no longer in the top 300, since the build is skipped: a page may be short.
+    const tile = tiles.get(id);
+    return tile === undefined ? [] : [tile];
+  });
+  // Measured against the whole build, never the page, so a page shortened by skipped stories still pages on.
+  const next = from + take < build.ids.length ? { b: build.id, o: from + take } : null;
+  return { stories, next: nextFrom('forYou', next) };
+}
+
 export const readersRoutes = {
   reader: {
     /**
@@ -523,6 +645,14 @@ export const readersRoutes = {
       }),
     },
 
-    forYou: api.reader.forYou.handler(notBuilt),
+    /**
+     * The reader's For You: one page of their build, which plain code makes from their profile and the board's top
+     * 300 (no AI). The first page rebuilds when the copy is missing or was made from an older profile; a later
+     * page whose cursor names another build answers 400 "start again from the first page".
+     */
+    forYou: api.reader.forYou.handler(async ({ input, context }) => {
+      const user = await sessionOf(context.headers);
+      return forYouPage(user.id, input?.cursor, input?.limit ?? DEFAULT_PAGE);
+    }),
   },
 };
