@@ -374,6 +374,12 @@ const FILLED: Record<string, string[]> = {
   'reader.saveProfile': ['usage.pausedUntil'],
 };
 
+/** The times an example holds itself, because the call always answers them (a reader's `usage.resetsAt`): never filled. */
+const HELD: Record<string, string[]> = {
+  'reader.get': ['usage.resetsAt'],
+  'reader.saveProfile': ['usage.resetsAt'],
+};
+
 function withTimesFilled(answer: unknown, paths: readonly string[]): unknown {
   const copy = structuredClone(answer) as Record<string, unknown>;
   for (const path of paths) {
@@ -925,12 +931,18 @@ describe('social is printed like the rest', () => {
     );
   });
 
-  it('fills, in the four examples that hold none, exactly the times the call can answer', () => {
+  it('fills, in the four examples that leave a time null, exactly the times the call can answer and the example does not hold', () => {
     for (const [name, paths] of Object.entries(FILLED)) {
       const call = calls.find(([called]) => called === name)?.[1] as Call;
-      expect([...timePlan(outputOf(call)).paths].sort(), name).toEqual([...paths].sort());
+      const held = HELD[name] ?? [];
+      expect([...timePlan(outputOf(call)).paths].sort(), name).toEqual([...paths, ...held].sort());
       const example = callExamples[name]?.output;
-      expect(timesIn(outputOf(call), example), `${name}'s own example holds no time`).toEqual([]);
+      expect(
+        timesIn(outputOf(call), example)
+          .map((time) => time.path)
+          .sort(),
+        `${name}'s own example holds only its own times`,
+      ).toEqual([...held].sort());
     }
   });
 
