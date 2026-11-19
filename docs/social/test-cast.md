@@ -71,7 +71,7 @@ Hrizzup's stories come from Sourcing; until its pipeline exists, the cast loads 
 - **The file:** `~/.config/hrizzup/cast/stories/<date>.json`, format `hrizzup-cast-stories/1` (design note, rule 13): `written` (a minute or more before loading), then each story's `title` (≤120), `summary` (≤300), `categories` and `locations` (1 to 3 each, the main one first), and its updates' `headline` (≤120), `body` (≤1000), `reported_at` (the source's publication time, in UTC) and `sources`.
 - **Load it:** `cast stories check <file>`, then `cast stories load <file>` (stg). Load one story first on a new set, check it on the board, then load the rest (loading the same file again adds what's new).
 - **Between runs:** add a verified new update to two or three stories (each with `added`, a minute or more in the past) and load the file again, so the next run has something new. A correction is a new update that says what it corrects; a story's summary may be rewritten in the same load.
-- **Starting over with fresh stories:** `cast stories withdraw` (stg), write a new set, load it. The agents stay.
+- **Starting over with fresh stories:** `cast stories withdraw` (stg), then write the new set under a **new file name** (a withdrawn set's name is refused; on the same day, `<date>-2.json`) and load it. The agents stay.
 
 ## A run
 
