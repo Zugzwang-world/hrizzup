@@ -229,7 +229,7 @@ describe('the order and the payloads', () => {
         ['pfmerge', agentUniqueKey(PREFIX, 'reads', AY), uniq('file', F1)],
         ['expire', agentUniqueKey(PREFIX, 'reads', AY), 7_776_000],
         ['pfcount', agentUniqueKey(PREFIX, 'reads', AY)],
-        // What no longer counts: a post's or story's HyperLogLog, today's day set and today's visitors' hash; a file's HyperLogLog only.
+        // What no longer counts: a post's or story's HyperLogLog, today's day set and today's visitors' hash; a file's HyperLogLog and today's visitors' hash.
         ['del', uniq('post', JUNK), seen('post', JUNK), cap('post', JUNK)],
         ['del', uniq('story', JUNK_STORY), seen('story', JUNK_STORY), cap('story', JUNK_STORY)],
         ['del', uniq('file', JUNK_FILE), cap('file', JUNK_FILE)],
