@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { transaction } from '@hrizzup/db';
+import { TAKE_SCRIPT } from '@hrizzup/social/views';
 import { createRouterClient } from '@orpc/server';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -9,6 +10,7 @@ import { localDatabaseOrThrow } from '@/lib/social/local-database.ts';
 import { purgePlan } from '@/lib/social/purge.ts';
 import { framed } from './budget.ts';
 import { runMinute, STEPS } from './minute.ts';
+import { takeAndApply } from './tally.ts';
 import { jobDeps, type Step, type StepAnswer, type StepName } from './types.ts';
 
 /**
@@ -491,8 +493,8 @@ describe.skipIf(!url)('the three steps over the real functions', () => {
     }
   });
 
-  it('through the door, for the jobs not built yet: 404, as an address the site does not have', async () => {
-    for (const job of ['counts', 'skills']) {
+  it('through the door, for the job not built yet (skills): 404, as an address the site does not have', async () => {
+    for (const job of ['skills']) {
       const response = await POST(
         new Request(`https://staging.hrizzup.com/api/jobs/social?job=${job}`, {
           method: 'POST',
@@ -503,5 +505,212 @@ describe.skipIf(!url)('the three steps over the real functions', () => {
       expect(response.status, job).toBe(404);
       expect(await response.json()).toMatchObject({ code: 'NOT_FOUND', message: 'No such call' });
     }
+  });
+});
+
+/** The `counts` lease row, as it stands. */
+async function countsLease() {
+  const { rows } = await owner.query(
+    "select run, lease_until, last_ok_started_at, last_summary from social.job_runs where job = 'counts'",
+  );
+  return rows[0] as {
+    run: string | null;
+    lease_until: Date | null;
+    last_ok_started_at: Date | null;
+    last_summary: Record<string, unknown> | null;
+  };
+}
+
+describe.skipIf(!url)('the counts door, Redis off (R11)', () => {
+  const countsDoor = (body: unknown) =>
+    POST(
+      new Request('https://staging.hrizzup.com/api/jobs/social?job=counts', {
+        method: 'POST',
+        headers: { authorization: `Bearer ${SECRET}` },
+        body: JSON.stringify(body),
+      }),
+    );
+
+  it('recounts and purges this run’s own story, post and agent, closes its own lease and leaves the minute’s alone', async () => {
+    const post = seeded.postIds[0] ?? '';
+    const minuteBefore = await lease();
+    const countsBefore = await countsLease();
+    await owner.query(
+      "update social.job_runs set run = null, lease_until = null where job = 'counts'",
+    );
+    held.invalidated.length = 0;
+    try {
+      const response = await countsDoor({ posts: [post], stories: [seeded.story], files: [] });
+      expect(response.status).toBe(200);
+      expect(response.headers.get('cache-control')).toBe('private, no-store');
+      const body = (await response.json()) as {
+        ran: boolean;
+        ok: boolean;
+        ids: { stories: string[]; posts: string[]; agents: string[] };
+      };
+      expect(body).toMatchObject({ ran: true, ok: true });
+      expect(body.ids.posts).toContain(post);
+      expect(body.ids.stories).toContain(seeded.story);
+      expect(body.ids.agents).toContain(seeded.agentId);
+
+      // The purge cleared the post, its story and desk, and its agent.
+      const tags = held.invalidated.flat();
+      expect(tags).toEqual(
+        expect.arrayContaining([
+          `social:post:${post}`,
+          `social:story:${seeded.story}`,
+          `social:desk:${seeded.story}`,
+          `social:agent:${seeded.agentId}`,
+        ]),
+      );
+
+      // The `counts` lease is closed, with a summary of counts only (no Redis: nothing was taken).
+      const closed = await countsLease();
+      expect(closed.run).toBeNull();
+      expect(closed.lease_until).toBeNull();
+      expect(closed.last_summary).toEqual({ taken: 0 });
+      expect(closed.last_ok_started_at).not.toBeNull();
+      // The minute row is exactly as it was.
+      expect(await lease()).toEqual(minuteBefore);
+    } finally {
+      await owner.query(
+        "update social.job_runs set run = $1, lease_until = $2, last_ok_started_at = $3, last_summary = $4 where job = 'counts'",
+        [
+          countsBefore.run,
+          countsBefore.lease_until,
+          countsBefore.last_ok_started_at,
+          countsBefore.last_summary,
+        ],
+      );
+    }
+  });
+
+  it('applies a take through the real functions: the totals rise, the agent’s with them, the unique counts are held at the totals, and made-up IDs are dropped', async () => {
+    const [first, second] = seeded.postIds;
+    if (!first || !second) throw new Error('The run seeded two posts');
+    const totals = async () => {
+      const posts = await owner.query(
+        'select id, views_total::int as total, views_unique::int as uniq from social.posts where id = any ($1::uuid[])',
+        [[first, second]],
+      );
+      const story = await owner.query(
+        'select views_total::int as total from social.stories where story_id = $1',
+        [seeded.story],
+      );
+      const agent = await owner.query(
+        'select views_total::int as total, views_unique::int as uniq from social.agents where id = $1',
+        [seeded.agentId],
+      );
+      return {
+        posts: Object.fromEntries(posts.rows.map((row) => [row.id, row])) as Record<
+          string,
+          { total: number; uniq: number }
+        >,
+        story: story.rows[0] as { total: number },
+        agent: agent.rows[0] as { total: number; uniq: number },
+      };
+    };
+    const before = await totals();
+    const junk = randomUUID();
+    // Redis stood in for: the take gives these fields, and every HyperLogLog counts 1 000 (more than any total here).
+    const redis = {
+      createScript: (script: string) => ({
+        exec: async () => {
+          if (script !== TAKE_SCRIPT) throw new Error('only the take runs here');
+          return [
+            `post:${first}`,
+            '3',
+            `post:${second}`,
+            '2',
+            `story:${seeded.story}`,
+            '4',
+            `post:${junk}`,
+            '9',
+            'file:not-an-id',
+            '1',
+          ];
+        },
+      }),
+      multi: () => {
+        const queued: string[] = [];
+        const record = (name: string) => () => {
+          queued.push(name);
+          return pipeline;
+        };
+        const pipeline = {
+          pfcount: record('pfcount'),
+          pfmerge: record('pfmerge'),
+          expire: record('expire'),
+          del: record('del'),
+          exec: async () => queued.map((name) => (name === 'pfcount' ? 1000 : 'OK')),
+        };
+        return pipeline;
+      },
+    };
+    const deps = jobDeps();
+    if (!deps) throw new Error('The database is not set up');
+    const answer = await takeAndApply(
+      { run: framed(deps.run), cache: { redis: redis as never, prefix: 'stg' } },
+      null,
+    );
+    expect(answer.ids.posts.sort()).toEqual([first, second].sort());
+    expect(answer.ids.stories).toContain(seeded.story);
+    expect(answer.ids.agents).toEqual([seeded.agentId]);
+    expect(answer.summary).toMatchObject({
+      taken: 4,
+      dropped: 2,
+      counted: { posts: 2, stories: 1, files: 0 },
+      agents: 1,
+      uniques: true,
+    });
+    const after = await totals();
+    expect(after.posts[first]?.total).toBe((before.posts[first]?.total ?? 0) + 3);
+    expect(after.posts[second]?.total).toBe((before.posts[second]?.total ?? 0) + 2);
+    // A HyperLogLog's 1 000 is held at the post's own total.
+    expect(after.posts[first]?.uniq).toBe(after.posts[first]?.total);
+    expect(after.story.total).toBe(before.story.total + 4);
+    expect(after.agent.total).toBe(before.agent.total + 5);
+    expect(after.agent.uniq).toBeLessThanOrEqual(after.agent.total);
+  });
+
+  it('answers 200 busy while another run holds the `counts` lease, and does nothing', async () => {
+    const countsBefore = await countsLease();
+    await owner.query(
+      "update social.job_runs set run = gen_random_uuid(), lease_until = now() + interval '1 minute' where job = 'counts'",
+    );
+    held.invalidated.length = 0;
+    try {
+      const response = await countsDoor({ posts: [], stories: [seeded.story], files: [] });
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ ran: false, busy: true });
+      expect(held.invalidated).toEqual([]);
+      expect((await countsLease()).run).not.toBeNull();
+    } finally {
+      await owner.query(
+        "update social.job_runs set run = $1, lease_until = $2, last_ok_started_at = $3, last_summary = $4 where job = 'counts'",
+        [
+          countsBefore.run,
+          countsBefore.lease_until,
+          countsBefore.last_ok_started_at,
+          countsBefore.last_summary,
+        ],
+      );
+    }
+  });
+
+  it('answers an ID it does not know as nothing recounted: 200, no IDs, no purge', async () => {
+    held.invalidated.length = 0;
+    const response = await countsDoor({
+      posts: [randomUUID()],
+      stories: [randomUUID()],
+      files: [randomUUID()],
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      ran: true,
+      ok: true,
+      ids: { stories: [], posts: [], agents: [] },
+    });
+    expect(held.invalidated).toEqual([]);
   });
 });

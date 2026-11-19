@@ -20,6 +20,7 @@ import {
   takenOf,
   UNIQUE_SECONDS,
   utcDay,
+  VISITOR_DAILY_CAP,
   viewTokens,
 } from './views.ts';
 
@@ -237,6 +238,7 @@ describe('a note’s call', () => {
       '7776000',
       tokens.member,
       tokens.element,
+      '0',
       `post:${POST}`,
       'once',
       `story:${STORY}`,
@@ -247,14 +249,14 @@ describe('a note’s call', () => {
   });
 
   it('matches the script’s own index arithmetic, item by item', () => {
-    // Item i's day set is KEYS[1 + 2i], its HyperLogLog KEYS[2 + 2i], its field ARGV[6 + 2i], its mode ARGV[7 + 2i]
-    // (the script's indexes start at 1).
+    // With no visitor, item i's day set is KEYS[1 + 2i], its HyperLogLog KEYS[2 + 2i], its field ARGV[7 + 2i] and
+    // its mode ARGV[8 + 2i] (the script's indexes start at 1).
     items.forEach((item, n) => {
       const i = n + 1;
       expect(call.keys[1 + 2 * i - 1]).toContain(`:seen:v1:20261119:${item.kind}:${item.id}`);
       expect(call.keys[2 + 2 * i - 1]).toContain(`:uniq:v1:${item.kind}:${item.id}`);
-      expect(call.args[6 + 2 * i - 1]).toBe(fieldOf(item.kind, item.id));
-      expect(call.args[7 + 2 * i - 1]).toBe(item.kind === 'file' ? 'every' : 'once');
+      expect(call.args[7 + 2 * i - 1]).toBe(fieldOf(item.kind, item.id));
+      expect(call.args[8 + 2 * i - 1]).toBe(item.kind === 'file' ? 'every' : 'once');
     });
     expect((call.keys.length - 2) / 2).toBe(items.length);
   });
@@ -279,6 +281,133 @@ describe('a note’s call', () => {
     expect(() => noteCall('stg', { requestId: 'nope', items }, tokens, NOON, 'c')).toThrow(
       TypeError,
     );
+  });
+});
+
+describe('the cap per address', () => {
+  const VISITOR = 'visitor-aaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+  const items = [
+    { kind: 'post' as const, id: POST },
+    { kind: 'story' as const, id: STORY },
+    { kind: 'file' as const, id: FILE },
+  ];
+
+  it('is 20 views of one item, from one address, in one UTC day', () => {
+    expect(VISITOR_DAILY_CAP).toBe(20);
+  });
+
+  it('names its counter by the HMAC of the visitor and the day, keyed like the day tokens', () => {
+    const tokens = viewTokens(SECRET, DEVICE, NOON, VISITOR);
+    expect(tokens.visitor).toBe(hmac(`social-view-visitor\n20261119\n${VISITOR}`));
+    expect(tokens.visitor).toMatch(/^[0-9a-f]{32}$/);
+    // The same visitor and day give the same token; another day, another visitor or another secret do not.
+    expect(viewTokens(SECRET, 'bbbbbbbbbbbbbbbbbbbbbb', NOON, VISITOR).visitor).toBe(
+      tokens.visitor,
+    );
+    expect(viewTokens(SECRET, DEVICE, new Date('2026-11-19T01:00:00.000Z'), VISITOR).visitor).toBe(
+      tokens.visitor,
+    );
+    expect(
+      viewTokens(SECRET, DEVICE, new Date('2026-11-20T12:00:00.000Z'), VISITOR).visitor,
+    ).not.toBe(tokens.visitor);
+    expect(
+      viewTokens(SECRET, DEVICE, NOON, 'visitor-bbbbbbbbbbbbbbbbbbbbbbbbbbbb').visitor,
+    ).not.toBe(tokens.visitor);
+    expect(viewTokens('another-secret-for-the-tests-aaaa', DEVICE, NOON, VISITOR).visitor).not.toBe(
+      tokens.visitor,
+    );
+    // It never equals the device's tokens.
+    expect([tokens.member, tokens.element.slice(2)]).not.toContain(tokens.visitor);
+  });
+
+  it('is plain SHA-256 of the same text with no secret, and none at all with no visitor', () => {
+    expect(viewTokens(undefined, DEVICE, NOON, VISITOR).visitor).toBe(
+      sha(`social-view-visitor\n20261119\n${VISITOR}`),
+    );
+    for (const none of [null, '', undefined]) {
+      expect(viewTokens(SECRET, DEVICE, NOON, none as never).visitor).toBeNull();
+    }
+    expect(viewTokens(SECRET, DEVICE, NOON).visitor).toBeNull();
+  });
+
+  it('gives each item a third key, the visitor’s counter for it, and the cap as an argument', () => {
+    const tokens = viewTokens(SECRET, DEVICE, NOON, VISITOR);
+    const call = noteCall('stg', { requestId: REQUEST, items }, tokens, NOON, 'c'.repeat(32));
+    const token = tokens.visitor as string;
+    expect(call.keys).toHaveLength(2 + 3 * items.length);
+    expect(call.keys.slice(2)).toEqual([
+      `stg:seen:v1:20261119:post:${POST}`,
+      `stg:uniq:v1:post:${POST}`,
+      `stg:vcap:v1:20261119:post-${POST}:${token}`,
+      `stg:seen:v1:20261119:story:${STORY}`,
+      `stg:uniq:v1:story:${STORY}`,
+      `stg:vcap:v1:20261119:story-${STORY}:${token}`,
+      `stg:seen:v1:20261119:file:${FILE}`,
+      `stg:uniq:v1:file:${FILE}`,
+      `stg:vcap:v1:20261119:file-${FILE}:${token}`,
+    ]);
+    expect(call.args.slice(0, 8)).toEqual([
+      'c'.repeat(32),
+      '3600',
+      '86400',
+      String(seenUntil(NOON)),
+      '7776000',
+      tokens.member,
+      tokens.element,
+      '20',
+    ]);
+    // With a visitor, item i's keys are KEYS[3i], KEYS[3i + 1] and KEYS[3i + 2]; its field and mode are as before.
+    items.forEach((item, n) => {
+      const i = n + 1;
+      expect(call.keys[3 * i - 1]).toContain(`:seen:v1:20261119:${item.kind}:${item.id}`);
+      expect(call.keys[3 * i]).toContain(`:uniq:v1:${item.kind}:${item.id}`);
+      expect(call.keys[3 * i + 1]).toBe(
+        socialRedis.visitorCap.key('stg', '20261119', item.kind, item.id, token),
+      );
+      expect(call.args[7 + 2 * i - 1]).toBe(fieldOf(item.kind, item.id));
+      expect(call.args[8 + 2 * i - 1]).toBe(item.kind === 'file' ? 'every' : 'once');
+    });
+    expect((call.keys.length - 2) / 3).toBe(items.length);
+  });
+
+  it('gives a note with no visitor the keys it has always had, and no cap (0)', () => {
+    const tokens = viewTokens(SECRET, DEVICE, NOON, null);
+    const call = noteCall('stg', { requestId: REQUEST, items }, tokens, NOON, 'c'.repeat(32));
+    expect(call.keys).toHaveLength(2 + 2 * items.length);
+    expect(call.keys.some((key) => key.includes(':vcap:'))).toBe(false);
+    expect(call.args[7]).toBe('0');
+  });
+
+  it('keeps neither the visitor nor the device in any key or argument', () => {
+    const call = noteCall(
+      'stg',
+      { requestId: REQUEST, items },
+      viewTokens(SECRET, DEVICE, NOON, VISITOR),
+      NOON,
+      'c'.repeat(32),
+    );
+    const everything = JSON.stringify(call);
+    expect(everything).not.toContain(VISITOR);
+    expect(everything).not.toContain(DEVICE);
+  });
+
+  it('is in the script: a counter below the cap is read before the device is added, and the counter ends with the day’s set', () => {
+    // The script checks the counter first, then adds the device, bumps the counter and gives it the day set's expiry.
+    const order = [
+      "redis.call('SISMEMBER', seen, ARGV[6])",
+      "redis.call('GET', KEYS[at + 3])",
+      "redis.call('SADD', seen, ARGV[6])",
+      "redis.call('EXPIREAT', seen, ARGV[4])",
+      "redis.call('INCR', KEYS[at + 3])",
+      "redis.call('EXPIREAT', KEYS[at + 3], ARGV[4])",
+      "redis.call('HINCRBY', KEYS[2], field, 1)",
+      "redis.call('PFADD', uniq, ARGV[7])",
+    ].map((call) => NOTE_SCRIPT.indexOf(call));
+    for (const found of order) expect(found).toBeGreaterThan(-1);
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+    // A file ('every') never reaches the cap: only 'once' items are checked.
+    expect(NOTE_SCRIPT).toContain("if mode == 'once' then");
+    expect(NOTE_SCRIPT).toContain('if cap > 0 then stride = 3 end');
   });
 });
 
@@ -379,6 +508,8 @@ describe('the scripts', () => {
     'SET',
     'EX',
     'SADD',
+    'SISMEMBER',
+    'INCR',
     'EXPIREAT',
     'HINCRBY',
     'PFADD',
@@ -403,7 +534,7 @@ describe('the scripts', () => {
         expect(call[2], `${call[1]} ${call[2]}`).toMatch(/^(KEYS\[[^\]]+\]|seen|uniq)$/);
       }
     }
-    expect(NOTE_SCRIPT).toContain('local seen, uniq = KEYS[1 + 2 * i], KEYS[2 + 2 * i]');
+    expect(NOTE_SCRIPT).toContain('local seen, uniq = KEYS[at + 1], KEYS[at + 2]');
   });
 
   it('do not name a prefix, a purpose or a version', () => {

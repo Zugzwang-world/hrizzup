@@ -12,8 +12,9 @@ import { notBuilt } from './not-built.ts';
  *
  * - **The view note** is a background POST of a page, `private, no-store`, that never touches the database: at most
  *   30 notes a minute from one address (L5, on staging and, from launch, production), then one Redis script
- *   (`lib/social/counting.ts`). A retry (the same request ID with the same note) answers `{counted: 0}`; the
- *   same ID with another note is 409 `request_reused`. Where Redis is down or late it answers `{counted: 0}`:
+ *   (`lib/social/counting.ts`), which also caps one address's views of one item at 20 a UTC day, by the visitor
+ *   (R6's HMAC of the address, which only goes into a hash: no address is ever passed on). A retry (the same
+ *   request ID with the same note) answers `{counted: 0}`; the same ID with another note is 409 `request_reused`. Where Redis is down or late it answers `{counted: 0}`:
  *   counting is never the reason a page fails.
  */
 
@@ -29,14 +30,15 @@ function requestReused(): ORPCError<'CONFLICT', { reason: 'request_reused' }> {
 export const signalsRoutes = {
   social: {
     views: api.social.views.handler(async ({ input, context }) => {
+      const visitor = visitorOf(context.headers);
       enforce(
         'view-note',
-        await allowVisitor('view-note', visitorOf(context.headers), 'count'),
+        await allowVisitor('view-note', visitor, 'count'),
         'Too many view notes from this address: try again in a minute',
         context.resHeaders,
       );
       try {
-        return { counted: await countViews(input, { address: null }) };
+        return { counted: await countViews(input, { address: null, visitor }) };
       } catch (error) {
         if (error instanceof NoteReused) throw requestReused();
         throw error;

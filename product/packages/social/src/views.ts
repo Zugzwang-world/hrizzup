@@ -12,6 +12,10 @@ import { idOrThrow } from './uuid.ts';
  * - **A view keeps nothing about a reader beyond the day's de-duplication.** The device's ID never reaches
  *   Redis: the day's set holds a *day token* (an HMAC of the device and the UTC day, which can't be linked
  *   to another day's), and an item's HyperLogLog (which keeps no members) takes a *device token*.
+ * - **One address can't make up devices to add views:** a device ID is the client's own string, so each item
+ *   also keeps, for each visitor and UTC day, a counter named by a *visitor day token* (an HMAC of R6's
+ *   visitor, itself an HMAC of the address): at 20 the visitor's new devices count nothing more for that item
+ *   that day. The same counter ends with the day's set.
  * - **Every key a script touches is passed in `KEYS`** (Upstash's rule), built by `socialRedis` or
  *   `redisKey`, so it starts with the environment and is written with its expiry in the same script.
  */
@@ -24,6 +28,8 @@ export const NOTE_SECONDS = socialRedis.note.seconds;
 export const PENDING_SECONDS = socialRedis.counts.seconds;
 /** How long a HyperLogLog lives, renewed on every use. */
 export const UNIQUE_SECONDS = socialRedis.unique.seconds;
+/** The most views one address adds to one item in one UTC day, whatever device IDs it makes up (the cap per address). */
+export const VISITOR_DAILY_CAP = 20;
 /** A day's set of tokens lasts until its day ends and this many seconds more (the clock's slack), and no longer. */
 export const SEEN_MARGIN_SECONDS = 600;
 
@@ -32,12 +38,17 @@ const VIEW_KINDS: readonly ViewKind[] = ['post', 'story', 'file'];
 /** One item of a note, with its ID in lower case. */
 export type ViewItem = { kind: ViewKind; id: string };
 
-/** The two tokens a view is kept as (never the device itself). */
+/** The tokens a view is kept as (never the device itself, never the address). */
 export type ViewTokens = {
   /** The day's token: in the item's set of that UTC day, so a device counts once a day. */
   member: string;
   /** The device's token: added to the item's HyperLogLog, which keeps no members. */
   element: string;
+  /**
+   * The visitor's day token, which names the counter that caps one address's views of one item for the day;
+   * null with no visitor (no address, or no secret to tell visitors apart), and then there is no cap.
+   */
+  visitor: string | null;
 };
 
 /** What a script call is made of: its keys and its arguments, in the order the script reads them. */
@@ -46,12 +57,18 @@ export type ScriptCall = { keys: string[]; args: string[] };
 // ---- The scripts ----
 
 /**
- * The note script. `KEYS[1]` is the note's key and `KEYS[2]` the pending hash; then, for item i, `KEYS[1 + 2i]`
- * is its day set (built for a file too, never written for one) and `KEYS[2 + 2i]` its HyperLogLog. `ARGV[1]` is
- * the fingerprint, `ARGV[2]` the note's seconds, `ARGV[3]` the hash's, `ARGV[4]` the day set's `EXPIREAT`
- * second, `ARGV[5]` the HyperLogLog's seconds, `ARGV[6]` the day token and `ARGV[7]` the device token; then, for
- * item i, `ARGV[6 + 2i]` is its field (`post:<id>`) and `ARGV[7 + 2i]` its mode, `once` (a post or story: once a
- * device a day) or `every` (a file: at every note). Answers `{'replay'|'reused'|'counted', counted}`.
+ * The note script. `KEYS[1]` is the note's key and `KEYS[2]` the pending hash; then, for item i, three keys when
+ * the note has a visitor (`KEYS[3i]` its day set, `KEYS[3i + 1]` its HyperLogLog, `KEYS[3i + 2]` the visitor's
+ * counter for it) and two when it has none (`KEYS[2i + 1]`, `KEYS[2i + 2]`). A file's day set and counter are
+ * built too, and never written. `ARGV[1]` is the fingerprint, `ARGV[2]` the note's seconds, `ARGV[3]` the
+ * hash's, `ARGV[4]` the `EXPIREAT` second of the day set and the counter, `ARGV[5]` the HyperLogLog's seconds,
+ * `ARGV[6]` the day token, `ARGV[7]` the device token and `ARGV[8]` the most views an address adds to one item
+ * in a day (0 with no visitor: no cap); then, for item i, `ARGV[7 + 2i]` is its field (`post:<id>`) and
+ * `ARGV[8 + 2i]` its mode, `once` (a post or story: once a device a day) or `every` (a file: at every note).
+ *
+ * A device that is new to an item's day set is counted only while the visitor's counter for the item is below
+ * the cap; at the cap the item counts 0 for this note: no day-set entry, no counter, no increment, no
+ * HyperLogLog. Answers `{'replay'|'reused'|'counted', counted}`.
  */
 export const NOTE_SCRIPT = `
 local held = redis.call('GET', KEYS[1])
@@ -60,14 +77,32 @@ if held then
   return {'reused', 0}
 end
 redis.call('SET', KEYS[1], ARGV[1], 'EX', ARGV[2])
+local cap = tonumber(ARGV[8])
+local stride = 2
+if cap > 0 then stride = 3 end
 local counted = 0
-for i = 1, (#KEYS - 2) / 2 do
-  local seen, uniq = KEYS[1 + 2 * i], KEYS[2 + 2 * i]
-  local field, mode = ARGV[6 + 2 * i], ARGV[7 + 2 * i]
+for i = 1, (#KEYS - 2) / stride do
+  local at = 2 + stride * (i - 1)
+  local seen, uniq = KEYS[at + 1], KEYS[at + 2]
+  local field, mode = ARGV[7 + 2 * i], ARGV[8 + 2 * i]
   local fresh = 1
   if mode == 'once' then
-    fresh = redis.call('SADD', seen, ARGV[6])
-    redis.call('EXPIREAT', seen, ARGV[4])
+    fresh = 0
+    if redis.call('SISMEMBER', seen, ARGV[6]) == 0 then
+      local capped = false
+      if cap > 0 then
+        capped = (tonumber(redis.call('GET', KEYS[at + 3])) or 0) >= cap
+      end
+      if not capped then
+        redis.call('SADD', seen, ARGV[6])
+        redis.call('EXPIREAT', seen, ARGV[4])
+        if cap > 0 then
+          redis.call('INCR', KEYS[at + 3])
+          redis.call('EXPIREAT', KEYS[at + 3], ARGV[4])
+        end
+        fresh = 1
+      end
+    end
   end
   if fresh == 1 then
     redis.call('HINCRBY', KEYS[2], field, 1)
@@ -151,14 +186,23 @@ function digestOf(secret: string | undefined, text: string): string {
 
 /**
  * The tokens of a view (decision 2): `member` is the HMAC of `social-view-day\n<yyyymmdd>\n<device>` (the
- * day's set: two days' tokens can't be linked) and `element` is `d:` and the HMAC of
+ * day's set: two days' tokens can't be linked), `element` is `d:` and the HMAC of
  * `social-view-device\n<device>` (the HyperLogLog's element: the same across days, so a returning
- * device is one unique reader).
+ * device is one unique reader), and `visitor` is the HMAC of `social-view-visitor\n<yyyymmdd>\n<visitor>`, the
+ * name of the counter that caps one address's views of one item for the day (null with no `visitor`: no cap).
+ * `visitor` is R6's `visitorOf(headers)`, itself an HMAC of the address; it only goes into the hash.
  */
-export function viewTokens(secret: string | undefined, device: string, at: Date): ViewTokens {
+export function viewTokens(
+  secret: string | undefined,
+  device: string,
+  at: Date,
+  visitor: string | null = null,
+): ViewTokens {
+  const day = utcDay(at);
   return {
-    member: digestOf(secret, `social-view-day\n${utcDay(at)}\n${device}`),
+    member: digestOf(secret, `social-view-day\n${day}\n${device}`),
     element: `d:${digestOf(secret, `social-view-device\n${device}`)}`,
+    visitor: visitor ? digestOf(secret, `social-view-visitor\n${day}\n${visitor}`) : null,
   };
 }
 
@@ -188,8 +232,10 @@ export function fingerprintOf(element: string, items: readonly ViewItem[]): stri
 
 /**
  * The note script's keys and arguments (see `NOTE_SCRIPT` for their order). Every name is `socialRedis`'s,
- * under the environment's prefix; the request ID is written in lower case; a file's day set is built but
- * never written. The device is never among them, only its tokens.
+ * under the environment's prefix; the request ID is written in lower case; a file's day set and counter are
+ * built but never written. With a visitor in the tokens each item has a third key, the visitor's counter for it,
+ * and the cap is an argument; with none the keys are the two an item has always had and the cap is 0. The device
+ * and the visitor are never among them, only their tokens.
  */
 export function noteCall(
   prefix: string,
@@ -211,12 +257,16 @@ export function noteCall(
     String(UNIQUE_SECONDS),
     tokens.member,
     tokens.element,
+    String(tokens.visitor === null ? 0 : VISITOR_DAILY_CAP),
   ];
   for (const item of note.items) {
     keys.push(
       socialRedis.seen.key(prefix, day, item.kind, item.id),
       socialRedis.unique.key(prefix, item.kind, item.id),
     );
+    if (tokens.visitor !== null) {
+      keys.push(socialRedis.visitorCap.key(prefix, day, item.kind, item.id, tokens.visitor));
+    }
     args.push(fieldOf(item.kind, item.id), item.kind === 'file' ? 'every' : 'once');
   }
   return { keys, args };

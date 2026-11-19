@@ -126,17 +126,23 @@ export async function countFileRead(read: FileRead): Promise<void> {
 }
 
 /**
- * A page's view note: each item once a device a day (a file's note counts every note), and a note whose
- * request ID was seen in the last hour dropped whole. Answers how many items it counted. `from` is accepted
- * and never used: views count by device, and the address never reaches Redis.
+ * Who a note comes from, as far as counting needs it. `visitor` is R6's visitor (`visitorOf`: an HMAC of the
+ * address, never the address): it only goes into a hash that names the counter capping one address's views of
+ * one item for the day, so a client that makes up a device ID for every note can't add more than 20 views to an
+ * item a day. With none (no address, or no secret to tell visitors apart: off staging and production) there is no
+ * cap. `address` is accepted and never used: the address never reaches Redis.
+ */
+export type ViewFrom = { address: string | null; visitor?: string | null };
+
+/**
+ * A page's view note: each item once a device a day (a file's note counts every note), at most 20 a day an
+ * address for each item, and a note whose request ID was seen in the last hour dropped whole. Answers how many
+ * items it counted. Views count by device and by visitor; the address never reaches Redis.
  *
  * The same request ID with the same note answers 0 (a retry); with another note it throws `NoteReused`.
  * Where Redis is down, late or not set up, it answers 0.
  */
-export async function countViews(
-  note: social.ViewNote,
-  _from: { address: string | null },
-): Promise<number> {
+export async function countViews(note: social.ViewNote, from: ViewFrom): Promise<number> {
   const cache = socialCache();
   if (!cache) return 0;
   // Lower-case every ID and keep the first of each kind and ID: a note never counts an item twice.
@@ -150,7 +156,7 @@ export async function countViews(
     items.push({ kind: item.kind, id });
   }
   const at = new Date();
-  const tokens = viewTokens(secretOf(), note.device, at);
+  const tokens = viewTokens(secretOf(), note.device, at, from.visitor ?? null);
   const call = noteCall(
     cache.prefix,
     { requestId: note.requestId, items },

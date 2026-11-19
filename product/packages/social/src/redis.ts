@@ -111,6 +111,28 @@ export const socialRedis = {
     key: (prefix: string, utcDay: string, kind: ViewKind, id: string) =>
       redisKey(prefix, 'seen', 'v1', day(utcDay), viewKind(kind), idOrThrow(id, 'An item ID')),
   },
+  /**
+   * How many views one address has added to one item on a UTC day (the cap per address, per item, per day): a
+   * counter named by the address's *visitor day token* (32 hex characters, an HMAC of the visitor and the day,
+   * so no address and no visitor is in a name and two days' counters can't be linked). It ends with the day's
+   * set of device tokens.
+   */
+  visitorCap: {
+    seconds: 36 * HOUR,
+    key: (prefix: string, utcDay: string, kind: ViewKind, id: string, visitorDayToken: string) => {
+      if (!/^[0-9a-f]{32}$/.test(visitorDayToken)) {
+        throw new TypeError("A visitor's day token is 32 hex characters");
+      }
+      return redisKey(
+        prefix,
+        'vcap',
+        'v1',
+        day(utcDay),
+        `${viewKind(kind)}-${idOrThrow(id, 'An item ID')}`,
+        visitorDayToken,
+      );
+    },
+  },
   /** An item's unique readers (a HyperLogLog), renewed each time it is used. */
   unique: {
     seconds: 90 * DAY,

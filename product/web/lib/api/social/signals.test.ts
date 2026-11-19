@@ -82,7 +82,7 @@ describe('the view note', () => {
     const { call } = api();
     await expect(call.social.views(NOTE)).resolves.toEqual({ counted: 2 });
     expect(countViews).toHaveBeenCalledTimes(1);
-    expect(countViews).toHaveBeenCalledWith(NOTE, { address: null });
+    expect(countViews).toHaveBeenCalledWith(NOTE, { address: null, visitor: 'visitor-one' });
     expect(query).not.toHaveBeenCalled();
   });
 
@@ -102,6 +102,17 @@ describe('the view note', () => {
     visitorOf.mockImplementation(() => null);
     await api().call.social.views(NOTE);
     expect(allowVisitor).toHaveBeenLastCalledWith('view-note', null, 'count');
+  });
+
+  it('gives counting the visitor, for the cap per address, and never the address itself', async () => {
+    visitorOf.mockImplementation(() => 'visitor-two');
+    await api({ 'x-forwarded-for': '198.51.100.7' }).call.social.views(NOTE);
+    expect(countViews).toHaveBeenLastCalledWith(NOTE, { address: null, visitor: 'visitor-two' });
+    expect(JSON.stringify(countViews.mock.calls)).not.toContain('198.51.100.7');
+    // With no visitor (no address, or no secret) counting gets none, and so has no cap.
+    visitorOf.mockImplementation(() => null);
+    await api().call.social.views(NOTE);
+    expect(countViews).toHaveBeenLastCalledWith(NOTE, { address: null, visitor: null });
   });
 
   it('is 409 request_reused, in the words the API’s other writes use, when the ID was used for another note', async () => {

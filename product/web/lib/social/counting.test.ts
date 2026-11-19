@@ -113,7 +113,7 @@ describe('a view note', () => {
       { address: null },
     );
     expect(counted).toBe(1);
-    const fields = redis.ran[0]?.args.slice(7).filter((_, n) => n % 2 === 0);
+    const fields = redis.ran[0]?.args.slice(8).filter((_, n) => n % 2 === 0);
     expect(fields).toEqual([`post:${POST}`, `story:${STORY}`, `file:${FILE}`]);
   });
 
@@ -157,6 +157,53 @@ describe('a view note', () => {
     await countViews(note([{ kind: 'post', id: POST }]), { address: null });
     expect(without.ran[0]?.args[5]).toBe(viewTokens(undefined, DEVICE, NOW).member);
     expect(without.ran[0]?.args[5]).not.toBe(withSecret.ran[0]?.args[5]);
+  });
+
+  it('names the counter that caps an address by the visitor’s day token, and keeps neither the visitor nor the address', async () => {
+    const VISITOR = 'visitor-aaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+    const redis = standIn();
+    use(redis.client);
+    const items = [
+      { kind: 'post' as const, id: POST },
+      { kind: 'file' as const, id: FILE },
+    ];
+    await countViews(note(items), { address: '198.51.100.7', visitor: VISITOR });
+    const tokens = viewTokens(SECRET, DEVICE, NOW, VISITOR);
+    expect(redis.ran[0]).toEqual({
+      script: NOTE_SCRIPT,
+      ...noteCall(
+        'stg',
+        { requestId: REQUEST, items },
+        tokens,
+        NOW,
+        fingerprintOf(tokens.element, items),
+      ),
+    });
+    // Three keys an item, and the cap as an argument.
+    expect(redis.ran[0]?.keys).toHaveLength(2 + 3 * items.length);
+    expect(redis.ran[0]?.keys[4]).toBe(
+      socialRedis.visitorCap.key('stg', '20261119', 'post', POST, tokens.visitor as string),
+    );
+    expect(redis.ran[0]?.args[7]).toBe('20');
+    const everything = JSON.stringify(redis.ran);
+    expect(everything).not.toContain(VISITOR);
+    expect(everything).not.toContain('198.51.100.7');
+    expect(everything).not.toContain(DEVICE);
+  });
+
+  it('has no cap for a note with no visitor: the keys an item has always had, and a cap of 0', async () => {
+    const redis = standIn();
+    use(redis.client);
+    for (const from of [{ address: null }, { address: null, visitor: null }]) {
+      redis.ran.length = 0;
+      await countViews(
+        note([{ kind: 'post', id: POST }], '01a1e7ff-0000-7a1b-9c2d-3e4f5a6b7c8f'),
+        from,
+      );
+      expect(redis.ran[0]?.keys).toHaveLength(4);
+      expect(redis.ran[0]?.keys.some((key) => key.includes(':vcap:'))).toBe(false);
+      expect(redis.ran[0]?.args[7]).toBe('0');
+    }
   });
 
   it('answers what the script counted, 0 for a retry, and refuses a reused request ID', async () => {
