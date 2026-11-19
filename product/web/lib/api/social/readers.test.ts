@@ -1212,19 +1212,43 @@ describe('reader.chat.send', () => {
       });
     });
 
-    it('reads nothing when no operation names More of or Less of', async () => {
+    it('moves a format the model did put under Formats too, when the profile holds it under More of', async () => {
       fetcher.mockResolvedValueOnce(
         cloudflare({
           response: {
-            reply: 'Done: timelines.',
+            reply: 'Done: mostly timelines.',
             edits: [{ op: 'add', list: 'formats', item: 'timelines' }],
           },
         }),
       );
-      database({ begin: reserved() });
+      keepFormats();
+      database({
+        begin: reserved({ profile: { body: profileWith(['AI', 'timelines']), number: 7 } }),
+      });
       await send().run();
       expect(settledWith()).toMatchObject({
-        profile: { body: profileWith([], [], ['timelines']) },
+        profile: { base_number: 7, body: profileWith(['AI'], [], ['timelines']) },
+      });
+      expect(events.filter((event) => event === `redis get ${BOARD_TOP_COPY}`)).toHaveLength(1);
+    });
+
+    it('reads nothing when every operation is a remove from Formats, which is read as it is', async () => {
+      fetcher.mockResolvedValueOnce(
+        cloudflare({
+          response: {
+            reply: 'Done: no more timelines.',
+            edits: [{ op: 'remove', list: 'formats', item: 'timelines' }],
+          },
+        }),
+      );
+      database({
+        begin: reserved({
+          profile: { body: profileWith(['timelines'], [], ['timelines']), number: 2 },
+        }),
+      });
+      await send().run();
+      expect(settledWith()).toMatchObject({
+        profile: { base_number: 2, body: profileWith(['timelines']) },
       });
       expect(events.filter((event) => event.includes(BOARD_TOP_COPY))).toEqual([]);
       expect(statementsOf('foryou_candidates')).toHaveLength(0);

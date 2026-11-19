@@ -115,8 +115,8 @@ An answered call is always settled, never failed. That includes a 200 whose `res
   - an **add to More of** whose item is a format is an add to Formats, the item as the reader wrote it;
   - an **add to Less of** whose item is a format is a remove from Formats, and is never added to Less of (a format a reader doesn't want is not lifted; it never hides a story, decision 15);
   - a **remove** from More of or Less of also removes the item from Formats;
-  - **a format word never stays under More of or Less of:** each of the three also takes that format, in any spelling, out of both, so a profile that already holds "timelines" under More of has it moved to Formats, not duplicated (an add that is dropped, as one to a full Formats list is, moves nothing);
-  - an operation naming Formats, and any item that isn't a format, are as the model gave them; with no names (the candidates can't be read) nothing is rerouted, and the send never fails for it.
+  - **a format word never stays under More of or Less of:** each of the three, and an **add to Formats** of a format word (the one case where the model named Formats), also takes that format, in any spelling, out of both, so a profile that already holds "timelines" under More of has it moved to Formats, not duplicated (an add that is dropped, as one to a full Formats list is, moves nothing);
+  - a **remove** from Formats, and any item that isn't a format, are as the model gave them; with no names (the candidates can't be read) nothing is rerouted or moved, and the send never fails for it.
 
 **12. JSON is asked for in the prompt only; JSON mode stays off.**
 - **Why:** Cloudflare's JSON mode list doesn't include `llama-3.2-3b-instruct`, and the model is a console setting. A `response_format` a model doesn't take could fail every call.
@@ -484,12 +484,13 @@ After the lines:
 - **`add`:** `cleanItem`, then the item rules. An item that is already in that list, compared case-insensitively, is a no-op. Adding to `more` removes the same item from `less`, and the other way round, so an item is never in both after the agent's edit. A full list (20) drops the operation.
 - **`remove`:** removes the case-insensitive match from that list; an item that isn't there is a no-op.
 - **What it answers:** `{profile, applied, dropped}`. When `writeProfile(profile)` passes 2,000 characters, the old profile stays and every operation counts as dropped.
-- **The formats' names** (`options.formatNames`, optional; decision 11): when given, an operation on `more` or `less` whose item is a format is rerouted before the rules above run. An item is a format when its `words` are one name's `words`, the same number in the same order, each the name's word or that word with a final `s` or `es` (`holds`): so "timelines", "Memes" and "audio briefs" are formats, and "AI", "brief" and "memes and timelines" are not.
+- **The formats' names** (`options.formatNames`, optional; decision 11): when given, an operation on `more` or `less`, or an add to `formats`, whose item is a format is read as follows, before the rules above run. An item is a format when its `words` are one name's `words`, the same number in the same order, each the name's word or that word with a final `s` or `es` (`holds`): so "timelines", "Memes" and "audio briefs" are formats, and "AI", "brief" and "memes and timelines" are not.
   - **add to `more`:** an add to `formats`, the item as the reader wrote it, and the same format (in any spelling) taken out of `more` and `less`. An add of a format already in `formats` (under another spelling: "Meme" for "memes") only clears `more` and `less`; a full list drops it, as it does any add, and then moves nothing.
+  - **add to `formats`:** a format word added there is read as the add to `more` above: the same format (in any spelling) taken out of `more` and `less`, the add a no-op if `formats` already holds it, dropped (and nothing moved) if the list is full or the item is refused.
   - **add to `less`:** a remove of every item that is the same format from `formats`, `more` and `less`; never added to `less`. A format that isn't anywhere is a no-op, not dropped.
   - **remove from `more` or `less`:** the same remove, from all three lists.
   - Each is applied once if it changed the profile.
-  - An operation naming `formats`, a non-format item, and any call with no names or an empty list are read exactly as above.
+  - A remove from `formats`, a non-format item, and any call with no names or an empty list are read exactly as above.
 
 ### 3.5 Reading the model's answer (`readAnswer`, `cleanReply`)
 
@@ -576,7 +577,7 @@ Everything else is the shared map: HZS27 is a 409 `request_reused`, and 42501 th
       - `refused`: `forget([reader key])`, then a 429 with `retryAfterSeconds` (the `Retry-After` header and the data), `allowance_used` or `daily_cap`. The cap's words: "You've used today's N messages with your reader agent: chat opens again at 05:30 IST, and your feed keeps working";
       - `in_progress`: 409 `clash`, "Your reader agent is still answering this message: try again in a few seconds", with `Retry-After`.
    2. `readerAi(env, begun.ai)`: the stub when the token or the account ID is missing, else Workers AI.
-   3. `buildPrompt`, call the provider, `readAnswer`, then `applyEdits` to `parseProfile(begun.profile.body)`, with the formats' names (decision 11) read once from the shared candidates' copy, only when an operation names More of or Less of, after the provider has answered; if the copy can't be read, with none, and the send goes on.
+   3. `buildPrompt`, call the provider, `readAnswer`, then `applyEdits` to `parseProfile(begun.profile.body)`, with the formats' names (decision 11) read once from the shared candidates' copy, only when an operation could touch a format word (any but a remove from Formats), after the provider has answered; if the copy can't be read, with none, and the send goes on.
    4. **On a failure:** `reader_chat_fail(requestId, body, kind, begun.call.message_id)`, `forget([reader key])`, then the answer from 3.6.
    5. **Otherwise, settle:** `reader_chat_settle(requestId, body, {message_id: begun.call.message_id, provider, prompt_tokens, completion_tokens, answer_form, reply, profile: changed ? {base_number, body: writeProfile(…)} : null})`. On `stale`, apply the same edits to the profile it returned and settle again, three times at most; then settle with `profile: null` and the note (3.5).
    6. **After it commits:** `forget([reader key, …(profile_changed ? [forYou key] : [])])`, then answer `201`.

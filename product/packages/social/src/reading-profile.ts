@@ -341,12 +341,13 @@ function formatOf(item: string, formats: readonly (readonly string[])[]): number
  * - **add to Less of** is a remove from Formats, and is never added to Less of: a format a reader doesn't want is
  *   not lifted, and never hides a story (decision 15);
  * - **remove** from More of or Less of takes the format out of Formats as well;
- * - **a format word never stays under More of or Less of:** each of the three also takes that format, in any
- *   spelling ("Meme" for "memes", by the word rule below), out of More of and Less of, so a profile that already
- *   holds "timelines" under More of has it moved, not duplicated. An add that is dropped (Formats full, an item the
- *   stored form refuses) moves nothing.
+ * - **a format word never stays under More of or Less of:** each of these, and an **add to Formats** of a format
+ *   word (the one case where the model named Formats), also takes that format, in any spelling ("Meme" for "memes",
+ *   by the word rule below), out of More of and Less of, so a profile that already holds "timelines" under More of
+ *   has it moved, not duplicated. An add that is dropped (Formats full, an item the stored form refuses) moves
+ *   nothing.
  * An add to Formats of a format already there under another spelling is a no-op (More of and Less of are still
- * cleared). An operation naming Formats, or an item that isn't a format, is read as it is, and with no
+ * cleared). A **remove from Formats**, and an item that isn't a format, are read as they are, and with no
  * `formatNames` every operation is. What was rerouted is counted as any operation is: applied when it changed the
  * profile, dropped when the add didn't fit, a no-op otherwise.
  */
@@ -369,11 +370,11 @@ export function applyEdits(
     }
     const item = cleanItem(edit.item);
     const key = keyOf(item);
-    // Which format the item is, when the model didn't name Formats (-1: it isn't one).
-    const format = edit.list === 'formats' ? -1 : formatOf(item, formats);
+    // Which format the item is (-1: it isn't one). A remove from Formats is read as it is.
+    const format = edit.list === 'formats' && edit.op === 'remove' ? -1 : formatOf(item, formats);
     if (format >= 0) {
       // A format word never stays under More of or Less of: whatever the model named, the format (in any
-      // spelling) leaves both, and only an add to More of puts it in Formats.
+      // spelling) leaves both, and an add to More of or to Formats puts it in Formats.
       const same = (held: string) => keyOf(held) === key || formatOf(held, formats) === format;
       if (edit.op === 'remove' || edit.list === 'less') {
         // The reader doesn't want this format lifted: out of all three lists, and never added to Less of.

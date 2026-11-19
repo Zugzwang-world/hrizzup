@@ -135,7 +135,7 @@ describe('applyEdits, with the formats’ names: a format word always goes to Fo
     });
   });
 
-  it('is unchanged for an operation naming Formats, and for any item that is not a format', () => {
+  it('reads an operation that names Formats as it is, but for a format word added there, and any item that is not a format', () => {
     const start = profileOf(['AI'], ['crypto'], ['memes']);
     expect(apply(start, [add('formats', 'timelines'), remove('formats', 'memes')])).toEqual({
       profile: profileOf(['AI'], ['crypto'], ['timelines']),
@@ -147,7 +147,7 @@ describe('applyEdits, with the formats’ names: a format word always goes to Fo
     ).toEqual(
       applyEdits(start, [add('more', 'cricket'), add('less', 'golf'), remove('more', 'AI')]),
     );
-    // Naming Formats directly is read as it is, even for an item that is no format name.
+    // Naming Formats directly is read as it is for an item that is no format name, and for a remove.
     expect(apply(start, [add('formats', 'AI')]).profile.formats).toEqual(['memes', 'AI']);
   });
 
@@ -221,8 +221,45 @@ describe('applyEdits, with the formats’ names: a format word always goes to Fo
     });
   });
 
-  it('leaves an operation that names Formats as it is, even over a format held under More of', () => {
-    expect(apply(profileOf(['timelines']), [add('formats', 'timelines')]).profile).toEqual(
+  it('moves a format word added to Formats itself too, as an add to More of does: out of More of and Less of, never copied', () => {
+    // The old behaviour kept "timelines" under More of as well as in Formats.
+    expect(apply(profileOf(['AI', 'timelines']), [add('formats', 'timelines')])).toEqual({
+      profile: profileOf(['AI'], [], ['timelines']),
+      applied: 1,
+      dropped: 0,
+    });
+    // Any spelling, from both lists; the format already in Formats under another spelling is kept as it is.
+    expect(
+      apply(profileOf(['Timeline'], ['timelines'], ['TIMELINES']), [add('formats', 'timeline')]),
+    ).toEqual({ profile: profileOf([], [], ['TIMELINES']), applied: 1, dropped: 0 });
+    // A format already in Formats and nowhere else is a no-op, as ever.
+    expect(apply(profileOf([], [], ['memes']), [add('formats', 'memes')])).toEqual({
+      profile: profileOf([], [], ['memes']),
+      applied: 0,
+      dropped: 0,
+    });
+    // An add that is dropped moves nothing: a full Formats list, or an item the stored form refuses.
+    const full = profileOf(
+      ['timelines'],
+      [],
+      Array.from({ length: 20 }, (_, i) => `format ${i}`),
+    );
+    expect(apply(full, [add('formats', 'timelines')])).toEqual({
+      profile: full,
+      applied: 0,
+      dropped: 1,
+    });
+    expect(
+      apply(profileOf(['timelines']), [add('formats', `timelines${ZWJ}`), add('formats', 'memes')]),
+    ).toEqual({ profile: profileOf(['timelines'], [], ['memes']), applied: 1, dropped: 1 });
+    // A remove naming Formats is read as it is: only that list, only that item.
+    expect(
+      apply(profileOf(['timelines'], ['timelines'], ['timelines']), [
+        remove('formats', 'timelines'),
+      ]).profile,
+    ).toEqual(profileOf(['timelines'], ['timelines']));
+    // With no names, an add to Formats is as it was.
+    expect(applyEdits(profileOf(['timelines']), [add('formats', 'timelines')]).profile).toEqual(
       profileOf(['timelines'], [], ['timelines']),
     );
   });

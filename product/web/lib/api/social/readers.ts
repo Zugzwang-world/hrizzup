@@ -319,21 +319,22 @@ async function endCall(
   }
 }
 
-/** Whether an operation of the model's names More of or Less of: the only ones where a format word is rerouted. */
-const namesMoreOrLess = (edit: unknown): boolean =>
-  typeof edit === 'object' &&
-  edit !== null &&
-  ((edit as { list?: unknown }).list === 'more' || (edit as { list?: unknown }).list === 'less');
+/** Whether an operation of the model's can touch a format word: any but a remove from Formats, which is read as it is. */
+const needsFormatNames = (edit: unknown): boolean => {
+  if (typeof edit !== 'object' || edit === null) return false;
+  const { op, list } = edit as { op?: unknown; list?: unknown };
+  return list === 'more' || list === 'less' || (list === 'formats' && op === 'add');
+};
 
 /**
  * The names of Hrizzup's formats ("Timeline", "Meme", "Audio brief"), which `applyEdits` needs to send a format
  * word to Formats whatever list the model named (decision 11). They come from the shared candidates' copy, the
  * one `reader.forYou` reads (a cold copy is loaded from the database the same way), and only when an operation
- * names More of or Less of. **Never fails the send:** if the copy can't be had, the edits are applied as the
+ * could touch a format word (any but a remove from Formats). **Never fails the send:** if the copy can't be had, the edits are applied as the
  * model gave them (`null`), and one line says so, with nothing in it.
  */
 async function formatNamesFor(edits: readonly unknown[]): Promise<string[] | null> {
-  if (!edits.slice(0, MAX_EDITS).some(namesMoreOrLess)) return null;
+  if (!edits.slice(0, MAX_EDITS).some(needsFormatNames)) return null;
   try {
     const { formats } = await sharedCandidates();
     // What Redis holds is data from outside this function: a record of names by code, or nothing usable.
@@ -350,7 +351,7 @@ async function formatNamesFor(edits: readonly unknown[]): Promise<string[] | nul
  * profile's number it saw. If the profile moved (a hand save, or the other tab's settle) the database answers
  * `stale` with the profile as it stands, and the same operations are applied to that and settled again, up to
  * three times; after that the call settles without a profile change, with the note. The format names are read once,
- * when an operation names More of or Less of (`formatNamesFor`), and the same ones go to every apply.
+ * when an operation could touch a format word (`formatNamesFor`), and the same ones go to every apply.
  */
 async function settleWith(
   userId: string,

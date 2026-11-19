@@ -92,6 +92,16 @@ describe('the stand-in', () => {
     expect(done.profile).toEqual({ more: ['AI'], less: ['crypto'], formats: ['timelines'] });
   });
 
+  it('moves a format the profile holds under More of into Formats, and says it landed there', () => {
+    expect(
+      stubAnswer('timelines', { more: ['AI', 'timelines'], less: [], formats: [] }).reply,
+    ).toBe(`${STUB_LABEL} Formats: timelines`);
+    // Said again with it already in Formats, only the stale copy under More of goes.
+    expect(
+      stubAnswer('timelines', { more: ['timelines'], less: [], formats: ['timelines'] }).reply,
+    ).toBe(`${STUB_LABEL} Removed from More of: timelines`);
+  });
+
   it('reads each kind of clause: less words, remove words, formats and more words', () => {
     expect(stubEdits('no more crypto')).toEqual([{ op: 'add', list: 'less', item: 'crypto' }]);
     expect(
