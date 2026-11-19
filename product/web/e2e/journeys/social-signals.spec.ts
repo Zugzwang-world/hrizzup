@@ -9,6 +9,7 @@ import { call, callWith } from '../support/quiet-request.ts';
 import { newRunTrader, runKey } from '../support/run.ts';
 import { adminState, signedOutState } from '../support/states.ts';
 import { type Engine, stagingKeys } from '../support/test-accounts.ts';
+import { topOrderOf } from '../support/top-rank.ts';
 import { newDevice, openAndWaitForNote } from '../support/view-notes.ts';
 
 /**
@@ -37,9 +38,11 @@ import { newDevice, openAndWaitForNote } from '../support/view-notes.ts';
  *    of it is kept yet) holds `stats` of 2 posts, 3 views, no replies and no upvotes, with a standing equal to A's
  *    profile's (step 7's read); and P1's thread page shows "2 views (2 readers)" in `post-views`, read as D1, which is
  *    already counted for P1 that day, so reading it adds no view.
- * 10. Top on the desk: `GET /social/stories/{S}/posts?sort=top` (an address not read before) lists P1 before P2 when
- *    staging's `topWViews` (read in step 7, never written: settings are shared) is above 0, since P1 has more views, and
- *    P2 first when it is 0 (newer, with no signal).
+ * 10. Top on the desk: `GET /social/stories/{S}/posts?sort=top` (an address not read before) lists P1 and P2 in the order
+ *    the database's own rank gives them, worked out from staging's settings (read in step 7, never written: they are
+ *    shared) and from the two posts' own numbers and times, by `support/top-rank.ts` (the rank formula of build.md, 7.3,
+ *    written once), whatever the weights are: with views worth a real weight P1 (2 views) is first, with views worth
+ *    next to nothing the newer P2 is.
  * 11. The fit: S's desk (the story's tile and both post cards) and P1's thread page fit every width, sideways and at
  *    large text, in both browsers.
  * 12. Clean-up, whatever happened: A's keys are revoked.
@@ -373,6 +376,7 @@ test('views are counted once a device a day, applied by the counts door, and sho
     const listed = stats.body.posts as {
       postId: string;
       storyId: string;
+      createdAt: string;
       views: number;
       uniqueViews: number;
       replies: number;
@@ -423,25 +427,24 @@ test('views are counted once a device a day, applied by the counts door, and sho
       await thread.close();
     }
 
-    // 10. Top on the desk: with views worth something P1 (2 views) is above P2 (1); with none, the newer P2 is first.
+    // 10. Top on the desk, in the order the database's rank gives the two posts under staging's settings (read in step 7).
+    // A's stats hold each post's numbers and time; `topOrderOf` is the rank formula of docs/social/build.md, 7.3 (the
+    // SQL's `social._rank`) and the desk's tie-break, so this holds for any weights, not only "views count" or "don't".
     const top = await call(anyone, 'GET', `/api/v1/social/stories/${storyId}/posts?sort=top`);
     expect(top.status, "the story's desk, Top").toBe(200);
-    const topOrder = (top.body.posts as { id: string }[]).map((card) => card.id);
-    const viewsWeight = Number(settings.body.topWViews);
-    expect(topOrder, 'both posts are on the desk').toEqual(expect.arrayContaining([p1, p2]));
-    if (viewsWeight > 0) {
-      expect(topOrder.indexOf(p1), "Top: P1's two views lift it above P2's one").toBeLessThan(
-        topOrder.indexOf(p2),
-      );
-    } else {
-      expect(
-        topOrder.indexOf(p2),
-        'Top with no weight on views: the newer P2 is first',
-      ).toBeLessThan(topOrder.indexOf(p1));
-    }
+    const deskOrder = (top.body.posts as { id: string }[]).map((card) => card.id);
+    const expectedOrder = topOrderOf(
+      settings.body as unknown as Parameters<typeof topOrderOf>[0],
+      listed.map((item) => ({ ...item, id: item.postId })),
+    );
+    expect(
+      deskOrder.filter((id) => id === p1 || id === p2),
+      "Top lists the two posts as their rank under staging's settings orders them",
+    ).toEqual(expectedOrder);
 
-    // 11. The fit, on S's desk: the story's tile, with its views, and both posts' cards (D1 is counted for S and P1
-    // today; P2's view from this page is of no consequence, nothing is asserted after it).
+    // 11. The fit, on S's desk: the story's tile, with its views, and both posts' cards. D1 opened only P1's thread page,
+    // so it is counted for P1 and not for S or P2 (S's view came from the API device): this page may send D1's own first
+    // views of them. Nothing is asserted about a count after this, and a preview's notes land under `pre:`, never applied.
     const deskPage = await d1.newPage();
     try {
       await deskPage.goto(`/sandbox/social/stories/${storyId}`);

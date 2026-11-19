@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, createHmac } from 'node:crypto';
 import type { social } from '@hrizzup/api';
 import { socialRedis } from '@hrizzup/social/redis';
 import {
@@ -11,7 +11,15 @@ import {
 } from '@hrizzup/social/views';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetSocialCache } from './cache.ts';
-import { countFileRead, countViews, NoteReused, scriptsOf, within } from './counting.ts';
+import {
+  countFileRead,
+  countViews,
+  NoteReused,
+  noteVisitorOf,
+  scriptsOf,
+  within,
+} from './counting.ts';
+import { visitorOf } from './limits.ts';
 
 /**
  * Counting views and file reads (docs/social/r11-design.md, section 3.3): what a note sends to Redis, what it
@@ -487,5 +495,79 @@ describe('a file read', () => {
     await vi.advanceTimersByTimeAsync(2);
     await read;
     expect(done).toBe(true);
+  });
+});
+
+describe('the visitor a note’s limit counts it against', () => {
+  // Made-up values, plainly not secrets.
+  const ENV = { SOCIAL_JOBS_SECRET: SECRET, VERCEL: '1', VERCEL_TARGET_ENV: 'staging' };
+  const idOf = (text: string, secret = SECRET) =>
+    createHmac('sha256', secret).update(`social-visitor\n${text}`).digest('base64url').slice(0, 32);
+
+  it('is, for an IPv4 address, exactly the ID R6’s `visitorOf` makes of it', () => {
+    for (const address of ['203.0.113.7', '198.51.100.20', '192.0.2.1']) {
+      const headers = new Headers({ 'x-real-ip': address });
+      expect(noteVisitorOf(address, ENV)).toBe(visitorOf(headers, ENV));
+      expect(noteVisitorOf(address, ENV)).toBe(idOf(address));
+    }
+    // The format: 32 characters of base64url.
+    expect(noteVisitorOf('203.0.113.7', ENV)).toMatch(/^[A-Za-z0-9_-]{32}$/);
+  });
+
+  it('is one visitor for every address of an IPv6 /64, and another for the next /64 or an IPv4 address', () => {
+    const one = noteVisitorOf('2001:db8:1:2:aaaa:bbbb:cccc:dddd', ENV);
+    expect(noteVisitorOf('2001:db8:1:2:1111:2222:3333:4444', ENV)).toBe(one);
+    expect(noteVisitorOf('2001:0db8:0001:0002::7', ENV)).toBe(one);
+    expect(noteVisitorOf('[2001:db8:1:2::1]', ENV)).toBe(one);
+    expect(one).toBe(idOf('2001:db8:1:2::/64'));
+    expect(noteVisitorOf('2001:db8:1:3:aaaa:bbbb:cccc:dddd', ENV)).not.toBe(one);
+    expect(noteVisitorOf('203.0.113.7', ENV)).not.toBe(one);
+    // R6's own ID for the same IPv6 address is of the whole address: it would change with every address of the block.
+    const headers = (address: string) => new Headers({ 'x-real-ip': address });
+    expect(visitorOf(headers('2001:db8:1:2:aaaa:bbbb:cccc:dddd'), ENV)).not.toBe(
+      visitorOf(headers('2001:db8:1:2:1111:2222:3333:4444'), ENV),
+    );
+  });
+
+  it('counts an IPv4-mapped IPv6 address as the IPv4 address it carries', () => {
+    expect(noteVisitorOf('::ffff:203.0.113.7', ENV)).toBe(noteVisitorOf('203.0.113.7', ENV));
+  });
+
+  it('is none with no secret, as `visitorOf`’s is', () => {
+    for (const none of [undefined, '']) {
+      const env = { ...ENV, SOCIAL_JOBS_SECRET: none };
+      expect(noteVisitorOf('203.0.113.7', env)).toBeNull();
+      expect(noteVisitorOf(null, env)).toBeNull();
+      expect(visitorOf(new Headers({ 'x-real-ip': '203.0.113.7' }), env)).toBeNull();
+    }
+  });
+
+  it('is one shared bucket (`none`) for a note with no address, or one that is not an address, where addresses are expected', () => {
+    for (const where of ['staging', 'production']) {
+      const env = { ...ENV, VERCEL_TARGET_ENV: where };
+      for (const missing of [null, undefined, '', 'not an address', '999.1.1.1']) {
+        expect(noteVisitorOf(missing, env), `${where}: ${String(missing)}`).toBe(idOf('none'));
+      }
+    }
+    // The bucket is not any address's visitor.
+    expect(idOf('none')).not.toBe(noteVisitorOf('203.0.113.7', ENV));
+  });
+
+  it('is none with no address where none is expected (a preview, this Mac)', () => {
+    for (const where of ['preview', undefined]) {
+      const env = {
+        SOCIAL_JOBS_SECRET: SECRET,
+        ...(where ? { VERCEL: '1', VERCEL_TARGET_ENV: where } : {}),
+      };
+      expect(noteVisitorOf(null, env)).toBeNull();
+      // An address is still a visitor there, though no limit counts it.
+      expect(noteVisitorOf('203.0.113.7', env)).toBe(idOf('203.0.113.7'));
+    }
+  });
+
+  it('keeps the address in no value it makes', () => {
+    const id = noteVisitorOf('203.0.113.7', ENV) ?? '';
+    expect(id).not.toContain('203.0.113');
+    expect(noteVisitorOf('2001:db8:1:2::1', ENV)).not.toContain('2001');
   });
 });

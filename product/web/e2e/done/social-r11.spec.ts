@@ -1,7 +1,8 @@
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { expect, test } from '@playwright/test';
 import { KEY_TEXT } from '../../lib/api/credential.ts';
 import { newRecordId } from '../../lib/record-id.ts';
+import { deviceIdOf, ENDPOINT } from '../../lib/social/view-rules.ts';
 import { type NotedAgent, revokeAgentKeys } from '../support/agent-clean-up.ts';
 import { asBrowserCookie } from '../support/bypass.ts';
 import { call, callWith } from '../support/quiet-request.ts';
@@ -30,9 +31,11 @@ import { newDevice, openAndWaitForNote } from '../support/view-notes.ts';
  *    PB is the newer;
  * 4. signed out, on two devices (two fresh browser contexts, D1 and D2, in a window tall enough for the story's tile and
  *    both posts to be on screen together), each opens S's desk page, `/sandbox/social/stories/<S>`, and keeps PA on screen
- *    until its note has gone out and been answered. D1 then opens the desk again. Before any number is asserted, each
- *    note is checked to be about S, PA and PB and to have been answered in the page itself: D1's first note counts 1 or
- *    more, D2's 1 or more, and D1's second visit 0 (a device counts once a UTC day);
+ *    until its note has gone out and been answered. D1 then opens the desk again. Before any number is asserted, one
+ *    throwaway note is sent over the API about a post ID that no post has (it warms the note's function and its script,
+ *    so no real note is late; the minute job drops it as junk), and each note is checked to be about exactly S, PA and
+ *    PB and to have been answered in the page itself: D1's first note counts 3, D2's 3 (each from a fresh device), and
+ *    D1's second visit 0 (a device counts once a UTC day);
  * 5. B upvotes PA, with B's posting key;
  * 6. the wait: every 10 seconds, for up to 4 minutes, until staging's minute job has applied the views. What is read is
  *    A's `GET /api/v1/social/me/stats`, with A's key: a personal call that no edge and no Redis keeps, and never a view.
@@ -279,6 +282,16 @@ test("R11's done-test: two agents post, two devices read, and once staging's min
       { kind: 'post', id: postA },
       { kind: 'post', id: postB },
     ];
+    // Warm-up: a note counts only if Redis answers within 500 ms (a late answer is a wrong number, never an error), so a
+    // cold function or a script not yet in Redis's cache could make the first real note count nothing, silently. One
+    // throwaway note, over the API and about a post ID of the run's own that no post has, warms the note's function and
+    // its script before any number is asserted. Staging's minute job drops it as junk (an unknown post counts nothing).
+    const warmed = await call(anyone, 'POST', ENDPOINT, {
+      requestId: randomUUID(),
+      device: deviceIdOf(new Uint8Array(randomBytes(16))),
+      items: [{ kind: 'post', id: newRecordId() }],
+    });
+    expect(warmed.status, 'a throwaway note over the API').toBe(200);
     const d1 = await newDevice(browser, { baseURL: BASE, viewport: WINDOW });
     devices.push(d1);
     const d2 = await newDevice(browser, { baseURL: BASE, viewport: WINDOW });
@@ -287,19 +300,29 @@ test("R11's done-test: two agents post, two devices read, and once staging's min
     await first.page.close();
     expect(first.status, "D1's note").toBe(200);
     expect(first.answered, "D1's note, as the page saw its answer").toBe(200);
+    // Each note holds exactly the story and both posts: they are on screen together in this window and their one-second
+    // dwells end together, so the page's first flush (10 s after the first is queued) carries all three, never two notes.
+    expect(first.body.items, "D1's note is about exactly the story and both posts").toHaveLength(
+      wanted.length,
+    );
     expect(first.body.items, "D1's note is about the story and both posts").toEqual(
       expect.arrayContaining(wanted),
     );
-    expect(first.answer.counted, "D1's first views count").toBeGreaterThanOrEqual(1);
+    expect(first.answer, "D1's first views, from a fresh device, all count").toEqual({
+      counted: 3,
+    });
     const second = await openAndWaitForNote(d2, deskAddress);
     await second.page.close();
     expect(second.status, "D2's note").toBe(200);
     expect(second.answered, "D2's note, as the page saw its answer").toBe(200);
     expect(second.body.device, 'another browser, another device').not.toBe(first.body.device);
+    expect(second.body.items, "D2's note is about exactly the story and both posts").toHaveLength(
+      wanted.length,
+    );
     expect(second.body.items, "D2's note is about the story and both posts").toEqual(
       expect.arrayContaining(wanted),
     );
-    expect(second.answer.counted, "D2's views count").toBeGreaterThanOrEqual(1);
+    expect(second.answer, "D2's views, from a fresh device, all count").toEqual({ counted: 3 });
     const again = await openAndWaitForNote(d1, deskAddress);
     await again.page.close();
     expect(again.status, "D1's second note").toBe(200);
