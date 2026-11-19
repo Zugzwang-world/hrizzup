@@ -5,6 +5,7 @@ import { buildForYou, type Candidates } from '@hrizzup/social/for-you';
 import {
   applyEdits,
   EMPTY_PROFILE,
+  MAX_EDITS,
   parseProfile,
   type ReadingProfile,
   writeProfile,
@@ -318,11 +319,38 @@ async function endCall(
   }
 }
 
+/** Whether an operation of the model's names More of or Less of: the only ones where a format word is rerouted. */
+const namesMoreOrLess = (edit: unknown): boolean =>
+  typeof edit === 'object' &&
+  edit !== null &&
+  ((edit as { list?: unknown }).list === 'more' || (edit as { list?: unknown }).list === 'less');
+
+/**
+ * The names of Hrizzup's formats ("Timeline", "Meme", "Audio brief"), which `applyEdits` needs to send a format
+ * word to Formats whatever list the model named (decision 11). They come from the shared candidates' copy, the
+ * one `reader.forYou` reads (a cold copy is loaded from the database the same way), and only when an operation
+ * names More of or Less of. **Never fails the send:** if the copy can't be had, the edits are applied as the
+ * model gave them (`null`), and one line says so, with nothing in it.
+ */
+async function formatNamesFor(edits: readonly unknown[]): Promise<string[] | null> {
+  if (!edits.slice(0, MAX_EDITS).some(namesMoreOrLess)) return null;
+  try {
+    const { formats } = await sharedCandidates();
+    // What Redis holds is data from outside this function: a record of names by code, or nothing usable.
+    if (typeof formats !== 'object' || formats === null) throw new TypeError('No formats');
+    return Object.values(formats).filter((name): name is string => typeof name === 'string');
+  } catch {
+    console.error(JSON.stringify({ event: 'reader_format_names_failed' }));
+    return null;
+  }
+}
+
 /**
  * What the model asked, applied and settled: the operations on the profile the model saw, then settled with the
  * profile's number it saw. If the profile moved (a hand save, or the other tab's settle) the database answers
  * `stale` with the profile as it stands, and the same operations are applied to that and settled again, up to
- * three times; after that the call settles without a profile change, with the note.
+ * three times; after that the call settles without a profile change, with the note. The format names are read once,
+ * when an operation names More of or Less of (`formatNamesFor`), and the same ones go to every apply.
  */
 async function settleWith(
   userId: string,
@@ -333,9 +361,11 @@ async function settleWith(
 ): Promise<AnswerRow> {
   let profile: ReadingProfile = readProfile(begun.profile.body);
   let number = begun.profile.number;
+  const formatNames = await formatNamesFor(provided.edits);
+  const options = formatNames === null ? {} : { formatNames };
   for (let reapplied = 0; ; reapplied++) {
     const giveUp = reapplied > MOST_REAPPLIED;
-    const edited = applyEdits(profile, provided.edits);
+    const edited = applyEdits(profile, provided.edits, options);
     const changed = !giveUp && writeProfile(edited.profile) !== writeProfile(profile);
     const reply = cleanReply(provided.reply, {
       applied: giveUp ? 0 : edited.applied,
@@ -498,6 +528,14 @@ async function loadCandidates(): Promise<CandidateCopy> {
   };
 }
 
+/** The shared candidates: the Redis copy a minute, loaded from the database when missing (or when Redis isn't set up). */
+function sharedCandidates(): Promise<CandidateCopy> {
+  const prefix = redisPrefix();
+  return prefix === null
+    ? loadCandidates()
+    : remember(socialRedis.boardTop.key(prefix), socialRedis.boardTop.seconds, loadCandidates);
+}
+
 /** What a For You cursor from another build says (the contract's own example). */
 const REBUILT = 'Your For You was rebuilt: start again from the first page';
 
@@ -518,9 +556,7 @@ async function forYouPage(
   const buildKey = prefix === null ? null : socialRedis.forYou.key(prefix, lower(userId));
   const [saved, candidates, firstState] = await Promise.all([
     buildKey === null ? null : remember<ForYouBuild | null>(buildKey, 300, async () => null),
-    prefix === null
-      ? loadCandidates()
-      : remember(socialRedis.boardTop.key(prefix), socialRedis.boardTop.seconds, loadCandidates),
+    sharedCandidates(),
     at === null ? stateFor(userId) : null,
   ]);
 

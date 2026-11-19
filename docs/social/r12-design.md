@@ -111,6 +111,11 @@ An answered call is always settled, never failed. That includes a 200 whose `res
 - **Why not a rewrite:** 300 output tokens can't hold a 2,000-character profile (500 or more tokens) plus a reply. A rewrite would be cut off into broken JSON, and a 3B model rewriting a list drops items.
 - **Checked in code:** each operation is checked on its own. The final profile must parse and fit 2,000 characters, or the old one stays (7.7's rule).
 - *Rejected:* the full profile (build.md 7.7's `{reply, profile | null}`). The output cap and dropped items make it unreliable.
+- **A format word always goes to Formats** (found on staging with the real model, 19 November 2026): told "AI and crypto news, mostly timelines, no politics", Workers AI's 3B model put "timelines" under More of, not Formats, despite the system prompt. By decision 15 "More of" matches a story's own words and only "Formats" match a desk's formats, so the reader's format preference did nothing. The model's choice of list is not trusted for a format, by plain code (`applyEdits`, section 3.4), with the formats' names from the shared candidates' copy:
+  - an **add to More of** whose item is a format is an add to Formats, the item as the reader wrote it;
+  - an **add to Less of** whose item is a format is a remove from Formats, and is never added to Less of (a format a reader doesn't want is not lifted; it never hides a story, decision 15);
+  - a **remove** from More of or Less of also removes the item from Formats;
+  - an operation naming Formats, and any item that isn't a format, are as the model gave them; with no names (the candidates can't be read) nothing is rerouted, and the send never fails for it.
 
 **12. JSON is asked for in the prompt only; JSON mode stays off.**
 - **Why:** Cloudflare's JSON mode list doesn't include `llama-3.2-3b-instruct`, and the model is a console setting. A `response_format` a model doesn't take could fail every call.
@@ -381,10 +386,11 @@ The tile is R8's own (`_story_tile`, with its picture), so `storyTileOf` maps it
   - `parseProfile(text) → {ok, profile} | {ok: false, issues}`;
   - `writeProfile(profile)`;
   - `cleanItem(text)`;
-  - `applyEdits(profile, edits) → {profile, applied, dropped}`;
+  - `applyEdits(profile, edits, options?) → {profile, applied, dropped}`, with `options.formatNames` (decision 11);
   - `holdsSomething(profile)`;
   - `isCanonical(text)`, the same four checks as SQL's `_reader_profile_ok` (section 2.3), in JS (flag `u`).
-- **`@hrizzup/social/src/for-you.ts`** is server only (`node:crypto`). It holds `words`, `itemWords`, `matches`, `buildForYou` and `buildId`.
+- **`@hrizzup/social/src/words.ts`** has no Node imports. It holds `words`, `itemWords`, `holds` and `matches`: the word rules (section 4.1), which `reading-profile.ts` also reads a format word by (decision 11) and `for-you.ts` re-exports.
+- **`@hrizzup/social/src/for-you.ts`** is server only (`node:crypto`). It holds `buildForYou` and `buildId`, and re-exports `words`, `itemWords` and `matches`.
 - **`W/lib/social/reader-ai/`** is the provider:
   - `index.ts`: `readerAi(env, settings) → Provider`;
   - `workers-ai.ts`;
@@ -472,11 +478,16 @@ After the lines:
 
 **The answer:** at most the first 10 issues, all on path `body`. A missing heading is an empty section.
 
-**`applyEdits(profile, edits)`:**
+**`applyEdits(profile, edits, options?)`:**
 - **Order and count:** at most the first 10 operations, in order.
 - **`add`:** `cleanItem`, then the item rules. An item that is already in that list, compared case-insensitively, is a no-op. Adding to `more` removes the same item from `less`, and the other way round, so an item is never in both after the agent's edit. A full list (20) drops the operation.
 - **`remove`:** removes the case-insensitive match from that list; an item that isn't there is a no-op.
 - **What it answers:** `{profile, applied, dropped}`. When `writeProfile(profile)` passes 2,000 characters, the old profile stays and every operation counts as dropped.
+- **The formats' names** (`options.formatNames`, optional; decision 11): when given, an operation on `more` or `less` whose item is a format is rerouted before the rules above run. An item is a format when its `words` are one name's `words`, the same number in the same order, each the name's word or that word with a final `s` or `es` (`holds`): so "timelines", "Memes" and "audio briefs" are formats, and "AI", "brief" and "memes and timelines" are not.
+  - **add to `more`:** an add to `formats`, the item as the reader wrote it. An add of a format already in `formats` (under another spelling: "Meme" for "memes") is a no-op; a full list drops it, as it does any add.
+  - **add to `less`:** a remove from `formats` of every item that is the same format; never added to `less`. A format that isn't there is a no-op, not dropped.
+  - **remove from `more` or `less`:** removes the item there as before, and the same format from `formats`; applied once if either changed the profile.
+  - An operation naming `formats`, a non-format item, and any call with no names or an empty list are read exactly as above.
 
 ### 3.5 Reading the model's answer (`readAnswer`, `cleanReply`)
 
@@ -563,7 +574,7 @@ Everything else is the shared map: HZS27 is a 409 `request_reused`, and 42501 th
       - `refused`: `forget([reader key])`, then a 429 with `retryAfterSeconds` (the `Retry-After` header and the data), `allowance_used` or `daily_cap`. The cap's words: "You've used today's N messages with your reader agent: chat opens again at 05:30 IST, and your feed keeps working";
       - `in_progress`: 409 `clash`, "Your reader agent is still answering this message: try again in a few seconds", with `Retry-After`.
    2. `readerAi(env, begun.ai)`: the stub when the token or the account ID is missing, else Workers AI.
-   3. `buildPrompt`, call the provider, `readAnswer`, then `applyEdits` to `parseProfile(begun.profile.body)`.
+   3. `buildPrompt`, call the provider, `readAnswer`, then `applyEdits` to `parseProfile(begun.profile.body)`, with the formats' names (decision 11) read once from the shared candidates' copy, only when an operation names More of or Less of, after the provider has answered; if the copy can't be read, with none, and the send goes on.
    4. **On a failure:** `reader_chat_fail(requestId, body, kind, begun.call.message_id)`, `forget([reader key])`, then the answer from 3.6.
    5. **Otherwise, settle:** `reader_chat_settle(requestId, body, {message_id: begun.call.message_id, provider, prompt_tokens, completion_tokens, answer_form, reply, profile: changed ? {base_number, body: writeProfile(…)} : null})`. On `stale`, apply the same edits to the profile it returned and settle again, three times at most; then settle with `profile: null` and the note (3.5).
    6. **After it commits:** `forget([reader key, …(profile_changed ? [forYou key] : [])])`, then answer `201`.
