@@ -36,7 +36,7 @@
 
 - **Your decisions of 19 November 2026,** in PLAN.md step 2.8, TRACKER.md's Round 6 queue and the spec (section 16; section 17, items 21 to 23): R17, R11 and R12 side by side now; R9 and R13 in Wave 2, before R14; one end-to-end test by you after R14 in place of Reviews 1 to 3, your own agent test optional; Phase 2 done only once R17 is. TRACKER's three review rows are cancelled, and Review 4's row is now that test.
 - **Dark mode only** across the whole product (your decision of 18 November 2026), in PLAN.md's design rules.
-- **The Screen check's browser install** has its own time limits (R7's recommendation): 10 minutes for the browsers and for their system libraries, 35 only when the libraries come from Ubuntu's mirrors; a hang on GitHub's machine now fails in minutes and is re-run. No check is looser.
+- **The Screen check's browser install** has its own time limits (R7's recommendation): 10 minutes each for the browsers and their system libraries; a stall on GitHub's side (each of 18 November's was a slow download on a new machine image) now fails in minutes and is re-run. No check is looser.
 
 R8's work (media on the desk, [#193](https://github.com/Zugzwang-world/hrizzup/pull/193) to [#202](https://github.com/Zugzwang-world/hrizzup/pull/202)) is in the status file and `docs/social/media-design.md`.
 

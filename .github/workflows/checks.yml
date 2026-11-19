@@ -300,17 +300,17 @@ jobs:
         if: steps.affected.outputs.website == 'true'
         run: python3 .github/scripts/tools.py key browser-libraries >> "$GITHUB_OUTPUT"
       - name: The browsers' system libraries, from GitHub's cache
-        id: libraries-cache
         if: steps.affected.outputs.website == 'true'
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ steps.libraries-key.outputs.browser_libraries_file }}
           key: ${{ steps.libraries-key.outputs.browser_libraries_key }}
-      # Each install has its own time limit, so a hang on GitHub's machine fails in minutes and is
-      # re-run as an outage instead of holding the part to the job's 40 (R7's finding, 18 November
-      # 2026: part 2 hung here 20 to 37 minutes after its caches restored). Healthy, each takes
-      # seconds. Only the libraries' fallback through Ubuntu's mirrors, when the cache has no set
-      # for this machine image, can take half an hour (R8's #196 and #198), so it keeps 35.
+      # Each install has a 10-minute limit, so a stall on GitHub's side fails in minutes and is
+      # re-run as an outage instead of holding the part to the job's 40. Healthy, each takes
+      # seconds, and the mirrors' fallback about a minute (126 MB at their usual 2.4 MB/s). The three
+      # stalls of 18 November 2026 (#195, #197, #196: 22 to 37 minutes) were all that fallback on a
+      # new machine image the cache had no set for yet, fetching at 58 to 70 kB/s; the Tool cache
+      # workflow saves each new image's set (daily, or at once when started on main by hand).
       - name: Browsers (Chromium and WebKit)
         if: steps.affected.outputs.website == 'true'
         timeout-minutes: 10
@@ -318,7 +318,7 @@ jobs:
         run: python3 ../../.github/scripts/tools.py retry -- pnpm exec playwright install chromium webkit
       - name: The browsers' system libraries
         if: steps.affected.outputs.website == 'true'
-        timeout-minutes: ${{ steps.libraries-cache.outputs.cache-hit == 'true' && 10 || 35 }}
+        timeout-minutes: 10
         working-directory: product/web
         run: python3 ../../.github/scripts/tools.py libraries install || pnpm exec playwright install-deps chromium webkit
 
